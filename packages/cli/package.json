@@ -47,11 +47,18 @@
       "dist/cli.executable.js",
       "node_modules/ink/**/*.js",
       "node_modules/react/**/*.js",
-      "node_modules/commander/**/*.js"
+      "node_modules/commander/**/*.js",
+      "node_modules/.pnpm/**/node_modules/ink/**/*.js",
+      "node_modules/.pnpm/**/node_modules/react/**/*.js",
+      "node_modules/.pnpm/**/node_modules/commander/**/*.js"
     ],
     "assets": [
       "node_modules/ink/**/*",
-      "node_modules/react/**/*"
+      "node_modules/react/**/*",
+      "node_modules/commander/**/*",
+      "node_modules/.pnpm/**/node_modules/ink/**/*",
+      "node_modules/.pnpm/**/node_modules/react/**/*",
+      "node_modules/.pnpm/**/node_modules/commander/**/*"
     ],
     "targets": [
       "node18-macos-x64",

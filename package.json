@@ -18,6 +18,7 @@
     "@semantic-release/git": "^10.0.1",
     "@semantic-release/github": "^10.0.7",
     "@semantic-release/release-notes-generator": "^12.1.0",
+    "conventional-changelog-conventionalcommits": "^7.0.2",
     "semantic-release": "^23.0.8",
     "tsup": "^8.3.0",
     "tsx": "^4.15.7",

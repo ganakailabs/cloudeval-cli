@@ -26,6 +26,9 @@ importers:
       '@types/node':
         specifier: ^20.14.11
         version: 20.19.27
+      conventional-changelog-conventionalcommits:
+        specifier: ^7.0.2
+        version: 7.0.2
       semantic-release:
         specifier: ^23.0.8
         version: 23.1.1(typescript@5.9.3)
@@ -820,6 +823,10 @@ packages:
 
   conventional-changelog-angular@7.0.0:
     resolution: {integrity: sha512-ROjNchA9LgfNMTTFSIWPzebCwOGFdgkEq45EnvvrmSLvCtAw0HSmrCs7/ty+wAeYUZyNay0YMUNYFTRL72PkBQ==}
+    engines: {node: '>=16'}
+
+  conventional-changelog-conventionalcommits@7.0.2:
+    resolution: {integrity: sha512-NKXYmMR/Hr1DevQegFB4MwfM5Vv0m4UIxKZTTYuD98lpTknaZlSRrDOG4X7wIXpGkfsYxZTghUN+Qq+T0YQI7w==}
     engines: {node: '>=16'}
 
   conventional-changelog-writer@7.0.1:
@@ -2960,6 +2967,10 @@ snapshots:
   consola@3.4.2: {}
 
   conventional-changelog-angular@7.0.0:
+    dependencies:
+      compare-func: 2.0.0
+
+  conventional-changelog-conventionalcommits@7.0.2:
     dependencies:
       compare-func: 2.0.0
 

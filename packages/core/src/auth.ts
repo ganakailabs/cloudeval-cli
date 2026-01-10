@@ -158,6 +158,19 @@ export interface Project {
   updated_at?: string;
 }
 
+// Helper to get CLI client headers
+const getCLIHeaders = (token?: string): Record<string, string> => {
+  const headers: Record<string, string> = {
+    "X-Client-Type": "cloudeval-cli",
+    "X-Client-Version": "0.1.0",
+    "Content-Type": "application/json",
+  };
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  return headers;
+};
+
 // Fetch projects for a user (matches frontend: GET /projects/user/{userId})
 export const getProjects = async (
   baseUrl: string,
@@ -172,10 +185,7 @@ export const getProjects = async (
     
     const response = await fetch(`${apiBase}/projects/user/${userId}`, {
       method: "GET",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
+      headers: getCLIHeaders(token),
     });
 
     if (!response.ok) {
@@ -411,10 +421,7 @@ export const checkUserStatus = async (
       : baseUrl.replace(/\/api\/?$/, "") + "/api/v1";
     const response = await fetch(`${apiBase}/user/email`, {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
+      headers: getCLIHeaders(token),
       body: JSON.stringify({ email }),
     });
 
@@ -470,10 +477,7 @@ export const completeOnboarding = async (
       // Use POST /onboard/quick to create user with playground
       const quickOnboardResponse = await fetch(`${apiBase}/onboard/quick`, {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
+        headers: getCLIHeaders(token),
         body: JSON.stringify({
           email,
           full_name: data.name,
@@ -510,10 +514,7 @@ export const completeOnboarding = async (
 
     const response = await fetch(`${apiBase}/users/${userId}`, {
       method: "PATCH",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
+      headers: getCLIHeaders(token),
       body: JSON.stringify({ preferences }),
     });
 

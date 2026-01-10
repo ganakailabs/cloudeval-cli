@@ -106,7 +106,7 @@ export const App: React.FC<AppProps> = ({
   debug = false,
   disableBanner = false,
   disableAnim = false,
-  skipHealthCheck = false,
+  skipHealthCheck = true, // Disable health check by default
 }) => {
   const { exit } = useApp();
   const [phase, setPhase] = useState<"boot" | "ready" | "error">("boot");
@@ -159,7 +159,10 @@ export const App: React.FC<AppProps> = ({
   const checkHealth = useMemo(() => {
     return async (token?: string) => {
       try {
-        const headers: Record<string, string> = {};
+        const headers: Record<string, string> = {
+          "X-Client-Type": "cloudeval-cli",
+          "X-Client-Version": "0.1.0",
+        };
         if (token) {
           headers.Authorization = `Bearer ${token}`;
         }
@@ -301,7 +304,7 @@ export const App: React.FC<AppProps> = ({
         const healthy = await checkHealth(token);
         if (!healthy) {
           setBootError(
-            `Backend health check failed. Is the backend running at ${baseUrl}? Use --no-health-check to skip.`
+            `Backend health check failed. Is the backend running at ${baseUrl}?`
           );
           setPhase("error");
           return;

@@ -25,7 +25,6 @@ export default defineConfig({
     "ink-big-text",
     "ink-scroll-view",
     "ink-text-input",
-    "ink-multi-select",
     "ink-spinner",
   ],
   esbuildOptions(options) {

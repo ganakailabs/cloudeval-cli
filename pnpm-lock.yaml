@@ -56,9 +56,6 @@ importers:
       ink-big-text:
         specifier: ^2.0.0
         version: 2.0.0(ink@4.4.1(@types/react@18.3.27)(react@18.3.1))(react@18.3.1)
-      ink-multi-select:
-        specifier: ^2.0.0
-        version: 2.0.0
       ink-scroll-view:
         specifier: ^0.3.5
         version: 0.3.5(ink@4.4.1(@types/react@18.3.27)(react@18.3.1))(react@18.3.1)
@@ -660,10 +657,6 @@ packages:
   argv-formatter@1.0.0:
     resolution: {integrity: sha512-F2+Hkm9xFaRg+GkaNnbwXNDV5O6pnCFEmqyhvfC/Ic5LbgOWjJh3L+mN/s91rxVL3znE7DYVpW0GJFT+4YBgWw==}
 
-  arr-rotate@1.0.0:
-    resolution: {integrity: sha512-yOzOZcR9Tn7enTF66bqKorGGH0F36vcPaSWg8fO0c0UYb3LX3VMXj5ZxEqQLNOecAhlRJ7wYZja5i4jTlnbIfQ==}
-    engines: {node: '>=4'}
-
   array-ify@1.0.0:
     resolution: {integrity: sha512-c5AMf34bKdvPhQ7tBGhqkgKNUzMr4WUs+WDtC2ZUGOUncbxKMTvqxYctiseW3+L4bA8ec+GcZ6/A/FW4m8ukng==}
 
@@ -1196,10 +1189,6 @@ packages:
       ink: '>=4'
       react: '>=18'
 
-  ink-multi-select@2.0.0:
-    resolution: {integrity: sha512-IK1oTucJ3gy/2M3xXicuTJCuCLSeQzdAf+iJV7eyfxYG4kCSO9W2TSV02TVfz+AKS8/8r7X/ssTlDRmAXjLZHQ==}
-    engines: {node: '>=8'}
-
   ink-scroll-view@0.3.5:
     resolution: {integrity: sha512-NDCKQz0DDvcLQEboXf25oGQ4g2VpoO3NojMC/eG+eaqEz9PDiGJyg7Y+HTa4QaCjogvME6A+IwGyV+yTLCGdaw==}
     peerDependencies:
@@ -1405,10 +1394,6 @@ packages:
 
   lodash.escaperegexp@4.1.2:
     resolution: {integrity: sha512-TM9YBvyC84ZxE3rgfefxUWiQKLilstD6k7PTGt6wfbtXF8ixIJLOL3VYyV/z+ZiPLsVxAsKAFVwWlWeb2Y8Yyw==}
-
-  lodash.isequal@4.5.0:
-    resolution: {integrity: sha512-pDo3lu8Jhfjqls6GkMgpahsF9kCyayhgykjyLMNFTKWrpVdAQtYyB4muAMWozBB4ig/dtWAmsMxLEI8wuz+DYQ==}
-    deprecated: This package is deprecated. Use require('node:util').isDeepStrictEqual instead.
 
   lodash.isplainobject@4.0.6:
     resolution: {integrity: sha512-oSXzaWypCMHkPC3NvBEaPHf0KsA5mvPrOPgQWDsbg8n7orZ290M0BmC/jgRZ4vcJ6DTAhjrsSYgdsW/F+MFOBA==}
@@ -2806,8 +2791,6 @@ snapshots:
 
   argv-formatter@1.0.0: {}
 
-  arr-rotate@1.0.0: {}
-
   array-ify@1.0.0: {}
 
   array-union@2.1.0: {}
@@ -3353,13 +3336,6 @@ snapshots:
       prop-types: 15.8.1
       react: 18.3.1
 
-  ink-multi-select@2.0.0:
-    dependencies:
-      arr-rotate: 1.0.0
-      figures: 2.0.0
-      lodash.isequal: 4.5.0
-      prop-types: 15.8.1
-
   ink-scroll-view@0.3.5(ink@4.4.1(@types/react@18.3.27)(react@18.3.1))(react@18.3.1):
     dependencies:
       ink: 4.4.1(@types/react@18.3.27)(react@18.3.1)
@@ -3556,8 +3532,6 @@ snapshots:
   lodash.capitalize@4.2.1: {}
 
   lodash.escaperegexp@4.1.2: {}
-
-  lodash.isequal@4.5.0: {}
 
   lodash.isplainobject@4.0.6: {}
 

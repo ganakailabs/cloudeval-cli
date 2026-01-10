@@ -140,14 +140,6 @@ export const App: React.FC<AppProps> = ({
   const streamingContentRef = React.useRef<string>("");
   const streamingUpdateTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
 
-  // Lazy load MultiSelect to avoid ESM/CJS issues
-  const MultiSelect = React.useMemo(() => {
-    return React.lazy(async () => {
-      const mod = await import("ink-multi-select");
-      return { default: mod.default };
-    });
-  }, []);
-
   useEffect(() => {
     const id = setInterval(() => {
       setSpinnerIdx((i) => (i + 1) % spinnerFrames.length);

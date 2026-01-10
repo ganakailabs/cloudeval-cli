@@ -29,7 +29,6 @@
     "ink": "^4.4.1",
     "ink-big-text": "^2.0.0",
     "ink-scroll-view": "^0.3.5",
-    "ink-multi-select": "^2.0.0",
     "ink-spinner": "^4.0.0",
     "ink-text-input": "^6.0.0",
     "react": "^18.3.1"

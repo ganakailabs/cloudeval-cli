@@ -1,0 +1,20 @@
+{
+  "name": "cloudeval-cli-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@9.12.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint --if-present",
+    "test": "pnpm -r test --if-present"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.11",
+    "tsup": "^8.3.0",
+    "tsx": "^4.15.7",
+    "typescript": "^5.6.3"
+  }
+}

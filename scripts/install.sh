@@ -24,7 +24,11 @@ esac
 EXT=""
 [ "$OS" = "win" ] && EXT=".exe"
 
-BIN="${BIN_NAME}-${OS}-${ARCH}${EXT}"
+if [ "$OS" = "win" ]; then
+  BIN="${BIN_NAME}.exe"
+else
+  BIN="${BIN_NAME}-${ARCH}"
+fi
 
 if [ "$VERSION" = "latest" ]; then
   URL="https://github.com/${REPO}/releases/latest/download/${BIN}"

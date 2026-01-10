@@ -14,12 +14,16 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: macos-latest
-            targets: node18-macos-x64,node18-macos-arm64
+          - os: macos-13
+            arch: x64
+          - os: macos-14
+            arch: arm64
           - os: ubuntu-latest
-            targets: node18-linux-x64,node18-linux-arm64
+            arch: x64
+          - os: ubuntu-24.04-arm
+            arch: arm64
           - os: windows-latest
-            targets: node18-win-x64
+            arch: x64
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -28,20 +32,25 @@ jobs:
         with:
           node-version: 20
           cache: pnpm
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: "latest"
       - name: Install deps
-        run: pnpm install --shamefully-hoist
+        run: pnpm install
       - name: Build workspace deps
         run: |
           pnpm --filter @cloudeval/shared build
           pnpm --filter @cloudeval/core build
-      - name: Build executable bundle
-        run: pnpm --filter cloudeval-cli build:executable-bundle
-      - name: Build executables
+      - name: Build executable (bun)
         shell: bash
         run: |
-          pnpm --filter cloudeval-cli exec pkg dist/cli.executable.js \
-            --targets "${{ matrix.targets }}" \
-            --output dist/bin/cloudeval
+          mkdir -p packages/cli/dist/bin
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            bun build packages/cli/src/cli.tsx --compile --outfile packages/cli/dist/bin/cloudeval.exe
+          else
+            bun build packages/cli/src/cli.tsx --compile --outfile packages/cli/dist/bin/cloudeval
+            mv packages/cli/dist/bin/cloudeval packages/cli/dist/bin/cloudeval-${{ matrix.arch }}
+          fi
           node packages/cli/scripts/alias-executables.js
       - name: Upload release assets
         uses: softprops/action-gh-release@v2

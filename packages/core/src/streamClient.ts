@@ -143,6 +143,8 @@ export async function* streamChat(
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     Accept: "text/event-stream",
+    "X-Client-Type": "cloudeval-cli",
+    "X-Client-Version": "0.1.0",
   };
 
   if (options.authToken) {

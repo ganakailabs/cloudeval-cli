@@ -75,7 +75,7 @@ program
   .option("--conversation <id>", "Conversation/thread id to resume")
   .option("--model <name>", "Model name")
   .option("--debug", "Log raw chunks", false)
-  .option("--no-health-check", "Skip health check and start anyway")
+  .option("--health-check", "Enable health check (disabled by default)")
   .option("--no-banner", "Disable ASCII banner")
   .option("--no-anim", "Disable loader animation")
   .action((options) => {
@@ -88,7 +88,7 @@ program
         debug={options.debug}
         disableBanner={options.banner === false}
         disableAnim={options.anim === false}
-        skipHealthCheck={options.healthCheck === false}
+        skipHealthCheck={!options.healthCheck}
       />
     );
   });

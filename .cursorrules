@@ -1,0 +1,102 @@
+# Cursor Rules for Cloudeval CLI
+
+## Documentation Updates
+
+### CLI Commands Documentation
+
+**CRITICAL: Always update documentation when CLI commands are added, modified, or removed.**
+
+When making changes to CLI commands:
+
+1. **Update CLI Documentation** (`/Users/prateek/workspace/repo/cloudeval-docs/docs/getting-started/cli.md`):
+   - Add new commands to the "Commands" section
+   - Document all command options and flags
+   - Include usage examples
+   - Update the "Quick Start" section if needed
+   - Add troubleshooting tips for new commands
+
+2. **Update README** (`README.md` in this repo):
+   - Update the "Commands" section with new/updated commands
+   - Include command syntax and options
+   - Add examples if helpful
+
+3. **Update Getting Started Index** (`/Users/prateek/workspace/repo/cloudeval-docs/docs/getting-started/index.md`):
+   - Add CLI to quick start if it's a major feature
+   - Update navigation if needed
+
+4. **Update Main Documentation Index** (`/Users/prateek/workspace/repo/cloudeval-docs/docs/index.md`):
+   - Add CLI to popular guides if it's a major feature
+   - Update quick start section if needed
+
+### Documentation Checklist
+
+When adding/modifying CLI commands, ensure:
+
+- [ ] Command syntax is documented with all options
+- [ ] Usage examples are provided
+- [ ] Environment variables are documented
+- [ ] Configuration options are explained
+- [ ] Troubleshooting section is updated
+- [ ] Keyboard shortcuts are documented (if applicable)
+- [ ] Breaking changes are clearly marked
+- [ ] Migration guide is provided (if needed)
+
+### Documentation Locations
+
+- **Main CLI Documentation**: `/Users/prateek/workspace/repo/cloudeval-docs/docs/getting-started/cli.md`
+- **Repository README**: `README.md` (this repo)
+- **Getting Started Index**: `/Users/prateek/workspace/repo/cloudeval-docs/docs/getting-started/index.md`
+- **Main Index**: `/Users/prateek/workspace/repo/cloudeval-docs/docs/index.md`
+
+### Command Documentation Template
+
+When documenting a new command, use this structure:
+
+```markdown
+### `cloudeval <command>`
+
+Brief description of what the command does.
+
+**Basic usage:**
+
+\`\`\`bash
+cloudeval <command>
+\`\`\`
+
+**Options:**
+
+- `--option <value>` - Description of option
+- `--flag` - Description of flag
+
+**Examples:**
+
+\`\`\`bash
+# Example 1
+cloudeval <command> --option value
+
+# Example 2
+cloudeval <command> --flag
+\`\`\`
+```
+
+## Code Style
+
+- Use TypeScript for CLI code
+- Follow existing code patterns in `packages/cli/src/`
+- Use `commander` for command parsing
+- Use `ink` for terminal UI components
+
+## Testing
+
+- Test commands locally before committing
+- Verify documentation examples work
+- Test error cases and edge cases
+- Ensure backward compatibility when possible
+
+## Reminders
+
+- **Always update documentation when commands change**
+- **Document all command options, even optional ones**
+- **Include practical examples**
+- **Update both repo README and main documentation**
+- **Test documentation examples to ensure they work**

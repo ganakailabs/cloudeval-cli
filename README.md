@@ -34,6 +34,7 @@ Run:
 
 ```bash
 cloudeval chat [--base-url <url>] [--api-key <key>] [--conversation <id>] [--model <name>] [--debug]
+cloudeval ask <question> [--project <id>] [--output <file>] [--json] [--base-url <url>] [--api-key <key>] [--model <name>]
 cloudeval login
 cloudeval logout
 cloudeval banner

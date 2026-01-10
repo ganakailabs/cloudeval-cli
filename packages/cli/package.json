@@ -13,7 +13,7 @@
     "build:executable": "pnpm build:executable-bundle && pnpm exec pkg dist/cli.executable.js --targets node18-macos-x64,node18-macos-arm64,node18-linux-x64,node18-linux-arm64,node18-win-x64 --output dist/bin/cloudeval && node scripts/alias-executables.js",
     "build:executable:current": "pnpm build:executable-bundle && pnpm exec pkg dist/cli.executable.js --targets node18-macos-arm64 --output dist/bin/cloudeval && node scripts/alias-executables.js",
     "build:executable-bundle": "tsup --config tsup.executable.config.ts",
-    "build:executable:bun": "pnpm -C ../shared build && pnpm -C ../core build && bun build src/cli.tsx --compile --external react-devtools-core --outfile dist/bin/cloudeval",
+    "build:executable:bun": "pnpm -C ../shared build && pnpm -C ../core build && node scripts/patch-yoga-wasm.js && node scripts/prepare-yoga-wasm.js && bun build src/cli.tsx --compile --outfile dist/bin/cloudeval && cp yoga.wasm dist/bin/yoga.wasm && rm -f yoga.wasm",
     "build:executable:ncc": "pnpm build && pnpm exec ncc build dist/cli.js -o dist/ncc -m && pnpm exec pkg dist/ncc/index.js --targets node18-macos-arm64 --output-path dist/bin",
     "docker:build": "docker build -t cloudeval-cli -f Dockerfile ../../",
     "docker:run": "docker run -it --rm cloudeval-cli",
@@ -31,6 +31,7 @@
     "ink-scroll-view": "^0.3.5",
     "ink-spinner": "^4.0.0",
     "ink-text-input": "^6.0.0",
+    "react-devtools-core": "^4.28.5",
     "react": "^18.3.1"
   },
   "devDependencies": {

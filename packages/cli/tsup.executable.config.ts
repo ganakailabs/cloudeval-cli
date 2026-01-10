@@ -22,21 +22,19 @@ export default defineConfig({
     "@cloudeval/core",
     "@cloudeval/shared",
     "commander",
+    "ink",
     "ink-big-text",
     "ink-scroll-view",
     "ink-text-input",
-  ],
-  external: [
-    "ink",
     "react",
   ],
+  external: [],
   esbuildOptions(options) {
     options.jsx = "automatic";
     options.bundle = true;
     options.platform = "node";
   },
 });
-
 
 
 

@@ -36,7 +36,11 @@ DEST_DIR="${HOME}/.local/bin"
 DEST="${DEST_DIR}/${BIN_NAME}${EXT}"
 
 mkdir -p "$DEST_DIR"
-curl -fsSL "$URL" -o "$DEST"
+if ! curl -fsSL "$URL" -o "$DEST"; then
+  echo "Failed to download ${URL}"
+  echo "Check that a release exists and includes ${BIN}."
+  exit 1
+fi
 chmod +x "$DEST"
 
 if [ "$OS" != "win" ]; then

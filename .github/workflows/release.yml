@@ -30,6 +30,10 @@ jobs:
           cache: pnpm
       - name: Install deps
         run: pnpm install
+      - name: Build workspace deps
+        run: |
+          pnpm --filter @cloudeval/shared build
+          pnpm --filter @cloudeval/core build
       - name: Build executable bundle
         run: pnpm --filter cloudeval-cli build:executable-bundle
       - name: Build executables

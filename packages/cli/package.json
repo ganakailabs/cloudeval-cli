@@ -44,7 +44,10 @@
   },
   "pkg": {
     "scripts": [
-      "dist/cli.executable.js"
+      "dist/cli.executable.js",
+      "node_modules/ink/**/*.js",
+      "node_modules/react/**/*.js",
+      "node_modules/commander/**/*.js"
     ],
     "assets": [
       "node_modules/ink/**/*",

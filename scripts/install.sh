@@ -25,9 +25,9 @@ EXT=""
 [ "$OS" = "win" ] && EXT=".exe"
 
 if [ "$OS" = "win" ]; then
-  BIN="${BIN_NAME}.exe"
+  BIN="${BIN_NAME}-win-${ARCH}.exe"
 else
-  BIN="${BIN_NAME}-${ARCH}"
+  BIN="${BIN_NAME}-${OS}-${ARCH}"
 fi
 
 if [ "$VERSION" = "latest" ]; then
@@ -38,6 +38,7 @@ fi
 
 DEST_DIR="${HOME}/.local/bin"
 DEST="${DEST_DIR}/${BIN_NAME}${EXT}"
+YOGA_DEST="${DEST_DIR}/yoga.wasm"
 
 echo "Detected OS: ${OS}"
 echo "Detected arch: ${ARCH}"
@@ -50,6 +51,16 @@ if ! curl -fsSL "$URL" -o "$DEST"; then
   exit 1
 fi
 chmod +x "$DEST"
+
+YOGA_URL="https://github.com/${REPO}/releases/${VERSION}/download/yoga.wasm"
+if [ "$VERSION" = "latest" ]; then
+  YOGA_URL="https://github.com/${REPO}/releases/latest/download/yoga.wasm"
+fi
+if ! curl -fsSL "$YOGA_URL" -o "$YOGA_DEST"; then
+  echo "Failed to download ${YOGA_URL}"
+  echo "The CLI requires yoga.wasm in ${DEST_DIR}."
+  exit 1
+fi
 
 if [ "$OS" != "win" ]; then
   ln -sf "$DEST" "${DEST_DIR}/eva"

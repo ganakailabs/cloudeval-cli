@@ -15,14 +15,19 @@ jobs:
       matrix:
         include:
           - os: macos-13
+            platform: macos
             arch: x64
           - os: macos-14
+            platform: macos
             arch: arm64
           - os: ubuntu-latest
+            platform: linux
             arch: x64
           - os: ubuntu-24.04-arm
+            platform: linux
             arch: arm64
           - os: windows-latest
+            platform: win
             arch: x64
     runs-on: ${{ matrix.os }}
     steps:
@@ -45,12 +50,16 @@ jobs:
         shell: bash
         run: |
           mkdir -p packages/cli/dist/bin
-          if [ "${{ matrix.os }}" = "windows-latest" ]; then
-            bun build packages/cli/src/cli.tsx --compile --external react-devtools-core --outfile packages/cli/dist/bin/cloudeval.exe
+          node packages/cli/scripts/patch-yoga-wasm.js
+          YOGA_WASM=$(node packages/cli/scripts/prepare-yoga-wasm.js)
+          if [ "${{ matrix.platform }}" = "win" ]; then
+            bun build packages/cli/src/cli.tsx --compile --outfile packages/cli/dist/bin/cloudeval-win-${{ matrix.arch }}.exe
           else
-            bun build packages/cli/src/cli.tsx --compile --external react-devtools-core --outfile packages/cli/dist/bin/cloudeval
-            mv packages/cli/dist/bin/cloudeval packages/cli/dist/bin/cloudeval-${{ matrix.arch }}
+            bun build packages/cli/src/cli.tsx --compile --outfile packages/cli/dist/bin/cloudeval
+            mv packages/cli/dist/bin/cloudeval packages/cli/dist/bin/cloudeval-${{ matrix.platform }}-${{ matrix.arch }}
           fi
+          cp "$YOGA_WASM" packages/cli/dist/bin/yoga.wasm
+          rm -f "$YOGA_WASM"
           node packages/cli/scripts/alias-executables.js
       - name: Upload release assets
         uses: softprops/action-gh-release@v2

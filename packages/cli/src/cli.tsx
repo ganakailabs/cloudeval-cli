@@ -110,7 +110,8 @@ program
   .option("--debug", "Log raw chunks", false)
   .action(async (question, options) => {
     try {
-      const fs = await import("node:fs/promises");
+      const fs = await import("node:fs");
+      const fsPromises = await import("node:fs/promises");
       const path = await import("node:path");
       const { randomUUID } = await import("node:crypto");
       const core = await import("@cloudeval/core");
@@ -132,7 +133,25 @@ program
       // Get auth token
       let token = options.apiKey;
       if (!token) {
-        token = await getAuthToken({ apiKey: options.apiKey, baseUrl: options.baseUrl });
+        try {
+          token = await getAuthToken({ apiKey: options.apiKey, baseUrl: options.baseUrl });
+        } catch (error: any) {
+          // If no API key and no stored token, automatically trigger login
+          if (!options.apiKey && error?.message?.includes("No authentication available")) {
+            console.log("🔐 Authentication required. Starting login process...\n");
+            try {
+              const { loginWithDeviceCode } = await import("@cloudeval/core");
+              token = await loginWithDeviceCode();
+              console.log("\n✅ Authentication successful! Proceeding with your question...\n");
+            } catch (loginError: any) {
+              console.error(`❌ Login failed: ${loginError.message}`);
+              process.exit(1);
+            }
+          } else {
+            console.error(`❌ Authentication failed: ${error.message}`);
+            process.exit(1);
+          }
+        }
       }
 
       // Get project
@@ -188,6 +207,7 @@ program
       const threadId = randomUUID();
       let chatState: ChatState = { ...initialChatState, threadId };
       let responseText = "";
+      let outputStream: NodeJS.WritableStream;
 
       if (options.debug) {
         console.error(`[ask] Question: ${question}`);
@@ -195,37 +215,91 @@ program
         console.error(`[ask] Thread ID: ${threadId}`);
       }
 
-      for await (const chunk of streamChat({
-        baseUrl: options.baseUrl,
-        authToken: token,
-        message: question,
-        threadId,
-        user: { id: "cli-user", name: userName },
-        project,
-        settings: options.model ? { model: options.model } : undefined,
-        debug: options.debug,
-      })) {
-        chatState = reduceChunk(chatState, chunk);
+      // Set up output stream
+      if (options.output) {
+        outputStream = fs.createWriteStream(options.output, { encoding: "utf-8" });
+      } else {
+        outputStream = process.stdout;
+      }
 
-        // Extract the latest assistant message content
-        const latestMessage = [...chatState.messages]
+      // Disable thinking steps display for ask command (non-interactive, causes visual clutter)
+      // For interactive chat, thinking steps are shown in the UI, but for ask we just stream content
+      let spinnerInterval: NodeJS.Timeout | null = null;
+
+      try {
+        for await (const chunk of streamChat({
+          baseUrl: options.baseUrl,
+          authToken: token,
+          message: question,
+          threadId,
+          user: { id: "cli-user", name: userName },
+          project,
+          settings: options.model ? { model: options.model } : undefined,
+          debug: options.debug,
+        })) {
+          chatState = reduceChunk(chatState, chunk);
+
+          // Get the latest assistant message
+          const latestMessage = [...chatState.messages]
+            .reverse()
+            .find((m) => m.role === "assistant");
+
+          // Stream responding chunks in real-time (for non-JSON mode)
+          // chunk.content is incremental (just the new part), so output it directly
+          if (!options.json && chunk.type === "responding" && chunk.content) {
+            // Output the incremental content directly
+            outputStream.write(chunk.content);
+            // Track cumulative content for final output
+            if (latestMessage?.content) {
+              responseText = latestMessage.content;
+            }
+          }
+
+          // Handle errors
+          if (chunk.type === "error") {
+            const errorMsg = chunk.message || chunk.description || "Unknown error";
+            if (options.json) {
+              // For JSON mode, we'll include error in final output
+              responseText = `Error: ${errorMsg}`;
+            } else {
+              // For streaming mode, output error immediately
+              outputStream.write(`\n❌ Error: ${errorMsg}\n`);
+            }
+            break;
+          }
+        }
+
+        // Cleanup (no thinking steps for ask command)
+
+        // Ensure we output everything (in case we missed some content)
+        if (!options.json) {
+          // Add newline at the end for non-JSON output
+          outputStream.write("\n");
+          
+          if (options.output) {
+            outputStream.end();
+          }
+        }
+      } catch (error: any) {
+        const errorMsg = error.message || "Streaming failed";
+        if (options.json) {
+          responseText = `Error: ${errorMsg}`;
+        } else {
+          outputStream.write(`\n❌ Error: ${errorMsg}\n`);
+        }
+        if (options.output) {
+          outputStream.end();
+        }
+        throw error;
+      }
+
+      // For JSON mode, output the complete response as JSON
+      if (options.json) {
+        const finalMessage = [...chatState.messages]
           .reverse()
           .find((m) => m.role === "assistant");
         
-        if (latestMessage?.content) {
-          responseText = latestMessage.content;
-        }
-      }
-
-      // Get final response
-      const finalMessage = [...chatState.messages]
-        .reverse()
-        .find((m) => m.role === "assistant");
-      
-      const finalResponse = finalMessage?.content || responseText || "";
-
-      // Output the response
-      if (options.json) {
+        const finalResponse = finalMessage?.content || responseText || "";
         const output = {
           question,
           response: finalResponse,
@@ -235,18 +309,12 @@ program
             name: project.name,
           },
         };
-        const outputText = JSON.stringify(output, null, 2);
+        const outputText = JSON.stringify(output, null, 2) + "\n";
         
         if (options.output) {
-          await fs.writeFile(options.output, outputText, "utf-8");
+          await fsPromises.writeFile(options.output, outputText, "utf-8");
         } else {
-          console.log(outputText);
-        }
-      } else {
-        if (options.output) {
-          await fs.writeFile(options.output, finalResponse, "utf-8");
-        } else {
-          console.log(finalResponse);
+          process.stdout.write(outputText);
         }
       }
 

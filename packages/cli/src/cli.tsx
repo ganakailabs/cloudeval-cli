@@ -69,7 +69,7 @@ program
   .option(
     "--base-url <url>",
     "Backend base URL",
-    process.env.CLOUDEVAL_BASE_URL ?? "http://localhost:8000"
+    process.env.CLOUDEVAL_BASE_URL ?? "http://localhost:8000/api/v1"
   )
   .option("--api-key <key>", "API key", process.env.CLOUDEVAL_API_KEY)
   .option("--conversation <id>", "Conversation/thread id to resume")
@@ -100,7 +100,7 @@ program
   .option(
     "--base-url <url>",
     "Backend base URL",
-    process.env.CLOUDEVAL_BASE_URL ?? "http://localhost:8000"
+    process.env.CLOUDEVAL_BASE_URL ?? "http://localhost:8000/api/v1"
   )
   .option("--api-key <key>", "API key", process.env.CLOUDEVAL_API_KEY)
   .option("--project <id>", "Project ID to use")

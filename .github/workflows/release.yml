@@ -46,9 +46,9 @@ jobs:
         run: |
           mkdir -p packages/cli/dist/bin
           if [ "${{ matrix.os }}" = "windows-latest" ]; then
-            bun build packages/cli/src/cli.tsx --compile --outfile packages/cli/dist/bin/cloudeval.exe
+            bun build packages/cli/src/cli.tsx --compile --external react-devtools-core --outfile packages/cli/dist/bin/cloudeval.exe
           else
-            bun build packages/cli/src/cli.tsx --compile --outfile packages/cli/dist/bin/cloudeval
+            bun build packages/cli/src/cli.tsx --compile --external react-devtools-core --outfile packages/cli/dist/bin/cloudeval
             mv packages/cli/dist/bin/cloudeval packages/cli/dist/bin/cloudeval-${{ matrix.arch }}
           fi
           node packages/cli/scripts/alias-executables.js

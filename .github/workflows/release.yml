@@ -39,9 +39,9 @@ jobs:
       - name: Build executables
         shell: bash
         run: |
-          pnpm --filter cloudeval-cli exec pkg packages/cli/dist/cli.executable.js \
+          pnpm --filter cloudeval-cli exec pkg dist/cli.executable.js \
             --targets "${{ matrix.targets }}" \
-            --output packages/cli/dist/bin/cloudeval
+            --output dist/bin/cloudeval
           node packages/cli/scripts/alias-executables.js
       - name: Upload release assets
         uses: softprops/action-gh-release@v2

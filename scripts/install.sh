@@ -39,6 +39,10 @@ fi
 DEST_DIR="${HOME}/.local/bin"
 DEST="${DEST_DIR}/${BIN_NAME}${EXT}"
 
+echo "Detected OS: ${OS}"
+echo "Detected arch: ${ARCH}"
+echo "Downloading: ${URL}"
+
 mkdir -p "$DEST_DIR"
 if ! curl -fsSL "$URL" -o "$DEST"; then
   echo "Failed to download ${URL}"
@@ -53,3 +57,12 @@ fi
 
 echo "Installed ${BIN_NAME} to ${DEST}"
 echo "Run: ${BIN_NAME} --help"
+
+case ":$PATH:" in
+  *":${DEST_DIR}:"*) ;;
+  *)
+    echo "Warning: ${DEST_DIR} is not in PATH."
+    echo "Add this to your shell profile (~/.zshrc or ~/.bashrc):"
+    echo "  export PATH=\"${DEST_DIR}:\$PATH\""
+    ;;
+esac

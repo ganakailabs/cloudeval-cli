@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Box, Text, useInput } from "ink";
 import { completeOnboarding } from "@cloudeval/core";
+import { terminalTheme } from "../theme.js";
 
 interface OnboardingProps {
   baseUrl: string;
@@ -97,11 +98,12 @@ export const Onboarding: React.FC<OnboardingProps> = ({
         }
       } else if (step === 4) {
         // Cloud provider
-        setData((prev) => ({
-          ...prev,
+        const nextData = {
+          ...data,
           cloudProvider: CLOUD_PROVIDERS[selectedIndex],
-        }));
-        handleSubmit();
+        };
+        setData(nextData);
+        handleSubmit(nextData);
       }
     } else if (key.backspace && step === 0) {
       setData((prev) => ({ ...prev, name: prev.name.slice(0, -1) }));
@@ -110,17 +112,17 @@ export const Onboarding: React.FC<OnboardingProps> = ({
     }
   });
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (submission = data) => {
     setSubmitting(true);
     setError(null);
 
     try {
       await completeOnboarding(baseUrl, token, {
-        name: data.name,
-        role: data.role,
-        teamSize: data.teamSize,
-        goals: data.goals,
-        cloudProvider: data.cloudProvider,
+        name: submission.name,
+        role: submission.role,
+        teamSize: submission.teamSize,
+        goals: submission.goals,
+        cloudProvider: submission.cloudProvider,
       });
       onComplete();
     } catch (err: any) {
@@ -131,7 +133,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({
 
   return (
     <Box flexDirection="column" padding={1} gap={1}>
-      <Text bold color="cyan">
+      <Text bold color={terminalTheme.brand}>
         Welcome to Cloudeval CLI! Let's get you set up.
       </Text>
       <Text dimColor>Step {step + 1} of 5</Text>
@@ -140,8 +142,8 @@ export const Onboarding: React.FC<OnboardingProps> = ({
         <Box flexDirection="column" gap={1}>
           <Text>What's your name?</Text>
           <Text>
-            <Text color="green">{data.name}</Text>
-            <Text color="yellow">▌</Text>
+            <Text color={terminalTheme.success}>{data.name}</Text>
+            <Text color={terminalTheme.cursor}>▌</Text>
           </Text>
           <Text dimColor>Type your name and press Enter</Text>
         </Box>
@@ -151,7 +153,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({
         <Box flexDirection="column" gap={1}>
           <Text>What's your role?</Text>
           {ROLES.map((role, idx) => (
-            <Text key={role} color={idx === selectedIndex ? "cyan" : undefined}>
+            <Text key={role} color={idx === selectedIndex ? terminalTheme.brand : undefined}>
               {idx === selectedIndex ? "> " : "  "}
               {role}
             </Text>
@@ -164,7 +166,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({
         <Box flexDirection="column" gap={1}>
           <Text>What's your team size?</Text>
           {TEAM_SIZES.map((size, idx) => (
-            <Text key={size} color={idx === selectedIndex ? "cyan" : undefined}>
+            <Text key={size} color={idx === selectedIndex ? terminalTheme.brand : undefined}>
               {idx === selectedIndex ? "> " : "  "}
               {size}
             </Text>
@@ -177,7 +179,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({
         <Box flexDirection="column" gap={1}>
           <Text>What are your goals? (Select multiple with Space)</Text>
           {GOALS.map((goal, idx) => (
-            <Text key={goal} color={idx === selectedIndex ? "cyan" : undefined}>
+            <Text key={goal} color={idx === selectedIndex ? terminalTheme.brand : undefined}>
               {data.goals.includes(goal) ? "✓ " : "  "}
               {idx === selectedIndex ? "> " : "  "}
               {goal}
@@ -195,7 +197,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({
           {CLOUD_PROVIDERS.map((provider, idx) => (
             <Text
               key={provider}
-              color={idx === selectedIndex ? "cyan" : undefined}
+              color={idx === selectedIndex ? terminalTheme.brand : undefined}
             >
               {idx === selectedIndex ? "> " : "  "}
               {provider}
@@ -205,8 +207,8 @@ export const Onboarding: React.FC<OnboardingProps> = ({
         </Box>
       )}
 
-      {error && <Text color="red">Error: {error}</Text>}
-      {submitting && <Text color="yellow">Completing onboarding...</Text>}
+      {error && <Text color={terminalTheme.danger}>Error: {error}</Text>}
+      {submitting && <Text color={terminalTheme.warning}>Completing onboarding...</Text>}
     </Box>
   );
 };

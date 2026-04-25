@@ -1,5 +1,6 @@
 import React from "react";
 import { Box, Text } from "ink";
+import { terminalTheme } from "../theme.js";
 
 interface ScrollbarProps {
   scrollOffset: number;
@@ -24,22 +25,23 @@ export const Scrollbar: React.FC<ScrollbarProps> = ({
   const thumbHeight = Math.max(1, Math.floor((viewportHeight / contentHeight) * scrollbarHeight));
   const thumbPosition = Math.floor((scrollbarHeight - thumbHeight) * scrollRatio);
 
-  // Create scrollbar visual representation
+  // Keep the rail to a single fixed-width column so it never bleeds into content.
   const scrollbarLines: string[] = [];
   for (let i = 0; i < scrollbarHeight; i++) {
     if (i >= thumbPosition && i < thumbPosition + thumbHeight) {
-      // Thumb (filled part)
       scrollbarLines.push("█");
     } else {
-      // Track (empty part)
-      scrollbarLines.push("░");
+      scrollbarLines.push("│");
     }
   }
 
   return (
-    <Box flexDirection="column" marginLeft={1}>
+    <Box flexDirection="column" marginLeft={1} flexShrink={0} width={1}>
       {scrollbarLines.map((line, idx) => (
-        <Text key={idx} color="gray">
+        <Text
+          key={idx}
+          color={line === "█" ? terminalTheme.brand : terminalTheme.muted}
+        >
           {line}
         </Text>
       ))}

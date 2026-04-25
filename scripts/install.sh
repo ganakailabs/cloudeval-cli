@@ -13,12 +13,22 @@ ask_yes_no() {
   local prompt="$1"
   local default="${2:-n}"
   local response
+
+  if [ "${CLOUDEVAL_ASSUME_YES:-}" = "1" ] || [ "${CI:-}" = "true" ]; then
+    [ "$default" = "y" ]
+    return $?
+  fi
   
+  if [ ! -r /dev/tty ]; then
+    [ "$default" = "y" ]
+    return $?
+  fi
+
   if [ "$default" = "y" ]; then
-    read -p "$(echo -e "${BLUE}${prompt} [Y/n]: ${NC}")" response
+    read -r -p "$(echo -e "${BLUE}${prompt} [Y/n]: ${NC}")" response < /dev/tty || response=""
     response="${response:-y}"
   else
-    read -p "$(echo -e "${BLUE}${prompt} [y/N]: ${NC}")" response
+    read -r -p "$(echo -e "${BLUE}${prompt} [y/N]: ${NC}")" response < /dev/tty || response=""
     response="${response:-n}"
   fi
   
@@ -103,6 +113,88 @@ add_to_path() {
   echo -e "${YELLOW}Note: You may need to restart your terminal or run: source ${profile_file}${NC}"
 }
 
+asset_url() {
+  local asset="$1"
+  if [ "$VERSION" = "latest" ]; then
+    echo "https://github.com/${REPO}/releases/latest/download/${asset}"
+  else
+    echo "https://github.com/${REPO}/releases/download/${VERSION}/${asset}"
+  fi
+}
+
+hash_file() {
+  local file="$1"
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$file" | awk '{print $1}'
+    return 0
+  fi
+  if command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 "$file" | awk '{print $1}'
+    return 0
+  fi
+  if command -v openssl >/dev/null 2>&1; then
+    openssl dgst -sha256 "$file" | awk '{print $2}'
+    return 0
+  fi
+  echo -e "${RED}✗ No SHA-256 tool found. Install sha256sum, shasum, or openssl.${NC}" >&2
+  return 1
+}
+
+verify_asset_checksum() {
+  local asset="$1"
+  local file="$2"
+  local checksum_file
+  checksum_file="$(mktemp)"
+
+  if [ "${CLOUDEVAL_SKIP_CHECKSUM:-}" = "1" ]; then
+    echo -e "${YELLOW}⚠ Skipping checksum verification because CLOUDEVAL_SKIP_CHECKSUM=1${NC}"
+    rm -f "$checksum_file"
+    return 0
+  fi
+
+  if ! curl -fsSL "$(asset_url "${asset}.sha256")" -o "$checksum_file"; then
+    rm -f "$checksum_file"
+    echo -e "${RED}✗ Missing checksum for ${asset}. Refusing to install unverified binary.${NC}" >&2
+    echo -e "${YELLOW}Set CLOUDEVAL_SKIP_CHECKSUM=1 only if you trust this release source.${NC}" >&2
+    return 1
+  fi
+
+  local expected
+  local actual
+  expected="$(awk '{print tolower($1)}' "$checksum_file" | head -n 1)"
+  actual="$(hash_file "$file" | tr '[:upper:]' '[:lower:]')"
+  rm -f "$checksum_file"
+
+  if [ -z "$expected" ] || [ "$expected" != "$actual" ]; then
+    echo -e "${RED}✗ Checksum verification failed for ${asset}.${NC}" >&2
+    return 1
+  fi
+
+  echo -e "${GREEN}✓ Verified ${asset} checksum${NC}"
+}
+
+download_verified_asset() {
+  local asset="$1"
+  local dest="$2"
+  local mode="${3:-0644}"
+  local tmp
+  tmp="$(mktemp)"
+
+  if ! curl -fsSL "$(asset_url "$asset")" -o "$tmp"; then
+    rm -f "$tmp"
+    echo -e "${RED}✗ Failed to download $(asset_url "$asset")${NC}" >&2
+    return 1
+  fi
+
+  if ! verify_asset_checksum "$asset" "$tmp"; then
+    rm -f "$tmp"
+    return 1
+  fi
+
+  mv "$tmp" "$dest"
+  chmod "$mode" "$dest"
+}
+
 REPO="ganakailabs/cloudeval-cli"
 VERSION="${1:-latest}"
 BIN_NAME="cloudeval"
@@ -143,12 +235,6 @@ else
   BIN="${BIN_NAME}-${OS}-${ARCH}"
 fi
 
-if [ "$VERSION" = "latest" ]; then
-  URL="https://github.com/${REPO}/releases/latest/download/${BIN}"
-else
-  URL="https://github.com/${REPO}/releases/download/${VERSION}/${BIN}"
-fi
-
 DEST_DIR="${HOME}/.local/bin"
 DEST="${DEST_DIR}/${BIN_NAME}${EXT}"
 YOGA_DEST="${DEST_DIR}/yoga.wasm"
@@ -169,8 +255,7 @@ echo ""
 echo -e "${BLUE}Downloading ${BIN_NAME} binary...${NC}"
 mkdir -p "$DEST_DIR"
 
-if ! curl -fsSL "$URL" -o "$DEST"; then
-  echo -e "${RED}✗ Failed to download ${URL}${NC}"
+if ! download_verified_asset "$BIN" "$DEST" "0755"; then
   echo ""
   echo -e "${YELLOW}No pre-built release found. You can:${NC}"
   echo ""
@@ -192,26 +277,16 @@ if ! curl -fsSL "$URL" -o "$DEST"; then
   echo ""
   exit 1
 fi
-chmod +x "$DEST"
 echo -e "${GREEN}✓ Downloaded ${BIN_NAME} binary${NC}"
 
 echo ""
 echo -e "${BLUE}Downloading yoga.wasm...${NC}"
-if [ "$VERSION" = "latest" ]; then
-  YOGA_URL="https://github.com/${REPO}/releases/latest/download/yoga.wasm"
-else
-  YOGA_URL="https://github.com/${REPO}/releases/download/${VERSION}/yoga.wasm"
+if ! download_verified_asset "yoga.wasm" "$YOGA_DEST" "0644"; then
+  echo -e "${RED}✗ The CLI requires yoga.wasm. Installation cannot continue safely.${NC}"
+  rm -f "$DEST"
+  exit 1
 fi
-
-if ! curl -fsSL "$YOGA_URL" -o "$YOGA_DEST"; then
-  echo -e "${YELLOW}⚠ Failed to download ${YOGA_URL}${NC}"
-  echo -e "${YELLOW}The CLI requires yoga.wasm, but it's not critical for basic functionality.${NC}"
-  echo -e "${YELLOW}If you encounter issues, you may need to build from source.${NC}"
-  # Don't exit - allow installation to continue without yoga.wasm
-  # Some functionality might work without it
-else
-  echo -e "${GREEN}✓ Downloaded yoga.wasm${NC}"
-fi
+echo -e "${GREEN}✓ Downloaded yoga.wasm${NC}"
 
 if [ "$OS" != "win" ]; then
   echo ""

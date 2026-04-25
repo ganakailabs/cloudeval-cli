@@ -11,7 +11,7 @@ export default defineConfig({
   dts: {
     resolve: true,
   },
-  splitting: false,
+  splitting: true,
   sourcemap: false, // Disable sourcemaps for smaller bundle
   clean: true,
   target: "node20",

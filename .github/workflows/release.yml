@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -41,7 +42,11 @@ jobs:
         with:
           bun-version: "latest"
       - name: Install deps
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
+      - name: Test CLI
+        run: pnpm -C packages/cli test
+      - name: Lint CLI
+        run: pnpm -C packages/cli lint
       - name: Build workspace deps
         run: |
           pnpm --filter @cloudeval/shared build
@@ -61,6 +66,24 @@ jobs:
           cp "$YOGA_WASM" packages/cli/dist/bin/yoga.wasm
           rm -f "$YOGA_WASM"
           node packages/cli/scripts/alias-executables.js
+          if [ "${{ matrix.platform }}-${{ matrix.arch }}" != "linux-x64" ]; then
+            rm -f packages/cli/dist/bin/yoga.wasm
+          fi
+      - name: Generate checksums
+        shell: bash
+        run: |
+          cd packages/cli/dist/bin
+          node - <<'NODE'
+          const crypto = require("node:crypto");
+          const fs = require("node:fs");
+          for (const file of fs.readdirSync(".")) {
+            if (file.endsWith(".sha256")) continue;
+            const stat = fs.statSync(file);
+            if (!stat.isFile()) continue;
+            const hash = crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex");
+            fs.writeFileSync(`${file}.sha256`, `${hash}  ${file}\n`);
+          }
+          NODE
       - name: Upload release assets
         uses: softprops/action-gh-release@v2
         with:

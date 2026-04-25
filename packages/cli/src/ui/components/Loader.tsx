@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Box, Text } from "ink";
+import { terminalTheme } from "../theme.js";
 
 export interface LoaderProps {
   step: number;
@@ -7,13 +8,7 @@ export interface LoaderProps {
   animate?: boolean;
 }
 
-const brailleFrames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
-const asciiFrames = [".  ", ".. ", "...", " | "];
-
-const supportsUnicode = () =>
-  process.platform !== "win32" &&
-  !process.env.CLOUDEVAL_NO_UNICODE &&
-  !process.env.FORCE_ASCII;
+const asciiFrames = ["[. ]", "[..]", "[--]", "[  ]"];
 
 export const Loader: React.FC<LoaderProps> = ({
   step,
@@ -21,7 +16,7 @@ export const Loader: React.FC<LoaderProps> = ({
   animate = true,
 }) => {
   const [frame, setFrame] = useState(0);
-  const frames = supportsUnicode() ? brailleFrames : asciiFrames;
+  const frames = asciiFrames;
 
   useEffect(() => {
     if (!animate) return;
@@ -31,15 +26,19 @@ export const Loader: React.FC<LoaderProps> = ({
     return () => clearInterval(id);
   }, [animate, frames.length]);
 
-  const spinner = animate ? frames[frame] : "•";
+  const spinner = animate ? frames[frame] : "[..]";
 
   return (
     <Box flexDirection="column" gap={1}>
       {steps.map((label, idx) => {
         const isActive = idx === step;
         const isComplete = idx < step;
-        const prefix = isComplete ? "✔" : isActive ? spinner : " ";
-        const color = isComplete ? "green" : isActive ? "cyan" : undefined;
+        const prefix = isComplete ? "[ok]" : isActive ? spinner : "[  ]";
+        const color = isComplete
+          ? terminalTheme.success
+          : isActive
+            ? terminalTheme.brand
+            : undefined;
         return (
           <Text key={label} color={color}>
             {prefix} {label}

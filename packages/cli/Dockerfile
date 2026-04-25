@@ -27,16 +27,15 @@ FROM node:20-alpine
 WORKDIR /app
 
 # Copy only production dependencies and built files
-COPY --from=builder /app/packages/cli/dist/cli.js ./
+COPY --from=builder /app/packages/cli/dist ./dist
 COPY --from=builder /app/packages/cli/package.json ./
 COPY --from=builder /app/node_modules ./node_modules
 
 # Make it executable
-RUN chmod +x cli.js
+RUN chmod +x dist/cli.js
 
-ENTRYPOINT ["node", "cli.js"]
+ENTRYPOINT ["node", "dist/cli.js"]
 CMD ["chat", "--help"]
-
 
 
 

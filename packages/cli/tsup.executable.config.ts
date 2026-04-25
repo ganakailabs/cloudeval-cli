@@ -18,17 +18,23 @@ export default defineConfig({
   },
   tsconfig: "./tsconfig.json",
   // Try to bundle everything for executable
+  // Note: ink and yoga-wasm-web use top-level await, so they must be external
   noExternal: [
     "@cloudeval/core",
     "@cloudeval/shared",
     "commander",
+  ],
+  external: [
     "ink",
     "ink-big-text",
     "ink-scroll-view",
     "ink-text-input",
+    "ink-spinner",
     "react",
+    "react-devtools-core",
+    "yoga-wasm-web",
+    "yoga-wasm",
   ],
-  external: [],
   esbuildOptions(options) {
     options.jsx = "automatic";
     options.bundle = true;

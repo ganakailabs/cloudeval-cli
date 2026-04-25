@@ -1,6 +1,13 @@
 import React from "react";
-import { Box, Text, useInput } from "ink";
+import { Box, Text } from "ink";
 import TextInput from "ink-text-input";
+import { sanitizeTerminalInput } from "../inputSanitizer.js";
+import { truncateForTerminal } from "../layout.js";
+import { terminalTheme } from "../theme.js";
+import {
+  workspaceTabFromPromptChange,
+  type WorkspaceTab,
+} from "../workspaceTabs.js";
 
 export interface InputBoxProps {
   value: string;
@@ -8,6 +15,12 @@ export interface InputBoxProps {
   onSubmit: (value: string) => void;
   disabled?: boolean;
   placeholder?: string;
+  followUps?: string[];
+  followUpsLabel?: string;
+  focusedFollowUpIndex?: number;
+  followUpsActive?: boolean;
+  terminalColumns?: number;
+  onTabShortcut?: (tab: WorkspaceTab) => void;
 }
 
 export const InputBox: React.FC<InputBoxProps> = ({
@@ -16,33 +29,58 @@ export const InputBox: React.FC<InputBoxProps> = ({
   onSubmit,
   disabled = false,
   placeholder = "Ask Cloudeval...",
+  followUps = [],
+  followUpsLabel = "Follow-ups",
+  focusedFollowUpIndex,
+  followUpsActive = false,
+  terminalColumns = 100,
+  onTabShortcut,
 }) => {
-  useInput(
-    (input, key) => {
-      if (disabled) return;
-      
-      // Don't capture arrow keys, page up/down, home/end - let parent handle scrolling
-      // Only handle return key for submission
-      if (key.return) {
-        if (key.shift) {
-          onChange(`${value}\n`);
-        } else {
-          onSubmit(value);
-        }
-      }
-      // Let all other keys (including arrow keys) pass through to parent for scrolling
-    },
-    { isActive: !disabled }
-  );
+  const buttonLimit = Math.max(24, Math.min(72, Math.floor((terminalColumns - 14) / 2)));
+  const handleChange = (nextValue: string) => {
+    const cleanedValue = sanitizeTerminalInput(nextValue);
+    const shortcutTab = onTabShortcut
+      ? workspaceTabFromPromptChange(value, cleanedValue)
+      : undefined;
+    if (shortcutTab) {
+      onTabShortcut?.(shortcutTab);
+      return;
+    }
+    onChange(cleanedValue);
+  };
 
   return (
-    <Box flexDirection="column" borderStyle="round" padding={1}>
-      <Text>
-        Prompt (Enter to send, Shift+Enter for newline, Ctrl+C to quit)
-      </Text>
+    <Box flexDirection="column" borderStyle="round" borderColor={followUpsActive ? terminalTheme.brand : undefined} padding={1}>
+      <Box flexDirection="row" justifyContent="space-between">
+        <Text bold>Prompt</Text>
+        <Text dimColor>Enter send | Ctrl+C quit</Text>
+      </Box>
+      {followUps.length ? (
+        <Box flexDirection="column" marginTop={1}>
+          <Text dimColor>{followUpsLabel}</Text>
+          <Box flexDirection="row" flexWrap="wrap" gap={1}>
+            {followUps.map((question, index) => {
+              const focused = followUpsActive && focusedFollowUpIndex === index;
+              return (
+                <Box
+                  key={`${index}-${question}`}
+                  borderStyle="round"
+                  borderColor={focused ? terminalTheme.brand : terminalTheme.muted}
+                  paddingX={1}
+                >
+                  <Text color={focused ? terminalTheme.brand : undefined}>
+                    {index + 1}. {truncateForTerminal(question, buttonLimit)}
+                  </Text>
+                </Box>
+              );
+            })}
+          </Box>
+        </Box>
+      ) : null}
       <TextInput
         value={value}
-        onChange={onChange}
+        onChange={handleChange}
+        onSubmit={(nextValue) => onSubmit(sanitizeTerminalInput(nextValue))}
         placeholder={placeholder}
         focus={!disabled}
       />

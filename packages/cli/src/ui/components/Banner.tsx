@@ -1,5 +1,6 @@
 import React from "react";
 import { Box, Text } from "ink";
+import { terminalTheme } from "../theme.js";
 
 type BannerVariant = "auto" | "full" | "compact";
 
@@ -17,10 +18,13 @@ const wordArt = [
   " ╚═════╝  ╚══════╝  ╚═════╝   ╚═════╝  ╚═════╝  ╚══════╝   ╚═══╝   ╚═╝  ╚═╝ ╚══════╝",
 ];
 
-const compactLines = ["Welcome to Cloudeval", "CLI version"];
-
-const shouldUseColor = () =>
-  !process.env.NO_COLOR && process.env.TERM !== "dumb";
+const compactWordArt = [
+  "  ____ _                 _ _____           _ ",
+  " / ___| | ___  _   _  __| | ____|_   ____ _| |",
+  "| |   | |/ _ \\| | | |/ _` |  _| \\ \\ / / _` | |",
+  "| |___| | (_) | |_| | (_| | |___ \\ V / (_| | |",
+  " \\____|_|\\___/ \\__,_|\\__,_|_____| \\_/ \\__,_|_|",
+];
 
 const pickVariant = (variant: BannerVariant): "full" | "compact" => {
   if (variant === "compact") return "compact";
@@ -57,41 +61,37 @@ export const Banner: React.FC<BannerProps> = ({
 }) => {
   if (disable) return null;
 
-  const useColor = shouldUseColor();
   const selected = pickVariant(variant);
+  const version = process.env.CLOUDEVAL_CLI_VERSION ?? "0.1.0";
 
   if (selected === "compact") {
     return (
       <Box flexDirection="column" marginBottom={1}>
-        {compactLines.map((line) => (
-          <Text key={line} color={useColor ? "cyan" : undefined}>
+        <Text color={terminalTheme.success}>Welcome to</Text>
+        {compactWordArt.map((line) => (
+          <Text key={line} color={terminalTheme.accent}>
             {line}
           </Text>
         ))}
+        <Text color={terminalTheme.success}>CLI v{version}</Text>
       </Box>
     );
   }
 
   return (
     <Box
-      flexDirection="row"
-      justifyContent="flex-start"
+      flexDirection="column"
       alignItems="flex-start"
-      gap={3}
       marginBottom={1}
     >
-      <Box flexDirection="column" gap={0}>
-        <Box flexDirection="row" alignItems="flex-start" marginBottom={1}>
-          <Text color={useColor ? "green" : undefined}>Welcome to</Text>
-        </Box>
-        {wordArt.map((line) => (
-          <Text key={line} color={useColor ? "yellow" : undefined}>
-            {line}
-          </Text>
-        ))}
-        <Box flexDirection="row" justifyContent="flex-end" alignItems="flex-start" gap={3} marginBottom={0}>
-          <Text color={useColor ? "green" : undefined}>CLI v{process.env.CLOUDEVAL_CLI_VERSION ?? "0.1.0"}</Text>
-        </Box>
+      <Text color={terminalTheme.success}>Welcome to</Text>
+      {wordArt.map((line) => (
+        <Text key={line} color={terminalTheme.accent}>
+          {line}
+        </Text>
+      ))}
+      <Box width={90} flexDirection="row" justifyContent="flex-end">
+        <Text color={terminalTheme.success}>CLI v{version}</Text>
       </Box>
     </Box>
   );

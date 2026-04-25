@@ -7,11 +7,14 @@
     "cloudeval": "dist/cli.js",
     "eva": "dist/cli.js"
   },
+  "files": [
+    "dist"
+  ],
   "scripts": {
-    "build": "tsup",
+    "build": "pnpm -C ../shared build && pnpm -C ../core build && tsup",
     "build:standalone": "tsup --minify",
     "build:executable": "pnpm build:executable-bundle && pnpm exec pkg dist/cli.executable.js --targets node18-macos-x64,node18-macos-arm64,node18-linux-x64,node18-linux-arm64,node18-win-x64 --output dist/bin/cloudeval && node scripts/alias-executables.js",
-    "build:executable:current": "pnpm build:executable-bundle && pnpm exec pkg dist/cli.executable.js --targets node18-macos-arm64 --output dist/bin/cloudeval && node scripts/alias-executables.js",
+    "build:executable:current": "pnpm -C ../shared build && pnpm -C ../core build && node scripts/patch-yoga-wasm.js && YOGA_WASM=$(node scripts/prepare-yoga-wasm.js) && bun build src/cli.tsx --compile --outfile dist/bin/cloudeval && cp \"$YOGA_WASM\" dist/bin/yoga.wasm && rm -f \"$YOGA_WASM\" && node scripts/alias-executables.js",
     "build:executable-bundle": "tsup --config tsup.executable.config.ts",
     "build:executable:bun": "pnpm -C ../shared build && pnpm -C ../core build && node scripts/patch-yoga-wasm.js && node scripts/prepare-yoga-wasm.js && bun build src/cli.tsx --compile --outfile dist/bin/cloudeval && cp yoga.wasm dist/bin/yoga.wasm && rm -f yoga.wasm",
     "build:executable:ncc": "pnpm build && pnpm exec ncc build dist/cli.js -o dist/ncc -m && pnpm exec pkg dist/ncc/index.js --targets node18-macos-arm64 --output-path dist/bin",
@@ -19,22 +22,28 @@
     "docker:run": "docker run -it --rm cloudeval-cli",
     "run": "node dist/cli.js",
     "dev": "tsx src/cli.tsx",
-    "lint": "tsc --noEmit -p tsconfig.json",
+    "lint": "pnpm -C ../shared build && pnpm -C ../core build && tsc --noEmit -p tsconfig.json",
+    "test": "pnpm -C ../shared build && pnpm -C ../core build && tsx --test src/frontendLinks.test.ts src/outputFormatter.test.ts src/runtime/prepareInk.test.ts src/ui/inputSanitizer.test.ts src/ui/layout.test.ts src/ui/scrollBehavior.test.ts src/ui/promptSuggestions.test.ts src/ui/commandCompletion.test.ts src/ui/interactionModel.test.ts src/ui/userDisplayName.test.ts src/ui/workspaceTabs.test.ts src/ui/overviewDashboard.test.ts src/shellCompletion.test.ts src/reports/reportRender.test.ts src/reports/reportCommand.test.ts",
     "bundle": "pnpm build:standalone && pnpm pack --pack-destination ./dist"
   },
   "dependencies": {
-    "@cloudeval/core": "workspace:*",
-    "@cloudeval/shared": "workspace:*",
+    "asciichart": "^1.5.25",
     "commander": "^12.1.0",
     "ink": "^4.4.1",
     "ink-big-text": "^2.0.0",
     "ink-scroll-view": "^0.3.5",
     "ink-spinner": "^4.0.0",
-    "ink-text-input": "^6.0.0",
-    "react-devtools-core": "^4.28.5",
-    "react": "^18.3.1"
+    "ink-syntax-highlight": "^2.0.2",
+    "ink-text-input": "^5.0.1",
+    "marked": "^17.0.1",
+    "marked-terminal": "^7.3.0",
+    "react": "^18.3.1",
+    "react-devtools-core": "^4.28.5"
   },
   "devDependencies": {
+    "@cloudeval/core": "workspace:*",
+    "@cloudeval/shared": "workspace:*",
+    "@types/asciichart": "^1.5.8",
     "@types/node": "^20.14.11",
     "@types/react": "^18.3.11",
     "@vercel/ncc": "^0.38.1",

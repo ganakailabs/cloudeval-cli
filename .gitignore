@@ -2,6 +2,10 @@
 /dist
 /build
 /coverage
+/output
+/api
+/.agent
+/docs/tui-mockups
 /logs
 /tmp
 /cache
@@ -24,3 +28,21 @@
 /packages/*/www
 /packages/*/html
 /packages/*/css
+
+# Local configuration and credentials. Keep examples public, never real values.
+.env
+.env.*
+!.env.example
+*.local
+*.pem
+*.key
+*.p8
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.secret
+*.secret.*
+*.token
+*.token.*
+secrets/

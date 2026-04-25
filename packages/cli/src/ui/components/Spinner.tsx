@@ -2,15 +2,16 @@ import React from "react";
 import { Text } from "ink";
 
 interface SpinnerProps {
-  type?: "dots" | "line";
+  type?: "dots" | "line" | "pulse";
 }
 
-const dotFrames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
-const lineFrames = ["|", "/", "-", "\\"];
+const dotFrames = ["·  ", "·· ", "···"];
+const lineFrames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+const pulseFrames = ["◐", "◓", "◑", "◒"];
 
 export const Spinner: React.FC<SpinnerProps> = ({ type = "dots" }) => {
   const [frame, setFrame] = React.useState(0);
-  const frames = type === "dots" ? dotFrames : lineFrames;
+  const frames = type === "dots" ? dotFrames : type === "pulse" ? pulseFrames : lineFrames;
 
   React.useEffect(() => {
     const id = setInterval(() => {
@@ -21,8 +22,6 @@ export const Spinner: React.FC<SpinnerProps> = ({ type = "dots" }) => {
 
   return <Text>{frames[frame]}</Text>;
 };
-
-
 
 
 

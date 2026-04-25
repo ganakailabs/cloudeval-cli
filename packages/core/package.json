@@ -16,8 +16,9 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsup",
-    "lint": "tsc --noEmit -p tsconfig.json"
+    "build": "pnpm -C ../shared build && tsup",
+    "lint": "pnpm -C ../shared build && tsc --noEmit -p tsconfig.json",
+    "test": "pnpm -C ../shared build && tsx --test src/auth.test.ts src/streamClient.test.ts src/reportsClient.test.ts src/billingClient.test.ts src/projectClient.test.ts"
   },
   "dependencies": {
     "@cloudeval/shared": "workspace:*"

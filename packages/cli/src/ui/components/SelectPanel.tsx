@@ -1,6 +1,7 @@
 import React from "react";
 import { Box, Text, useInput } from "ink";
 import { terminalTheme } from "../theme.js";
+import { TitledBox } from "./TitledBox.js";
 
 export interface SelectPanelItem<T> {
   label: string;
@@ -66,8 +67,7 @@ export function SelectPanel<T>({
   const visibleItems = items.slice(windowStart, windowStart + visibleCount);
 
   return (
-    <Box flexDirection="column" borderStyle="round" borderColor={terminalTheme.brand} padding={1}>
-      <Text bold color={terminalTheme.brand}>{title}</Text>
+    <TitledBox title={title} borderStyle="round" borderColor={terminalTheme.brand} padding={1}>
       {items.length === 0 ? (
         <Text dimColor>No options available.</Text>
       ) : (
@@ -100,6 +100,6 @@ export function SelectPanel<T>({
         })
       )}
       <Text dimColor>Use Up/Down, Enter to select, Esc to cancel.</Text>
-    </Box>
+    </TitledBox>
   );
 }

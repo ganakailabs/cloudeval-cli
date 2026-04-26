@@ -25,6 +25,8 @@ const STREAM_OUTPUT_NODES = new Set([
   "handle_social_interaction",
   "response_compose",
 ]);
+const ASK_PROGRESS_MODES = new Set(["auto", "stderr", "ndjson", "none"]);
+type AskProgressMode = "auto" | "stderr" | "ndjson" | "none";
 
 // Verbose logging utility
 let verboseEnabled = false;
@@ -62,6 +64,59 @@ const readStdinValue = async (): Promise<string> => {
     throw new Error("Received empty stdin input for --api-key-stdin.");
   }
   return value;
+};
+
+const normalizeAskProgressMode = (value?: string): AskProgressMode => {
+  const normalized = (value ?? "auto").toLowerCase();
+  if (ASK_PROGRESS_MODES.has(normalized)) {
+    return normalized as AskProgressMode;
+  }
+  throw new Error("--progress must be one of: auto, stderr, ndjson, none");
+};
+
+const writeAskEvent = (
+  options: {
+    mode: AskProgressMode;
+    format: string;
+    quiet?: boolean;
+    output?: string;
+  },
+  event: Record<string, unknown>
+) => {
+  if (options.quiet || options.mode === "none") {
+    return;
+  }
+
+  const resolvedMode =
+    options.mode === "auto"
+      ? options.format === "ndjson" && !options.output
+        ? "ndjson"
+        : "stderr"
+      : options.mode;
+
+  if (resolvedMode === "ndjson" && options.format === "ndjson" && !options.output) {
+    process.stdout.write(`${JSON.stringify(event)}\n`);
+    return;
+  }
+
+  const message =
+    typeof event.message === "string"
+      ? event.message
+      : typeof event.step === "string"
+        ? event.step
+        : String(event.type ?? "progress");
+  process.stderr.write(`[${event.type ?? "progress"}] ${message}\n`);
+};
+
+const collapseRepeatedAssistantText = (value: string): string => {
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.length % 2 !== 0) {
+    return value;
+  }
+  const midpoint = trimmed.length / 2;
+  const first = trimmed.slice(0, midpoint);
+  const second = trimmed.slice(midpoint);
+  return first === second ? first : value;
 };
 
 export const setVerbose = (enabled: boolean) => {
@@ -360,7 +415,7 @@ program
     "Backend base URL",
     DEFAULT_BASE_URL
   )
-  .option("--tab <tab>", "Initial tab: chat, overview, reports, projects, connections, billing, options", "chat")
+  .option("--tab <tab>", "Initial tab: chat, overview, reports, projects, connections, billing, options, help", "chat")
   .option("--project <id>", "Initial project id")
   .option("--frontend-url <url>", "Frontend base URL")
   .option(
@@ -485,7 +540,7 @@ program
 program
   .command("ask")
   .description("Ask a single question (non-interactive)")
-  .argument("<question>", "The question to ask")
+  .argument("<question...>", "The question to ask")
   .option(
     "--base-url <url>",
     "Backend base URL",
@@ -503,6 +558,9 @@ program
   .option("--output <file>", "Output file (default: stdout)")
   .option("--format <format>", "Output format: text, json, ndjson, markdown", "text")
   .option("--json", "Output as JSON")
+  .option("--progress <mode>", "Progress events: auto, stderr, ndjson, none", "auto")
+  .option("--quiet", "Suppress progress and warning messages", false)
+  .option("--no-color", "Disable colorized progress output")
   .option("--open", "Open the frontend chat thread after completion", false)
   .option("--print-url", "Print the frontend chat thread URL", false)
   .option("--no-open", "Do not launch the browser when a URL is printed")
@@ -510,16 +568,22 @@ program
   .option("--non-interactive", "Disable prompts and browser login", false)
   .option("--debug", "Log raw chunks", false)
   .option("-v, --verbose", "Enable verbose logging", false)
-  .action(async (question, options, command) => {
+  .action(async (questionParts, options, command) => {
+    const question = Array.isArray(questionParts) ? questionParts.join(" ") : String(questionParts);
     const { assertSecureBaseUrl } = await import("@cloudeval/core");
     const baseUrl = await resolveBaseUrl(options, command);
     assertSecureBaseUrl(baseUrl);
+    const progressMode = normalizeAskProgressMode(options.progress);
+    const outputFormat = options.json ? "json" : String(options.format ?? "text").toLowerCase();
+    const jsonOutput = outputFormat === "json";
+    const ndjsonOutput = outputFormat === "ndjson";
+    const streamTextOutput = outputFormat === "text";
 
     let providedApiKey: string | undefined = options.apiKey;
     if (options.apiKeyStdin) {
       providedApiKey = await readStdinValue();
     }
-    if (options.apiKey) {
+    if (options.apiKey && !options.quiet) {
       console.warn(
         "Warning: --api-key can leak via shell history/process listing. Prefer --api-key-stdin."
       );
@@ -562,10 +626,20 @@ program
       // Import types - use any to avoid type conflicts for now
       type Project = any;
       type ChatState = any;
-      const jsonOutput = options.json || options.format === "json";
+      const progressOptions = {
+        mode: progressMode,
+        format: outputFormat,
+        quiet: Boolean(options.quiet),
+        output: options.output,
+      };
 
       // Get auth token
       verboseLog("Attempting to get authentication token");
+      writeAskEvent(progressOptions, {
+        type: "auth",
+        step: "auth",
+        message: "Resolving authentication",
+      });
       let token = providedApiKey;
       if (!token) {
         try {
@@ -591,8 +665,10 @@ program
             !process.env.CI &&
             error?.message?.includes("No authentication available")
           ) {
-            verboseLog("No authentication available, initiating login flow");
-            console.error("Authentication required. Starting login process...\n");
+              verboseLog("No authentication available, initiating login flow");
+            if (!options.quiet) {
+              console.error("Authentication required. Starting login process...\n");
+            }
             try {
               const { login } = await import("@cloudeval/core");
               verboseLog("Calling interactive login", { baseUrl });
@@ -600,13 +676,15 @@ program
                 headless: isHeadlessEnvironment(),
               });
               verboseLog("Login successful, proceeding with question");
-              console.error("\nAuthentication successful. Proceeding with your question...\n");
+              if (!options.quiet) {
+                console.error("\nAuthentication successful. Proceeding with your question...\n");
+              }
             } catch (loginError: any) {
               verboseLog("Login failed:", {
                 message: loginError.message,
                 stack: loginError.stack,
               });
-              console.error(`❌ Login failed: ${loginError.message}`);
+              console.error(`Login failed: ${loginError.message}`);
               process.exit(1);
             }
           } else {
@@ -614,7 +692,7 @@ program
               message: error.message,
               hasApiKey: !!providedApiKey,
             });
-            console.error(`❌ Authentication failed: ${error.message}`);
+            console.error(`Authentication failed: ${error.message}`);
             process.exit(1);
           }
         }
@@ -624,6 +702,11 @@ program
 
       // Get project
       verboseLog("Determining project to use");
+      writeAskEvent(progressOptions, {
+        type: "request",
+        step: "project",
+        message: options.project ? `Using project ${options.project}` : "Resolving project",
+      });
       let project: Project | undefined;
       let authenticatedUserId: string | undefined;
       if (options.project) {
@@ -682,10 +765,11 @@ program
           // Fallback to default project
         }
 
-        if (!project) {
-          console.error(
+      if (!project) {
+          process.stderr.write(
             "No project is available for this account. Run `cloudeval chat` to complete onboarding, then retry."
           );
+          process.stderr.write("\n");
           process.exit(1);
         }
       }
@@ -709,8 +793,10 @@ program
       });
       let chatState: ChatState = { ...initialChatState, threadId };
       let responseText = "";
+      let emittedTextLength = 0;
       let outputStream: NodeJS.WritableStream = process.stdout;
       let fileOutputStream: WriteStream | null = null;
+      let ndjsonOutputStream: WriteStream | null = null;
 
       if (options.debug) {
         console.error(`[ask] Question: ${question}`);
@@ -719,23 +805,35 @@ program
       }
 
       // Set up output stream
-      if (!jsonOutput && options.output) {
+      if (streamTextOutput && options.output) {
         fileOutputStream = fs.createWriteStream(options.output, { encoding: "utf-8" });
         outputStream = fileOutputStream;
       }
+      if (ndjsonOutput && options.output) {
+        ndjsonOutputStream = fs.createWriteStream(options.output, { encoding: "utf-8" });
+      }
 
-      const closeOutputStream = async () => {
-        if (!fileOutputStream) {
+      const writeAskDataEvent = (event: Record<string, unknown>) => {
+        const line = `${JSON.stringify(event)}\n`;
+        if (ndjsonOutputStream) {
+          ndjsonOutputStream.write(line);
           return;
         }
+        process.stdout.write(line);
+      };
 
-        const stream = fileOutputStream;
+      const closeOutputStream = async () => {
+        const streams = [fileOutputStream, ndjsonOutputStream].filter(
+          (stream): stream is WriteStream => Boolean(stream)
+        );
         fileOutputStream = null;
-
-        await new Promise<void>((resolve, reject) => {
-          stream.once("error", reject);
-          stream.end(resolve);
-        });
+        ndjsonOutputStream = null;
+        for (const stream of streams) {
+          await new Promise<void>((resolve, reject) => {
+            stream.once("error", reject);
+            stream.end(resolve);
+          });
+        }
       };
 
       const streamUrl = `${normalizeApiBase(baseUrl)}/chat/stream`;
@@ -767,6 +865,13 @@ program
 
       try {
         let chunkCount = 0;
+        writeAskEvent(progressOptions, {
+          type: "request",
+          step: "stream",
+          message: "Sending chat request",
+          threadId,
+          projectId: project.id,
+        });
         for await (const chunk of streamChat({
           baseUrl,
           authToken: token,
@@ -798,19 +903,38 @@ program
             .reverse()
             .find((m) => m.role === "assistant");
 
-          // Stream responding chunks in real-time (for non-JSON mode)
-          // chunk.content is incremental (just the new part), so output it directly
           if (
-            !jsonOutput &&
+            ndjsonOutput &&
             chunk.type === "responding" &&
             chunk.content &&
             (!chunk.node || STREAM_OUTPUT_NODES.has(chunk.node))
           ) {
-            // Output the incremental content directly
-            outputStream.write(chunk.content);
-            // Track cumulative content for final output
+            writeAskDataEvent({
+              type: "chunk",
+              content: chunk.content,
+              node: chunk.node,
+              threadId,
+            });
+          }
+
+          // Stream responding text in real-time. Some backends send incremental
+          // content and others send cumulative assistant content, so derive the
+          // emitted delta from reducer state to avoid duplicate stdout.
+          if (
+            streamTextOutput &&
+            chunk.type === "responding" &&
+            chunk.content &&
+            (!chunk.node || STREAM_OUTPUT_NODES.has(chunk.node))
+          ) {
             if (latestMessage?.content) {
               responseText = latestMessage.content;
+              const delta = responseText.slice(emittedTextLength);
+              if (delta) {
+                if (!responseText.slice(0, emittedTextLength).endsWith(delta)) {
+                  outputStream.write(delta);
+                }
+                emittedTextLength = responseText.length;
+              }
             }
           }
 
@@ -826,9 +950,11 @@ program
             if (jsonOutput) {
               // For JSON mode, we'll include error in final output
               responseText = `Error: ${errorMsg}`;
+            } else if (ndjsonOutput) {
+              writeAskDataEvent({ type: "error", error: { message: errorMsg }, threadId });
             } else {
               // For streaming mode, output error immediately
-              outputStream.write(`\n❌ Error: ${errorMsg}\n`);
+              outputStream.write(`\nError: ${errorMsg}\n`);
             }
             break;
           }
@@ -839,7 +965,7 @@ program
         // Cleanup (no thinking steps for ask command)
 
         // Ensure we output everything (in case we missed some content)
-        if (!jsonOutput) {
+        if (streamTextOutput) {
           // Add newline at the end for non-JSON output
           outputStream.write("\n");
           await closeOutputStream();
@@ -848,28 +974,29 @@ program
         const errorMsg = error.message || "Streaming failed";
         if (jsonOutput) {
           responseText = `Error: ${errorMsg}`;
+        } else if (ndjsonOutput) {
+          writeAskDataEvent({ type: "error", error: { message: errorMsg }, threadId });
         } else {
-          outputStream.write(`\n❌ Error: ${errorMsg}\n`);
+          outputStream.write(`\nError: ${errorMsg}\n`);
         }
         await closeOutputStream();
         throw error;
       }
 
-      // For JSON mode, output the complete response as JSON
-      if (jsonOutput) {
-        const finalMessage = [...chatState.messages]
-          .reverse()
-          .find((m) => m.role === "assistant");
+      const finalMessage = [...chatState.messages]
+        .reverse()
+        .find((m) => m.role === "assistant");
+      const finalResponse = collapseRepeatedAssistantText(finalMessage?.content || responseText || "");
+      const frontendUrl = buildFrontendUrl({
+        baseUrl: resolveFrontendBaseUrl({
+          frontendUrl: options.frontendUrl,
+          apiBaseUrl: baseUrl,
+        }),
+        target: "chat",
+        threadId: chatState.threadId,
+      });
 
-        const finalResponse = finalMessage?.content || responseText || "";
-        const frontendUrl = buildFrontendUrl({
-          baseUrl: resolveFrontendBaseUrl({
-            frontendUrl: options.frontendUrl,
-            apiBaseUrl: baseUrl,
-          }),
-          target: "chat",
-          threadId: chatState.threadId,
-        });
+      if (jsonOutput) {
         const output = {
           ok: true,
           command: "ask",
@@ -899,15 +1026,34 @@ program
         }
       }
 
-      if (!jsonOutput && (options.printUrl || options.open)) {
-        const frontendUrl = buildFrontendUrl({
-          baseUrl: resolveFrontendBaseUrl({
-            frontendUrl: options.frontendUrl,
-            apiBaseUrl: baseUrl,
-          }),
-          target: "chat",
-          threadId: chatState.threadId,
+      if (ndjsonOutput) {
+        writeAskDataEvent({
+          type: "result",
+          ok: true,
+          command: "ask",
+          data: {
+            response: finalResponse,
+            threadId: chatState.threadId,
+            project: {
+              id: project.id,
+              name: project.name,
+            },
+          },
+          frontendUrl,
         });
+        await closeOutputStream();
+      }
+
+      if (outputFormat === "markdown") {
+        const outputText = finalResponse ? `${finalResponse}\n` : "";
+        if (options.output) {
+          await fsPromises.writeFile(options.output, outputText, "utf-8");
+        } else {
+          process.stdout.write(outputText);
+        }
+      }
+
+      if (!jsonOutput && !ndjsonOutput && (options.printUrl || options.open)) {
         if (options.printUrl) {
           process.stderr.write(`${frontendUrl}\n`);
         }
@@ -925,7 +1071,7 @@ program
         name: error.name,
         cause: error.cause,
       });
-      console.error("❌ Error:", error.message);
+      console.error("Error:", error.message);
       if (options.debug || options.verbose) {
         console.error(error.stack);
       }

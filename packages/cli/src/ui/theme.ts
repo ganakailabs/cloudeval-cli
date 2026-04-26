@@ -39,7 +39,7 @@ export const terminalTheme = {
 export const shouldUseColor = hasColor;
 
 export const raisedButtonStyle = {
-  border: "bold" as const,
-  activeMarker: "▰",
-  inactiveMarker: "▱",
+  border: "round" as const,
+  activeMarker: "●",
+  inactiveMarker: "○",
 };

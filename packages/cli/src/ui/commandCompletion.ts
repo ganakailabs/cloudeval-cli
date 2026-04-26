@@ -14,6 +14,7 @@ export type CompletionContext<ProjectLike = { id: string; name: string }> = {
 export type PromptCommand<ProjectLike = { id: string; name: string }> =
   | { type: "openSelector"; selector: "project" | "model" | "mode" }
   | { type: "toggleThinking" }
+  | { type: "stopChat" }
   | { type: "openFrontend" }
   | { type: "showHelp" }
   | { type: "setModel"; model: string; label: string }
@@ -54,6 +55,11 @@ export const slashCommands: SlashCommand[] = [
     name: "/thinking",
     aliases: ["/think"],
     description: "Expand or collapse the latest thinking steps.",
+  },
+  {
+    name: "/stop",
+    aliases: ["/cancel", "/abort"],
+    description: "Cancel the running response.",
   },
   {
     name: "/open",
@@ -247,6 +253,10 @@ export const resolvePromptCommand = <
 
   if (command === "/thinking" || command === "/think") {
     return { type: "toggleThinking" };
+  }
+
+  if (command === "/stop" || command === "/cancel" || command === "/abort") {
+    return { type: "stopChat" };
   }
 
   if (command === "/open" || command === "/frontend") {

@@ -3,11 +3,10 @@ import { Box, Text } from "ink";
 import { terminalTheme } from "../theme.js";
 import { CLI_VERSION } from "../../version.js";
 
-type BannerVariant = "auto" | "full" | "compact";
-
 export interface BannerProps {
   disable?: boolean;
-  variant?: BannerVariant;
+  details?: string[];
+  terminalColumns?: number;
 }
 
 const wordArt = [
@@ -19,81 +18,58 @@ const wordArt = [
   " ╚═════╝  ╚══════╝  ╚═════╝   ╚═════╝  ╚═════╝  ╚══════╝   ╚═══╝   ╚═╝  ╚═╝ ╚══════╝",
 ];
 
-const compactWordArt = [
-  "  ____ _                 _ _____           _ ",
-  " / ___| | ___  _   _  __| | ____|_   ____ _| |",
-  "| |   | |/ _ \\| | | |/ _` |  _| \\ \\ / / _` | |",
-  "| |___| | (_) | |_| | (_| | |___ \\ V / (_| | |",
-  " \\____|_|\\___/ \\__,_|\\__,_|_____| \\_/ \\__,_|_|",
-];
-
-const pickVariant = (variant: BannerVariant): "full" | "compact" => {
-  if (variant === "compact") return "compact";
-  if (variant === "full") return "full";
-  
-  // Always default to full for "auto" - only use compact if explicitly requested
-  // or if terminal is extremely small
-  const hasValidDimensions = 
-    process.stdout.isTTY && 
-    typeof process.stdout.columns === "number" && 
-    typeof process.stdout.rows === "number" &&
-    process.stdout.columns > 0 &&
-    process.stdout.rows > 0;
-  
-  if (!hasValidDimensions) {
-    // If we can't determine terminal size, default to full
-    return "full";
-  }
-  
-  const columns = process.stdout.columns;
-  const rows = process.stdout.rows;
-  
-  // Only use compact if terminal is extremely small (less than 70 columns or 8 rows)
-  // This ensures word art shows in most cases
-  if (columns < 70 || rows < 8) {
-    return "compact";
-  }
-  return "full";
-};
+const artWidth = (art: string[]): number => Math.max(...art.map((line) => line.length));
 
 export const Banner: React.FC<BannerProps> = ({
   disable = false,
-  variant = "auto",
+  details = [],
+  terminalColumns,
 }) => {
   if (disable) return null;
 
-  const selected = pickVariant(variant);
+  const columns = terminalColumns ?? process.stdout.columns ?? 100;
+  const art = wordArt;
+  const width = artWidth(art);
+  const showArt = columns >= width;
+  const showDetailsBesideArt = showArt && details.length > 0 && columns >= width + 42;
   const version = process.env.CLOUDEVAL_CLI_VERSION ?? CLI_VERSION;
 
-  if (selected === "compact") {
-    return (
-      <Box flexDirection="column" marginBottom={1}>
-        <Text color={terminalTheme.success}>Welcome to</Text>
-        {compactWordArt.map((line) => (
-          <Text key={line} color={terminalTheme.accent}>
-            {line}
-          </Text>
-        ))}
-        <Text color={terminalTheme.success}>CLI v{version}</Text>
-      </Box>
-    );
-  }
-
   return (
-    <Box
-      flexDirection="column"
-      alignItems="flex-start"
-      marginBottom={1}
-    >
-      <Text color={terminalTheme.success}>Welcome to</Text>
-      {wordArt.map((line) => (
-        <Text key={line} color={terminalTheme.accent}>
-          {line}
-        </Text>
-      ))}
-      <Box width={90} flexDirection="row" justifyContent="flex-end">
-        <Text color={terminalTheme.success}>CLI v{version}</Text>
-      </Box>
+    <Box flexDirection="column" alignItems="flex-start" marginBottom={1}>
+      {showArt ? (
+        <>
+          <Text color={terminalTheme.success}>Welcome to</Text>
+          <Box flexDirection="row" gap={2}>
+            <Box flexDirection="column">
+              {art.map((line) => (
+                <Text key={line} color={terminalTheme.accent}>
+                  {line}
+                </Text>
+              ))}
+            </Box>
+            {showDetailsBesideArt ? (
+              <Box flexDirection="column" paddingTop={1}>
+                <Text color={terminalTheme.success}>CLI v{version}</Text>
+                {details.map((detail) => (
+                  <Text key={detail} dimColor wrap="truncate">
+                    {detail}
+                  </Text>
+                ))}
+              </Box>
+            ) : null}
+          </Box>
+        </>
+      ) : null}
+      {!showDetailsBesideArt ? (
+        <>
+          <Text color={terminalTheme.success}>CLI v{version}</Text>
+          {details.map((detail) => (
+            <Text key={detail} dimColor wrap="truncate">
+              {detail}
+            </Text>
+          ))}
+        </>
+      ) : null}
     </Box>
   );
 };

@@ -89,9 +89,12 @@ test("builds overview dashboard model from frontend-aligned dashboard and report
   });
 
   assert.equal(model.metrics.find((metric) => metric.label === "Projects")?.value, "3");
+  assert.equal(model.metrics.find((metric) => metric.label === "Score")?.value, "82/100");
+  assert.equal(model.metrics.find((metric) => metric.label === "Reports")?.value, "9 reports");
   assert.equal(model.metrics.find((metric) => metric.label === "Monthly Cost")?.value, "$4,200");
   assert.equal(model.trends.score.tone, "success");
   assert.equal(model.trends.cost.tone, "success");
+  assert.equal(model.trends.cost.summary, "down $800");
   assert.deepEqual(
     model.pillarScores.map((bar) => [bar.label, bar.value]),
     [

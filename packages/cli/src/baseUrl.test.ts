@@ -45,6 +45,15 @@ test("shouldUseStoredBaseUrl allows local stored base URLs only with explicit op
   );
 });
 
-test("shouldUseStoredBaseUrl keeps non-local stored base URLs", () => {
-  assert.equal(shouldUseStoredBaseUrl("https://staging.cloudeval.ai/api/v1", {}), true);
+test("shouldUseStoredBaseUrl ignores stale non-default auth base URLs by default", () => {
+  assert.equal(shouldUseStoredBaseUrl("https://staging.cloudeval.ai/api/v1", {}), false);
+});
+
+test("shouldUseStoredBaseUrl allows any stored base URL with explicit opt-in", () => {
+  assert.equal(
+    shouldUseStoredBaseUrl("https://staging.cloudeval.ai/api/v1", {
+      CLOUDEVAL_USE_STORED_BASE_URL: "1",
+    }),
+    true
+  );
 });

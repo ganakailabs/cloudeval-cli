@@ -2,6 +2,12 @@ import React from "react";
 import { Box, Text } from "ink";
 import { plot as plotAsciiChart } from "asciichart";
 import type { Project } from "@cloudeval/core";
+import { slashCommands } from "./commandCompletion.js";
+import { buildFrontendUrl } from "../frontendLinks.js";
+import { formatCredits, type BillingSummaryState } from "./billingSummary.js";
+import { Spinner } from "./components/Spinner.js";
+import { TitledBox } from "./components/TitledBox.js";
+import { getTuiKeyBindings } from "./keyBindings.js";
 import { truncateForTerminal } from "./layout.js";
 import {
   buildOverviewDashboardModel,
@@ -10,9 +16,9 @@ import {
   type OverviewTone,
   type OverviewTrend,
 } from "./overviewDashboard.js";
+import { buildReportsDashboardModel } from "./reportsDashboard.js";
 import { raisedButtonStyle, terminalTheme } from "./theme.js";
 import {
-  workspaceTabButtonContent,
   workspaceTabButtonLabel,
   workspaceTabLabels,
   workspaceTabs,
@@ -28,6 +34,12 @@ export interface WorkspacePanelState {
   warnings: string[];
   error?: string;
   loadedAt?: number;
+  staleAt?: number;
+  cacheKey?: string;
+  isRefreshing?: boolean;
+  refreshStartedAt?: number;
+  lastLoadReason?: "initial" | "manual" | "stale";
+  lastRefreshToken?: number;
 }
 
 export interface WorkspacePanelProps {
@@ -41,6 +53,7 @@ export interface WorkspacePanelProps {
   apiBase: string;
   frontendUrl: string;
   terminalColumns: number;
+  tablePage: number;
 }
 
 type Metric = {
@@ -48,6 +61,8 @@ type Metric = {
   value: string;
   tone?: OverviewTone;
 };
+
+type TableRow = Record<string, string | number>;
 
 const toRecord = (value: unknown): Record<string, unknown> | undefined =>
   value && typeof value === "object" && !Array.isArray(value)
@@ -179,6 +194,19 @@ const metricColor = (tone?: Metric["tone"]): string | undefined => {
   return undefined;
 };
 
+const billingToneColor = (tone?: string): string | undefined => {
+  if (tone === "success") return terminalTheme.success;
+  if (tone === "warning") return terminalTheme.warning;
+  if (tone === "low") return terminalTheme.warning;
+  if (tone === "exhausted") return terminalTheme.danger;
+  if (tone === "danger") return terminalTheme.danger;
+  if (tone === "normal") return terminalTheme.success;
+  return terminalTheme.muted;
+};
+
+const metricToneFromBillingTone = (tone?: string): Metric["tone"] =>
+  tone === "exhausted" ? "danger" : tone === "low" || tone === "warning" ? "warning" : "success";
+
 const chartValue = (value: number): string =>
   new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 }).format(value);
 
@@ -234,7 +262,7 @@ const AsciiLineChart: React.FC<{
     return (
       <Box flexDirection="row">
         <InlineSparkline values={sampled} width={Math.max(8, width - 12)} tone={tone} />
-        <Text dimColor> single point</Text>
+        <Text dimColor> current only</Text>
       </Box>
     );
   }
@@ -297,7 +325,10 @@ const rowDetail = (value: unknown): string => {
   }
   const parts = [
     firstString(record, ["cloud_provider", "provider"], ""),
-    firstString(record, ["effective_status", "status", "outcome"], ""),
+    (() => {
+      const status = firstString(record, ["effective_status", "status", "outcome"], "");
+      return status.toLowerCase().replace(/[\s-]+/g, "_") === "trial_active" ? "" : status;
+    })(),
     firstString(record, ["created_at", "updated_at", "timestamp", "period"], ""),
   ].filter(Boolean);
   return parts.join(" | ");
@@ -313,10 +344,13 @@ const Bar: React.FC<{ value?: number; width?: number; tone?: Metric["tone"] }> =
   }
   const ratio = Math.max(0, Math.min(1, value));
   const filled = Math.round(ratio * width);
+  if (filled <= 0) {
+    return <Text>{" ".repeat(width)}</Text>;
+  }
   return (
     <Text color={metricColor(tone) ?? terminalTheme.brand}>
       {"█".repeat(filled)}
-      <Text dimColor>{"░".repeat(width - filled)}</Text>
+      {" ".repeat(width - filled)}
     </Text>
   );
 };
@@ -353,13 +387,23 @@ const TrendSummary: React.FC<{ trend: OverviewTrend; width: number }> = ({
 }) => {
   const chartWidth = Math.max(18, Math.min(44, width));
   const labelWidth = Math.min(24, Math.max(14, Math.floor(chartWidth * 0.55)));
+  const icon =
+    trend.delta === undefined
+      ? "•"
+      : trend.delta > 0
+        ? "↑"
+        : trend.delta < 0
+          ? "↓"
+          : "→";
   return (
     <Box flexDirection="column">
       <Box flexDirection="row">
         <Box width={labelWidth}>
           <Text bold wrap="truncate">{truncateForTerminal(trend.label, labelWidth - 1)}</Text>
         </Box>
-        <Text color={metricColor(trend.tone)}>{trend.summary}</Text>
+        <Text color={metricColor(trend.tone)}>
+          {icon} {trend.summary}
+        </Text>
       </Box>
       <AsciiLineChart values={trend.values} width={chartWidth} height={3} tone={trend.tone} />
     </Box>
@@ -371,48 +415,217 @@ const SectionCard: React.FC<{
   children: React.ReactNode;
   borderColor?: string;
 }> = ({ title, children, borderColor }) => (
-  <Box flexDirection="column" borderStyle="round" borderColor={borderColor ?? terminalTheme.muted} paddingX={1}>
-    <Text bold color={borderColor ?? undefined}>
-      {title}
-    </Text>
+  <TitledBox
+    title={title}
+    borderStyle="round"
+    borderColor={borderColor ?? terminalTheme.muted}
+    padding={0}
+    paddingX={1}
+  >
     <Box flexDirection="column" marginTop={1}>
       {children}
     </Box>
+  </TitledBox>
+);
+
+const CreditProgress: React.FC<{
+  remaining: number;
+  total: number;
+  width?: number;
+  tone?: string;
+}> = ({ remaining, total, width = 12, tone }) => {
+  const ratio = total > 0 ? Math.min(1, Math.max(0, remaining / total)) : 0;
+  const safeWidth = Math.max(6, width);
+  const filled = Math.round(ratio * safeWidth);
+  return (
+    <Text>
+      [
+      <Text color={billingToneColor(tone)}>
+        {"█".repeat(filled)}
+      </Text>
+      {" ".repeat(safeWidth - filled)}
+      ] {Math.round(ratio * 100)}%
+    </Text>
+  );
+};
+
+const BillingSummaryLine: React.FC<{ billing: BillingSummaryState }> = ({ billing }) => (
+  <Box flexDirection="row" flexWrap="wrap" columnGap={1}>
+    <Text dimColor>Plan: <Text>{billing.plan}</Text></Text>
+    <Text dimColor>
+      Credits: <Text color={billingToneColor(billing.tone)}>
+        {formatCredits(billing.remaining)}/{formatCredits(billing.total)}
+      </Text>
+    </Text>
+    <CreditProgress
+      remaining={billing.remaining}
+      total={billing.total}
+      width={12}
+      tone={billing.tone}
+    />
+    <Text dimColor>O opens billing</Text>
   </Box>
 );
 
 const MetricStrip: React.FC<{ metrics: Metric[]; compact: boolean }> = ({ metrics, compact }) => (
   <Box flexDirection={compact ? "column" : "row"} gap={1} flexWrap="wrap">
-    {metrics.map((metric) => (
-      <Box
-        key={metric.label}
-        flexDirection="column"
-        borderStyle="round"
-        borderColor={metricColor(metric.tone) ?? terminalTheme.muted}
-        paddingX={1}
-        minWidth={compact ? undefined : 15}
-      >
-        <Text dimColor>{metric.label}</Text>
-        <Text bold color={metricColor(metric.tone)}>{metric.value}</Text>
-      </Box>
-    ))}
+    {metrics.map((metric) => {
+      const width = Math.max(
+        metric.label.length + 8,
+        metric.value.length + 6,
+        compact ? 0 : 17
+      );
+      return (
+        <TitledBox
+          key={metric.label}
+          title={metric.label}
+          flexDirection="column"
+          borderStyle="round"
+          borderColor={metricColor(metric.tone) ?? terminalTheme.muted}
+          padding={0}
+          paddingX={1}
+          width={width}
+          flexShrink={0}
+        >
+          <Text bold color={metricColor(metric.tone)} wrap="truncate">{metric.value}</Text>
+        </TitledBox>
+      );
+    })}
   </Box>
 );
 
-const statusColor = (status?: string): string | undefined => {
-  if (!status) return terminalTheme.muted;
-  if (["ready", "complete", "idle"].includes(status)) return terminalTheme.success;
-  if (["loading", "connecting", "thinking", "streaming", "tool_running"].includes(status)) {
-    return terminalTheme.brand;
+const ResponsiveTable: React.FC<{
+  rows: TableRow[];
+  columns: string[];
+  terminalColumns: number;
+  maxRows?: number;
+  page?: number;
+}> = ({ rows, columns, terminalColumns, maxRows = 12, page = 0 }) => {
+  if (!rows.length) {
+    return null;
   }
-  if (["hitl_waiting", "canceled"].includes(status)) return terminalTheme.warning;
-  if (status === "error") return terminalTheme.danger;
-  return terminalTheme.muted;
+  const safeMaxRows = Math.max(1, maxRows);
+  const pageCount = Math.max(1, Math.ceil(rows.length / safeMaxRows));
+  const safePage = Math.min(Math.max(0, page), pageCount - 1);
+  const startIndex = safePage * safeMaxRows;
+  const visibleRows = rows.slice(startIndex, startIndex + safeMaxRows);
+  const hiddenCount = Math.max(0, rows.length - visibleRows.length);
+  const narrow = terminalColumns < 76;
+  if (narrow) {
+    return (
+      <Box flexDirection="column">
+        {visibleRows.map((row, index) => (
+          <Box key={index} flexDirection="column" marginBottom={1}>
+            {columns.map((column) => (
+              <Text key={column} wrap="truncate">
+                <Text color={terminalTheme.muted}>{column}: </Text>
+                {String(row[column] ?? "")}
+              </Text>
+            ))}
+          </Box>
+        ))}
+        <Box flexDirection="row" justifyContent="space-between">
+          <Text dimColor>rows {startIndex + 1}-{startIndex + visibleRows.length} of {rows.length}</Text>
+          <Text dimColor>[ prev | ] next | D download</Text>
+        </Box>
+      </Box>
+    );
+  }
+  const availableWidth = Math.max(48, terminalColumns - 14);
+  const minimumWidth = (column: string): number => (column === "#" || column === "" ? 3 : 8);
+  const preferredWidths = columns.map((column) => {
+    const contentWidth = Math.max(
+      column.length,
+      ...visibleRows.map((row) => String(row[column] ?? "").length)
+    );
+    return Math.max(minimumWidth(column), contentWidth + 1);
+  });
+  const totalGap = Math.max(0, columns.length - 1);
+  const preferredTotal = preferredWidths.reduce((sum, width) => sum + width, 0) + totalGap;
+  const widths =
+    preferredTotal <= availableWidth
+      ? preferredWidths
+      : preferredWidths.map((width, index) => {
+          const column = columns[index] ?? "";
+          const min = minimumWidth(column);
+          const scaled = Math.floor((width / preferredTotal) * (availableWidth - totalGap));
+          return Math.max(min, scaled);
+        });
+  const columnWidth = (column: string): number => widths[columns.indexOf(column)] ?? 10;
+  const renderRow = (row: TableRow, key: string, heading = false) => (
+    <Box key={key} flexDirection="row">
+      {columns.map((column) => {
+        const width = columnWidth(column);
+        const value = heading ? column : String(row[column] ?? "");
+        return (
+          <Box key={column} width={width} marginRight={1}>
+            <Text
+              bold={heading}
+              color={heading ? terminalTheme.brand : undefined}
+              wrap="truncate"
+            >
+              {value.length <= width - 1
+                ? value
+                : truncateForTerminal(value, Math.max(1, width - 1))}
+            </Text>
+          </Box>
+        );
+      })}
+    </Box>
+  );
+  return (
+    <Box flexDirection="column">
+      {renderRow({}, "header", true)}
+      <Text dimColor>{truncateForTerminal("─".repeat(availableWidth), availableWidth)}</Text>
+      <Box flexDirection="row">
+        <Box flexDirection="column" flexGrow={1}>
+          {visibleRows.map((row, index) => renderRow(row, String(index)))}
+        </Box>
+        {hiddenCount > 0 ? (
+          <Box flexDirection="column" marginLeft={1}>
+            <Text color={terminalTheme.brand}>┃</Text>
+            {Array.from({ length: Math.max(1, visibleRows.length - 2) }, (_, index) => (
+              <Text key={index} dimColor>│</Text>
+            ))}
+            <Text dimColor>╵</Text>
+          </Box>
+        ) : null}
+      </Box>
+      <Box flexDirection="row" justifyContent="space-between">
+        <Text dimColor>rows {startIndex + 1}-{startIndex + visibleRows.length} of {rows.length}</Text>
+        <Text dimColor>
+          page {safePage + 1}/{pageCount} | [ prev | ] next | D download
+        </Text>
+      </Box>
+    </Box>
+  );
 };
 
-const statusLabel = (status?: string): string => {
-  if (!status) return "idle";
-  return status.replace(/_/g, " ");
+const HelpLegend: React.FC<{ includeQuit?: boolean; wrap?: boolean }> = ({
+  includeQuit = false,
+  wrap = false,
+}) => {
+  const segments = [
+    { key: `1-${workspaceTabs.length}`, label: "tabs", color: terminalTheme.brand },
+    { key: "Left/Right", label: "switch", color: terminalTheme.brand },
+    { key: "R", label: "refresh", color: terminalTheme.warning },
+    { key: "O", label: "open", color: terminalTheme.success },
+    { key: "D", label: "download", color: terminalTheme.success },
+    ...(includeQuit
+      ? [{ key: "Ctrl+Q", label: "quit", color: terminalTheme.danger }]
+      : []),
+  ];
+  return (
+    <Box flexDirection="row" flexWrap={wrap ? "wrap" : "nowrap"} columnGap={1}>
+      {segments.map((segment, index) => (
+        <Box key={segment.key} flexDirection="row">
+          {index > 0 ? <Text dimColor>| </Text> : null}
+          <Text bold color={segment.color}>{segment.key}</Text>
+          <Text dimColor> {segment.label}</Text>
+        </Box>
+      ))}
+    </Box>
+  );
 };
 
 const ResourceSummary: React.FC<{
@@ -505,7 +718,8 @@ const BillingView: React.FC<{
   state: WorkspacePanelState;
   compact: boolean;
   terminalColumns: number;
-}> = ({ state, compact, terminalColumns }) => {
+  frontendUrl: string;
+}> = ({ state, compact, terminalColumns, frontendUrl }) => {
   const creditStatus = toRecord(state.data.creditStatus);
   const entitlement = toRecord(state.data.entitlement);
   const plan = toRecord(entitlement?.plan);
@@ -515,22 +729,35 @@ const BillingView: React.FC<{
   const topups = directArray(state.data.topups);
   const notifications = directArray(state.data.notifications);
   const remainingRatio = firstNumber(creditStatus, ["remainingRatio"]);
-  const tone = firstString(creditStatus, ["tone"], "normal") as Metric["tone"];
+  const creditTone = firstString(creditStatus, ["tone"], "normal");
+  const tone = metricToneFromBillingTone(creditTone);
+  const remaining = firstNumber(creditStatus, ["remaining"]);
+  const total = firstNumber(creditStatus, ["total"]);
+  const plansUrl = buildFrontendUrl({ baseUrl: frontendUrl, target: "billing", tab: "plans" });
+  const topUpUrl = buildFrontendUrl({ baseUrl: frontendUrl, target: "billing", tab: "usage" });
   const metrics: Metric[] = [
     { label: "Plan", value: firstString(creditStatus, ["planName"], firstString(plan, ["name"], "-")) },
-    { label: "Remaining", value: formatNumber(firstNumber(creditStatus, ["remaining"])) },
+    { label: "Remaining", value: formatNumber(remaining) },
     { label: "Used", value: formatNumber(firstNumber(creditStatus, ["used"])) },
     { label: "Top-up", value: formatNumber(firstNumber(creditStatus, ["topUpBalance"])) },
-    { label: "Status", value: firstString(entitlement, ["effective_status"], "-"), tone },
   ];
   return (
     <Box flexDirection="column" gap={1}>
       <MetricStrip metrics={metrics} compact={compact} />
       <Box flexDirection="row" gap={1}>
         <Text dimColor>Credit balance</Text>
-        <Bar value={remainingRatio} tone={tone} />
-        <Text>{formatPercent(remainingRatio)}</Text>
+        {remaining !== undefined && total !== undefined ? (
+          <CreditProgress remaining={remaining} total={total} width={28} tone={creditTone} />
+        ) : (
+          <>
+            <Bar value={remainingRatio} tone={tone} />
+            <Text>{formatPercent(remainingRatio)}</Text>
+          </>
+        )}
       </Box>
+      <Text dimColor wrap="wrap">
+        Subscribe: {plansUrl} | Top up: {topUpUrl}
+      </Text>
       <SectionCard title="Usage trend" borderColor={terminalTheme.brand}>
         <AsciiLineChart
           values={usageValues}
@@ -547,28 +774,360 @@ const BillingView: React.FC<{
   );
 };
 
-const ReportsView: React.FC<{
-  state: WorkspacePanelState;
+const statusTextColor = (status: string): string | undefined => {
+  const normalized = status.toLowerCase();
+  if (normalized === "completed" || normalized === "fresh") return terminalTheme.success;
+  if (normalized === "running" || normalized === "partial" || normalized === "stale") {
+    return terminalTheme.warning;
+  }
+  if (normalized === "failed" || normalized === "outdated" || normalized === "missing") {
+    return terminalTheme.danger;
+  }
+  return terminalTheme.muted;
+};
+
+const compactStatusLabel = (status: string): string =>
+  normalizeLabel(status || "not_started")
+    .replace(/\b\w/g, (match) => match.toUpperCase());
+
+const statusHeatColor = (status: string): string | undefined => {
+  const normalized = status.toLowerCase();
+  if (normalized === "completed" || normalized === "fresh") return terminalTheme.success;
+  if (normalized === "running" || normalized === "partial" || normalized === "stale") {
+    return terminalTheme.warning;
+  }
+  if (normalized === "failed" || normalized === "missing" || normalized === "outdated") {
+    return terminalTheme.danger;
+  }
+  return terminalTheme.muted;
+};
+
+const ReportsHeatmap: React.FC<{
+  rows: ReturnType<typeof buildReportsDashboardModel>["projectRows"];
   terminalColumns: number;
-}> = ({ state, terminalColumns }) => (
+  page?: number;
+}> = ({ rows, terminalColumns, page = 0 }) => {
+  const maxRows = terminalColumns < 88 ? 6 : 10;
+  const pageCount = Math.max(1, Math.ceil(rows.length / maxRows));
+  const safePage = Math.min(Math.max(0, page), pageCount - 1);
+  const startIndex = safePage * maxRows;
+  const visibleRows = rows.slice(startIndex, startIndex + maxRows);
+  if (!visibleRows.length) {
+    return <Text dimColor>No project report status data returned.</Text>;
+  }
+
+  const statusCell = (status: string, width: number) => {
+    const label = compactStatusLabel(status);
+    return (
+      <Box width={width}>
+        <Text color={statusHeatColor(status)}>● </Text>
+        <Text wrap="truncate">{truncateForTerminal(label, Math.max(4, width - 2))}</Text>
+      </Box>
+    );
+  };
+
+  const nameWidth = Math.max(18, Math.min(34, Math.floor(terminalColumns * 0.28)));
+  const statusWidth = terminalColumns < 100 ? 12 : 16;
+  const columns = [
+    { key: "costStatus", label: "Cost report" },
+    { key: "architectureStatus", label: "WAF report" },
+    { key: "unitTestsStatus", label: "Tests" },
+    { key: "freshness", label: "Freshness" },
+  ] as const;
+  return (
+    <Box flexDirection="column" gap={1}>
+      <Text dimColor wrap="wrap">
+        Each row shows whether the selected project has generated report artifacts and whether they are current.
+      </Text>
+      <Text dimColor>
+        <Text color={terminalTheme.success}>● ready</Text>
+        <Text>  </Text>
+        <Text color={terminalTheme.warning}>● running/partial/stale</Text>
+        <Text>  </Text>
+        <Text color={terminalTheme.danger}>● failed/missing/outdated</Text>
+      </Text>
+      <Box flexDirection="row">
+        <Box width={nameWidth}><Text color={terminalTheme.brand} bold>Project</Text></Box>
+        {columns.map((column) => (
+          <Box key={column.key} width={statusWidth}>
+            <Text color={terminalTheme.brand} bold>{column.label}</Text>
+          </Box>
+        ))}
+        <Text color={terminalTheme.brand} bold>Critical issues</Text>
+      </Box>
+      {visibleRows.map((row) => (
+        <Box key={row.projectId} flexDirection="row">
+          <Box width={nameWidth}>
+            <Text wrap="truncate">{row.projectName}</Text>
+          </Box>
+          {columns.map((column) => {
+            const status = row[column.key];
+            return (
+              <React.Fragment key={column.key}>
+                {statusCell(status, statusWidth)}
+              </React.Fragment>
+            );
+          })}
+          <Text color={row.criticalIssues ? terminalTheme.danger : terminalTheme.success}>
+            {row.criticalIssues}
+          </Text>
+        </Box>
+      ))}
+      <Box flexDirection="row" justifyContent="space-between">
+        <Text dimColor>rows {startIndex + 1}-{startIndex + visibleRows.length} of {rows.length}</Text>
+        <Text dimColor>page {safePage + 1}/{pageCount} | [ prev | ] next | D download</Text>
+      </Box>
+    </Box>
+  );
+};
+
+const ReportRunActions: React.FC<{ compact: boolean }> = ({ compact }) => (
   <Box flexDirection="column" gap={1}>
-    <ResourceSummary
-      label="Reports summary"
-      value={state.data.reportsSummary}
-      terminalColumns={terminalColumns}
-    />
-    <ResourceSummary
-      label="Cost report"
-      value={state.data.costReport}
-      terminalColumns={terminalColumns}
-    />
-    <ResourceSummary
-      label="Well-Architected report"
-      value={state.data.wafReport}
-      terminalColumns={terminalColumns}
-    />
+    <Text dimColor wrap="wrap">
+      Run report generation directly through backend report APIs using the selected project context.
+    </Text>
+    <Box flexDirection="row" gap={1} flexWrap="wrap">
+      {[
+        ["W", "Well-Architected"],
+        ["K", "Cost"],
+        ["U", "Unit tests"],
+        ["A", "All reports"],
+        ["O", "Open frontend"],
+      ].map(([keyName, label]) => (
+        <Box
+          key={keyName}
+          borderStyle={raisedButtonStyle.border}
+          borderColor={terminalTheme.muted}
+          paddingX={1}
+          minWidth={compact ? undefined : 18}
+        >
+          <Text>
+            <Text color={terminalTheme.brand} bold>{keyName}</Text>
+            <Text> {label}</Text>
+          </Text>
+        </Box>
+      ))}
+    </Box>
   </Box>
 );
+
+const ProjectDropdownButton: React.FC<{ projectName: string; compact: boolean }> = ({
+  projectName,
+  compact,
+}) => (
+  <Box
+    borderStyle={raisedButtonStyle.border}
+    borderColor={terminalTheme.brand}
+    paddingX={1}
+    minWidth={compact ? undefined : 28}
+  >
+    <Text color={terminalTheme.brand} bold wrap="truncate">
+      {raisedButtonStyle.activeMarker} Project [{truncateForTerminal(projectName, compact ? 28 : 36)}] ▾
+    </Text>
+  </Box>
+);
+
+const ReportsView: React.FC<{
+  state: WorkspacePanelState;
+  projects: Project[];
+  selectedProject: Project | null;
+  compact: boolean;
+  terminalColumns: number;
+  tablePage: number;
+}> = ({ state, projects, selectedProject, compact, terminalColumns, tablePage }) => {
+  const model = buildReportsDashboardModel({
+    dashboard: state.data.dashboard,
+    reportsSummary: state.data.reportsSummary,
+    selectedProject,
+    costReport: state.data.costReport,
+    wafReport: state.data.wafReport,
+  });
+  const barWidth = compact ? Math.max(14, terminalColumns - 42) : 24;
+  const chartWidth = compact ? Math.max(24, terminalColumns - 28) : 42;
+  const selectedSummary = model.selectedProjectSummary;
+  const selectedStatuses = selectedSummary.reportStatuses;
+  const hasReportData = Boolean(toRecord(state.data.reportsSummary));
+
+  return (
+    <Box flexDirection="column" gap={1}>
+      <Box flexDirection={compact ? "column" : "row"} justifyContent="space-between" gap={1}>
+        <Box flexDirection="column" flexShrink={1}>
+          <Text bold>Reports home</Text>
+          <Text dimColor wrap="wrap">
+            Portfolio summary, score signals, report health, and selected project drilldown.
+          </Text>
+        </Box>
+        <Box flexDirection="column">
+          <ProjectDropdownButton
+            projectName={selectedProject?.name ?? selectedSummary.projectName}
+            compact={compact}
+          />
+          <Text dimColor>Press P or Enter to choose project</Text>
+        </Box>
+      </Box>
+
+      {!hasReportData ? (
+        <Text dimColor>No report summary returned yet. Generate a report or refresh this tab.</Text>
+      ) : null}
+
+      <MetricStrip metrics={model.metrics} compact={compact} />
+
+      <SectionCard title="Run reports">
+        <ReportRunActions compact={compact} />
+      </SectionCard>
+
+      <SectionCard title="Project report status">
+        <ReportsHeatmap
+          rows={model.projectRows}
+          terminalColumns={terminalColumns}
+          page={tablePage}
+        />
+      </SectionCard>
+
+      <Box flexDirection={compact ? "column" : "row"} gap={2}>
+        <Box flexDirection="column" gap={1} flexGrow={1}>
+          <SectionCard title="Portfolio coverage">
+            <Box flexDirection="row" gap={1}>
+              <Text wrap="truncate">{model.coverageLabel}</Text>
+              <Bar value={model.coverageRatio} width={compact ? 16 : 24} tone="success" />
+              <Text>{formatPercent(model.coverageRatio)}</Text>
+            </Box>
+            <Box marginTop={1}>
+              <TrendSummary trend={model.activityTrend} width={chartWidth} />
+            </Box>
+          </SectionCard>
+          <SectionCard title="Report types">
+            <BarList
+              bars={model.reportTypeBars}
+              width={barWidth}
+              emptyLabel="No report type counts returned."
+            />
+          </SectionCard>
+        </Box>
+        <Box flexDirection="column" gap={1} flexGrow={1}>
+          <SectionCard title="Report pipeline">
+            <BarList
+              bars={model.statusBars}
+              width={barWidth}
+              emptyLabel="No report status breakdown returned."
+            />
+          </SectionCard>
+          <SectionCard title="Freshness">
+            <BarList
+              bars={model.freshnessBars}
+              width={barWidth}
+              emptyLabel="No report freshness breakdown returned."
+            />
+          </SectionCard>
+        </Box>
+      </Box>
+
+      <SectionCard title="Project reports">
+        <Box flexDirection={compact ? "column" : "row"} justifyContent="space-between" gap={1}>
+          <Box flexDirection="column" flexShrink={1}>
+            <Text bold wrap="truncate">{selectedSummary.projectName}</Text>
+            {selectedSummary.projectId ? (
+              <Text dimColor wrap="truncate">{selectedSummary.projectId}</Text>
+            ) : (
+              <Text dimColor>Select a project to load cost and architecture report details.</Text>
+            )}
+          </Box>
+          {selectedSummary.lastReportAt ? (
+            <Text dimColor>last report {selectedSummary.lastReportAt}</Text>
+          ) : null}
+        </Box>
+        <Box marginTop={1}>
+          <MetricStrip metrics={selectedSummary.metrics} compact={compact} />
+        </Box>
+        {selectedStatuses ? (
+          <Box flexDirection={compact ? "column" : "row"} gap={1} marginTop={1}>
+            <Text>
+              <Text dimColor>Cost </Text>
+              <Text color={statusTextColor(selectedStatuses.cost ?? "")}>
+                {compactStatusLabel(selectedStatuses.cost ?? "not_started")}
+              </Text>
+            </Text>
+            <Text>
+              <Text dimColor>Architecture </Text>
+              <Text color={statusTextColor(selectedStatuses.architecture ?? "")}>
+                {compactStatusLabel(selectedStatuses.architecture ?? "not_started")}
+              </Text>
+            </Text>
+            <Text>
+              <Text dimColor>Unit tests </Text>
+              <Text color={statusTextColor(selectedStatuses.unitTests ?? "")}>
+                {compactStatusLabel(selectedStatuses.unitTests ?? "not_started")}
+              </Text>
+            </Text>
+          </Box>
+        ) : null}
+        <Box marginTop={1}>
+          <BarList
+            bars={selectedSummary.pillarScores}
+            width={barWidth}
+            emptyLabel="No Well-Architected pillar scores returned for this project."
+          />
+        </Box>
+      </SectionCard>
+
+      {model.projectRows.length ? (
+        <SectionCard title="Project health">
+          <ResponsiveTable
+            terminalColumns={terminalColumns}
+            columns={["", "Project", "Cost", "Architecture", "Fresh", "Coverage", "Critical"]}
+            rows={model.projectRows.map((row) => ({
+              "": row.isSelected ? ">" : "",
+              Project: row.projectName,
+              Cost: compactStatusLabel(row.costStatus),
+              Architecture: compactStatusLabel(row.architectureStatus),
+              Fresh: compactStatusLabel(row.freshness),
+              Coverage: `${row.coveragePercent}%`,
+              Critical: row.criticalIssues,
+            }))}
+            page={tablePage}
+          />
+        </SectionCard>
+      ) : null}
+
+      {model.topActions.length ? (
+        <SectionCard title="Top actions">
+          <ResponsiveTable
+            terminalColumns={terminalColumns}
+            columns={["#", "Action", "Issues", "Pillar", "Priority"]}
+            rows={model.topActions.map((action, index) => ({
+              "#": index + 1,
+              Action: action.label,
+              Issues: action.issueCount ?? "-",
+              Pillar: action.pillar ?? "-",
+              Priority: action.priority ?? "-",
+            }))}
+            page={tablePage}
+          />
+        </SectionCard>
+      ) : null}
+
+      {model.topInsights.length ? (
+        <SectionCard title="Key insights">
+          <ResponsiveTable
+            terminalColumns={terminalColumns}
+            columns={["#", "Insight"]}
+            rows={model.topInsights.map((insight, index) => ({
+              "#": index + 1,
+              Insight: insight,
+            }))}
+            page={tablePage}
+          />
+        </SectionCard>
+      ) : null}
+
+      {projects.length && !model.projectRows.length ? (
+        <Text dimColor>
+          {projects.length} project(s) available. Pick a project from the dropdown to inspect specific reports.
+        </Text>
+      ) : null}
+    </Box>
+  );
+};
 
 const OverviewView: React.FC<{
   state: WorkspacePanelState;
@@ -576,7 +1135,8 @@ const OverviewView: React.FC<{
   selectedProject: Project | null;
   compact: boolean;
   terminalColumns: number;
-}> = ({ state, projects, selectedProject, compact, terminalColumns }) => {
+  tablePage: number;
+}> = ({ state, projects, selectedProject, compact, terminalColumns, tablePage }) => {
   const connections = directArray(state.data.connections);
   const model: OverviewDashboardModel = buildOverviewDashboardModel({
     dashboard: state.data.dashboard,
@@ -595,7 +1155,7 @@ const OverviewView: React.FC<{
       </Text>
       <Box flexDirection={compact ? "column" : "row"} gap={2}>
         <Box flexDirection="column" gap={1} flexGrow={1}>
-          <SectionCard title="Trends" borderColor={terminalTheme.brand}>
+          <SectionCard title="Trends">
             <TrendSummary trend={model.trends.score} width={chartWidth} />
             <Box marginTop={1}>
               <TrendSummary trend={model.trends.cost} width={chartWidth} />
@@ -606,7 +1166,7 @@ const OverviewView: React.FC<{
           </SectionCard>
         </Box>
         <Box flexDirection="column" gap={1} flexGrow={1}>
-          <SectionCard title="Architecture scores" borderColor={terminalTheme.success}>
+          <SectionCard title="Architecture scores">
             <BarList
               bars={model.pillarScores}
               width={barWidth}
@@ -617,14 +1177,14 @@ const OverviewView: React.FC<{
       </Box>
       <Box flexDirection={compact ? "column" : "row"} gap={2}>
         <Box flexDirection="column" gap={1} flexGrow={1}>
-          <SectionCard title="Issues by pillar" borderColor={terminalTheme.warning}>
+          <SectionCard title="Issues by pillar">
             <BarList
               bars={model.issuesByPillar}
               width={barWidth}
               emptyLabel="No issue breakdown returned by /dashboard/user."
             />
           </SectionCard>
-          <SectionCard title="Project health" borderColor={terminalTheme.success}>
+          <SectionCard title="Project health">
             <BarList
               bars={model.projectHealth}
               width={barWidth}
@@ -633,14 +1193,14 @@ const OverviewView: React.FC<{
           </SectionCard>
         </Box>
         <Box flexDirection="column" gap={1} flexGrow={1}>
-          <SectionCard title="Monthly cost by service" borderColor={terminalTheme.warning}>
+          <SectionCard title="Monthly cost by service">
             <BarList
               bars={model.serviceCosts}
               width={barWidth}
               emptyLabel="No service cost breakdown returned."
             />
           </SectionCard>
-          <SectionCard title="Report pipeline" borderColor={terminalTheme.brand}>
+          <SectionCard title="Report pipeline">
             <BarList
               bars={model.reportStatus}
               width={barWidth}
@@ -649,7 +1209,7 @@ const OverviewView: React.FC<{
           </SectionCard>
         </Box>
       </Box>
-      <SectionCard title="Report freshness" borderColor={terminalTheme.danger}>
+      <SectionCard title="Report freshness">
         <BarList
           bars={model.reportFreshness}
           width={compact ? Math.max(14, terminalColumns - 42) : 36}
@@ -657,30 +1217,48 @@ const OverviewView: React.FC<{
         />
       </SectionCard>
       {model.topActions.length ? (
-        <Box flexDirection="column">
-          <Text bold>Top Actions</Text>
-          {model.topActions.map((action, index) => (
-            <Text
-              key={`${action.label}-${index}`}
-              color={metricColor(action.priority === "urgent" ? "danger" : action.priority === "high" ? "warning" : "normal")}
-              wrap="truncate"
-            >
-              {index + 1}. {truncateForTerminal(action.label, Math.max(32, terminalColumns - 22))}
-              {action.issueCount !== undefined ? ` | ${action.issueCount} issue(s)` : ""}
-              {action.pillar ? ` | ${action.pillar}` : ""}
-            </Text>
-          ))}
-        </Box>
+        <SectionCard title="Top actions">
+          <ResponsiveTable
+            terminalColumns={terminalColumns}
+            columns={["#", "Action", "Issues", "Pillar", "Priority"]}
+            rows={model.topActions.map((action, index) => ({
+              "#": index + 1,
+              Action: action.label,
+              Issues: action.issueCount ?? "-",
+              Pillar: action.pillar ?? "-",
+              Priority: action.priority ?? "-",
+            }))}
+            page={tablePage}
+          />
+        </SectionCard>
+      ) : null}
+      {model.topRecommendations.length ? (
+        <SectionCard title="Recommendations">
+          <ResponsiveTable
+            terminalColumns={terminalColumns}
+            columns={["#", "Recommendation", "Impact", "Pillar"]}
+            rows={model.topRecommendations.map((recommendation, index) => ({
+              "#": index + 1,
+              Recommendation: recommendation.label,
+              Impact: recommendation.impact ?? "-",
+              Pillar: recommendation.pillar ?? "-",
+            }))}
+            page={tablePage}
+          />
+        </SectionCard>
       ) : null}
       {model.topInsights.length ? (
-        <Box flexDirection="column">
-          <Text bold>Key Insights</Text>
-          {model.topInsights.map((insight, index) => (
-            <Text key={`${insight}-${index}`} wrap="wrap">
-              {index + 1}. {insight}
-            </Text>
-          ))}
-        </Box>
+        <SectionCard title="Key insights">
+          <ResponsiveTable
+            terminalColumns={terminalColumns}
+            columns={["#", "Insight"]}
+            rows={model.topInsights.map((insight, index) => ({
+              "#": index + 1,
+              Insight: insight,
+            }))}
+            page={tablePage}
+          />
+        </SectionCard>
       ) : null}
     </Box>
   );
@@ -693,110 +1271,185 @@ const OptionsView: React.FC<WorkspacePanelProps> = ({
   currentUserId,
   apiBase,
   frontendUrl,
-}) => (
-  <Box flexDirection="column" gap={1}>
-    <MetricStrip
-      compact={false}
-      metrics={[
-        { label: "Project", value: selectedProject?.name ?? "none" },
-        { label: "Model", value: selectedModel || "auto" },
-        { label: "Mode", value: selectedMode },
-      ]}
-    />
-    <Text wrap="wrap">User: {currentUserId ?? "unknown"}</Text>
-    <Text wrap="wrap">API: {apiBase}</Text>
-    <Text wrap="wrap">Frontend: {frontendUrl}</Text>
-    <Text dimColor>Keys: 1-7 jump tabs | Left/Right switch tabs | R refresh | O open frontend | Ctrl+Q quit</Text>
-  </Box>
-);
+}) => {
+  const keys = getTuiKeyBindings();
+  return (
+    <Box flexDirection="column" gap={1}>
+      <MetricStrip
+        compact={false}
+        metrics={[
+          { label: "Project", value: selectedProject?.name ?? "none" },
+          { label: "Model", value: selectedModel || "auto" },
+          { label: "Mode", value: selectedMode },
+        ]}
+      />
+      <Text wrap="wrap">User: {currentUserId ?? "unknown"}</Text>
+      <Text wrap="wrap">API: {apiBase}</Text>
+      <Text wrap="wrap">Frontend: {frontendUrl}</Text>
+      <Text dimColor wrap="wrap">
+        Keys: 1-{workspaceTabs.length} jump tabs | {keys.tabSwitch} tabs | {keys.refresh} | {keys.open} | Ctrl+Q quit
+      </Text>
+    </Box>
+  );
+};
+
+const HelpView: React.FC = () => {
+  const keys = getTuiKeyBindings();
+  const cliCommands = [
+    "cloudeval - open the Terminal UI",
+    "cloudeval tui --tab <tab> - open a specific TUI tab",
+    "cloudeval chat - start an interactive chat session",
+    "cloudeval ask <question> - run a one-shot prompt",
+    "cloudeval projects - list, create, and inspect projects",
+    "cloudeval connections - list configured cloud connections",
+    "cloudeval reports - list, show, download, cost, and WAF reports",
+    "cloudeval billing - inspect plans, usage, invoices, ledgers, and top-ups",
+    "cloudeval open <target> - open frontend deep links",
+    "cloudeval capabilities - print agent and frontend capability details",
+    "cloudeval login|logout|auth status - manage authentication",
+    "cloudeval completion <shell> - install shell completion",
+    "cloudeval banner - print the ASCII banner",
+  ];
+  return (
+    <Box flexDirection="column" gap={1}>
+      <SectionCard title="Navigation" borderColor={terminalTheme.brand}>
+        <HelpLegend includeQuit wrap />
+        <Text wrap="wrap">
+          {keys.mouse} | {keys.scroll}
+        </Text>
+      </SectionCard>
+      <SectionCard title="Prompt Input" borderColor={terminalTheme.brand}>
+        <Text wrap="wrap">
+          {keys.submit} | {keys.newline} | {keys.commandComplete} | {keys.historySearch} | {keys.cancel} | {keys.quit}
+        </Text>
+      </SectionCard>
+      <SectionCard title="Slash Commands" borderColor={terminalTheme.brand}>
+        {slashCommands.map((command) => (
+          <Text key={command.name} wrap="wrap">
+            {command.name.padEnd(10)} {command.description}
+          </Text>
+        ))}
+      </SectionCard>
+      <SectionCard title="CLI Commands" borderColor={terminalTheme.muted}>
+        {cliCommands.map((command) => (
+          <Text key={command} wrap="wrap">
+            {command}
+          </Text>
+        ))}
+        <Text dimColor wrap="wrap">
+          Common flags: --base-url, --api-key, --api-key-stdin, --machine, --frontend-url, --format, --json, --verbose, --help
+        </Text>
+      </SectionCard>
+    </Box>
+  );
+};
 
 export const WorkspaceTabBar: React.FC<{
   activeTab: WorkspaceTab;
-  activeStatus?: string;
   showBrand?: boolean;
-}> = ({ activeTab, activeStatus, showBrand = false }) => (
-  <Box flexDirection="column" gap={1}>
-    {showBrand ? (
-      <Box
-        flexDirection="row"
-        justifyContent="space-between"
-        borderStyle="round"
-        borderColor={terminalTheme.muted}
-        paddingX={1}
-      >
-        <Box flexDirection="row" gap={1}>
-          <Text bold color={terminalTheme.brand}>CloudEval</Text>
-          <Text dimColor>agent console</Text>
-        </Box>
-        <Text color={statusColor(activeStatus)}>
-          ● {statusLabel(activeStatus)}
-        </Text>
-      </Box>
-    ) : null}
-    <Box flexDirection="row" gap={1} flexWrap="wrap">
-      {workspaceTabs.map((tab) => {
-        const active = tab === activeTab;
-        return (
-          <Box
-            key={tab}
-            borderStyle={raisedButtonStyle.border}
-            borderColor={active ? terminalTheme.brand : terminalTheme.muted}
-            paddingX={1}
-          >
-            <Text
-              bold={active}
-              color={active ? terminalTheme.brand : undefined}
-              inverse={active}
-            >
-              {active ? raisedButtonStyle.activeMarker : raisedButtonStyle.inactiveMarker}{" "}
-              {workspaceTabButtonLabel(tab)}
-            </Text>
+  billingSummary?: BillingSummaryState | null;
+}> = ({ activeTab, showBrand = false, billingSummary }) => {
+  return (
+    <Box flexDirection="column" gap={0}>
+      {showBrand ? (
+        <TitledBox
+          title="Console"
+          flexDirection="row"
+          justifyContent="space-between"
+          borderStyle="round"
+          borderColor={terminalTheme.muted}
+          padding={0}
+          paddingX={1}
+        >
+          <Box flexDirection="row" gap={1}>
+            <Text bold color={terminalTheme.brand}>CloudEval</Text>
+            <Text dimColor>agent console</Text>
           </Box>
-        );
-      })}
+        </TitledBox>
+      ) : null}
+      <Box flexDirection="row" gap={0} flexWrap="wrap">
+        {workspaceTabs.map((tab) => {
+          const active = tab === activeTab;
+          return (
+            <Box
+              key={tab}
+              borderStyle={active ? "bold" : raisedButtonStyle.border}
+              borderColor={active ? terminalTheme.brand : terminalTheme.muted}
+              paddingX={1}
+              marginRight={1}
+            >
+              <Text
+                bold={active}
+                color={active ? terminalTheme.brand : undefined}
+              >
+                {active ? raisedButtonStyle.activeMarker : raisedButtonStyle.inactiveMarker}{" "}
+                {workspaceTabButtonLabel(tab)}
+              </Text>
+            </Box>
+          );
+        })}
+      </Box>
+      <HelpLegend />
+      {billingSummary ? (
+        <BillingSummaryLine billing={billingSummary} />
+      ) : null}
     </Box>
-    <Box flexDirection="row" justifyContent="space-between">
-      <Text dimColor wrap="truncate">
-        1-7 tabs | L/R switch | R refresh | O open
-      </Text>
-      <Text color={statusColor(activeStatus)} wrap="truncate">
-        {workspaceTabButtonContent(activeTab, true)} · {statusLabel(activeStatus)}
-      </Text>
-    </Box>
-  </Box>
-);
+  );
+};
 
 export const WorkspacePanel: React.FC<WorkspacePanelProps> = (props) => {
   const compact = props.terminalColumns < 88;
   const state = props.state;
   const connections = directArray(state.data.connections);
+  const isInitialLoading = state.status === "loading";
+  const isBackgroundRefreshing = Boolean(state.isRefreshing && !isInitialLoading);
 
   return (
-    <Box flexDirection="column" borderStyle="round" borderColor={terminalTheme.muted} padding={1} gap={1}>
-      <Box flexDirection="row" justifyContent="space-between">
-        <Text bold color={terminalTheme.brand}>
-          {workspaceTabLabels[props.tab]}
-        </Text>
-        <Text dimColor>
-          {state.status === "loading"
-            ? "loading real API data"
-            : state.loadedAt
-              ? `loaded ${new Date(state.loadedAt).toLocaleTimeString()}`
-              : "not loaded"}
-        </Text>
-      </Box>
-      {state.status === "loading" ? <Text dimColor>Fetching backend data...</Text> : null}
+    <TitledBox
+      title={workspaceTabLabels[props.tab]}
+      borderStyle="round"
+      borderColor={terminalTheme.muted}
+      padding={1}
+      gap={1}
+    >
+      {state.loadedAt && !isInitialLoading && !isBackgroundRefreshing ? (
+        <Box flexDirection="row" justifyContent="flex-end">
+          <Text dimColor>loaded {new Date(state.loadedAt).toLocaleTimeString()}</Text>
+        </Box>
+      ) : null}
+      {isInitialLoading ? (
+        <Box flexDirection="row" gap={1}>
+          <Spinner type="dots" />
+          <Text color={terminalTheme.brand}>Loading real API data...</Text>
+        </Box>
+      ) : null}
+      {isBackgroundRefreshing ? (
+        <Box flexDirection="row" gap={1}>
+          <Spinner type="dots" />
+          <Text color={terminalTheme.brand}>Refreshing in background, showing cached data...</Text>
+        </Box>
+      ) : null}
       {state.status === "error" ? (
-        <Box borderStyle="single" borderColor={terminalTheme.danger} paddingX={1}>
-          <Text color={terminalTheme.danger} bold>Backend data unavailable</Text>
+        <TitledBox
+          title="Backend Data Unavailable"
+          borderStyle="single"
+          borderColor={terminalTheme.danger}
+          padding={0}
+          paddingX={1}
+        >
           <Text color={terminalTheme.danger} wrap="wrap">
             {" "}{state.error ?? "Unable to load this tab."}
           </Text>
-        </Box>
+        </TitledBox>
       ) : null}
       {state.warnings.length ? (
-        <Box flexDirection="column" borderStyle="single" borderColor={terminalTheme.warning} paddingX={1}>
-          <Text bold color={terminalTheme.warning}>Backend warnings</Text>
+        <TitledBox
+          title="Backend Warnings"
+          borderStyle="single"
+          borderColor={terminalTheme.warning}
+          padding={0}
+          paddingX={1}
+        >
           {state.warnings.slice(0, 4).map((warning) => (
             <Text key={warning} color={terminalTheme.warning} wrap="truncate">
               {cleanBackendWarning(warning, props.terminalColumns)}
@@ -805,7 +1458,7 @@ export const WorkspacePanel: React.FC<WorkspacePanelProps> = (props) => {
           {state.warnings.length > 4 ? (
             <Text dimColor>+{state.warnings.length - 4} more warning(s)</Text>
           ) : null}
-        </Box>
+        </TitledBox>
       ) : null}
       {props.tab === "overview" ? (
         <OverviewView
@@ -814,22 +1467,33 @@ export const WorkspacePanel: React.FC<WorkspacePanelProps> = (props) => {
           selectedProject={props.selectedProject}
           compact={compact}
           terminalColumns={props.terminalColumns}
+          tablePage={props.tablePage}
         />
       ) : null}
       {props.tab === "reports" ? (
-        <ReportsView state={state} terminalColumns={props.terminalColumns} />
+        <ReportsView
+          state={state}
+          projects={props.projects}
+          selectedProject={props.selectedProject}
+          compact={compact}
+          terminalColumns={props.terminalColumns}
+          tablePage={props.tablePage}
+        />
       ) : null}
       {props.tab === "projects" ? (
         <ProjectsView projects={props.projects} selectedProject={props.selectedProject} />
       ) : null}
       {props.tab === "connections" ? <ConnectionsView connections={connections} /> : null}
       {props.tab === "billing" ? (
-        <BillingView state={state} compact={compact} terminalColumns={props.terminalColumns} />
+        <BillingView
+          state={state}
+          compact={compact}
+          terminalColumns={props.terminalColumns}
+          frontendUrl={props.frontendUrl}
+        />
       ) : null}
       {props.tab === "options" ? <OptionsView {...props} /> : null}
-      <Text dimColor>
-        1-7 tabs | Left/Right switch | R refresh | O open frontend | Ctrl+Q quit
-      </Text>
-    </Box>
+      {props.tab === "help" ? <HelpView /> : null}
+    </TitledBox>
   );
 };

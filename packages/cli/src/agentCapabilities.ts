@@ -34,7 +34,7 @@ const capabilities = {
   },
   domains: {
     chat: ["ask", "chat", "open chat"],
-    reports: ["reports list", "reports show", "reports cost", "reports waf", "reports download", "reports rules"],
+    reports: ["reports list", "reports show", "reports cost", "reports waf", "reports download", "reports run", "reports rules"],
     projects: ["projects list", "projects get", "projects open", "projects create"],
     connections: ["connections list", "connections get", "connections open"],
     billing: ["credits", "billing summary", "billing usage", "billing ledger", "billing invoices", "billing topups", "billing plans", "billing notifications"],

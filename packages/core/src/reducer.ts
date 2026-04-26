@@ -14,6 +14,7 @@ const STREAMING_NODES = new Set([
   "response_compose",
 ]);
 const FOLLOW_UP_NODE = "generate_follow_up";
+const ERROR_FALLBACK_SOURCE_PREFIX = "error_fallback:";
 
 const TERMINAL_STEP_STATUSES = new Set([
   "completed",
@@ -194,6 +195,13 @@ const parseFollowUps = (scratch: string | undefined) =>
     .map((q) => q.trim())
     .filter(Boolean);
 
+const isErrorFallbackRespondingChunk = (chunk: RespondingChunk) =>
+  typeof chunk.source === "string" &&
+  chunk.source.startsWith(ERROR_FALLBACK_SOURCE_PREFIX);
+
+const getFallbackErrorMessage = (chunk: RespondingChunk) =>
+  chunk.content || chunk.description || chunk.message || "Unknown error";
+
 export const initialChatState: ChatState = {
   status: "idle",
   messages: [],
@@ -348,6 +356,34 @@ export const reduceChunk = (state: ChatState, chunk: Chunk): ChatState => {
       chunk
     );
     updatedMessage.updatedAt = chunk.receivedAt;
+
+    if (chunk.type === "responding" && isErrorFallbackRespondingChunk(chunk)) {
+      const error = getFallbackErrorMessage(chunk);
+      updatedMessage.content = `${updatedMessage.content ?? ""}${
+        chunk.content ?? ""
+      }`;
+      updatedMessage.pending = false;
+      updatedMessage.updatedAt = chunk.receivedAt;
+      updatedMessage.thinkingSteps = finalizeOpenSteps(
+        updatedMessage.thinkingSteps,
+        "error",
+        chunk.receivedAt
+      );
+
+      const messages = stateWithMessage.messages.map((m) =>
+        m.id === updatedMessage.id ? updatedMessage : m
+      );
+
+      return {
+        ...stateWithMessage,
+        status: "error",
+        error,
+        followUpScratch: undefined,
+        messages,
+        activeMessageId: updatedMessage.id,
+        hitl: undefined,
+      };
+    }
 
     let followUpScratch = stateWithMessage.followUpScratch;
     let status: ChatState["status"] = stateWithMessage.status;

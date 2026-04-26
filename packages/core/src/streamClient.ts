@@ -205,6 +205,7 @@ const normalizeChunk = (raw: unknown, receivedAt: number): Chunk | null => {
           typeof raw.description === "string" ? raw.description : undefined,
         message: typeof raw.message === "string" ? raw.message : undefined,
         content: typeof raw.content === "string" ? raw.content : undefined,
+        source: stringOrUndefined(raw.source),
         ...base,
       };
       return chunk;

@@ -231,6 +231,34 @@ test("streamChat treats response content idleness as completion", async () => {
   }
 });
 
+test("streamChat preserves backend fallback error metadata", async () => {
+  const originalFetch = global.fetch;
+
+  global.fetch = async () =>
+    responseFromText(
+      'data: {"type":"responding","node":"response_compose","content":"I ran into an internal error while preparing the response. Please try again.","status":"streaming","source":"error_fallback:internal_error"}\n\n'
+    );
+
+  try {
+    const chunks = [];
+    for await (const chunk of streamChat({
+      baseUrl: "http://127.0.0.1:8787/api/v1",
+      authToken: "token",
+      message: "hello",
+      threadId: "thread-error-fallback",
+      user: { id: "user-1", name: "User" },
+    })) {
+      chunks.push(chunk);
+    }
+
+    assert.equal(chunks.length, 1);
+    assert.equal(chunks[0]?.type, "responding");
+    assert.equal((chunks[0] as any)?.source, "error_fallback:internal_error");
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
 test("streamChat parses HITL request events", async () => {
   const originalFetch = global.fetch;
 
@@ -643,4 +671,43 @@ test("reduceChunk closes open thinking steps when the response completes", async
   );
   assert.equal(steps[0]?.completedAt, 3_000);
   assert.equal(steps[0]?.durationMs, 2_000);
+});
+
+test("reduceChunk marks backend fallback error responses as failed", async () => {
+  const { reduceChunk, completeActiveAssistantMessage, initialChatState } =
+    await import("./index");
+
+  const fallbackMessage =
+    "I ran into an internal error while preparing the response. Please try again.";
+  const activeState = [
+    {
+      type: "thinking" as const,
+      node: "plan",
+      description: "Plan",
+      status: "completed" as const,
+      receivedAt: 1_000,
+    },
+    {
+      type: "responding" as const,
+      node: "response_compose",
+      description: "Draft the final answer",
+      content: fallbackMessage,
+      status: "streaming" as const,
+      source: "error_fallback:internal_error",
+      receivedAt: 2_000,
+    },
+  ].reduce(reduceChunk, initialChatState);
+  const finalState = completeActiveAssistantMessage(activeState, 3_000);
+  const message = finalState.messages[0];
+  const steps = message?.thinkingSteps ?? [];
+
+  assert.equal(finalState.status, "error");
+  assert.equal(finalState.error, fallbackMessage);
+  assert.equal(message?.pending, false);
+  assert.equal(message?.content, fallbackMessage);
+  assert.deepEqual(
+    steps.map((step) => step.status),
+    ["completed", "error"]
+  );
+  assert.equal(steps[1]?.completedAt, 2_000);
 });

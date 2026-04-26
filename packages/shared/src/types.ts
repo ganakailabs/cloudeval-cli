@@ -35,6 +35,7 @@ export interface RespondingChunk extends BaseChunk {
   description?: string;
   message?: string;
   content?: string;
+  source?: string;
 }
 
 export interface ErrorChunk extends BaseChunk {

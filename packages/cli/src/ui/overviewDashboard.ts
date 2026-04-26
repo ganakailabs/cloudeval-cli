@@ -43,6 +43,11 @@ export interface OverviewDashboardModel {
     priority?: string;
     pillar?: string;
   }>;
+  topRecommendations: Array<{
+    label: string;
+    impact?: string;
+    pillar?: string;
+  }>;
   topInsights: string[];
 }
 
@@ -106,6 +111,16 @@ const formatCurrency = (value: number | undefined, currency = "USD"): string => 
   }).format(value)}`;
 };
 
+const formatCurrencyDelta = (value: number, currency = "USD"): string => {
+  const symbol = currency.toUpperCase() === "USD" ? "$" : `${currency.toUpperCase()} `;
+  return `${symbol}${new Intl.NumberFormat("en-US", {
+    maximumFractionDigits: 1,
+  }).format(Math.abs(value))}`;
+};
+
+const scoreOutOfTotal = (value: number | undefined): string =>
+  value === undefined ? "-" : `${Math.round(value)}/100`;
+
 const toneFromScore = (score?: number): OverviewTone => {
   if (score === undefined) {
     return "normal";
@@ -158,7 +173,7 @@ export const buildTrendSummary = (
       current,
       previous,
       tone: "normal",
-      summary: cleanValues.length ? "single point" : "no trend",
+      summary: cleanValues.length ? "current only" : "no trend data",
     };
   }
   const delta = current - previous;
@@ -246,7 +261,6 @@ export const buildOverviewDashboardModel = ({
     fallbackProjectCount;
   const activeProjects = firstNumber(dashboard, ["active_projects"]);
   const reportsTotal = firstNumber(reportsSummary, ["total_reports"]);
-  const projectsWithReports = firstNumber(reportsSummary, ["projects_with_reports"]);
   const connectionSummary = firstRecord(dashboard, ["connection_summary"]);
   const connectionCount =
     firstNumber(connectionSummary, ["total_connections"]) ?? fallbackConnectionCount;
@@ -269,6 +283,43 @@ export const buildOverviewDashboardModel = ({
     ...buildTrendSummary(reportActivityValues(reportsSummary), "higher-is-better"),
     label: "Report runs",
   };
+  const formattedScoreTrend: OverviewTrend = {
+    ...scoreTrend,
+    tone: toneFromScore(scoreTrend.current),
+    summary:
+      scoreTrend.current === undefined
+        ? "no trend data"
+        : scoreTrend.delta === undefined
+          ? `${scoreOutOfTotal(scoreTrend.current)} current`
+          : `${scoreTrend.delta > 0 ? "+" : ""}${formatNumber(scoreTrend.delta)} pts to ${scoreOutOfTotal(scoreTrend.current)}`,
+  };
+  const formattedCostTrend: OverviewTrend = {
+    ...costTrend,
+    tone: costTrend.delta === undefined ? (costTrend.current ? "warning" : "normal") : costTrend.tone,
+    summary:
+      costTrend.current === undefined
+        ? "no trend data"
+        : costTrend.delta === undefined
+          ? `${formatCurrency(costTrend.current, currency)} current`
+          : costTrend.delta < 0
+            ? `down ${formatCurrencyDelta(costTrend.delta, currency)}`
+            : costTrend.delta > 0
+              ? `up ${formatCurrencyDelta(costTrend.delta, currency)}`
+              : "unchanged",
+  };
+  const formattedReportsTrend: OverviewTrend = {
+    ...reportsTrend,
+    summary:
+      reportsTrend.current === undefined
+        ? "no trend data"
+        : reportsTrend.delta === undefined
+          ? `${formatNumber(reportsTrend.current)} current`
+          : reportsTrend.delta > 0
+            ? `+${formatNumber(reportsTrend.delta)} runs`
+            : reportsTrend.delta < 0
+              ? `${formatNumber(reportsTrend.delta)} runs`
+              : "unchanged",
+  };
 
   return {
     metrics: [
@@ -276,7 +327,7 @@ export const buildOverviewDashboardModel = ({
       { label: "Active", value: activeProjects === undefined ? "-" : String(activeProjects) },
       {
         label: "Score",
-        value: averageScore === undefined ? "-" : `${Math.round(averageScore)}`,
+        value: scoreOutOfTotal(averageScore),
         tone: toneFromScore(averageScore),
       },
       {
@@ -291,19 +342,14 @@ export const buildOverviewDashboardModel = ({
       },
       {
         label: "Reports",
-        value:
-          reportsTotal === undefined
-            ? "-"
-            : projectsWithReports === undefined
-              ? String(reportsTotal)
-              : `${reportsTotal} / ${projectsWithReports} projects`,
+        value: reportsTotal === undefined ? "-" : `${reportsTotal} reports`,
       },
       { label: "Connections", value: String(connectionCount) },
     ],
     trends: {
-      score: scoreTrend,
-      cost: costTrend,
-      reports: reportsTrend,
+      score: formattedScoreTrend,
+      cost: formattedCostTrend,
+      reports: formattedReportsTrend,
     },
     pillarScores: objectEntriesAsBars(
       firstRecord(dashboard, ["aggregated_pillar_scores", "pillar_scores"]),
@@ -358,13 +404,35 @@ export const buildOverviewDashboardModel = ({
         };
       })
       .filter((action) => action.label.trim())
-      .slice(0, 5),
+      .slice(0, 20),
+    topRecommendations: (Array.isArray(reportsRecord?.top_recommendations)
+      ? reportsRecord?.top_recommendations
+      : Array.isArray(reportsRecord?.recommendations)
+        ? reportsRecord?.recommendations
+        : []
+    )
+      .map((recommendation) => {
+        const record = toRecord(recommendation) ?? {};
+        return {
+          label: String(
+            record.label ??
+              record.title ??
+              record.recommendation ??
+              record.description ??
+              "Recommendation"
+          ),
+          impact: typeof record.impact === "string" ? record.impact : undefined,
+          pillar: typeof record.pillar === "string" ? record.pillar : undefined,
+        };
+      })
+      .filter((recommendation) => recommendation.label.trim())
+      .slice(0, 20),
     topInsights: (Array.isArray(reportsRecord?.top_insights)
       ? reportsRecord?.top_insights
       : []
     )
       .map((insight) => String(insight))
       .filter(Boolean)
-      .slice(0, 5),
+      .slice(0, 20),
   };
 };

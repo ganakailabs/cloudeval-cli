@@ -1091,6 +1091,10 @@ const readResponseDetail = async (response: Response): Promise<string | undefine
     if (!raw || !raw.trim()) {
       return undefined;
     }
+    const contentType = response.headers.get("content-type") ?? "";
+    if (contentType.includes("text/html") || /^\s*</.test(raw)) {
+      return "backend returned an HTML error page; check --base-url/CLOUDEVAL_BASE_URL and backend health";
+    }
 
     try {
       const json = JSON.parse(raw) as {

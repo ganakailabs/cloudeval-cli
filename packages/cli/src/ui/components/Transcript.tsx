@@ -3,13 +3,16 @@ import { Box, Text } from "ink";
 import { ChatMessage } from "@cloudeval/shared";
 import SyntaxHighlight from "ink-syntax-highlight";
 import { terminalTheme } from "../theme.js";
+import { hasRenderableTranscriptMessages } from "../transcriptModel.js";
 import { Spinner } from "./Spinner.js";
+import { TitledBox } from "./TitledBox.js";
 
 export interface TranscriptProps {
   messages: ChatMessage[];
   userName?: string;
   excludeStreaming?: boolean;
   expandedThinkingMessageIds?: Set<string>;
+  emptyLabel?: string;
 }
 
 const AI_NAME = "Cloudeval AI";
@@ -130,16 +133,17 @@ const FormattedContent: React.FC<{ content: string; role: "user" | "assistant" }
       {blocks.map((block, idx) => {
         if (block.type === "code") {
           return (
-            <Box key={idx} flexDirection="column" marginY={1}>
-              {block.language && (
-                <Box paddingX={1} borderStyle="single" borderColor={terminalTheme.muted} width={block.language.length + 4}>
-                  <Text bold dimColor>{block.language}</Text>
-                </Box>
-              )}
-              <Box borderStyle="single" paddingX={1} borderColor="dim">
+            <TitledBox
+              key={idx}
+              title={block.language || "Code"}
+              borderStyle="single"
+              borderColor={terminalTheme.muted}
+              padding={0}
+              paddingX={1}
+              marginY={1}
+            >
                 <SyntaxHighlight code={block.content} language={block.language || "text"} />
-              </Box>
-            </Box>
+            </TitledBox>
           );
         }
         return <MarkdownText key={idx} content={block.content} />;
@@ -149,6 +153,9 @@ const FormattedContent: React.FC<{ content: string; role: "user" | "assistant" }
 };
 
 const formatDuration = (durationMs: number) => {
+  if (durationMs < 1000) {
+    return "<1s";
+  }
   const seconds = Math.max(0, Math.round(durationMs / 1000));
   if (seconds < 60) {
     return `${seconds}s`;
@@ -184,8 +191,8 @@ const getStepStatusMeta = (status?: string) => {
   if (status === "error" || status === "aborted" || status === "cancelled") {
     return {
       marker: "✕",
-      label: status === "aborted" ? "aborted" : "failed",
-      color: terminalTheme.danger,
+      label: status === "cancelled" ? "canceled" : status === "aborted" ? "aborted" : "failed",
+      color: status === "cancelled" || status === "aborted" ? terminalTheme.warning : terminalTheme.danger,
     };
   }
   if (status === "streaming") {
@@ -330,12 +337,19 @@ export const Transcript: React.FC<TranscriptProps> = ({
   userName = "You",
   excludeStreaming = false,
   expandedThinkingMessageIds,
+  emptyLabel = "Thread is empty.",
 }) => {
   const completedMessages = messages.filter(m => !m.pending || m.role === "user");
   const streamingMessage = excludeStreaming ? null : messages.find(m => m.role === "assistant" && m.pending);
+  const hasRenderableMessages = hasRenderableTranscriptMessages(messages, excludeStreaming);
 
   return (
     <Box flexDirection="column" gap={0}>
+      {!hasRenderableMessages ? (
+        <Box paddingY={1}>
+          <Text dimColor>{emptyLabel}</Text>
+        </Box>
+      ) : null}
       {completedMessages.map((message) => {
         const isUser = message.role === "user";
         const content = (message.content ?? "").trim();

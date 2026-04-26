@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { sanitizeTerminalInput } from "./inputSanitizer";
+import {
+  sanitizeTerminalInput,
+  sanitizeTerminalMultilineInput,
+} from "./inputSanitizer";
 
 test("sanitizeTerminalInput removes SGR mouse escape sequences", () => {
   const raw =
@@ -21,4 +24,10 @@ test("sanitizeTerminalInput keeps regular prompt text", () => {
 
 test("sanitizeTerminalInput removes control characters from pasted input", () => {
   assert.equal(sanitizeTerminalInput("explain\r\nresources\u0007"), "explainresources");
+});
+
+test("sanitizeTerminalMultilineInput preserves prompt newlines while removing terminal controls", () => {
+  const raw = "line one\r\nline two\x1b[<0;12;3M\u0007";
+
+  assert.equal(sanitizeTerminalMultilineInput(raw), "line one\nline two");
 });

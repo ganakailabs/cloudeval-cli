@@ -54,6 +54,7 @@ type CommonReportOptions = {
 
 const outputFormats = ["tui", "summary", "text", "json", "ndjson", "markdown", "table"];
 type CliReportOutputFormat = ReportOutputFormat | "text" | "table";
+type ReportRunCommandType = "cost" | "waf" | "architecture" | "unit-tests" | "all";
 
 const addCommonOptions = <T extends Command>(command: T, defaultBaseUrl: string): T =>
   command
@@ -245,6 +246,81 @@ const writeDownloadPayload = async (input: {
   return [input.output];
 };
 
+const resolveMachineFormat = (requested: string | undefined): MachineOutputFormat => {
+  if (!requested || requested === "summary" || requested === "table" || requested === "tui") {
+    return "text";
+  }
+  if (requested === "text" || requested === "json" || requested === "ndjson" || requested === "markdown") {
+    return requested;
+  }
+  throw new Error("Unsupported format for reports run. Use text, json, ndjson, or markdown.");
+};
+
+const extractJobId = (value: unknown): string | undefined => {
+  if (!value || typeof value !== "object") return undefined;
+  const record = value as Record<string, any>;
+  return (
+    record.job_id ??
+    record.id ??
+    record.job?.job_id ??
+    record.job?.id ??
+    record.data?.job_id ??
+    record.data?.job?.job_id
+  );
+};
+
+const isTerminalJobStatus = (value: unknown): boolean => {
+  if (!value || typeof value !== "object") return true;
+  const status = String((value as Record<string, any>).status ?? "").toLowerCase();
+  return ["completed", "succeeded", "failed", "error", "cancelled", "canceled"].includes(status);
+};
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const waitForReportJobs = async ({
+  core,
+  baseUrl,
+  token,
+  userId,
+  submitted,
+  pollInterval,
+}: {
+  core: typeof import("@cloudeval/core");
+  baseUrl: string;
+  token?: string;
+  userId?: string;
+  submitted: unknown[];
+  pollInterval: number;
+}): Promise<unknown[]> => {
+  const jobIds = submitted.map(extractJobId).filter(Boolean) as string[];
+  if (!jobIds.length) {
+    return submitted;
+  }
+  const finalStatuses: unknown[] = [];
+  for (const jobId of jobIds) {
+    let lastStatus: unknown;
+    for (;;) {
+      lastStatus = await core.getReportJobStatus({
+        baseUrl,
+        authToken: token,
+        userId,
+        jobId,
+      });
+      const status = String((lastStatus as any)?.status ?? "unknown");
+      const progress = (lastStatus as any)?.progress;
+      process.stderr.write(
+        `report job ${jobId}: ${status}${typeof progress === "number" ? ` ${progress}%` : ""}\n`
+      );
+      if (isTerminalJobStatus(lastStatus)) {
+        break;
+      }
+      await sleep(pollInterval);
+    }
+    finalStatuses.push(lastStatus);
+  }
+  return finalStatuses;
+};
+
 export const registerReportsCommand = (
   program: Command,
   deps: RegisterReportsCommandOptions
@@ -267,12 +343,14 @@ export const registerReportsCommand = (
           token,
           requestedProjectId: options.project,
         });
-        const { listReports } = await import("@cloudeval/core");
-        const reports = await listReports({
+        const core = await import("@cloudeval/core");
+        const status = token ? await core.checkUserStatus(baseUrl, token) : undefined;
+        const reports = await core.listReports({
           baseUrl,
           authToken: token,
           projectId,
           kind: options.kind,
+          userId: status?.user?.id,
         });
         writeReportList(reports, options.format);
       } catch (error: any) {
@@ -394,6 +472,98 @@ export const registerReportsCommand = (
     });
 
   addCommonOptions(
+    reports.command("run").description("Run report generation for a project"),
+    deps.defaultBaseUrl
+  )
+    .option("--type <type>", "Report type: cost, waf, architecture, unit-tests, all", "all")
+    .option("--region <region>", "Cost report region", "eastus")
+    .option("--currency <currency>", "Cost report currency", "USD")
+    .option("--no-time-series", "Disable cost report time series generation")
+    .option("--no-save-report", "Do not persist generated report artifacts")
+    .option("--wait", "Poll submitted report jobs until terminal state", false)
+    .option("--poll-interval <ms>", "Polling interval when --wait is set", "2500")
+    .action(
+      async (
+        options: CommonReportOptions & {
+          type?: ReportRunCommandType;
+          region?: string;
+          currency?: string;
+          timeSeries?: boolean;
+          saveReport?: boolean;
+          wait?: boolean;
+          pollInterval?: string;
+        },
+        command
+      ) => {
+        try {
+          const baseUrl = await deps.resolveBaseUrl(options, command);
+          const token = await resolveToken(options, baseUrl, deps);
+          const core = await import("@cloudeval/core");
+          const status = token ? await core.checkUserStatus(baseUrl, token) : undefined;
+          const projectId = await resolveReportProjectId({
+            baseUrl,
+            token,
+            requestedProjectId: options.project,
+          });
+          const requestedType = options.type ?? "all";
+          const frontendUrl = frontendUrlForReports(
+            baseUrl,
+            {
+              ...options,
+              tab:
+                requestedType === "cost"
+                  ? "cost"
+                  : requestedType === "waf" || requestedType === "architecture"
+                    ? "architecture"
+                    : "overview",
+              reportType: requestedType,
+            },
+            projectId
+          );
+          process.stderr.write(`Submitting ${requestedType} report run for project ${projectId}...\n`);
+          const submitted = await core.runReports({
+            baseUrl,
+            authToken: token,
+            projectId,
+            userId: status?.user?.id,
+            type: requestedType,
+            region: options.region,
+            currency: options.currency,
+            includeTimeSeries: options.timeSeries,
+            saveReport: options.saveReport,
+          });
+          const finalStatuses = options.wait
+            ? await waitForReportJobs({
+                core,
+                baseUrl,
+                token,
+                userId: status?.user?.id,
+                submitted,
+                pollInterval: Math.max(500, Number(options.pollInterval) || 2500),
+              })
+            : undefined;
+          await writeFormattedOutput({
+            command: "reports run",
+            data: {
+              projectId,
+              type: requestedType,
+              submitted,
+              jobs: submitted.map(extractJobId).filter(Boolean),
+              finalStatuses,
+            },
+            format: resolveMachineFormat(options.format),
+            output: options.output,
+            frontendUrl,
+          });
+          await maybeOpenReportUrl(frontendUrl, options);
+        } catch (error: any) {
+          console.error(`Failed to run reports: ${error?.message ?? "Unknown error"}`);
+          process.exit(1);
+        }
+      }
+    );
+
+  addCommonOptions(
     reports.command("rules").description("Show Well-Architected Framework rules"),
     deps.defaultBaseUrl
   )
@@ -407,12 +577,14 @@ export const registerReportsCommand = (
           token,
           requestedProjectId: options.project,
         });
-        const { getWafReport } = await import("@cloudeval/core");
-        const report = await getWafReport({
+        const core = await import("@cloudeval/core");
+        const status = token ? await core.checkUserStatus(baseUrl, token) : undefined;
+        const report = await core.getWafReport({
           baseUrl,
           authToken: token,
           projectId,
           view: "rules",
+          userId: status?.user?.id,
         });
         const payload = selectReportModePayload(report, resolveMode(options));
         const rules =
@@ -452,13 +624,15 @@ export const registerReportsCommand = (
         token,
         requestedProjectId: options.project,
       });
-      const { getReport } = await import("@cloudeval/core");
-      const report = await getReport({
+      const core = await import("@cloudeval/core");
+      const status = token ? await core.checkUserStatus(baseUrl, token) : undefined;
+      const report = await core.getReport({
         baseUrl,
         authToken: token,
         projectId,
         reportId,
         view: resolveMode(options),
+        userId: status?.user?.id,
       });
       await writeReport(report, options, false);
     } catch (error: any) {
@@ -482,13 +656,15 @@ export const registerReportsCommand = (
           token,
           requestedProjectId: options.project,
         });
-        const { getCostReport } = await import("@cloudeval/core");
-        const report = await getCostReport({
+        const core = await import("@cloudeval/core");
+        const status = token ? await core.checkUserStatus(baseUrl, token) : undefined;
+        const report = await core.getCostReport({
           baseUrl,
           authToken: token,
           projectId,
           period: options.period,
           view: options.view,
+          userId: status?.user?.id,
         });
         await writeReport(report, options, true);
       } catch (error: any) {
@@ -517,14 +693,16 @@ export const registerReportsCommand = (
             token,
             requestedProjectId: options.project,
           });
-          const { getWafReport } = await import("@cloudeval/core");
-          const report = await getWafReport({
+          const core = await import("@cloudeval/core");
+          const status = token ? await core.checkUserStatus(baseUrl, token) : undefined;
+          const report = await core.getWafReport({
             baseUrl,
             authToken: token,
             projectId,
             reportId: options.report,
             severity: options.severity,
             view: options.view,
+            userId: status?.user?.id,
           });
           await writeReport(report, options, true);
         } catch (error: any) {

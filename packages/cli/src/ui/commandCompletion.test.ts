@@ -68,3 +68,9 @@ test("resolvePromptCommand supports unique project prefix", () => {
     project: { id: "project-1", name: "CLI Project" },
   });
 });
+
+test("resolvePromptCommand supports chat stop aliases", () => {
+  assert.deepEqual(resolvePromptCommand("/stop", context), { type: "stopChat" });
+  assert.deepEqual(resolvePromptCommand("/cancel", context), { type: "stopChat" });
+  assert.deepEqual(resolvePromptCommand("/abort", context), { type: "stopChat" });
+});

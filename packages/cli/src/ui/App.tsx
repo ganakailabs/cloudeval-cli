@@ -1,8 +1,10 @@
 import React, { useEffect, useMemo, useState, startTransition } from "react";
-import { Box, Text, useApp, useInput } from "ink";
+import { Box, Text, useApp, useInput, useStdout } from "ink";
 import { ScrollView, type ScrollViewRef } from "ink-scroll-view";
 import { randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { join, resolve } from "node:path";
 import { Banner } from "./components/Banner.js";
 import { Loader } from "./components/Loader.js";
 import { Transcript } from "./components/Transcript.js";
@@ -11,13 +13,16 @@ import { Spinner } from "./components/Spinner.js";
 import { Scrollbar } from "./components/Scrollbar.js";
 import { ProjectSelector } from "./components/ProjectSelector.js";
 import { SelectPanel, type SelectPanelItem } from "./components/SelectPanel.js";
+import { TitledBox } from "./components/TitledBox.js";
 import {
-  commandHelpText,
   completePromptInput,
   resolvePromptCommand,
   type CompletionCycleState,
 } from "./commandCompletion.js";
-import { sanitizeTerminalInput } from "./inputSanitizer.js";
+import { billingSummaryText, type BillingSummaryState } from "./billingSummary.js";
+import { sanitizeTerminalMultilineInput } from "./inputSanitizer.js";
+import { getInputViewport, nextInputScrollOffset } from "./inputViewport.js";
+import { getTuiKeyBindings } from "./keyBindings.js";
 import {
   buildControlFocusOrder,
   focusFollowUpIndex,
@@ -28,9 +33,25 @@ import {
   type SelectorControlKind,
   type TuiControlFocus,
 } from "./interactionModel.js";
-import { getResponsiveTuiLayout, truncateForTerminal, type TerminalSize } from "./layout.js";
+import {
+  estimateBannerRows,
+  getPromptInputRowBudget,
+  getResponsiveTuiLayout,
+  truncateForTerminal,
+  type TerminalSize,
+} from "./layout.js";
 import { shouldAutoScrollToBottom } from "./scrollBehavior.js";
 import { getPromptSuggestions } from "./promptSuggestions.js";
+import { buildOverviewDashboardModel } from "./overviewDashboard.js";
+import { buildReportsDashboardModel } from "./reportsDashboard.js";
+import {
+  WORKSPACE_PANEL_STALE_CHECK_MS,
+  WORKSPACE_PANEL_STALE_MS,
+  completeWorkspacePanelRefresh,
+  getWorkspacePanelLoadReason,
+  markWorkspacePanelRefreshing,
+  type WorkspacePanelDataStore,
+} from "./workspaceDataStore.js";
 import { raisedButtonStyle, terminalTheme } from "./theme.js";
 import { CLI_VERSION } from "../version.js";
 import { buildFrontendUrl, resolveFrontendBaseUrl as resolveSharedFrontendBaseUrl } from "../frontendLinks.js";
@@ -43,7 +64,8 @@ import {
   getWorkspaceTabHitAreas,
   nextWorkspaceTab,
   normalizeWorkspaceTab,
-  workspaceTabFromColumn,
+  workspaceTabs,
+  workspaceTabFromPosition,
   workspaceTabFromShortcut,
   type WorkspaceTab,
 } from "./workspaceTabs.js";
@@ -60,6 +82,7 @@ import {
   fetchReportResource,
   getCostReportFull,
   getWafReportFull,
+  runReports,
   getBillingEntitlement,
   getBillingUsageSummary,
   getBillingUsageLedger,
@@ -127,6 +150,12 @@ type ProjectInfo = Project;
 type ChatMode = "ask" | "agent";
 type SelectorKind = "project" | "model" | "mode" | null;
 type QueuedMessage = { id: string; text: string };
+type BillingHeaderState = BillingSummaryState;
+type WorkspacePanelStateMap = WorkspacePanelDataStore;
+type WorkspaceRefreshKeyMap = Partial<Record<WorkspaceTab, number>>;
+type WorkspacePanelStateUpdater =
+  | WorkspacePanelState
+  | ((previous: WorkspacePanelState) => WorkspacePanelState);
 type SendMessageOptions = {
   queuedMessageId?: string;
   hitlResume?: {
@@ -140,7 +169,20 @@ type SendMessageOptions = {
 };
 
 const selectorOrder: SelectorControlKind[] = ["project", "model", "mode"];
-const dropdownIndicator = "⌄";
+const dropdownIndicator = "▾";
+
+const workspaceTabDescriptions: Record<WorkspaceTab, string> = {
+  chat: "Ask questions, run agent workflows, and inspect project context.",
+  overview: "Portfolio dashboard with project health, cost, WAF, and report signals.",
+  reports: "Report status, downloads, heatmap-style coverage, and direct cost/WAF/test run actions.",
+  projects: "Project inventory and frontend project deeplinks.",
+  connections: "Cloud/template connections visible to the current account.",
+  billing: "Plan, credits, usage, ledger, invoices, top-ups, and billing notifications.",
+  options: "Runtime configuration, API/frontend URLs, commands, and agent help.",
+  help: "Keyboard, mouse, slash commands, and agent-oriented CLI discovery.",
+};
+
+const bottomControlsRows = 1;
 
 const fallbackModels = [
   { label: "Auto", value: "", description: "Let the backend choose the best available model." },
@@ -225,12 +267,40 @@ const mergeModelItems = (
 
 const delay = (ms: number) => new Promise((res) => setTimeout(res, ms));
 
+const billingHeaderFromEntitlement = (entitlement: any): BillingHeaderState | null => {
+  const creditStatus = getCreditStatus(entitlement);
+  if (!creditStatus) {
+    return null;
+  }
+  return {
+    plan: creditStatus.planName,
+    remaining: creditStatus.remaining,
+    total: creditStatus.total,
+    tone: creditStatus.tone,
+    status: entitlement?.effective_status,
+  };
+};
+
 const isBusyStatus = (status: ChatState["status"]): boolean =>
   status === "connecting" ||
   status === "thinking" ||
   status === "streaming" ||
   status === "tool_running" ||
   status === "hitl_waiting";
+
+const isTerminalThinkingStatus = (status?: string): boolean =>
+  status === "completed" ||
+  status === "error" ||
+  status === "aborted" ||
+  status === "cancelled";
+
+const hasCancellableAssistantWork = (messages: ChatMessage[]): boolean =>
+  messages.some(
+    (message) =>
+      message.role === "assistant" &&
+      (message.pending ||
+        message.thinkingSteps?.some((step) => !isTerminalThinkingStatus(step.status ?? "streaming")))
+  );
 
 const resolveFrontendBaseUrl = (apiBase: string, frontendUrl?: string): string =>
   resolveSharedFrontendBaseUrl({
@@ -255,6 +325,14 @@ const createWorkspacePanelState = (
   data: {},
   warnings: [],
 });
+
+const createWorkspacePanelStateMap = (): WorkspacePanelStateMap =>
+  Object.fromEntries(
+    workspaceTabs.map((tab) => [
+      tab,
+      createWorkspacePanelState(tab, tab === "chat" ? "ready" : "idle"),
+    ])
+  ) as WorkspacePanelStateMap;
 
 const thirtyDayUsageRange = (): { startAt: string; endAt: string } => {
   const end = new Date();
@@ -312,6 +390,24 @@ const buildWorkspaceFrontendUrl = ({
   return buildFrontendUrl({ baseUrl: frontendBaseUrl, target: "overview" });
 };
 
+const buildWorkspacePanelCacheKey = ({
+  tab,
+  apiBase,
+  currentUserId,
+  activeProjectId,
+}: {
+  tab: WorkspaceTab;
+  apiBase: string;
+  currentUserId?: string;
+  activeProjectId?: string;
+}): string =>
+  [
+    tab,
+    apiBase,
+    currentUserId ?? "anonymous",
+    tab === "reports" ? activeProjectId ?? "no-project" : "all-projects",
+  ].join("|");
+
 const openExternalUrl = (url: string): void => {
   const platform = process.platform;
   const command = platform === "darwin" ? "open" : platform === "win32" ? "cmd" : "xdg-open";
@@ -323,10 +419,125 @@ const openExternalUrl = (url: string): void => {
   child.unref();
 };
 
+const writeTableDownload = ({
+  tab,
+  data,
+  projects,
+  selectedProject,
+  tablePage,
+}: {
+  tab: WorkspaceTab;
+  data: Record<string, unknown>;
+  projects: ProjectInfo[];
+  selectedProject: ProjectInfo | null;
+  tablePage: number;
+}): string => {
+  const directArray = (value: unknown): unknown[] => {
+    if (Array.isArray(value)) {
+      return value;
+    }
+    if (!value || typeof value !== "object") {
+      return [];
+    }
+    const record = value as Record<string, unknown>;
+    for (const key of ["data", "items", "rows", "results", "connections", "ledger", "invoices", "notifications", "topups"]) {
+      const candidate = record[key];
+      if (Array.isArray(candidate)) {
+        return candidate;
+      }
+    }
+    return [];
+  };
+  const derived =
+    tab === "overview"
+      ? buildOverviewDashboardModel({
+          dashboard: data.dashboard,
+          reportsSummary: data.reportsSummary,
+          fallbackProjectCount: projects.length,
+          fallbackConnectionCount: directArray(data.connections).length,
+        })
+      : tab === "reports"
+        ? buildReportsDashboardModel({
+            dashboard: data.dashboard,
+            reportsSummary: data.reportsSummary,
+            selectedProject,
+            costReport: data.costReport,
+            wafReport: data.wafReport,
+          })
+        : {
+            rows: {
+              connections: directArray(data.connections),
+              ledger: directArray(data.ledger),
+              invoices: directArray(data.billingInfo),
+              topups: directArray(data.topups),
+              notifications: directArray(data.notifications),
+            },
+          };
+  const dir = resolve(process.cwd(), ".cloudeval-downloads");
+  mkdirSync(dir, { recursive: true });
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const file = join(dir, `${tab}-tables-${timestamp}.json`);
+  writeFileSync(
+    file,
+    `${JSON.stringify(
+      {
+        tab,
+        tablePage,
+        selectedProject,
+        projects,
+        derived,
+        data,
+      },
+      null,
+      2
+    )}\n`,
+    "utf8"
+  );
+  return file;
+};
+
 const readTerminalSize = (): TerminalSize => ({
   columns: process.stdout.columns || 100,
   rows: process.stdout.rows || 32,
 });
+
+const estimatePromptSuggestionRows = (count: number, columns: number): number => {
+  if (count <= 0) {
+    return 0;
+  }
+  const promptsPerRow = columns < 90 ? 1 : columns < 132 ? 2 : 3;
+  return Math.max(1, Math.ceil(count / promptsPerRow)) * 3;
+};
+
+const estimatePromptControlRows = ({
+  compact,
+  hasThinkingSteps,
+}: {
+  compact: boolean;
+  hasThinkingSteps: boolean;
+}): number => {
+  const selectorCount = selectorOrder.length + (hasThinkingSteps ? 1 : 0);
+  return compact ? selectorCount * 3 : 3;
+};
+
+const estimatePromptPanelRows = ({
+  inputRows,
+  suggestionRows,
+  compact,
+  hasThinkingSteps,
+}: {
+  inputRows: number;
+  suggestionRows: number;
+  compact: boolean;
+  hasThinkingSteps: boolean;
+}): number => {
+  const outerChromeRows = 4;
+  const topHelpRows = 1;
+  const inputBoxRows = inputRows + 3;
+  const footerRows =
+    1 + 1 + estimatePromptControlRows({ compact, hasThinkingSteps }) + 1 + 2;
+  return outerChromeRows + topHelpRows + suggestionRows + inputBoxRows + footerRows;
+};
 
 const useTerminalSize = (): TerminalSize => {
   const [size, setSize] = useState<TerminalSize>(() => readTerminalSize());
@@ -439,7 +650,44 @@ const selectorValueText = ({
   return selectedMode;
 };
 
-const SelectorBar: React.FC<{
+const QueuePanel: React.FC<{
+  messages: QueuedMessage[];
+  compact: boolean;
+  terminalColumns: number;
+}> = ({ messages, compact, terminalColumns }) => {
+  const previewLimit = compact
+    ? Math.max(28, terminalColumns - 18)
+    : Math.min(120, Math.max(60, terminalColumns - 28));
+  const visibleMessages = messages.slice(0, compact ? 2 : 3);
+
+  return (
+    <TitledBox
+      title={`Queue (${messages.length})`}
+      borderStyle="single"
+      borderColor={terminalTheme.warning}
+      padding={0}
+      paddingX={1}
+      marginTop={1}
+    >
+      {visibleMessages.map((message, index) => (
+        <Text
+          key={message.id}
+          color={index === 0 ? terminalTheme.warning : undefined}
+          dimColor={index > 0}
+          wrap="truncate"
+        >
+          {index === 0 ? "Next" : `#${index + 1}`}:{" "}
+          {truncateForTerminal(oneLine(message.text), previewLimit)}
+        </Text>
+      ))}
+      {messages.length > visibleMessages.length ? (
+        <Text dimColor>+{messages.length - visibleMessages.length} more queued</Text>
+      ) : null}
+    </TitledBox>
+  );
+};
+
+const PromptControlBar: React.FC<{
   focused: TuiControlFocus;
   selectedProject: ProjectInfo | null;
   selectedModel: string;
@@ -449,7 +697,6 @@ const SelectorBar: React.FC<{
   thinkingSummary: string;
   compact: boolean;
   terminalColumns: number;
-  apiBase: string;
   statusText: string;
   statusColor?: string;
   busy: boolean;
@@ -463,31 +710,15 @@ const SelectorBar: React.FC<{
   thinkingSummary,
   compact,
   terminalColumns,
-  apiBase,
   statusText,
   statusColor,
   busy,
 }) => {
   const controlGap = compact ? 0 : 1;
-
   return (
-    <Box
-      flexDirection="column"
-      borderStyle="round"
-      borderColor={focused === "thinking" ? terminalTheme.brand : terminalTheme.muted}
-      paddingX={1}
-    >
-      <Box flexDirection="row" justifyContent="space-between">
-        <Box flexDirection="row" gap={1}>
-          <Text bold color={terminalTheme.brand}>CloudEval</Text>
-          <Text dimColor>workspace</Text>
-        </Box>
-        <Box flexDirection="row" gap={1}>
-          {busy ? <Spinner type="line" /> : null}
-          <Text color={statusColor}>{statusText}</Text>
-        </Box>
-      </Box>
-      <Box flexDirection={compact ? "column" : "row"} gap={controlGap} flexWrap="wrap" marginTop={1}>
+    <Box flexDirection="column" gap={0}>
+      <Text dimColor>Settings</Text>
+      <Box flexDirection={compact ? "column" : "row"} gap={controlGap} flexWrap="wrap">
         {selectorOrder.map((kind) => {
           const isFocused = focused === kind;
           const label = kind.charAt(0).toUpperCase() + kind.slice(1);
@@ -510,11 +741,13 @@ const SelectorBar: React.FC<{
               borderColor={isFocused ? terminalTheme.brand : terminalTheme.muted}
               paddingX={1}
             >
-              <Text color={isFocused ? terminalTheme.brand : undefined} bold={isFocused} inverse={isFocused}>
-                {label}: {value} {dropdownIndicator}
+              <Text color={isFocused ? terminalTheme.brand : undefined} bold={isFocused}>
+                {isFocused ? raisedButtonStyle.activeMarker : raisedButtonStyle.inactiveMarker}{" "}
+                {label} [{value}] {dropdownIndicator}
               </Text>
-            </Box>
-          );
+  </Box>
+);
+
         })}
         {hasThinkingSteps ? (
           <Box
@@ -525,58 +758,48 @@ const SelectorBar: React.FC<{
             <Text
               color={focused === "thinking" ? terminalTheme.brand : undefined}
               bold={focused === "thinking"}
-              inverse={focused === "thinking"}
             >
+              {focused === "thinking" ? raisedButtonStyle.activeMarker : raisedButtonStyle.inactiveMarker}{" "}
               Reasoning: {thinkingExpanded ? "open" : thinkingSummary}
             </Text>
           </Box>
         ) : null}
+        <Box flexGrow={1} justifyContent="flex-end">
+          <Box flexDirection="row" gap={1}>
+            {busy ? <Spinner type="line" /> : null}
+            <Text color={statusColor}>{statusText}</Text>
+          </Box>
+        </Box>
       </Box>
       <Text dimColor wrap="truncate">
-        {apiBase} | Tab/left/right focus | Enter open | /project /model /mode /thinking
+        Tab/left/right focus | Enter open | /project /model /mode /thinking
       </Text>
     </Box>
   );
 };
 
-const QueuePanel: React.FC<{
-  messages: QueuedMessage[];
-  compact: boolean;
-  terminalColumns: number;
-}> = ({ messages, compact, terminalColumns }) => {
-  const previewLimit = compact
-    ? Math.max(28, terminalColumns - 18)
-    : Math.min(120, Math.max(60, terminalColumns - 28));
-  const visibleMessages = messages.slice(0, compact ? 2 : 3);
-
-  return (
-    <Box
-      flexDirection="column"
-      borderStyle="single"
-      borderColor={terminalTheme.warning}
-      paddingX={1}
-      marginTop={1}
-    >
-      <Text bold color={terminalTheme.warning}>
-        Queue ({messages.length} pending)
+const BottomControls: React.FC<{ tab: WorkspaceTab }> = ({ tab }) => (
+  <Box flexDirection="row" justifyContent="space-between">
+    <Text dimColor>
+      <Text color={terminalTheme.brand} bold>Keys</Text>
+      <Text> ↑/↓ scroll | PgUp/PgDn scroll | [/] table page | </Text>
+      <Text color={terminalTheme.brand} bold>D</Text>
+      <Text> download | </Text>
+      <Text color={terminalTheme.brand} bold>R</Text>
+      <Text> refresh | </Text>
+      <Text color={terminalTheme.brand} bold>O</Text>
+      <Text> open | </Text>
+      <Text color={terminalTheme.brand} bold>C</Text>
+      <Text> chat</Text>
+    </Text>
+    {tab === "reports" ? (
+      <Text dimColor>
+        <Text color={terminalTheme.brand} bold>Reports</Text>
+        <Text> W WAF | K cost | U tests | A all | P project</Text>
       </Text>
-      {visibleMessages.map((message, index) => (
-        <Text
-          key={message.id}
-          color={index === 0 ? terminalTheme.warning : undefined}
-          dimColor={index > 0}
-          wrap="truncate"
-        >
-          {index === 0 ? "Next" : `#${index + 1}`}:{" "}
-          {truncateForTerminal(oneLine(message.text), previewLimit)}
-        </Text>
-      ))}
-      {messages.length > visibleMessages.length ? (
-        <Text dimColor>+{messages.length - visibleMessages.length} more queued</Text>
-      ) : null}
-    </Box>
-  );
-};
+    ) : null}
+  </Box>
+);
 
 const recommendedOptionIndex = (question?: HitlQuestion): number => {
   if (!question?.options?.length) {
@@ -605,8 +828,12 @@ const HitlPanel: React.FC<{
   const options = question?.options ?? [];
 
   return (
-    <Box flexDirection="column" borderStyle="round" borderColor={terminalTheme.warning} padding={1}>
-      <Text bold color={terminalTheme.warning}>Human approval required</Text>
+    <TitledBox
+      title="Human Approval"
+      borderStyle="round"
+      borderColor={terminalTheme.warning}
+      padding={1}
+    >
       <Text wrap="wrap">
         {questionIndex + 1}/{hitl.questions.length}: {question?.text ?? "Action required"}
       </Text>
@@ -638,7 +865,7 @@ const HitlPanel: React.FC<{
         Up/Down choose | Enter answer | Left/Right switch question | O or /open opens frontend
       </Text>
       <Text dimColor wrap="wrap">Frontend: {frontendUrl}</Text>
-    </Box>
+    </TitledBox>
   );
 };
 
@@ -657,10 +884,12 @@ export const App: React.FC<AppProps> = ({
   skipHealthCheck = true, // Disable health check by default
 }) => {
   const { exit } = useApp();
+  const { write } = useStdout();
   const [phase, setPhase] = useState<"boot" | "ready" | "error">("boot");
   const [loaderStep, setLoaderStep] = useState(0);
   const [bootError, setBootError] = useState<string | undefined>();
   const [input, setInput] = useState("");
+  const [promptInputScrollOffset, setPromptInputScrollOffset] = useState(0);
   const [authToken, setAuthToken] = useState<string | undefined>(apiKey);
   const [chatState, setChatState] = useState<ChatState>({
     ...initialChatState,
@@ -675,10 +904,12 @@ export const App: React.FC<AppProps> = ({
   const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<WorkspaceTab>(() =>
     normalizeWorkspaceTab(initialTab)
   );
-  const [workspacePanelState, setWorkspacePanelState] = useState<WorkspacePanelState>(() =>
-    createWorkspacePanelState(normalizeWorkspaceTab(initialTab))
+  const [workspacePanelStore, setWorkspacePanelStore] = useState<WorkspacePanelStateMap>(
+    createWorkspacePanelStateMap
   );
-  const [workspaceRefreshKey, setWorkspaceRefreshKey] = useState(0);
+  const [tablePageByTab, setTablePageByTab] = useState<Partial<Record<WorkspaceTab, number>>>({});
+  const [workspaceRefreshKeys, setWorkspaceRefreshKeys] = useState<WorkspaceRefreshKeyMap>({});
+  const [workspaceStaleTick, setWorkspaceStaleTick] = useState(0);
   const [modelItems, setModelItems] = useState<Array<SelectPanelItem<string>>>(() => {
     if (model && !fallbackModels.some((item) => item.value === model)) {
       return [{ label: model, value: model, description: "Model provided by --model." }, ...fallbackModels];
@@ -692,6 +923,8 @@ export const App: React.FC<AppProps> = ({
   const [checkingOnboarding, setCheckingOnboarding] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | undefined>();
   const [userName, setUserName] = useState<string>("You");
+  const [billingHeader, setBillingHeader] = useState<BillingHeaderState | null>(null);
+  const [billingHeaderError, setBillingHeaderError] = useState<string | undefined>();
   const [focusedControl, setFocusedControl] = useState<TuiControlFocus>("project");
   const [queuedMessages, setQueuedMessages] = useState<QueuedMessage[]>([]);
   const [hitlQuestionIndex, setHitlQuestionIndex] = useState(0);
@@ -701,6 +934,9 @@ export const App: React.FC<AppProps> = ({
   const [scrollOffset, setScrollOffset] = useState(0);
   const [contentHeight, setContentHeight] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(20);
+  const [workspaceScrollOffset, setWorkspaceScrollOffset] = useState(0);
+  const [workspaceContentHeight, setWorkspaceContentHeight] = useState(0);
+  const [workspaceViewportHeight, setWorkspaceViewportHeight] = useState(14);
   const apiBase = useMemo(() => normalizeApiBase(baseUrl), [baseUrl]);
   const frontendBaseUrl = useMemo(
     () => resolveFrontendBaseUrl(apiBase, frontendUrl),
@@ -718,19 +954,36 @@ export const App: React.FC<AppProps> = ({
         frontendBaseUrl,
         threadId: chatState.threadId,
         projectId: activeProjectId,
-      }),
+    }),
     [activeWorkspaceTab, activeProjectId, chatState.threadId, frontendBaseUrl]
   );
+  const billingHeaderRefreshKey = workspaceRefreshKeys.billing ?? 0;
   const scrollViewRef = React.useRef<ScrollViewRef>(null);
+  const workspaceScrollViewRef = React.useRef<ScrollViewRef>(null);
   const controllerRef = React.useRef<AbortController | null>(null);
   const queueRef = React.useRef<QueuedMessage[]>([]);
   const completionCycleRef = React.useRef<CompletionCycleState | undefined>();
+  const previousWorkspaceTabRef = React.useRef<WorkspaceTab>(activeWorkspaceTab);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [expandedThinkingMessageIds, setExpandedThinkingMessageIds] = useState<Set<string>>(
     () => new Set()
   );
   const autoExpandedThinkingMessageIdsRef = React.useRef<Set<string>>(new Set());
   const suppressNextAutoScrollRef = React.useRef(false);
+  const setWorkspacePanelTabState = React.useCallback(
+    (tab: WorkspaceTab, stateOrUpdater: WorkspacePanelStateUpdater) => {
+      setWorkspacePanelStore((current) => {
+        const previous = current[tab] ?? createWorkspacePanelState(tab);
+        const state =
+          typeof stateOrUpdater === "function" ? stateOrUpdater(previous) : stateOrUpdater;
+        return {
+          ...current,
+          [tab]: state,
+        };
+      });
+    },
+    []
+  );
 
   // New Search State
   const [isSearching, setIsSearching] = useState(false);
@@ -847,6 +1100,45 @@ export const App: React.FC<AppProps> = ({
     }
     return enableTerminalMouse();
   }, [mouseTrackingEnabled, phase]);
+
+  useEffect(() => {
+    if (phase !== "ready") {
+      return;
+    }
+    const timer = setInterval(() => {
+      setWorkspaceStaleTick(Date.now());
+    }, WORKSPACE_PANEL_STALE_CHECK_MS);
+    return () => {
+      clearInterval(timer);
+    };
+  }, [phase]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (phase !== "ready" || !authToken) {
+      return;
+    }
+
+    setBillingHeaderError(undefined);
+    getBillingEntitlement({ baseUrl: apiBase, authToken })
+      .then((entitlement) => {
+        if (cancelled) {
+          return;
+        }
+        setBillingHeader(billingHeaderFromEntitlement(entitlement));
+      })
+      .catch((error: any) => {
+        if (cancelled) {
+          return;
+        }
+        setBillingHeader(null);
+        setBillingHeaderError(error?.message ?? "Billing unavailable");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [apiBase, authToken, billingHeaderRefreshKey, phase]);
 
   useEffect(() => {
     let cancelled = false;
@@ -997,30 +1289,73 @@ export const App: React.FC<AppProps> = ({
       return;
     }
 
-    if (tab === "chat") {
-      setWorkspacePanelState(createWorkspacePanelState(tab, "ready"));
+    const cacheKey = buildWorkspacePanelCacheKey({
+      tab,
+      apiBase,
+      currentUserId,
+      activeProjectId,
+    });
+    const refreshToken = workspaceRefreshKeys[tab] ?? 0;
+    const currentState = workspacePanelStore[tab] ?? createWorkspacePanelState(tab);
+    const loadReason = getWorkspacePanelLoadReason({
+      state: currentState,
+      now: Date.now(),
+      staleMs: WORKSPACE_PANEL_STALE_MS,
+      cacheKey,
+      refreshToken,
+    });
+
+    if (!loadReason) {
       return;
     }
 
+    if (tab === "chat" || tab === "projects" || tab === "options" || tab === "help") {
+      const now = Date.now();
+      setWorkspacePanelTabState(tab, (previous) => ({
+        ...previous,
+        tab,
+        status: "ready",
+        warnings: [],
+        error: undefined,
+        loadedAt: now,
+        staleAt: now + WORKSPACE_PANEL_STALE_MS,
+        cacheKey,
+        isRefreshing: false,
+        refreshStartedAt: undefined,
+        lastLoadReason: loadReason,
+        lastRefreshToken: refreshToken,
+      }));
+      return;
+    }
+
+    if (!authToken) {
+      setWorkspacePanelTabState(tab, (previous) =>
+        completeWorkspacePanelRefresh({
+          previous,
+          tab,
+          data: {},
+          warnings: ["Authentication: Authentication is required to load this tab."],
+          now: Date.now(),
+          staleMs: WORKSPACE_PANEL_STALE_MS,
+          cacheKey,
+          refreshToken,
+          reason: loadReason,
+        })
+      );
+      return;
+    }
+
+    setWorkspacePanelTabState(tab, (previous) =>
+      markWorkspacePanelRefreshing({
+        state: previous,
+        now: Date.now(),
+        reason: loadReason,
+        cacheKey,
+        refreshToken,
+      })
+    );
+
     const load = async () => {
-      if (tab === "projects" || tab === "options") {
-        setWorkspacePanelState({
-          ...createWorkspacePanelState(tab, "ready"),
-          loadedAt: Date.now(),
-        });
-        return;
-      }
-
-      if (!authToken) {
-        setWorkspacePanelState({
-          ...createWorkspacePanelState(tab, "error"),
-          error: "Authentication is required to load this tab.",
-        });
-        return;
-      }
-
-      setWorkspacePanelState(createWorkspacePanelState(tab, "loading"));
-
       const data: Record<string, unknown> = {};
       const warnings: string[] = [];
       const client = { baseUrl: apiBase, authToken };
@@ -1046,7 +1381,7 @@ export const App: React.FC<AppProps> = ({
         }
       }
 
-      if (tab === "overview") {
+      if (tab === "overview" || tab === "reports") {
         if (currentUserId) {
           await capture("dashboard", "Dashboard overview", () =>
             fetchReportResource(client, `/dashboard/user/${encodeURIComponent(currentUserId)}`, {
@@ -1119,17 +1454,19 @@ export const App: React.FC<AppProps> = ({
       }
 
       if (!cancelled) {
-        setWorkspacePanelState({
-          tab,
-          status: warnings.length && !Object.keys(data).length ? "error" : "ready",
-          data,
-          warnings,
-          error:
-            warnings.length && !Object.keys(data).length
-              ? "No dashboard data could be loaded from the backend."
-              : undefined,
-          loadedAt: Date.now(),
-        });
+        setWorkspacePanelTabState(tab, (previous) =>
+          completeWorkspacePanelRefresh({
+            previous,
+            tab,
+            data,
+            warnings,
+            now: Date.now(),
+            staleMs: WORKSPACE_PANEL_STALE_MS,
+            cacheKey,
+            refreshToken,
+            reason: loadReason,
+          })
+        );
       }
     };
 
@@ -1144,7 +1481,10 @@ export const App: React.FC<AppProps> = ({
     authToken,
     currentUserId,
     phase,
-    workspaceRefreshKey,
+    setWorkspacePanelTabState,
+    workspacePanelStore,
+    workspaceRefreshKeys,
+    workspaceStaleTick,
   ]);
 
   const displayedMessages = useMemo(() => {
@@ -1240,6 +1580,65 @@ export const App: React.FC<AppProps> = ({
       setNotice(`Frontend link: ${workspaceFrontendUrl}`);
     } catch (error: any) {
       setNotice(`Open frontend manually: ${workspaceFrontendUrl}`);
+    }
+  };
+
+  const runReportFromReportsTab = async (kind: "cost" | "waf" | "unit-tests" | "all") => {
+    const project = selectedProject ?? projects[0] ?? defaultProject;
+    const labels: Record<typeof kind, string> = {
+      cost: "cost",
+      waf: "Well-Architected",
+      "unit-tests": "unit test",
+      all: "cost, Well-Architected, and unit test",
+    };
+    setActiveSelector(null);
+    if (!authToken) {
+      setNotice("Sign in before running reports.");
+      return;
+    }
+    if (!currentUserId) {
+      setNotice("Authenticated user id is not available yet. Refresh and try again.");
+      return;
+    }
+    setWorkspacePanelTabState("reports", {
+      ...activeWorkspacePanelState,
+      tab: "reports",
+      status: "loading",
+    });
+    setNotice(`Submitting ${labels[kind]} report run for ${project.name}...`);
+    try {
+      const submitted = await runReports({
+        baseUrl: apiBase,
+        authToken,
+        projectId: project.id,
+        userId: currentUserId,
+        type: kind,
+        region: "eastus",
+        currency: "USD",
+        includeTimeSeries: true,
+        saveReport: true,
+      });
+      const jobIds = submitted
+        .map((item: any) => item?.job?.job_id ?? item?.job_id ?? item?.id)
+        .filter(Boolean);
+      setWorkspaceRefreshKeys((current) => ({
+        ...current,
+        reports: (current.reports ?? 0) + 1,
+        overview: (current.overview ?? 0) + 1,
+      }));
+      setNotice(
+        jobIds.length
+          ? `Submitted ${labels[kind]} report job${jobIds.length > 1 ? "s" : ""}: ${jobIds.join(", ")}`
+          : `Submitted ${labels[kind]} report run for ${project.name}.`
+      );
+    } catch (error: any) {
+      setWorkspacePanelTabState("reports", {
+        ...activeWorkspacePanelState,
+        tab: "reports",
+        status: "error",
+        error: error?.message ?? "Failed to submit report run",
+      });
+      setNotice(`Failed to submit ${labels[kind]} report run: ${error?.message ?? "Unknown error"}`);
     }
   };
 
@@ -1343,8 +1742,65 @@ export const App: React.FC<AppProps> = ({
     submitHitlAnswer(answer);
   };
 
+  const markAssistantMessageCanceled = (message: ChatMessage, now: number): ChatMessage => {
+    const thinkingSteps = message.thinkingSteps?.map((step) => {
+      const status = step.status ?? "streaming";
+      if (isTerminalThinkingStatus(status)) {
+        return step;
+      }
+      return {
+        ...step,
+        status: "cancelled" as const,
+        updatedAt: now,
+        completedAt: step.completedAt ?? now,
+        durationMs:
+          step.durationMs ??
+          (step.startedAt ? Math.max(0, now - step.startedAt) : undefined),
+      };
+    });
+    return {
+      ...message,
+      pending: false,
+      updatedAt: now,
+      ...(thinkingSteps ? { thinkingSteps } : {}),
+    };
+  };
+
+  const stopActiveChat = (reason = "Cancelled by user") => {
+    const hasActiveResponse =
+      Boolean(controllerRef.current) ||
+      isBusyStatus(chatState.status) ||
+      hasCancellableAssistantWork(chatState.messages);
+    if (controllerRef.current) {
+      controllerRef.current.abort(reason);
+    }
+    if (queueRef.current.length) {
+      queueRef.current = [];
+      syncQueueState();
+    }
+    const now = Date.now();
+    setChatState((prev) => ({
+      ...prev,
+      status: hasActiveResponse ? "canceled" : prev.status,
+      hitl: undefined,
+      activeMessageId: undefined,
+      messages: prev.messages.map((message) =>
+        message.role === "assistant" &&
+        (message.pending ||
+          message.thinkingSteps?.some((step) => !isTerminalThinkingStatus(step.status ?? "streaming")))
+          ? markAssistantMessageCanceled(message, now)
+          : message
+      ),
+    }));
+    setNotice(
+      hasActiveResponse
+        ? "Response canceled. Esc or /stop cancels running chat."
+        : "No running response to cancel."
+    );
+  };
+
   const handlePromptSubmit = (value: string) => {
-    const cleanedValue = sanitizeTerminalInput(value);
+    const cleanedValue = sanitizeTerminalMultilineInput(value);
     const promptCommand = resolvePromptCommand(cleanedValue, promptCompletionContext);
     if (promptCommand) {
       setInput("");
@@ -1368,11 +1824,15 @@ export const App: React.FC<AppProps> = ({
         case "toggleThinking":
           toggleLatestThinking();
           return;
+        case "stopChat":
+          stopActiveChat();
+          return;
         case "openFrontend":
           handleOpenFrontend();
           return;
         case "showHelp":
-          setNotice(commandHelpText());
+          setActiveWorkspaceTab("help");
+          setNotice(undefined);
           return;
         case "unknown":
           setNotice(promptCommand.message);
@@ -1400,8 +1860,16 @@ export const App: React.FC<AppProps> = ({
   };
 
   const handlePromptChange = (value: string) => {
-    const cleanedValue = sanitizeTerminalInput(value);
+    const cleanedValue = sanitizeTerminalMultilineInput(value);
     completionCycleRef.current = undefined;
+    setPromptInputScrollOffset(
+      getInputViewport({
+        value: cleanedValue,
+        width: promptInputWidth,
+        minRows: promptInputRowBudget,
+        maxRows: promptInputRowBudget,
+      }).maxScrollOffset
+    );
     setInput(cleanedValue);
   };
 
@@ -1589,13 +2057,17 @@ export const App: React.FC<AppProps> = ({
 
       if (isAbort) {
         if (controllerRef.current === ctrl || controllerRef.current === null) {
+          const now = Date.now();
           setChatState((prev) => ({
             ...prev,
             status: "canceled",
             hitl: undefined,
+            activeMessageId: undefined,
             messages: prev.messages.map((message) =>
-              message.role === "assistant" && message.pending
-                ? { ...message, pending: false, updatedAt: Date.now() }
+              message.role === "assistant" &&
+              (message.pending ||
+                message.thinkingSteps?.some((step) => !isTerminalThinkingStatus(step.status ?? "streaming")))
+                ? markAssistantMessageCanceled(message, now)
                 : message
             ),
           }));
@@ -1638,14 +2110,33 @@ export const App: React.FC<AppProps> = ({
     .reverse()
     .find((m) => m.role === "assistant" && Boolean(m.thinkingSteps?.length));
   const hasThinkingSteps = Boolean(latestThinkingMessage);
+  const hasCancellableReasoning = hasCancellableAssistantWork(chatState.messages);
   const latestFollowUps = latestAssistant?.followUpQuestions?.filter(Boolean) ?? [];
   const promptSuggestions = getPromptSuggestions({
     latestFollowUps,
     messages: chatState.messages,
     mode: selectedMode,
     project: selectedProject,
+    limit: terminalSize.columns < 110 ? 3 : 4,
   });
-  const visiblePromptSuggestions = promptSuggestions.prompts;
+  const visiblePromptSuggestions = promptSuggestions.prompts.slice(
+    0,
+    terminalSize.columns < 110 ? 3 : 4
+  );
+  const promptInputWidth = Math.max(20, terminalSize.columns - 14);
+  const promptInputRowBudget = getPromptInputRowBudget(terminalSize);
+  const promptInputViewport = getInputViewport({
+    value: input,
+    width: promptInputWidth,
+    minRows: promptInputRowBudget,
+    maxRows: promptInputRowBudget,
+    scrollOffset: promptInputScrollOffset,
+  });
+  const promptInputRows = promptInputViewport.visibleRowCount;
+  const promptSuggestionRows = estimatePromptSuggestionRows(
+    visiblePromptSuggestions.length,
+    terminalSize.columns
+  );
   const focusedFollowUpIndex = focusFollowUpIndex(focusedControl);
   const controlFocusOrder = buildControlFocusOrder({
     hasThinkingSteps,
@@ -1663,50 +2154,75 @@ export const App: React.FC<AppProps> = ({
     hasHitl: chatState.status === "hitl_waiting" && Boolean(chatState.hitl?.waiting),
     hasSelector: Boolean(activeSelector),
     isSearching,
+    promptInputRows,
+    promptSuggestionRows,
   });
   const bannerDisabled = bannerDisabledByConfig || !tuiLayout.showBanner;
-  const bannerVariant = terminalSize.columns >= 96 ? "full" : "compact";
+  const bannerContentColumns = Math.max(1, terminalSize.columns - tuiLayout.paddingX * 2);
+  const billingSummary = billingHeaderError
+    ? `Plan: unavailable | Credits: unavailable`
+    : billingSummaryText(billingHeader);
+  const headerDetails = [
+    `API: ${apiBase}`,
+    `Frontend: ${frontendBaseUrl}`,
+    billingSummary,
+  ];
+  const keyBindings = getTuiKeyBindings();
   const scrollHelp = mouseTrackingEnabled
-    ? "Mouse: click tabs/toolbar/follow-ups | wheel scroll | Ctrl+up/down"
-    : "Scroll: Ctrl+up/down";
+    ? `${keyBindings.mouse} | wheel scroll`
+    : keyBindings.scroll;
   const threadContentWidth = Math.max(
     24,
     terminalSize.columns - tuiLayout.paddingX * 2 - 8
   );
+  const chatThreadHeight = Math.max(1, tuiLayout.threadHeight - bottomControlsRows);
   const activeWorkspacePanelState =
-    workspacePanelState.tab === activeWorkspaceTab
-      ? workspacePanelState
-      : createWorkspacePanelState(activeWorkspaceTab, "loading");
-  const workspaceTabHitAreas = useMemo(
-    () => getWorkspaceTabHitAreas({ startColumn: tuiLayout.paddingX + 1, gap: 1 }),
-    [tuiLayout.paddingX]
+    workspacePanelStore[activeWorkspaceTab] ??
+    createWorkspacePanelState(activeWorkspaceTab, "loading");
+  const activeTablePage = tablePageByTab[activeWorkspaceTab] ?? 0;
+  const bannerRenderedRows = bannerDisabled
+    ? 0
+    : estimateBannerRows({ detailsCount: headerDetails.length, columns: bannerContentColumns });
+  const workspaceHeaderRows =
+    bannerRenderedRows +
+    3 +
+    (notice ? 1 : 0);
+  const workspaceFooterRows =
+    bottomControlsRows + 1 + (activeSelector === "project" ? tuiLayout.selectorLimit + 4 : 0);
+  const workspacePanelViewportRows = Math.max(
+    3,
+    terminalSize.rows - workspaceHeaderRows - workspaceFooterRows
   );
-  const workspaceTabRowCount = useMemo(() => {
-    const first = workspaceTabHitAreas[0];
-    const last = workspaceTabHitAreas[workspaceTabHitAreas.length - 1];
-    if (!first || !last) {
-      return 1;
+  const workspaceContentWidth = Math.max(24, terminalSize.columns - tuiLayout.paddingX * 2 - 3);
+  const workspaceTabStartRow = useMemo(() => {
+    const rootContentStartRow = 1;
+    if (bannerDisabled) {
+      const compactBrandRows = 3;
+      const gapAfterBrand = 1;
+      return rootContentStartRow + compactBrandRows + gapAfterBrand;
     }
-    const projectedWidth = last.endColumn - first.startColumn + 1;
-    const visibleWidth = Math.max(1, terminalSize.columns - tuiLayout.paddingX * 2);
-    return Math.max(1, Math.ceil(projectedWidth / visibleWidth));
-  }, [terminalSize.columns, tuiLayout.paddingX, workspaceTabHitAreas]);
-  const selectorControlStartRow = useMemo(() => {
-    const contentStartRow = 2;
-    const bannerRows = bannerDisabled ? 0 : bannerVariant === "full" ? 9 : 8;
-    const gapAfterBanner = bannerDisabled ? 0 : 1;
-    const tabBarRows = workspaceTabRowCount * 3 + 1;
-    const gapAfterTabs = 1;
-    const selectorRowsBeforeControls = 3;
-    return (
-      contentStartRow +
-      bannerRows +
-      gapAfterBanner +
-      tabBarRows +
-      gapAfterTabs +
-      selectorRowsBeforeControls
-    );
-  }, [bannerDisabled, bannerVariant, workspaceTabRowCount]);
+    const bannerRows = estimateBannerRows({
+      detailsCount: headerDetails.length,
+      columns: bannerContentColumns,
+    });
+    const gapAfterBanner = 1;
+    return rootContentStartRow + bannerRows + gapAfterBanner;
+  }, [bannerDisabled, bannerContentColumns, headerDetails.length]);
+  const workspaceTabHitAreas = useMemo(
+    () =>
+      getWorkspaceTabHitAreas({
+        startColumn: tuiLayout.paddingX + 1,
+        startRow: workspaceTabStartRow,
+        maxColumn: Math.max(1, terminalSize.columns - tuiLayout.paddingX),
+        gap: 1,
+        rowGap: 0,
+      }),
+    [terminalSize.columns, tuiLayout.paddingX, workspaceTabStartRow]
+  );
+  const selectorControlStartRow = useMemo(
+    () => Math.max(1, terminalSize.rows - (tuiLayout.compact ? 7 : 5)),
+    [terminalSize.rows, tuiLayout.compact]
+  );
   const selectorControlHitAreas = useMemo(
     () =>
       getSelectorControlHitAreas({
@@ -1724,6 +2240,27 @@ export const App: React.FC<AppProps> = ({
       tuiLayout.paddingX,
     ]
   );
+  const promptPanelStartRow = useMemo(
+    () =>
+      Math.max(
+        1,
+        terminalSize.rows -
+          estimatePromptPanelRows({
+            inputRows: promptInputRows,
+            suggestionRows: promptSuggestionRows,
+            compact: tuiLayout.compact,
+            hasThinkingSteps,
+          }) +
+          1
+      ),
+    [
+      hasThinkingSteps,
+      promptInputRows,
+      promptSuggestionRows,
+      terminalSize.rows,
+      tuiLayout.compact,
+    ]
+  );
 
   useEffect(() => {
     setFocusedControl((current) =>
@@ -1732,6 +2269,22 @@ export const App: React.FC<AppProps> = ({
         : controlFocusOrder[0] ?? "project"
     );
   }, [controlFocusOrder.join("|")]);
+
+  useEffect(() => {
+    if (previousWorkspaceTabRef.current !== activeWorkspaceTab) {
+      write("\x1b[2J\x1b[H");
+      previousWorkspaceTabRef.current = activeWorkspaceTab;
+      setScrollOffset(0);
+      setContentHeight(0);
+      setWorkspaceScrollOffset(0);
+      setWorkspaceContentHeight(0);
+    }
+    if (activeWorkspaceTab !== "chat") {
+      setTimeout(() => workspaceScrollViewRef.current?.scrollToTop(), 0);
+    } else {
+      setTimeout(() => scrollViewRef.current?.scrollToTop(), 0);
+    }
+  }, [activeWorkspaceTab, write]);
 
   const submitFollowUp = (index: number) => {
     const question = visiblePromptSuggestions[index];
@@ -1765,15 +2318,16 @@ export const App: React.FC<AppProps> = ({
   };
 
   const handleMouseClick = (mouseEvent: TerminalMouseEvent) => {
-    if (mouseEvent.released || mouseEvent.code !== 0) {
+    const isPrimaryClick = mouseEvent.code < 64 && (mouseEvent.code & 3) === 0;
+    if (!isPrimaryClick) {
       return;
     }
 
-    const tabClickMaxY = Math.max(1, selectorControlStartRow - 5);
-    const clickedTab =
-      mouseEvent.y <= tabClickMaxY
-        ? workspaceTabFromColumn(mouseEvent.x, workspaceTabHitAreas)
-        : undefined;
+    const clickedTab = workspaceTabFromPosition(
+      mouseEvent.x,
+      mouseEvent.y,
+      workspaceTabHitAreas
+    );
     if (clickedTab) {
       setActiveWorkspaceTab(clickedTab);
       setActiveSelector(null);
@@ -1799,6 +2353,10 @@ export const App: React.FC<AppProps> = ({
       }
     }
 
+    if (mouseEvent.released) {
+      return;
+    }
+
     if (!visiblePromptSuggestions.length) {
       return;
     }
@@ -1819,12 +2377,9 @@ export const App: React.FC<AppProps> = ({
     (inputKey, key) => {
        // Global keys
        if (key.ctrl && inputKey.toLowerCase() === "c") {
-          if (chatState.status === "streaming" || chatState.status === "thinking" || chatState.status === "connecting") {
-              if (controllerRef.current) {
-                  controllerRef.current.abort("Cancelled by user");
-                  setChatState((prev) => ({ ...prev, status: "canceled", hitl: undefined }));
-                  return; // Don't exit
-              }
+          if (isBusyStatus(chatState.status)) {
+              stopActiveChat();
+              return; // Don't exit
           }
           // Otherwise exit (handled by default process behavior, but ink captures it sometimes)
           exit();
@@ -1834,14 +2389,32 @@ export const App: React.FC<AppProps> = ({
        if (isTerminalMouseInput(inputKey)) {
          const mouseWheelDelta = parseMouseWheelDelta(inputKey);
          if (mouseWheelDelta !== null) {
-           scrollViewRef.current?.scrollBy(mouseWheelDelta);
+           const mouseEvent = parseTerminalMouseEvent(inputKey);
+           const isOverPromptPanel =
+             activeWorkspaceTab === "chat" &&
+             !isSearching &&
+             mouseEvent !== null &&
+             mouseEvent.y >= promptPanelStartRow;
+           if (isOverPromptPanel && promptInputViewport.maxScrollOffset > 0) {
+             setPromptInputScrollOffset(
+               nextInputScrollOffset({
+                 currentOffset: promptInputViewport.startRow,
+                 delta: mouseWheelDelta,
+                 maxScrollOffset: promptInputViewport.maxScrollOffset,
+               })
+             );
+           } else if (activeWorkspaceTab !== "chat") {
+             workspaceScrollViewRef.current?.scrollBy(mouseWheelDelta);
+           } else {
+             scrollViewRef.current?.scrollBy(mouseWheelDelta);
+           }
          } else {
            const mouseEvent = parseTerminalMouseEvent(inputKey);
            if (mouseEvent) {
              handleMouseClick(mouseEvent);
            }
          }
-         setInput((current) => sanitizeTerminalInput(current));
+         setInput((current) => sanitizeTerminalMultilineInput(current));
          return;
        }
 
@@ -1864,9 +2437,69 @@ export const App: React.FC<AppProps> = ({
          return;
        }
 
+       if (activeSelector) {
+         return;
+       }
+
        if (phase === "ready" && activeWorkspaceTab !== "chat") {
          if (key.ctrl && lowerInput === "q") {
            exit();
+           return;
+         }
+         if (key.upArrow && !key.ctrl && !key.meta) {
+           workspaceScrollViewRef.current?.scrollBy(-1);
+           return;
+         }
+         if (key.downArrow && !key.ctrl && !key.meta) {
+           workspaceScrollViewRef.current?.scrollBy(1);
+           return;
+         }
+         if (key.pageUp && !key.ctrl && !key.meta) {
+           workspaceScrollViewRef.current?.scrollBy(-Math.max(1, Math.floor(workspaceViewportHeight * 0.8)));
+           return;
+         }
+         if (key.pageDown && !key.ctrl && !key.meta) {
+           workspaceScrollViewRef.current?.scrollBy(Math.max(1, Math.floor(workspaceViewportHeight * 0.8)));
+           return;
+         }
+         if (inputKey === "]") {
+           setTablePageByTab((current) => ({
+             ...current,
+             [activeWorkspaceTab]: (current[activeWorkspaceTab] ?? 0) + 1,
+           }));
+           setNotice("Table page next. Use [ for previous, D to download all table data.");
+           return;
+         }
+         if (inputKey === "[") {
+           setTablePageByTab((current) => ({
+             ...current,
+             [activeWorkspaceTab]: Math.max(0, (current[activeWorkspaceTab] ?? 0) - 1),
+           }));
+           setNotice("Table page previous. Use ] for next, D to download all table data.");
+           return;
+         }
+         if (activeWorkspaceTab === "reports" && lowerInput === "w") {
+           void runReportFromReportsTab("waf");
+           return;
+         }
+         if (activeWorkspaceTab === "reports" && lowerInput === "k") {
+           void runReportFromReportsTab("cost");
+           return;
+         }
+         if (activeWorkspaceTab === "reports" && lowerInput === "u") {
+           void runReportFromReportsTab("unit-tests");
+           return;
+         }
+         if (activeWorkspaceTab === "reports" && lowerInput === "a") {
+           void runReportFromReportsTab("all");
+           return;
+         }
+         if (
+           activeWorkspaceTab === "reports" &&
+           (lowerInput === "p" || key.return)
+         ) {
+           setActiveSelector("project");
+           setNotice("Choose a project for report drilldown.");
            return;
          }
          if (key.leftArrow && !key.ctrl && !key.meta) {
@@ -1880,12 +2513,30 @@ export const App: React.FC<AppProps> = ({
            return;
          }
          if (lowerInput === "r") {
-           setWorkspaceRefreshKey((current) => current + 1);
+           setWorkspaceRefreshKeys((current) => ({
+             ...current,
+             [activeWorkspaceTab]: (current[activeWorkspaceTab] ?? 0) + 1,
+           }));
            setNotice(`Refreshing ${activeWorkspaceTab} data`);
            return;
          }
          if (lowerInput === "o") {
            handleOpenWorkspaceFrontend();
+           return;
+         }
+         if (lowerInput === "d") {
+           try {
+             const file = writeTableDownload({
+               tab: activeWorkspaceTab,
+               data: activeWorkspacePanelState.data,
+               projects,
+               selectedProject,
+               tablePage: activeTablePage,
+             });
+             setNotice(`Downloaded ${activeWorkspaceTab} table data: ${file}`);
+           } catch (error: any) {
+             setNotice(`Failed to download table data: ${error?.message ?? "Unknown error"}`);
+           }
            return;
          }
          if (lowerInput === "c") {
@@ -1911,10 +2562,6 @@ export const App: React.FC<AppProps> = ({
            return;
        }
 
-       if (activeSelector) {
-         return;
-       }
-
        if ((key.tab || inputKey === "\t") && input.trimStart().startsWith("/")) {
          const completion = completePromptInput(
            input,
@@ -1927,6 +2574,14 @@ export const App: React.FC<AppProps> = ({
              index: completion.index,
            };
            setInput(completion.value);
+           setPromptInputScrollOffset(
+             getInputViewport({
+               value: completion.value,
+               width: promptInputWidth,
+               minRows: promptInputRowBudget,
+               maxRows: promptInputRowBudget,
+             }).maxScrollOffset
+           );
            setNotice(commandNotice(completion.candidates));
          } else {
            completionCycleRef.current = undefined;
@@ -1983,7 +2638,7 @@ export const App: React.FC<AppProps> = ({
            setFocusedControl((current) => nextControlFocus(current, controlFocusOrder));
            return;
          }
-         if (key.return) {
+         if (key.return && !key.meta && !key.ctrl) {
            handleFocusedControlEnter();
            return;
          }
@@ -2031,9 +2686,13 @@ export const App: React.FC<AppProps> = ({
        }
 
        // Other controls
-       if (key.escape && controllerRef.current) {
-         controllerRef.current.abort("Cancelled by user");
-         setChatState((prev) => ({ ...prev, status: "canceled", hitl: undefined }));
+       if (
+         key.escape &&
+         (controllerRef.current ||
+           isBusyStatus(chatState.status) ||
+           hasCancellableAssistantWork(chatState.messages))
+       ) {
+         stopActiveChat();
        }
        if (key.ctrl && inputKey.toLowerCase() === "l") {
          setChatState((prev) => ({
@@ -2056,8 +2715,8 @@ export const App: React.FC<AppProps> = ({
 
   if (phase === "boot") {
     return (
-      <Box flexDirection="column" paddingX={tuiLayout.paddingX} paddingY={1}>
-        <Banner disable={bannerDisabled} variant={bannerVariant} />
+      <Box flexDirection="column" paddingX={tuiLayout.paddingX} paddingY={0}>
+        <Banner disable={bannerDisabled} details={headerDetails} terminalColumns={bannerContentColumns} />
         {isLoggingIn ? (
           <Box flexDirection="column" gap={1} padding={1}>
             <Text color={terminalTheme.brand} bold>Signing in...</Text>
@@ -2111,17 +2770,49 @@ export const App: React.FC<AppProps> = ({
     );
   }
 
+  const chatStatusText = (() => {
+    if (chatState.status === "connecting") return "Connecting";
+    if (chatState.status === "thinking" && streamingSteps.length) return "Thinking...";
+    if (chatState.status === "streaming") return "Generating response";
+    if (chatState.status === "tool_running") return "Running tools";
+    if (chatState.status === "hitl_waiting") return "Waiting for human input";
+    if (chatState.status === "complete") return "Complete";
+    if (chatState.status === "error") return "Error";
+    if (chatState.status === "canceled") return "Canceled";
+    return "Idle";
+  })();
+  const chatStatusColor =
+    chatState.status === "error"
+      ? terminalTheme.danger
+      : chatState.status === "complete"
+        ? terminalTheme.success
+        : chatState.status === "canceled"
+          ? terminalTheme.warning
+          : isBusyStatus(chatState.status)
+            ? terminalTheme.brand
+            : undefined;
+  const chatBusy =
+    chatState.status === "connecting" ||
+    chatState.status === "thinking" ||
+    chatState.status === "streaming" ||
+    chatState.status === "tool_running";
+  const promptActionIsCancel =
+    isBusyStatus(chatState.status) || Boolean(controllerRef.current) || hasCancellableReasoning;
+
   if (selectingProject) {
     const items = projects.map((p) => ({
       label: `${p.name} (${p.cloud_provider ?? "cloud"})${p.name === "Playground" ? " [Playground]" : ""}`,
       value: p,
     }));
     return (
-      <Box flexDirection="column" paddingX={tuiLayout.paddingX} paddingY={1} gap={1}>
-        <Banner disable={bannerDisabled} variant={bannerVariant} />
+      <Box flexDirection="column" paddingX={tuiLayout.paddingX} paddingY={0} gap={0}>
+        <Banner disable={bannerDisabled} details={headerDetails} terminalColumns={bannerContentColumns} />
         <Text>Select a project to chat with:</Text>
         {loadingProjects ? (
-          <Text>Loading projects...</Text>
+          <Box flexDirection="row" gap={1}>
+            <Spinner type="line" />
+            <Text color={terminalTheme.brand}>Loading projects...</Text>
+          </Box>
         ) : (
           <ProjectSelector
             items={items}
@@ -2140,126 +2831,123 @@ export const App: React.FC<AppProps> = ({
 
   if (activeWorkspaceTab !== "chat") {
     return (
-      <Box flexDirection="column" paddingX={tuiLayout.paddingX} paddingY={1} gap={1}>
+      <Box flexDirection="column" paddingX={tuiLayout.paddingX} paddingY={0} gap={0}>
+        <Banner disable={bannerDisabled} details={headerDetails} terminalColumns={bannerContentColumns} />
         <WorkspaceTabBar
           activeTab={activeWorkspaceTab}
-          activeStatus={activeWorkspacePanelState.status}
-          showBrand
+          showBrand={bannerDisabled}
+          billingSummary={bannerDisabled ? billingHeader : undefined}
         />
+        <Text dimColor wrap="wrap">{workspaceTabDescriptions[activeWorkspaceTab]}</Text>
         {notice ? <Text dimColor wrap="wrap">{notice}</Text> : null}
-        <WorkspacePanel
-          tab={activeWorkspaceTab}
-          state={activeWorkspacePanelState}
-          projects={projects}
-          selectedProject={selectedProject}
-          currentUserId={currentUserId}
-          selectedModel={selectedModel}
-          selectedMode={selectedMode}
-          apiBase={apiBase}
-          frontendUrl={workspaceFrontendUrl}
-          terminalColumns={terminalSize.columns}
-        />
+        <Box flexDirection="row">
+          <Box flexShrink={1} width={workspaceContentWidth}>
+            <ScrollView
+              ref={workspaceScrollViewRef}
+              height={workspacePanelViewportRows}
+              onScroll={(offset) => setWorkspaceScrollOffset(offset)}
+              onContentHeightChange={(height) => setWorkspaceContentHeight(height)}
+              onViewportSizeChange={(size) => setWorkspaceViewportHeight(size.height)}
+            >
+              <WorkspacePanel
+                tab={activeWorkspaceTab}
+                state={activeWorkspacePanelState}
+                projects={projects}
+                selectedProject={selectedProject}
+                currentUserId={currentUserId}
+                selectedModel={selectedModel}
+                selectedMode={selectedMode}
+                apiBase={apiBase}
+                frontendUrl={workspaceFrontendUrl}
+                terminalColumns={workspaceContentWidth}
+                tablePage={activeTablePage}
+              />
+            </ScrollView>
+          </Box>
+          <Scrollbar
+            scrollOffset={workspaceScrollOffset}
+            contentHeight={workspaceContentHeight}
+            viewportHeight={workspaceViewportHeight}
+          />
+        </Box>
+        <BottomControls tab={activeWorkspaceTab} />
+        {activeSelector === "project" ? (
+          <SelectPanel
+            title="Select Project"
+            items={(projects.length ? projects : [defaultProject]).map((project) => ({
+              label: `${project.name} (${project.cloud_provider ?? "cloud"})`,
+              value: project,
+              description: project.id,
+            }))}
+            selectedIndex={Math.max(
+              0,
+              (projects.length ? projects : [defaultProject]).findIndex(
+                (project) => project.id === (selectedProject ?? defaultProject).id
+              )
+            )}
+            onSubmit={(item) => {
+              setSelectedProject(item.value);
+              setActiveSelector(null);
+              setNotice(`Reports project selected: ${item.value.name}`);
+            }}
+            onCancel={() => setActiveSelector(null)}
+            limit={tuiLayout.selectorLimit}
+          />
+        ) : null}
       </Box>
     );
   }
 
   return (
-    <Box flexDirection="column" paddingX={tuiLayout.paddingX} paddingY={1} gap={1}>
-      <Banner disable={bannerDisabled} variant={bannerVariant} />
+    <Box flexDirection="column" paddingX={tuiLayout.paddingX} paddingY={0} gap={0}>
+      <Banner disable={bannerDisabled} details={headerDetails} terminalColumns={bannerContentColumns} />
       <WorkspaceTabBar
         activeTab={activeWorkspaceTab}
-        activeStatus={chatState.status}
         showBrand={bannerDisabled}
+        billingSummary={bannerDisabled ? billingHeader : undefined}
       />
-      {(() => {
-        const statusText = (() => {
-          if (chatState.status === "connecting") return "Connecting";
-          if (chatState.status === "thinking" && streamingSteps.length) {
-            return "Thinking...";
-          }
-          if (chatState.status === "streaming") return "Generating response";
-          if (chatState.status === "tool_running") return "Running tools";
-          if (chatState.status === "hitl_waiting") return "Waiting for human input";
-          if (chatState.status === "complete") return "Complete";
-          if (chatState.status === "error") return "Error";
-          if (chatState.status === "canceled") return "Canceled";
-          return "Idle";
-        })();
-        const statusColor =
-          chatState.status === "error"
-            ? terminalTheme.danger
-            : chatState.status === "complete"
-              ? terminalTheme.success
-              : chatState.status === "canceled"
-                ? terminalTheme.warning
-                : isBusyStatus(chatState.status)
-                  ? terminalTheme.brand
-                  : undefined;
-
-        if (isSearching) {
-            return (
-                <Box borderStyle="double" borderColor={terminalTheme.warning} paddingX={1}>
-                    <Text bold color={terminalTheme.warning}>SEARCH MODE</Text>
-                    <Text> | Found: {displayedMessages.length} matches</Text>
-                </Box>
-            );
-        }
-
-        return (
-          <Box flexDirection="column" gap={0}>
-            <SelectorBar
-              focused={focusedControl}
-              selectedProject={selectedProject}
-              selectedModel={selectedModel}
-              selectedMode={selectedMode}
-              hasThinkingSteps={hasThinkingSteps}
-              thinkingExpanded={thinkingExpanded}
-              thinkingSummary={thinkingSummary}
-              compact={tuiLayout.compact}
-              terminalColumns={terminalSize.columns}
-              apiBase={apiBase}
-              statusText={statusText}
-              statusColor={statusColor}
-              busy={
-                chatState.status === "connecting" ||
-                chatState.status === "thinking" ||
-                chatState.status === "tool_running"
-              }
-            />
-          {queuedMessages.length > 0 ? (
-            <QueuePanel
-              messages={queuedMessages}
-              compact={tuiLayout.compact}
-              terminalColumns={terminalSize.columns}
-            />
+      {isSearching ? (
+        <TitledBox
+          title="Search"
+          borderStyle="double"
+          borderColor={terminalTheme.warning}
+          padding={0}
+          paddingX={1}
+        >
+          <Text>Found: {displayedMessages.length} matches</Text>
+        </TitledBox>
+      ) : null}
+      {queuedMessages.length > 0 ? (
+        <QueuePanel
+          messages={queuedMessages}
+          compact={tuiLayout.compact}
+          terminalColumns={terminalSize.columns}
+        />
+      ) : null}
+      {notice ? <Text dimColor wrap="wrap">{notice}</Text> : null}
+      {errorText ? (
+        <TitledBox
+          title="Error Details"
+          borderStyle="round"
+          borderColor={terminalTheme.danger}
+          padding={0}
+          paddingX={1}
+          marginTop={1}
+        >
+          <Text color={terminalTheme.danger} wrap="wrap">{errorText}</Text>
+          {!hasThinkingSteps ? (
+            <Text dimColor wrap="wrap">
+              No thinking steps were received before the backend returned this error.
+            </Text>
           ) : null}
-          {notice ? <Text dimColor wrap="wrap">{notice}</Text> : null}
-          {errorText ? (
-            <Box
-              flexDirection="column"
-              borderStyle="round"
-              borderColor={terminalTheme.danger}
-              paddingX={1}
-              marginTop={1}
-            >
-              <Text color={terminalTheme.danger} bold>Error details</Text>
-              <Text color={terminalTheme.danger} wrap="wrap">{errorText}</Text>
-              {!hasThinkingSteps ? (
-                <Text dimColor wrap="wrap">
-                  No thinking steps were received before the backend returned this error.
-                </Text>
-              ) : null}
-            </Box>
-          ) : null}
-          </Box>
-        );
-      })()}
-      <Box flexDirection="column" borderStyle="round" padding={1}>
+        </TitledBox>
+      ) : null}
+      <TitledBox title="Thread" borderStyle="round" borderColor={terminalTheme.muted} padding={1}>
         <Box flexDirection="row">
           <Box flexShrink={1} width={threadContentWidth}>
             <ScrollView
               ref={scrollViewRef}
-              height={tuiLayout.threadHeight}
+              height={chatThreadHeight}
               onScroll={(offset) => setScrollOffset(offset)}
               onContentHeightChange={(height) => {
                 setContentHeight((previousHeight) => {
@@ -2286,6 +2974,7 @@ export const App: React.FC<AppProps> = ({
                 userName={userName}
                 excludeStreaming={false}
                 expandedThinkingMessageIds={expandedThinkingMessageIds}
+                emptyLabel={isSearching ? "No matching messages." : "Thread is empty."}
               />
             </ScrollView>
           </Box>
@@ -2295,7 +2984,7 @@ export const App: React.FC<AppProps> = ({
             viewportHeight={viewportHeight}
           />
         </Box>
-      </Box>
+      </TitledBox>
       {chatState.status === "hitl_waiting" && chatState.hitl?.waiting ? (
         <HitlPanel
           hitl={chatState.hitl}
@@ -2305,15 +2994,6 @@ export const App: React.FC<AppProps> = ({
           frontendUrl={frontendThreadUrl}
         />
       ) : null}
-      <Box flexDirection="column">
-        <Text dimColor>
-          Commands: /project | /model | /mode | /thinking | /open | Tab completes | Ctrl+R:{" "}
-          {isSearching ? "Exit search" : "History search"}
-        </Text>
-        {!isSearching ? (
-          <Text dimColor>Keys: Esc cancel response | {scrollHelp}</Text>
-        ) : null}
-      </Box>
       {activeSelector === "project" ? (
         <SelectPanel
           title="Select Project"
@@ -2370,15 +3050,19 @@ export const App: React.FC<AppProps> = ({
       ) : null}
 
       {isSearching ? (
-          <Box flexDirection="column" borderStyle="round" borderColor={terminalTheme.warning} padding={1}>
-            <Text color={terminalTheme.warning}>Search History:</Text>
+          <TitledBox
+            title="Search History"
+            borderStyle="round"
+            borderColor={terminalTheme.warning}
+            padding={1}
+          >
             <InputBox
                 value={searchQuery}
                 onChange={setSearchQuery}
                 onSubmit={() => {}}
                 placeholder="Type to filter history..."
             />
-          </Box>
+          </TitledBox>
       ) : (
           <InputBox
             value={input}
@@ -2396,6 +3080,49 @@ export const App: React.FC<AppProps> = ({
             focusedFollowUpIndex={focusedFollowUpIndex}
             followUpsActive={focusedFollowUpIndex !== undefined}
             terminalColumns={terminalSize.columns}
+            scrollOffset={promptInputViewport.startRow}
+            minInputRows={promptInputRowBudget}
+            maxInputRows={promptInputRowBudget}
+            footerControls={
+              <Box flexDirection="column" gap={0}>
+                <PromptControlBar
+                  focused={focusedControl}
+                  selectedProject={selectedProject}
+                  selectedModel={selectedModel}
+                  selectedMode={selectedMode}
+                  hasThinkingSteps={hasThinkingSteps}
+                  thinkingExpanded={thinkingExpanded}
+                  thinkingSummary={thinkingSummary}
+                  compact={tuiLayout.compact}
+                  terminalColumns={terminalSize.columns}
+                  statusText={chatStatusText}
+                  statusColor={chatStatusColor}
+                  busy={chatBusy}
+                />
+                <Text dimColor wrap="wrap">
+                  /project | /model | /mode | /thinking | /stop | /open | /help
+                </Text>
+                <Text dimColor wrap="wrap">
+                  {keyBindings.commandComplete} | {keyBindings.historySearch} | Esc cancel response | {scrollHelp}
+                </Text>
+              </Box>
+            }
+            helpText={`${keyBindings.submit} | ${keyBindings.newline} | ${keyBindings.quit}`}
+            actionLabel={promptActionIsCancel ? "ESC to cancel" : "ENTER to send"}
+            actionHint={
+              promptActionIsCancel
+                ? "Esc, Ctrl+C, or /stop cancels the running response."
+                : "Enter sends. Use Option+Enter or Ctrl+J for a newline."
+            }
+            actionTone={promptActionIsCancel ? terminalTheme.warning : terminalTheme.brand}
+            onAction={() => {
+              if (promptActionIsCancel) {
+                stopActiveChat();
+                return;
+              }
+              handlePromptSubmit(input);
+            }}
+            actionDisabled={!promptActionIsCancel && !input.trim()}
             placeholder={
               chatState.status === "hitl_waiting"
                 ? "Answer HITL prompt, or /open for frontend..."
@@ -2405,6 +3132,7 @@ export const App: React.FC<AppProps> = ({
             }
           />
       )}
+      <BottomControls tab={activeWorkspaceTab} />
     </Box>
   );
 };

@@ -30,8 +30,11 @@ export const shouldUseStoredBaseUrl = (
   if (!storedBaseUrl) {
     return false;
   }
+  if (env.CLOUDEVAL_USE_STORED_BASE_URL === "1") {
+    return true;
+  }
   if (env.CLOUDEVAL_ALLOW_STORED_LOCAL_BASE_URL === "1") {
     return true;
   }
-  return !isLocalBaseUrl(storedBaseUrl);
+  return false;
 };

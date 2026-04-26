@@ -2,9 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   getCostReport,
+  getReportJobStatus,
   getReport,
   getWafReport,
   listReports,
+  runReports,
 } from "./reportsClient";
 
 const jsonResponse = (body: unknown, init: ResponseInit = {}) =>
@@ -34,15 +36,13 @@ test("listReports sends filters and normalizes response envelopes", async () => 
     (url, init) => {
       calls.push({ url, init });
       return jsonResponse({
-        reports: [
+        items: [
           {
-            id: "rpt-cost-1",
-            kind: "cost",
+            report_id: "latest:project-1:cost",
+            report_type: "cost",
             project_id: "project-1",
             generated_at: "2026-04-25T10:00:00Z",
-            raw: { provider_payload: true },
-            parsed: { totalSpend: { amount: 48200, currency: "USD" } },
-            formatted: { title: "Cost report", summary: "Spend is up.", sections: [] },
+            metrics: { monthly_cost: 48200, currency: "USD" },
           },
         ],
       });
@@ -53,12 +53,13 @@ test("listReports sends filters and normalizes response envelopes", async () => 
         authToken: "token-1",
         projectId: "project-1",
         kind: "cost",
+        userId: "user-1",
       });
 
       assert.equal(calls.length, 1);
       assert.equal(
         calls[0].url,
-        "https://example.com/api/v1/reports?project_id=project-1&kind=cost"
+        "https://example.com/api/v1/reports/history?user_id=user-1&project_ids=project-1&report_type=cost"
       );
       assert.equal(
         (calls[0].init?.headers as Record<string, string>).Authorization,
@@ -76,13 +77,28 @@ test("getReport fetches a report by id and includes the requested view", async (
   await withFetch(
     (url, init) => {
       calls.push({ url, init });
+      if (url.includes("/reports/history")) {
+        return jsonResponse({
+          items: [
+            {
+              report_id: "latest:project-1:architecture",
+              report_type: "architecture",
+              project_id: "project-1",
+              generated_at: "2026-04-25T11:00:00Z",
+              is_latest: true,
+            },
+          ],
+        });
+      }
       return jsonResponse({
-        id: "rpt-waf-1",
-        kind: "waf",
-        projectId: "project-1",
-        generatedAt: "2026-04-25T11:00:00Z",
-        raw: { ruleResults: [] },
-        parsed: { score: 74 },
+        project_id: "project-1",
+        report_type: "architecture",
+        timestamp: "2026-04-25T11:00:00Z",
+        report: {
+          id: "rpt-waf-1",
+          processed: { overall_score: 74 },
+          all_rules: [],
+        },
       });
     },
     async () => {
@@ -90,16 +106,17 @@ test("getReport fetches a report by id and includes the requested view", async (
         baseUrl: "https://example.com/api/v1",
         authToken: "token-1",
         projectId: "project-1",
-        reportId: "rpt-waf-1",
+        reportId: "latest:project-1:architecture",
         view: "raw",
+        userId: "user-1",
       });
 
       assert.equal(
-        calls[0].url,
-        "https://example.com/api/v1/reports/rpt-waf-1?project_id=project-1&view=raw"
+        calls[1].url,
+        "https://example.com/api/v1/reports/detail/project-1/architecture?user_id=user-1"
       );
       assert.equal(report.kind, "waf");
-      assert.equal((report.parsed as any).score, 74);
+      assert.equal((report.parsed as any).score.overall, 74);
     }
   );
 });
@@ -110,12 +127,12 @@ test("kind-specific report helpers call cost and waf endpoints", async () => {
     (url) => {
       urls.push(url);
       return jsonResponse({
-        id: url.includes("/waf") ? "rpt-waf-latest" : "rpt-cost-latest",
-        kind: url.includes("/waf") ? "waf" : "cost",
         project_id: "project-1",
-        generated_at: "2026-04-25T12:00:00Z",
-        raw: {},
-        parsed: {},
+        report_type: url.includes("/architecture") ? "architecture" : "cost",
+        timestamp: "2026-04-25T12:00:00Z",
+        report: url.includes("/architecture")
+          ? { id: "rpt-waf-latest", processed: { overall_score: 91 }, all_rules: [] }
+          : { id: "rpt-cost-latest", processed: { total_monthly_cost: 10, currency: "USD" } },
       });
     },
     async () => {
@@ -125,6 +142,7 @@ test("kind-specific report helpers call cost and waf endpoints", async () => {
         projectId: "project-1",
         period: "30d",
         view: "recommendations",
+        userId: "user-1",
       });
       await getWafReport({
         baseUrl: "https://example.com/api/v1",
@@ -132,16 +150,67 @@ test("kind-specific report helpers call cost and waf endpoints", async () => {
         projectId: "project-1",
         severity: "high",
         view: "rules",
+        userId: "user-1",
       });
 
       assert.equal(
         urls[0],
-        "https://example.com/api/v1/reports/cost?project_id=project-1&period=30d&view=recommendations"
+        "https://example.com/api/v1/reports/detail/project-1/cost?user_id=user-1"
       );
       assert.equal(
         urls[1],
-        "https://example.com/api/v1/reports/waf?project_id=project-1&severity=high&view=rules"
+        "https://example.com/api/v1/reports/detail/project-1/architecture?user_id=user-1"
       );
+    }
+  );
+});
+
+test("runReports posts direct regeneration requests and polls jobs", async () => {
+  const calls: Array<{ url: string; method?: string }> = [];
+  await withFetch(
+    (url, init) => {
+      calls.push({ url, method: init?.method });
+      if (url.includes("/jobs/job-cost-1")) {
+        return jsonResponse({ job_id: "job-cost-1", status: "completed", progress: 100 });
+      }
+      if (url.includes("/cost-reports/")) {
+        return jsonResponse({ job: { job_id: "job-cost-1", status: "submitted" } }, { status: 202 });
+      }
+      if (url.includes("/well-architected-reports/")) {
+        return jsonResponse({ job: { job_id: "job-waf-1", status: "submitted" } }, { status: 202 });
+      }
+      return jsonResponse({ job: { job_id: "job-tests-1", status: "submitted" } }, { status: 202 });
+    },
+    async () => {
+      const submitted = await runReports({
+        baseUrl: "https://example.com/api/v1",
+        authToken: "token-1",
+        projectId: "project-1",
+        userId: "user-1",
+        type: "all",
+      });
+      const status = await getReportJobStatus({
+        baseUrl: "https://example.com/api/v1",
+        authToken: "token-1",
+        userId: "user-1",
+        jobId: "job-cost-1",
+      });
+
+      assert.equal(submitted.length, 3);
+      assert.equal(calls[0].method, "POST");
+      assert.equal(
+        calls[0].url,
+        "https://example.com/api/v1/cost-reports/project-1/regenerate?user_id=user-1"
+      );
+      assert.equal(
+        calls[1].url,
+        "https://example.com/api/v1/well-architected-reports/project-1/regenerate?user_id=user-1"
+      );
+      assert.equal(
+        calls[2].url,
+        "https://example.com/api/v1/reports/project-1/unit-tests/regenerate?user_id=user-1"
+      );
+      assert.deepEqual(status, { job_id: "job-cost-1", status: "completed", progress: 100 });
     }
   );
 });

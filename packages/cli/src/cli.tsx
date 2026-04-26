@@ -15,6 +15,7 @@ import { registerConnectionsCommand } from "./connectionsCommand.js";
 import { registerBillingCommands } from "./billingCommand.js";
 import { registerCapabilitiesCommand } from "./agentCapabilities.js";
 import { buildFrontendUrl, openExternalUrl, resolveFrontendBaseUrl } from "./frontendLinks.js";
+import { CLI_VERSION } from "./version.js";
 
 const DEFAULT_BASE_URL = process.env.CLOUDEVAL_BASE_URL ?? "https://cloudeval.ai/api/v1";
 const SENSITIVE_KEY_PATTERN = /token|authorization|cookie|secret|password|api[_-]?key/i;
@@ -164,7 +165,7 @@ const resolveBaseUrl = async (
 program
   .name("cloudeval")
   .description("CloudEval CLI. Run without arguments to open the Terminal UI; use subcommands for pipeable CLI workflows.")
-  .version("0.1.0")
+  .version(CLI_VERSION)
   .addHelpText(
     "after",
     `

@@ -1,6 +1,7 @@
 import React from "react";
 import { Box, Text } from "ink";
 import { terminalTheme } from "../theme.js";
+import { CLI_VERSION } from "../../version.js";
 
 type BannerVariant = "auto" | "full" | "compact";
 
@@ -62,7 +63,7 @@ export const Banner: React.FC<BannerProps> = ({
   if (disable) return null;
 
   const selected = pickVariant(variant);
-  const version = process.env.CLOUDEVAL_CLI_VERSION ?? "0.1.0";
+  const version = process.env.CLOUDEVAL_CLI_VERSION ?? CLI_VERSION;
 
   if (selected === "compact") {
     return (

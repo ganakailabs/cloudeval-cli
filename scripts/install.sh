@@ -195,14 +195,37 @@ download_verified_asset() {
   chmod "$mode" "$dest"
 }
 
+resolve_release_version() {
+  if [ "$VERSION" != "latest" ]; then
+    echo "$VERSION"
+    return 0
+  fi
+
+  local latest_url
+  local tag
+  latest_url="https://api.github.com/repos/${REPO}/releases/latest"
+  tag="$(
+    curl -fsSL "$latest_url" 2>/dev/null \
+      | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
+      | head -n 1
+  )"
+
+  if [ -n "$tag" ]; then
+    echo "$tag"
+  else
+    echo "latest"
+  fi
+}
+
 print_banner() {
   printf "%b\n" "${GREEN}Welcome to${NC}"
-  printf "%b\n" "${YELLOW}  ____ _                 _ _____           _ ${NC}"
-  printf "%b\n" "${YELLOW} / ___| | ___  _   _  __| | ____|_   ____ _| |${NC}"
-  printf "%b\n" "${YELLOW}| |   | |/ _ \\| | | |/ _\` |  _| \\ \\ / / _\` | |${NC}"
-  printf "%b\n" "${YELLOW}| |___| | (_) | |_| | (_| | |___ \\ V / (_| | |${NC}"
-  printf "%b\n" "${YELLOW} \\____|_|\\___/ \\__,_|\\__,_|_____| \\_/ \\__,_|_|${NC}"
-  printf "%b\n" "${GREEN}Installer${NC}"
+  printf "%b\n" "${YELLOW} ██████╗  ██╗       ██████╗  ██╗   ██╗ ██████╗  ███████╗ ██╗   ██╗  █████╗  ██╗     ${NC}"
+  printf "%b\n" "${YELLOW}██╔════╝  ██║      ██╔═══██╗ ██║   ██║ ██╔══██╗ ██╔════╝ ██║   ██║ ██╔══██╗ ██║     ${NC}"
+  printf "%b\n" "${YELLOW}██║       ██║      ██║   ██║ ██║   ██║ ██║  ██║ █████╗   ██║   ██║ ███████║ ██║     ${NC}"
+  printf "%b\n" "${YELLOW}██║       ██║      ██║   ██║ ██║   ██║ ██║  ██║ ██╔══╝   ╚██╗ ██╔╝ ██╔══██║ ██║     ${NC}"
+  printf "%b\n" "${YELLOW}╚██████╗  ███████╗ ╚██████╔╝ ╚██████╔╝ ██████╔╝ ███████╗  ╚████╔╝  ██║  ██║ ███████╗${NC}"
+  printf "%b\n" "${YELLOW} ╚═════╝  ╚══════╝  ╚═════╝   ╚═════╝  ╚═════╝  ╚══════╝   ╚═══╝   ╚═╝  ╚═╝ ╚══════╝${NC}"
+  printf "%b\n" "${GREEN}                                                                           Installer${NC}"
   echo ""
 }
 
@@ -246,12 +269,20 @@ fi
 DEST_DIR="${HOME}/.local/bin"
 DEST="${DEST_DIR}/${BIN_NAME}${EXT}"
 YOGA_DEST="${DEST_DIR}/yoga.wasm"
+RESOLVED_VERSION="$(resolve_release_version)"
 
 echo -e "${BLUE}Installation Details:${NC}"
-echo -e "  OS: ${GREEN}${OS}${NC}"
-echo -e "  Architecture: ${GREEN}${ARCH}${NC}"
-echo -e "  Version: ${GREEN}${VERSION}${NC}"
+echo -e "  Requested Version: ${GREEN}${VERSION}${NC}"
+echo -e "  Resolved Release: ${GREEN}${RESOLVED_VERSION}${NC}"
+echo -e "  Platform: ${GREEN}${OS}-${ARCH}${NC}"
+echo -e "  Binary Asset: ${GREEN}${BIN}${NC}"
 echo -e "  Install Directory: ${GREEN}${DEST_DIR}${NC}"
+echo -e "  Executable: ${GREEN}${DEST}${NC}"
+echo -e "  Yoga Runtime: ${GREEN}${YOGA_DEST}${NC}"
+if [ "$OS" != "win" ]; then
+  echo -e "  Alias: ${GREEN}${DEST_DIR}/eva -> ${DEST}${NC}"
+fi
+echo -e "  Checksum Verification: ${GREEN}required${NC}"
 echo ""
 
 if ! ask_yes_no "Do you want to proceed with the installation?" "y"; then

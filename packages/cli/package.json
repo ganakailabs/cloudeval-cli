@@ -23,7 +23,7 @@
     "run": "node dist/cli.js",
     "dev": "tsx src/cli.tsx",
     "lint": "pnpm -C ../shared build && pnpm -C ../core build && tsc --noEmit -p tsconfig.json",
-    "test": "pnpm -C ../shared build && pnpm -C ../core build && tsx --test src/frontendLinks.test.ts src/outputFormatter.test.ts src/runtime/prepareInk.test.ts src/ui/inputSanitizer.test.ts src/ui/layout.test.ts src/ui/scrollBehavior.test.ts src/ui/promptSuggestions.test.ts src/ui/commandCompletion.test.ts src/ui/interactionModel.test.ts src/ui/userDisplayName.test.ts src/ui/workspaceTabs.test.ts src/ui/overviewDashboard.test.ts src/shellCompletion.test.ts src/reports/reportRender.test.ts src/reports/reportCommand.test.ts",
+    "test": "pnpm -C ../shared build && pnpm -C ../core build && tsx --test src/baseUrl.test.ts src/frontendLinks.test.ts src/outputFormatter.test.ts src/runtime/prepareInk.test.ts src/ui/inputSanitizer.test.ts src/ui/layout.test.ts src/ui/scrollBehavior.test.ts src/ui/promptSuggestions.test.ts src/ui/commandCompletion.test.ts src/ui/interactionModel.test.ts src/ui/userDisplayName.test.ts src/ui/workspaceTabs.test.ts src/ui/overviewDashboard.test.ts src/shellCompletion.test.ts src/reports/reportRender.test.ts src/reports/reportCommand.test.ts",
     "bundle": "pnpm build:standalone && pnpm pack --pack-destination ./dist"
   },
   "dependencies": {

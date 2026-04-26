@@ -12,7 +12,7 @@ export interface TranscriptProps {
   expandedThinkingMessageIds?: Set<string>;
 }
 
-const AI_NAME = "Eva";
+const AI_NAME = "Cloudeval AI";
 
 interface ParsedBlock {
   type: "text" | "code";
@@ -101,7 +101,9 @@ const MarkdownText: React.FC<{ content: string; dim?: boolean }> = ({
         if (bullet) {
           return (
             <Text key={key} dimColor={dim} wrap="wrap">
-              {bullet[1]}- {renderInlineMarkdown(bullet[2], key)}
+              {bullet[1]}
+              <Text color={terminalTheme.brand}>•</Text>{" "}
+              {renderInlineMarkdown(bullet[2], key)}
             </Text>
           );
         }
@@ -347,6 +349,12 @@ export const Transcript: React.FC<TranscriptProps> = ({
               {isUser ? userName : AI_NAME}:
               {isUser && message.queued ? " (queued)" : ""}
             </Text>
+            {!isUser ? (
+              <ThinkingSteps
+                message={message}
+                expanded={Boolean(expandedThinkingMessageIds?.has(message.id))}
+              />
+            ) : null}
             <Box paddingLeft={0}>
                {content ? (
                  <FormattedContent content={content} role={message.role as any} />
@@ -354,12 +362,6 @@ export const Transcript: React.FC<TranscriptProps> = ({
                  <Text dimColor>No final response content.</Text>
                ) : null}
             </Box>
-            {!isUser ? (
-              <ThinkingSteps
-                message={message}
-                expanded={Boolean(expandedThinkingMessageIds?.has(message.id))}
-              />
-            ) : null}
 
             {!isUser && message.followUpQuestions?.length ? (
               <Box flexDirection="column" paddingLeft={2} marginTop={1}>
@@ -411,15 +413,15 @@ export const Transcript: React.FC<TranscriptProps> = ({
           return (
             <Box key={streamingMessage.id} flexDirection="column" paddingY={0}>
               <Text bold color={terminalTheme.brand}>{AI_NAME}:</Text>
-              <Box paddingLeft={0}>
-                  <FormattedContent content={content} role="assistant" />
-                  <Text color={terminalTheme.cursor}>|</Text>
-              </Box>
               <ThinkingSteps
                 message={streamingMessage}
                 expanded={Boolean(expandedThinkingMessageIds?.has(streamingMessage.id))}
                 forceExpanded
               />
+              <Box paddingLeft={0}>
+                  <FormattedContent content={content} role="assistant" />
+                  <Text color={terminalTheme.cursor}>|</Text>
+              </Box>
             </Box>
           );
         }

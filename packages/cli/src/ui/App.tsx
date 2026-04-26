@@ -32,6 +32,7 @@ import { getResponsiveTuiLayout, truncateForTerminal, type TerminalSize } from "
 import { shouldAutoScrollToBottom } from "./scrollBehavior.js";
 import { getPromptSuggestions } from "./promptSuggestions.js";
 import { terminalTheme } from "./theme.js";
+import { CLI_VERSION } from "../version.js";
 import { buildFrontendUrl, resolveFrontendBaseUrl as resolveSharedFrontendBaseUrl } from "../frontendLinks.js";
 import {
   WorkspacePanel,
@@ -737,7 +738,7 @@ export const App: React.FC<AppProps> = ({
       try {
         const headers: Record<string, string> = {
           "X-Client-Type": "cloudeval-cli",
-          "X-Client-Version": "0.1.0",
+          "X-Client-Version": CLI_VERSION,
         };
         if (token) {
           headers.Authorization = `Bearer ${token}`;
@@ -919,7 +920,7 @@ export const App: React.FC<AppProps> = ({
               method: "GET",
               headers: {
                 "X-Client-Type": "cloudeval-cli",
-                "X-Client-Version": "0.1.0",
+                "X-Client-Version": CLI_VERSION,
                 Authorization: `Bearer ${token}`,
               },
             });

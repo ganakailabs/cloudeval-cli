@@ -31,7 +31,7 @@ import {
 import { getResponsiveTuiLayout, truncateForTerminal, type TerminalSize } from "./layout.js";
 import { shouldAutoScrollToBottom } from "./scrollBehavior.js";
 import { getPromptSuggestions } from "./promptSuggestions.js";
-import { terminalTheme } from "./theme.js";
+import { raisedButtonStyle, terminalTheme } from "./theme.js";
 import { CLI_VERSION } from "../version.js";
 import { buildFrontendUrl, resolveFrontendBaseUrl as resolveSharedFrontendBaseUrl } from "../frontendLinks.js";
 import {
@@ -506,11 +506,11 @@ const SelectorBar: React.FC<{
           return (
             <Box
               key={kind}
-              borderStyle="round"
+              borderStyle={raisedButtonStyle.border}
               borderColor={isFocused ? terminalTheme.brand : terminalTheme.muted}
               paddingX={1}
             >
-              <Text color={isFocused ? terminalTheme.brand : undefined}>
+              <Text color={isFocused ? terminalTheme.brand : undefined} bold={isFocused} inverse={isFocused}>
                 {label}: {value} {dropdownIndicator}
               </Text>
             </Box>
@@ -518,11 +518,15 @@ const SelectorBar: React.FC<{
         })}
         {hasThinkingSteps ? (
           <Box
-            borderStyle="round"
+            borderStyle={raisedButtonStyle.border}
             borderColor={focused === "thinking" ? terminalTheme.brand : terminalTheme.muted}
             paddingX={1}
           >
-            <Text color={focused === "thinking" ? terminalTheme.brand : undefined}>
+            <Text
+              color={focused === "thinking" ? terminalTheme.brand : undefined}
+              bold={focused === "thinking"}
+              inverse={focused === "thinking"}
+            >
               Reasoning: {thinkingExpanded ? "open" : thinkingSummary}
             </Text>
           </Box>
@@ -611,14 +615,15 @@ const HitlPanel: React.FC<{
           {options.map((option, index) => {
             const highlighted = index === optionIndex;
             const selected = answers[question.id] === option.id;
-            const marker = highlighted ? "▸" : selected ? "•" : " ";
             return (
               <Text
                 key={option.id}
                 color={highlighted ? terminalTheme.brand : undefined}
                 dimColor={!highlighted && !selected}
+                bold={highlighted}
+                inverse={highlighted}
               >
-                {marker}{" "}
+                {highlighted ? raisedButtonStyle.activeMarker : selected ? "•" : raisedButtonStyle.inactiveMarker}{" "}
                 {selected ? "selected " : ""}
                 {index + 1}. {option.label}
                 {option.recommended ? " (recommended)" : ""}

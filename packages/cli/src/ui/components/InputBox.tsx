@@ -3,7 +3,7 @@ import { Box, Text } from "ink";
 import TextInput from "ink-text-input";
 import { sanitizeTerminalInput } from "../inputSanitizer.js";
 import { truncateForTerminal } from "../layout.js";
-import { terminalTheme } from "../theme.js";
+import { raisedButtonStyle, terminalTheme } from "../theme.js";
 import {
   workspaceTabFromPromptChange,
   type WorkspaceTab,
@@ -64,11 +64,16 @@ export const InputBox: React.FC<InputBoxProps> = ({
               return (
                 <Box
                   key={`${index}-${question}`}
-                  borderStyle="round"
+                  borderStyle={raisedButtonStyle.border}
                   borderColor={focused ? terminalTheme.brand : terminalTheme.muted}
                   paddingX={1}
                 >
-                  <Text color={focused ? terminalTheme.brand : undefined}>
+                  <Text
+                    color={focused ? terminalTheme.brand : undefined}
+                    bold={focused}
+                    inverse={focused}
+                  >
+                    {focused ? raisedButtonStyle.activeMarker : raisedButtonStyle.inactiveMarker}{" "}
                     {index + 1}. {truncateForTerminal(question, buttonLimit)}
                   </Text>
                 </Box>

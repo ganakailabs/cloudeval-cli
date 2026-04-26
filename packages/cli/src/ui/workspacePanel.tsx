@@ -10,7 +10,7 @@ import {
   type OverviewTone,
   type OverviewTrend,
 } from "./overviewDashboard.js";
-import { terminalTheme } from "./theme.js";
+import { raisedButtonStyle, terminalTheme } from "./theme.js";
 import {
   workspaceTabButtonContent,
   workspaceTabButtonLabel,
@@ -739,12 +739,17 @@ export const WorkspaceTabBar: React.FC<{
         return (
           <Box
             key={tab}
-            borderStyle={active ? "round" : "single"}
+            borderStyle={raisedButtonStyle.border}
             borderColor={active ? terminalTheme.brand : terminalTheme.muted}
             paddingX={1}
           >
-            <Text bold={active} color={active ? terminalTheme.brand : undefined}>
-              {active ? "▸ " : "  "}{workspaceTabButtonLabel(tab)}
+            <Text
+              bold={active}
+              color={active ? terminalTheme.brand : undefined}
+              inverse={active}
+            >
+              {active ? raisedButtonStyle.activeMarker : raisedButtonStyle.inactiveMarker}{" "}
+              {workspaceTabButtonLabel(tab)}
             </Text>
           </Box>
         );

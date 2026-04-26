@@ -16,8 +16,9 @@ import { registerBillingCommands } from "./billingCommand.js";
 import { registerCapabilitiesCommand } from "./agentCapabilities.js";
 import { buildFrontendUrl, openExternalUrl, resolveFrontendBaseUrl } from "./frontendLinks.js";
 import { CLI_VERSION } from "./version.js";
+import { getDefaultBaseUrl, shouldUseStoredBaseUrl } from "./baseUrl.js";
 
-const DEFAULT_BASE_URL = process.env.CLOUDEVAL_BASE_URL ?? "https://cloudeval.ai/api/v1";
+const DEFAULT_BASE_URL = getDefaultBaseUrl();
 const SENSITIVE_KEY_PATTERN = /token|authorization|cookie|secret|password|api[_-]?key/i;
 const STREAM_OUTPUT_NODES = new Set([
   "generate_response",
@@ -152,8 +153,15 @@ const resolveBaseUrl = async (
   try {
     const { getAuthStatus } = await import("@cloudeval/core");
     const status = await getAuthStatus();
-    if (status.baseUrl) {
-      return status.baseUrl;
+    const storedBaseUrl = status.baseUrl;
+    if (storedBaseUrl && shouldUseStoredBaseUrl(storedBaseUrl)) {
+      return storedBaseUrl;
+    }
+    if (storedBaseUrl) {
+      verboseLog("Ignoring stored local auth base URL. Use --base-url or CLOUDEVAL_BASE_URL for local backend testing.", {
+        storedBaseUrl,
+        selectedBaseUrl: configuredBaseUrl,
+      });
     }
   } catch {
     // Fall back to the packaged default when no prior auth state exists.
@@ -262,16 +270,18 @@ authCommand
     "Backend base URL",
     DEFAULT_BASE_URL
   )
-  .action(async (options) => {
+  .action(async (options, command) => {
     try {
       const { assertSecureBaseUrl, getAuthStatus } = await import("@cloudeval/core");
-      assertSecureBaseUrl(options.baseUrl);
-      const status = await getAuthStatus(options.baseUrl);
+      const effectiveBaseUrl = await resolveBaseUrl(options, command);
+      assertSecureBaseUrl(effectiveBaseUrl);
+      const status = await getAuthStatus(effectiveBaseUrl);
 
       console.log(`Authenticated: ${status.authenticated ? "yes" : "no"}`);
       console.log(`Cached access token: ${status.accessTokenCached ? "yes" : "no"}`);
       console.log(`Refresh token available: ${status.hasRefreshToken ? "yes" : "no"}`);
       console.log(`Storage backend: ${status.storageBackend}`);
+      console.log(`CLI API URL: ${effectiveBaseUrl}`);
       if (status.accessTokenExpiresAt) {
         console.log(`Access token expires: ${new Date(status.accessTokenExpiresAt).toISOString()}`);
       }
@@ -281,8 +291,8 @@ authCommand
       if (status.accountId) {
         console.log(`Account ID: ${status.accountId}`);
       }
-      if (status.baseUrl) {
-        console.log(`Base URL: ${status.baseUrl}`);
+      if (status.baseUrl && status.baseUrl !== effectiveBaseUrl) {
+        console.log(`Stored auth URL: ${status.baseUrl}`);
       }
     } catch (error: any) {
       console.error(`❌ Failed to fetch auth status: ${error?.message || "Unknown error"}`);

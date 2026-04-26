@@ -1,3 +1,5 @@
+import { raisedButtonStyle } from "./theme.js";
+
 export const workspaceTabs = [
   "chat",
   "overview",
@@ -62,7 +64,7 @@ export const workspaceTabButtonLabel = (tab: WorkspaceTab): string =>
   `${workspaceTabs.indexOf(tab) + 1} ${workspaceTabLabels[tab]}`;
 
 export const workspaceTabButtonContent = (tab: WorkspaceTab, active = false): string =>
-  `${active ? ">" : " "} ${workspaceTabButtonLabel(tab)}`;
+  `${active ? raisedButtonStyle.activeMarker : raisedButtonStyle.inactiveMarker} ${workspaceTabButtonLabel(tab)}`;
 
 export const getWorkspaceTabHitAreas = ({
   startColumn = 1,

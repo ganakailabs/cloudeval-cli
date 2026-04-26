@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-INSTALLER_URL="https://raw.githubusercontent.com/ganakailabs/cloudeval-cli/main/scripts/install.sh?ref=$(date +%s)"
+INSTALLER_URL="https://github.com/ganakailabs/cloudeval-cli/raw/main/scripts/install.sh?cacheBust=$(date +%s)"
 tmp="$(mktemp)"
 
 cleanup() {

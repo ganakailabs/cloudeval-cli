@@ -195,14 +195,22 @@ download_verified_asset() {
   chmod "$mode" "$dest"
 }
 
+print_banner() {
+  printf "%b\n" "${GREEN}Welcome to${NC}"
+  printf "%b\n" "${YELLOW}  ____ _                 _ _____           _ ${NC}"
+  printf "%b\n" "${YELLOW} / ___| | ___  _   _  __| | ____|_   ____ _| |${NC}"
+  printf "%b\n" "${YELLOW}| |   | |/ _ \\| | | |/ _\` |  _| \\ \\ / / _\` | |${NC}"
+  printf "%b\n" "${YELLOW}| |___| | (_) | |_| | (_| | |___ \\ V / (_| | |${NC}"
+  printf "%b\n" "${YELLOW} \\____|_|\\___/ \\__,_|\\__,_|_____| \\_/ \\__,_|_|${NC}"
+  printf "%b\n" "${GREEN}Installer${NC}"
+  echo ""
+}
+
 REPO="ganakailabs/cloudeval-cli"
 VERSION="${1:-latest}"
 BIN_NAME="cloudeval"
 
-echo -e "${BLUE}╔════════════════════════════════════════╗${NC}"
-echo -e "${BLUE}║   Cloudeval CLI Installation Script   ║${NC}"
-echo -e "${BLUE}╚════════════════════════════════════════╝${NC}"
-echo ""
+print_banner
 
 OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
 ARCH="$(uname -m)"

@@ -42,9 +42,9 @@ Run:
 ## Commands
 
 ```bash
-cloudeval chat [--base-url <url>] [--api-key-stdin|--api-key <key>] [--machine] [--conversation <id>] [--model <name>] [--debug]
-cloudeval ask <question> [--project <id>] [--output <file>] [--json] [--base-url <url>] [--api-key-stdin|--api-key <key>] [--machine] [--model <name>]
-cloudeval login [--headless]
+cloudeval chat [--base-url <url>] [--api-key-stdin|--api-key <key>] [--machine] [--conversation <id>] [--model <name>] [--debug] [--verbose]
+cloudeval ask <question> [--project <id>] [--output <file>] [--json] [--base-url <url>] [--api-key-stdin|--api-key <key>] [--machine] [--model <name>] [--debug] [--verbose]
+cloudeval login [--headless] [--verbose]
 cloudeval logout [--all-devices]
 cloudeval auth status
 cloudeval banner
@@ -55,6 +55,28 @@ For help:
 ```bash
 cloudeval --help
 cloudeval chat --help
+```
+
+## Auth Debugging
+
+Use verbose mode to inspect redacted auth, onboarding, and project-repair
+requests:
+
+```bash
+cloudeval login --headless --verbose
+CLOUDEVAL_CLI_DEBUG=1 cloudeval auth status
+```
+
+The normal CLI login path uses CloudEval's backend device-code endpoint and
+shows a CloudEval approval URL. If `/api/v1/auth/device/code` is blocked by a
+web auth layer, the CLI fails with a middleware diagnostic instead of sending
+consumer Google/GitHub users into Microsoft Entra tenant auth.
+
+Direct Microsoft Entra fallback is only for tenant-backed accounts and can be
+forced explicitly:
+
+```bash
+CLOUDEVAL_CLI_ALLOW_DIRECT_AZURE_FALLBACK=1 cloudeval login --headless
 ```
 
 ## Non-Interactive CLI Tests

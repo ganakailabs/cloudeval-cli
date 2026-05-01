@@ -31,6 +31,10 @@ type AskProgressMode = "auto" | "stderr" | "ndjson" | "none";
 // Verbose logging utility
 let verboseEnabled = false;
 
+const enableCliDebugLogging = () => {
+  process.env.CLOUDEVAL_CLI_DEBUG = "1";
+};
+
 const redactSensitive = (value: unknown): unknown => {
   if (Array.isArray(value)) {
     return value.map((item) => redactSensitive(item));
@@ -121,6 +125,9 @@ const collapseRepeatedAssistantText = (value: string): string => {
 
 export const setVerbose = (enabled: boolean) => {
   verboseEnabled = enabled;
+  if (enabled) {
+    enableCliDebugLogging();
+  }
 };
 
 export const isVerbose = () => verboseEnabled;
@@ -432,6 +439,13 @@ program
   .option("--no-anim", "Disable loader animation")
   .option("-v, --verbose", "Enable verbose logging", false)
   .action(async (options, command) => {
+    if (options.verbose) {
+      setVerbose(true);
+      verboseLog("TUI command started");
+    } else if (options.debug) {
+      enableCliDebugLogging();
+    }
+
     const { assertSecureBaseUrl } = await import("@cloudeval/core");
     const [{ render }, { App }] = await Promise.all([
       import("ink"),
@@ -443,6 +457,19 @@ program
     let apiKey: string | undefined = options.apiKey;
     if (options.apiKeyStdin) {
       apiKey = await readStdinValue();
+    }
+
+    if (options.verbose) {
+      verboseLog("Options:", {
+        baseUrl,
+        hasApiKey: !!apiKey,
+        machineMode: options.machine,
+        initialTab: options.tab,
+        initialProjectId: options.project,
+        frontendUrl: options.frontendUrl,
+        model: options.model,
+        debug: options.debug,
+      });
     }
 
     if (options.tab && options.tab !== "chat") {
@@ -492,6 +519,10 @@ program
   .option("--no-anim", "Disable loader animation")
   .option("-v, --verbose", "Enable verbose logging", false)
   .action(async (options, command) => {
+    if (options.debug && !options.verbose) {
+      enableCliDebugLogging();
+    }
+
     const { assertSecureBaseUrl } = await import("@cloudeval/core");
     const [{ render }, { App }] = await Promise.all([
       import("ink"),
@@ -570,6 +601,10 @@ program
   .option("-v, --verbose", "Enable verbose logging", false)
   .action(async (questionParts, options, command) => {
     const question = Array.isArray(questionParts) ? questionParts.join(" ") : String(questionParts);
+    if (options.debug && !options.verbose) {
+      enableCliDebugLogging();
+    }
+
     const { assertSecureBaseUrl } = await import("@cloudeval/core");
     const baseUrl = await resolveBaseUrl(options, command);
     assertSecureBaseUrl(baseUrl);

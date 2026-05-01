@@ -101,6 +101,22 @@ const buildProjects = () => {
   ];
 };
 
+const ensurePlaygroundProject = (user) => {
+  let project = user.projects.find((item) => item.name === "Playground");
+  if (!project) {
+    project = {
+      id: `project-playground-${randomUUID()}`,
+      name: "Playground",
+      cloud_provider: "azure",
+      user_id: user.id,
+      type: "template",
+      connection_ids: [],
+    };
+    user.projects.push(project);
+  }
+  return project;
+};
+
 const ensureUser = (email = "cli@example.com") => {
   const existingUserId = state.usersByEmail.get(email);
   if (existingUserId) {
@@ -485,7 +501,44 @@ const server = http.createServer(async (req, res) => {
     const user = ensureUser(body.email);
     user.email = body.email ?? user.email;
     user.full_name = body.full_name ?? "CLI User";
-    return json(res, 200, { user });
+    user.preferences = {
+      ...(user.preferences ?? {}),
+      ...(body.preferences ?? {}),
+      onboarding: {
+        ...((user.preferences ?? {}).onboarding ?? {}),
+        ...(body.onboarding ?? {}),
+        completedAt:
+          (body.onboarding ?? {}).completedAt ??
+          ((user.preferences ?? {}).onboarding ?? {}).completedAt ??
+          new Date().toISOString(),
+      },
+    };
+    const playgroundProject = ensurePlaygroundProject(user);
+    const defaultConnection = {
+      id: "playground-connection",
+      name: "Playground",
+      user_id: user.id,
+      type: "template",
+      template_url:
+        "https://raw.githubusercontent.com/Azure/azure-quickstart-templates/master/quickstarts/microsoft.compute/2-vms-internal-load-balancer/azuredeploy.json",
+    };
+    if (!playgroundProject.connection_ids?.includes(defaultConnection.id)) {
+      playgroundProject.connection_ids = [
+        ...(playgroundProject.connection_ids ?? []),
+        defaultConnection.id,
+      ];
+    }
+    return json(res, 200, {
+      user,
+      playground_project: playgroundProject,
+      default_connection: defaultConnection,
+      setup_jobs: [
+        { job_id: "job-template-sync", operation: "connection_template_sync" },
+        { job_id: "job-blob-sync", operation: "project_template_blob_sync" },
+        { job_id: "job-reports", operation: "project_reports_autogen" },
+      ],
+      next_steps: [],
+    });
   }
 
   if (pathname.startsWith("/api/v1/users/") && req.method === "PATCH") {

@@ -112,7 +112,59 @@ test("device code flow uses the CLI client id for both requests", async () => {
   }
 });
 
-test("device code login falls back to Azure AD when backend bootstrap is protected", async () => {
+test("device code polling reports non-JSON token responses clearly", async () => {
+  const tempHome = await mkdtemp(path.join(os.tmpdir(), "cloudeval-auth-"));
+  const { loginWithDeviceCode } = await importFreshAuthModule(tempHome);
+  const originalFetch = global.fetch;
+  const originalSetTimeout = global.setTimeout;
+  const originalLog = console.log;
+  const originalWrite = process.stdout.write.bind(process.stdout);
+
+  global.fetch = async (input) => {
+    const url = typeof input === "string" ? input : input.toString();
+
+    if (url.endsWith("/auth/device/code")) {
+      return jsonResponse({
+        device_code: "device-code",
+        user_code: "ABCD-EFGH",
+        verification_uri: "https://login.example.com/device",
+        expires_in: 60,
+        interval: 1,
+      });
+    }
+
+    if (url.endsWith("/auth/device/token")) {
+      return new Response("Internal Server Error", {
+        status: 500,
+        statusText: "Internal Server Error",
+        headers: { "Content-Type": "text/html" },
+      });
+    }
+
+    throw new Error(`Unexpected fetch: ${url}`);
+  };
+
+  global.setTimeout = ((callback: (...args: unknown[]) => void) => {
+    queueMicrotask(() => callback());
+    return 0 as unknown as NodeJS.Timeout;
+  }) as typeof setTimeout;
+  console.log = () => {};
+  process.stdout.write = (() => true) as typeof process.stdout.write;
+
+  try {
+    await assert.rejects(
+      () => loginWithDeviceCode("http://127.0.0.1:8787"),
+      /Device token exchange failed: 500 Internal Server Error - Internal Server Error/
+    );
+  } finally {
+    global.fetch = originalFetch;
+    global.setTimeout = originalSetTimeout;
+    console.log = originalLog;
+    process.stdout.write = originalWrite;
+  }
+});
+
+test("device code login falls back to Azure AD when backend bootstrap is unsupported", async () => {
   const tempHome = await mkdtemp(path.join(os.tmpdir(), "cloudeval-auth-"));
   const previousClientId = process.env.CLOUDEVAL_BACKEND_CLIENT_ID;
   const previousTenantId = process.env.CLOUDEVAL_BACKEND_TENANT_ID;
@@ -132,7 +184,7 @@ test("device code login falls back to Azure AD when backend bootstrap is protect
     requests.push(url);
 
     if (url.endsWith("/auth/device/code")) {
-      return jsonResponse({ message: "Authentication required" }, 401);
+      return jsonResponse({ message: "Method not allowed" }, 405);
     }
 
     if (url.includes("/oauth2/v2.0/devicecode")) {
@@ -197,6 +249,41 @@ test("device code login falls back to Azure AD when backend bootstrap is protect
     } else {
       process.env.CLOUDEVAL_BACKEND_TENANT_ID = previousTenantId;
     }
+  }
+});
+
+test("device code login reports protected backend bootstrap instead of direct Azure fallback", async () => {
+  const tempHome = await mkdtemp(path.join(os.tmpdir(), "cloudeval-auth-"));
+  const { loginWithDeviceCode } = await importFreshAuthModule(tempHome);
+  const originalFetch = global.fetch;
+  const requests: string[] = [];
+
+  global.fetch = async (input) => {
+    const url = typeof input === "string" ? input : input.toString();
+    requests.push(url);
+
+    if (url.endsWith("/auth/device/code")) {
+      return jsonResponse(
+        {
+          error: "Authentication required",
+          code: "AUTH_REQUIRED",
+          requiresAuth: true,
+        },
+        401
+      );
+    }
+
+    throw new Error(`Unexpected fetch: ${url}`);
+  };
+
+  try {
+    await assert.rejects(
+      () => loginWithDeviceCode("https://cloudeval.ai"),
+      /CloudEval backend device-code login is blocked by an authentication layer/
+    );
+    assert.deepEqual(requests, ["https://cloudeval.ai/api/v1/auth/device/code"]);
+  } finally {
+    global.fetch = originalFetch;
   }
 });
 
@@ -690,7 +777,7 @@ test("ensurePlaygroundProject repairs device-created users through quick onboard
 
     assert.equal(project.id, "playground-project");
     assert.equal(project.name, "Playground");
-    assert.equal(projectFetchCount, 2);
+    assert.equal(projectFetchCount, 1);
     assert.equal(requests.some((request) => request.url.endsWith("/projects/")), false);
     assert.equal(requests.some((request) => request.url.endsWith("/onboard/quick")), true);
   } finally {
@@ -720,9 +807,27 @@ test("completeOnboarding always runs shared quick onboarding for existing users"
       const body = JSON.parse(String(init?.body ?? "{}"));
       assert.equal(body.email, "prateek@example.com");
       assert.equal(body.full_name, "Prateek");
+      assert.deepEqual(body.onboarding, {
+        role: "Engineer",
+        teamSize: "1-5",
+        primaryGoals: ["Understand infrastructure"],
+        cloudProvider: "azure",
+      });
       return jsonResponse(
         {
-          user: { id: "user-1", email: "prateek@example.com" },
+          user: {
+            id: "user-1",
+            email: "prateek@example.com",
+            preferences: {
+              onboarding: {
+                role: "Engineer",
+                teamSize: "1-5",
+                primaryGoals: ["Understand infrastructure"],
+                cloudProvider: "azure",
+                completedAt: "2026-04-29T00:00:00.000Z",
+              },
+            },
+          },
           playground_project: {
             id: "playground-project",
             name: "Playground",
@@ -768,9 +873,71 @@ test("completeOnboarding always runs shared quick onboarding for existing users"
     const quickIndex = calls.findIndex((call) => call.endsWith("/onboard/quick"));
     const patchIndex = calls.findIndex((call) => call.endsWith("/users/user-1"));
     assert.notEqual(quickIndex, -1);
+    assert.equal(patchIndex, -1);
+    assert.equal(calls.some((call) => call.endsWith("/projects/")), false);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test("completeOnboarding keeps PATCH fallback for older quick onboarding responses", async () => {
+  const tempHome = await mkdtemp(path.join(os.tmpdir(), "cloudeval-auth-"));
+  const { completeOnboarding } = await importFreshAuthModule(tempHome);
+  const originalFetch = global.fetch;
+  const calls: string[] = [];
+
+  global.fetch = async (input, init) => {
+    const url = typeof input === "string" ? input : input.toString();
+    calls.push(`${init?.method || "GET"} ${url}`);
+
+    if (url.endsWith("/auth/me")) {
+      return jsonResponse({
+        id: "user-1",
+        email: "prateek@example.com",
+        preferences: {},
+      });
+    }
+
+    if (url.endsWith("/onboard/quick")) {
+      return jsonResponse(
+        {
+          user: { id: "user-1", email: "prateek@example.com" },
+          playground_project: {
+            id: "playground-project",
+            name: "Playground",
+            user_id: "user-1",
+          },
+          next_steps: [],
+        },
+        201
+      );
+    }
+
+    if (url.endsWith("/users/user-1")) {
+      const body = JSON.parse(String(init?.body ?? "{}"));
+      assert.equal(body.preferences.onboarding.role, "Engineer");
+      assert.equal(body.preferences.onboarding.cloudProvider, "azure");
+      assert.equal(typeof body.preferences.onboarding.completedAt, "string");
+      return jsonResponse({ id: "user-1" });
+    }
+
+    throw new Error(`Unexpected fetch: ${url}`);
+  };
+
+  try {
+    await completeOnboarding("http://127.0.0.1:8787", "access-token", {
+      name: "Prateek",
+      role: "Engineer",
+      teamSize: "1-5",
+      goals: ["Understand infrastructure"],
+      cloudProvider: "azure",
+    });
+
+    const quickIndex = calls.findIndex((call) => call.endsWith("/onboard/quick"));
+    const patchIndex = calls.findIndex((call) => call.endsWith("/users/user-1"));
+    assert.notEqual(quickIndex, -1);
     assert.notEqual(patchIndex, -1);
     assert.equal(quickIndex < patchIndex, true);
-    assert.equal(calls.some((call) => call.endsWith("/projects/")), false);
   } finally {
     global.fetch = originalFetch;
   }

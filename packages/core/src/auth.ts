@@ -18,9 +18,50 @@ const INSECURE_FILE_FALLBACK_ENV = "CLOUDEVAL_ALLOW_INSECURE_FILE_STORAGE";
 const CONCURRENT_REFRESH_WAIT_STEPS_MS = [50, 100, 150, 250];
 const REFRESH_LOCK_WAIT_STEP_MS = 100;
 const REFRESH_LOCK_STALE_MS = 30_000;
+const CLI_DEBUG_ENV = "CLOUDEVAL_CLI_DEBUG";
+const DIRECT_AZURE_FALLBACK_ENV = "CLOUDEVAL_CLI_ALLOW_DIRECT_AZURE_FALLBACK";
+const SENSITIVE_DEBUG_KEY_PATTERN =
+  /token|authorization|cookie|secret|password|api[_-]?key|client_secret|refresh/i;
 
 const KEYCHAIN_SERVICE = "cloudeval-cli";
 const KEYCHAIN_LABEL = "Cloudeval CLI";
+
+const isCliDebugEnabled = () => {
+  const value = process.env[CLI_DEBUG_ENV];
+  return value === "1" || value?.toLowerCase() === "true";
+};
+
+const redactDebugValue = (value: unknown): unknown => {
+  if (Array.isArray(value)) {
+    return value.map((item) => redactDebugValue(item));
+  }
+  if (value && typeof value === "object") {
+    const redacted: Record<string, unknown> = {};
+    for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
+      redacted[key] = SENSITIVE_DEBUG_KEY_PATTERN.test(key)
+        ? "[REDACTED]"
+        : redactDebugValue(item);
+    }
+    return redacted;
+  }
+  return value;
+};
+
+const cliDebug = (message: string, data?: Record<string, unknown>) => {
+  if (!isCliDebugEnabled()) {
+    return;
+  }
+  const prefix = `[${new Date().toISOString()}] [CLI DEBUG]`;
+  if (data === undefined) {
+    console.error(`${prefix} ${message}`);
+    return;
+  }
+  try {
+    console.error(`${prefix} ${message}\n${JSON.stringify(redactDebugValue(data), null, 2)}`);
+  } catch {
+    console.error(`${prefix} ${message}`, redactDebugValue(data));
+  }
+};
 
 export const getBackendClientId = () =>
   process.env.CLOUDEVAL_BACKEND_CLIENT_ID ?? DEFAULT_BACKEND_CLIENT_ID;
@@ -884,12 +925,20 @@ interface QuickOnboardResponse {
   user?: {
     id?: string;
     email?: string;
+    preferences?: Record<string, any>;
   };
   playground_project?: Project;
   default_connection?: {
     id?: string;
     name?: string;
   };
+  onboarding_completed_at?: string;
+  setup_jobs?: Array<Record<string, any>>;
+}
+
+interface QuickOnboardOptions {
+  preferences?: Record<string, any>;
+  onboarding?: Record<string, any>;
 }
 
 const PLAYGROUND_PROJECT_NAME = "Playground";
@@ -915,9 +964,19 @@ export const getProjects = async (
 ): Promise<Project[]> => {
   try {
     const apiBase = normalizeApiBase(baseUrl);
+    const startedAt = Date.now();
+    cliDebug("getProjects request", {
+      url: `${apiBase}/projects/user/${userId}`,
+      userId,
+    });
     const response = await fetch(`${apiBase}/projects/user/${userId}`, {
       method: "GET",
       headers: getCLIHeaders(token),
+    });
+    cliDebug("getProjects response", {
+      status: response.status,
+      ok: response.ok,
+      durationMs: Date.now() - startedAt,
     });
 
     if (!response.ok) {
@@ -928,8 +987,17 @@ export const getProjects = async (
     }
 
     const projects = await response.json();
+    cliDebug("getProjects parsed", {
+      count: Array.isArray(projects) ? projects.length : undefined,
+      projectNames: Array.isArray(projects)
+        ? projects.map((project: any) => project?.name).filter(Boolean)
+        : undefined,
+    });
     return Array.isArray(projects) ? projects : [];
   } catch (error: any) {
+    cliDebug("getProjects failed", {
+      message: error?.message,
+    });
     console.warn("Failed to fetch projects:", error.message);
     return [];
   }
@@ -944,7 +1012,8 @@ const getUserDisplayName = (user: PlaygroundUser): string | undefined =>
 const quickOnboardPlayground = async (
   baseUrl: string,
   token: string,
-  user: PlaygroundUser
+  user: PlaygroundUser,
+  options: QuickOnboardOptions = {}
 ): Promise<QuickOnboardResponse> => {
   if (!user.email) {
     throw new Error(
@@ -954,17 +1023,35 @@ const quickOnboardPlayground = async (
 
   const apiBase = normalizeApiBase(baseUrl);
   const fullName = getUserDisplayName(user);
+  const requestBody = {
+    email: user.email,
+    ...(fullName ? { full_name: fullName } : {}),
+    ...(options.preferences ? { preferences: options.preferences } : {}),
+    ...(options.onboarding ? { onboarding: options.onboarding } : {}),
+  };
+  const startedAt = Date.now();
+  cliDebug("quickOnboardPlayground request", {
+    url: `${apiBase}/onboard/quick`,
+    body: requestBody,
+  });
   const response = await fetch(`${apiBase}/onboard/quick`, {
     method: "POST",
     headers: getCLIHeaders(token),
-    body: JSON.stringify({
-      email: user.email,
-      ...(fullName ? { full_name: fullName } : {}),
-    }),
+    body: JSON.stringify(requestBody),
+  });
+  cliDebug("quickOnboardPlayground response", {
+    status: response.status,
+    ok: response.ok,
+    durationMs: Date.now() - startedAt,
   });
 
   if (!response.ok) {
     const detail = await readResponseDetail(response);
+    cliDebug("quickOnboardPlayground failed", {
+      status: response.status,
+      statusText: response.statusText,
+      detail,
+    });
     throw new Error(
       `Failed to run shared Playground onboarding: ${response.status} ${response.statusText}${
         detail ? ` - ${detail}` : ""
@@ -972,7 +1059,19 @@ const quickOnboardPlayground = async (
     );
   }
 
-  return (await response.json()) as QuickOnboardResponse;
+  const body = (await response.json()) as QuickOnboardResponse;
+  cliDebug("quickOnboardPlayground parsed", {
+    userId: body.user?.id,
+    userEmail: body.user?.email,
+    hasPlaygroundProject: !!body.playground_project?.id,
+    playgroundProjectId: body.playground_project?.id,
+    hasDefaultConnection: !!body.default_connection?.id,
+    setupJobs: body.setup_jobs?.map((job) => job.operation),
+    persistedOnboarding:
+      !!body.user?.preferences?.onboarding?.completedAt ||
+      !!body.onboarding_completed_at,
+  });
+  return body;
 };
 
 export const ensurePlaygroundProject = async (
@@ -980,21 +1079,35 @@ export const ensurePlaygroundProject = async (
   token: string,
   user: PlaygroundUser
 ): Promise<Project> => {
+  cliDebug("ensurePlaygroundProject start", {
+    baseUrl,
+    userId: user.id,
+    email: user.email,
+  });
   const existingProjects = await getProjects(baseUrl, token, user.id);
   const existingPlayground = getPlaygroundProject(existingProjects);
   if (existingPlayground) {
+    cliDebug("ensurePlaygroundProject existing Playground found", {
+      projectId: existingPlayground.id,
+    });
     return existingPlayground;
   }
 
   const onboardResponse = await quickOnboardPlayground(baseUrl, token, user);
+  if (onboardResponse.playground_project?.id) {
+    cliDebug("ensurePlaygroundProject repaired from quick response", {
+      projectId: onboardResponse.playground_project.id,
+    });
+    return onboardResponse.playground_project;
+  }
+
   const refreshedProjects = await getProjects(baseUrl, token, user.id);
   const refreshedPlayground = getPlaygroundProject(refreshedProjects);
   if (refreshedPlayground) {
+    cliDebug("ensurePlaygroundProject repaired after project refetch", {
+      projectId: refreshedPlayground.id,
+    });
     return refreshedPlayground;
-  }
-
-  if (onboardResponse.playground_project?.id) {
-    return onboardResponse.playground_project;
   }
 
   throw new Error(
@@ -1084,6 +1197,14 @@ const getAzureTokenEndpoint = (tenantId: string) =>
 
 const shouldUseDirectAzureFallback = (status?: number): boolean =>
   status === 401 || status === 403 || status === 404 || status === 405;
+
+const isDirectAzureFallbackForced = () => {
+  const value = process.env[DIRECT_AZURE_FALLBACK_ENV];
+  return value === "1" || value?.toLowerCase() === "true";
+};
+
+const isFrontendAuthRequiredDetail = (detail?: string): boolean =>
+  /AUTH_REQUIRED|Authentication required/i.test(detail ?? "");
 
 const readResponseDetail = async (response: Response): Promise<string | undefined> => {
   try {
@@ -1213,6 +1334,12 @@ const loginWithDirectAzurePkceBrowser = async (baseUrl?: string): Promise<string
 
 const requestAzureDeviceCode = async (): Promise<DeviceCodeResponse> => {
   const { clientId, tenantId, scope } = getAzurePublicClientConfig();
+  const startedAt = now();
+  cliDebug("azure device-code request", {
+    tenantId,
+    clientId,
+    scope,
+  });
   const response = await fetch(
     `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/devicecode`,
     {
@@ -1224,6 +1351,11 @@ const requestAzureDeviceCode = async (): Promise<DeviceCodeResponse> => {
       }).toString(),
     }
   );
+  cliDebug("azure device-code response", {
+    status: response.status,
+    ok: response.ok,
+    durationMs: now() - startedAt,
+  });
 
   if (!response.ok) {
     const detail = await readResponseDetail(response);
@@ -1239,6 +1371,9 @@ const requestAzureDeviceCode = async (): Promise<DeviceCodeResponse> => {
 
 const loginWithDirectAzureDeviceCode = async (baseUrl?: string): Promise<string> => {
   const apiBase = normalizeApiBase(baseUrl);
+  cliDebug("direct Microsoft Entra device-code login start", {
+    apiBase,
+  });
   const deviceCodeData = await requestAzureDeviceCode();
   const { clientId, tenantId } = getAzurePublicClientConfig();
 
@@ -1268,6 +1403,11 @@ const loginWithDirectAzureDeviceCode = async (baseUrl?: string): Promise<string>
 
     if (response.ok && tokenData.access_token) {
       const accessToken = persistAuthTokens(tokenData, { baseUrl: apiBase });
+      cliDebug("direct Microsoft Entra device-code login completed", {
+        apiBase,
+        sessionId: tokenData.session_id,
+        accountId: tokenData.account_id,
+      });
       console.log("\nAuthentication successful. Session saved.\n");
       return accessToken;
     }
@@ -1382,10 +1522,21 @@ export const loginWithDeviceCode = async (
 
   const requestBody = JSON.stringify({ client_id: getCLIClientId() });
 
+  const startedAt = now();
+  cliDebug("backend device-code request", {
+    url: `${apiBase}/auth/device/code`,
+    clientId,
+    allowDirectAzureFallback: options.allowDirectAzureFallback !== false,
+  });
   const deviceCodeResponse = await fetch(`${apiBase}/auth/device/code`, {
     method: "POST",
     headers: getCLIHeaders(),
     body: requestBody,
+  });
+  cliDebug("backend device-code response", {
+    status: deviceCodeResponse.status,
+    ok: deviceCodeResponse.ok,
+    durationMs: now() - startedAt,
   });
 
   if (!deviceCodeResponse.ok) {
@@ -1396,16 +1547,29 @@ export const loginWithDeviceCode = async (
       return loginWithLegacyDeviceEndpoints(apiBase, clientId, requestBody, options);
     }
 
+    const detail = await readResponseDetail(deviceCodeResponse);
+    if (
+      isFrontendAuthRequiredDetail(detail) &&
+      !isDirectAzureFallbackForced()
+    ) {
+      throw new Error(
+        `CloudEval backend device-code login is blocked by an authentication layer (${statusInfo}${
+          detail ? ` - ${detail}` : ""
+        }). The CLI needs /api/v1/auth/device/code to be public so it can show the CloudEval device approval URL. Deploy the frontend middleware allowlist fix, or set ${DIRECT_AZURE_FALLBACK_ENV}=1 only for tenant-backed Microsoft Entra accounts.`
+      );
+    }
+
     if (
       options.allowDirectAzureFallback !== false &&
       shouldUseDirectAzureFallback(deviceCodeResponse.status)
     ) {
-      console.warn("Backend device-code login unavailable. Falling back to direct Azure AD device flow.");
+      console.warn(
+        `CloudEval backend device-code login unavailable (${statusInfo}). Using direct Microsoft Entra device-code flow.`
+      );
       return loginWithDirectAzureDeviceCode(baseUrl);
     }
 
     let errorMessage = `Failed to initiate login: ${statusInfo}`;
-    const detail = await readResponseDetail(deviceCodeResponse);
     if (detail) {
       errorMessage = `Failed to initiate login: ${statusInfo} - ${detail}`;
     }
@@ -1428,6 +1592,10 @@ const loginWithLegacyDeviceEndpoints = async (
     method: "POST",
     headers: getCLIHeaders(),
     body: requestBody,
+  });
+  cliDebug("legacy backend device-code response", {
+    status: deviceCodeResponse.status,
+    ok: deviceCodeResponse.ok,
   });
 
   if (!deviceCodeResponse.ok) {
@@ -1495,10 +1663,38 @@ const pollDeviceCodeAndPersist = async (
       }),
     });
 
-    const tokenData = (await tokenResponse.json()) as DeviceTokenResponse;
+    const tokenBody = await tokenResponse.text();
+    let tokenData: Partial<DeviceTokenResponse> = {};
+    if (tokenBody.trim()) {
+      try {
+        tokenData = JSON.parse(tokenBody) as DeviceTokenResponse;
+      } catch {
+        const detail = tokenBody.replace(/\s+/g, " ").slice(0, 300);
+        cliDebug("backend device-token non-JSON response", {
+          status: tokenResponse.status,
+          statusText: tokenResponse.statusText,
+          detail,
+        });
+        throw new Error(
+          `Device token exchange failed: ${tokenResponse.status} ${tokenResponse.statusText}${
+            detail ? ` - ${detail}` : ""
+          }`
+        );
+      }
+    }
 
     if (tokenResponse.ok && tokenData.access_token) {
-      const accessToken = persistAuthTokens(tokenData, { baseUrl: apiBase });
+      const accessToken = persistAuthTokens(
+        {
+          access_token: tokenData.access_token,
+          refresh_token: tokenData.refresh_token,
+          expires_in: tokenData.expires_in ?? 3600,
+          token_type: tokenData.token_type ?? "Bearer",
+          session_id: tokenData.session_id,
+          account_id: tokenData.account_id,
+        },
+        { baseUrl: apiBase }
+      );
       console.log("\nAuthentication successful. Session saved.\n");
       return accessToken;
     }
@@ -1802,9 +1998,18 @@ const fetchCurrentUserFromServer = async (
   token: string
 ): Promise<UserStatus["user"] | null> => {
   try {
+    const startedAt = Date.now();
+    cliDebug("fetchCurrentUserFromServer request", {
+      url: `${apiBase}/auth/me`,
+    });
     const response = await fetch(`${apiBase}/auth/me`, {
       method: "GET",
       headers: getCLIHeaders(token),
+    });
+    cliDebug("fetchCurrentUserFromServer response", {
+      status: response.status,
+      ok: response.ok,
+      durationMs: Date.now() - startedAt,
     });
 
     if (!response.ok) {
@@ -1816,8 +2021,16 @@ const fetchCurrentUserFromServer = async (
       return null;
     }
 
+    cliDebug("fetchCurrentUserFromServer parsed", {
+      userId: user.id,
+      email: user.email,
+      onboardingCompleted: !!user.preferences?.onboarding?.completedAt,
+    });
     return user;
-  } catch {
+  } catch (error: any) {
+    cliDebug("fetchCurrentUserFromServer failed", {
+      message: error?.message,
+    });
     return null;
   }
 };
@@ -1829,9 +2042,15 @@ export const checkUserStatus = async (
 ): Promise<UserStatus> => {
   try {
     const apiBase = normalizeApiBase(baseUrl);
+    cliDebug("checkUserStatus start", { apiBase });
 
     const currentUser = await fetchCurrentUserFromServer(apiBase, token);
     if (currentUser) {
+      cliDebug("checkUserStatus resolved from /auth/me", {
+        userId: currentUser.id,
+        email: currentUser.email,
+        onboardingCompleted: !!currentUser.preferences?.onboarding?.completedAt,
+      });
       return {
         exists: true,
         onboardingCompleted: !!currentUser.preferences?.onboarding?.completedAt,
@@ -1842,17 +2061,33 @@ export const checkUserStatus = async (
     // Legacy fallback: derive email locally only if server endpoint is unavailable.
     const email = extractEmailFromToken(token);
     if (!email) {
+      cliDebug("checkUserStatus no email claim; assuming existing completed user");
       return { exists: true, onboardingCompleted: true };
     }
 
+    const startedAt = Date.now();
+    cliDebug("checkUserStatus /user/email request", {
+      url: `${apiBase}/user/email`,
+      email,
+    });
     const response = await fetch(`${apiBase}/user/email`, {
       method: "POST",
       headers: getCLIHeaders(token),
       body: JSON.stringify({ email }),
     });
+    cliDebug("checkUserStatus /user/email response", {
+      status: response.status,
+      ok: response.ok,
+      durationMs: Date.now() - startedAt,
+    });
 
     if (response.ok) {
       const user = await response.json();
+      cliDebug("checkUserStatus /user/email parsed", {
+        userId: user?.id,
+        email: user?.email,
+        onboardingCompleted: !!user.preferences?.onboarding?.completedAt,
+      });
       return {
         exists: true,
         onboardingCompleted: !!user.preferences?.onboarding?.completedAt,
@@ -1860,11 +2095,18 @@ export const checkUserStatus = async (
       };
     }
     if (response.status === 404) {
+      cliDebug("checkUserStatus user missing");
       return { exists: false, onboardingCompleted: false };
     }
 
+    cliDebug("checkUserStatus non-404 fallback", {
+      status: response.status,
+    });
     return { exists: true, onboardingCompleted: true };
-  } catch {
+  } catch (error: any) {
+    cliDebug("checkUserStatus failed; assuming completed for compatibility", {
+      message: error?.message,
+    });
     return { exists: true, onboardingCompleted: true };
   }
 };
@@ -1883,6 +2125,14 @@ export const completeOnboarding = async (
 ): Promise<void> => {
   try {
     const apiBase = normalizeApiBase(baseUrl);
+    cliDebug("completeOnboarding start", {
+      apiBase,
+      name: data.name,
+      role: data.role,
+      teamSize: data.teamSize,
+      goals: data.goals,
+      cloudProvider: data.cloudProvider,
+    });
 
     const serverUser = await fetchCurrentUserFromServer(apiBase, token);
     const fallbackEmail = extractEmailFromToken(token);
@@ -1894,11 +2144,26 @@ export const completeOnboarding = async (
 
     const userStatus = await checkUserStatus(apiBase, token);
     const knownUserId = userStatus.user?.id || serverUser?.id;
+    cliDebug("completeOnboarding identity resolved", {
+      email,
+      serverUserId: serverUser?.id,
+      knownUserId,
+      statusExists: userStatus.exists,
+      statusOnboardingCompleted: userStatus.onboardingCompleted,
+    });
+    const onboarding = {
+      role: data.role,
+      teamSize: data.teamSize,
+      primaryGoals: data.goals,
+      cloudProvider: data.cloudProvider,
+    };
 
     const onboardData = await quickOnboardPlayground(apiBase, token, {
       id: knownUserId || "pending",
       email,
       fullName: data.name,
+    }, {
+      onboarding,
     });
 
     const userId = onboardData.user?.id || knownUserId;
@@ -1907,35 +2172,63 @@ export const completeOnboarding = async (
       throw new Error("Onboarding completed but no user ID returned");
     }
 
-    const preferences = {
-      onboarding: {
-        role: data.role,
-        teamSize: data.teamSize,
-        primaryGoals: data.goals,
-        cloudProvider: data.cloudProvider,
-        completedAt: new Date().toISOString(),
-      },
-    };
-
-    const response = await fetch(`${apiBase}/users/${userId}`, {
-      method: "PATCH",
-      headers: getCLIHeaders(token),
-      body: JSON.stringify({ preferences }),
+    const persistedOnboarding = onboardData.user?.preferences?.onboarding;
+    const hasPersistedCompletion =
+      !!persistedOnboarding?.completedAt || !!onboardData.onboarding_completed_at;
+    cliDebug("completeOnboarding quick result", {
+      userId,
+      hasPersistedCompletion,
+      hasPlaygroundProject: !!onboardData.playground_project?.id,
+      setupJobs: onboardData.setup_jobs?.map((job) => job.operation),
     });
 
-    if (!response.ok) {
-      const error = await response
-        .json()
-        .catch(() => ({ message: "Failed to complete onboarding" }));
-      throw new Error(error.message || "Failed to complete onboarding");
+    if (!hasPersistedCompletion) {
+      const preferences = {
+        onboarding: {
+          ...onboarding,
+          completedAt: new Date().toISOString(),
+        },
+      };
+
+      const startedAt = Date.now();
+      cliDebug("completeOnboarding fallback PATCH request", {
+        url: `${apiBase}/users/${userId}`,
+      });
+      const response = await fetch(`${apiBase}/users/${userId}`, {
+        method: "PATCH",
+        headers: getCLIHeaders(token),
+        body: JSON.stringify({ preferences }),
+      });
+      cliDebug("completeOnboarding fallback PATCH response", {
+        status: response.status,
+        ok: response.ok,
+        durationMs: Date.now() - startedAt,
+      });
+
+      if (!response.ok) {
+        const error = await response
+          .json()
+          .catch(() => ({ message: "Failed to complete onboarding" }));
+        throw new Error(error.message || "Failed to complete onboarding");
+      }
     }
 
-    await ensurePlaygroundProject(apiBase, token, {
-      id: userId,
+    if (!onboardData.playground_project?.id) {
+      cliDebug("completeOnboarding quick response missing Playground; repairing");
+      await ensurePlaygroundProject(apiBase, token, {
+        id: userId,
+        email,
+        fullName: data.name,
+      });
+    }
+    cliDebug("completeOnboarding finished", {
+      userId,
       email,
-      fullName: data.name,
     });
   } catch (error: any) {
+    cliDebug("completeOnboarding failed", {
+      message: error?.message,
+    });
     if (error?.message) {
       throw error;
     }

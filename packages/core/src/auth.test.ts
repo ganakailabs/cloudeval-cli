@@ -635,6 +635,77 @@ test("login prefers browser-assisted device flow before PKCE", async () => {
   }
 });
 
+test("browser-assisted device flow appends user code when backend omits complete URL", async () => {
+  const tempHome = await mkdtemp(path.join(os.tmpdir(), "cloudeval-auth-"));
+  const previousOverride = process.env.CLOUDEVAL_ALLOW_INSECURE_FILE_STORAGE;
+  process.env.CLOUDEVAL_ALLOW_INSECURE_FILE_STORAGE = "1";
+
+  try {
+    const { login } = await importFreshAuthModule(tempHome);
+    const originalFetch = global.fetch;
+    const originalSetTimeout = global.setTimeout;
+    const originalLog = console.log;
+    const originalWrite = process.stdout.write.bind(process.stdout);
+    const openedUrls: string[] = [];
+
+    global.fetch = async (input) => {
+      const url = typeof input === "string" ? input : input.toString();
+
+      if (url.endsWith("/auth/device/code")) {
+        return jsonResponse({
+          device_code: "device-code",
+          user_code: "ABCD-EFGH",
+          verification_uri: "https://cloudeval.ai/device/login",
+          expires_in: 60,
+          interval: 1,
+        });
+      }
+
+      if (url.endsWith("/auth/device/token")) {
+        return jsonResponse({
+          access_token: "access-token",
+          refresh_token: "refresh-token",
+          token_type: "Bearer",
+          expires_in: 3600,
+        });
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    };
+
+    global.setTimeout = ((callback: (...args: unknown[]) => void) => {
+      queueMicrotask(() => callback());
+      return 0 as unknown as NodeJS.Timeout;
+    }) as typeof setTimeout;
+    console.log = () => {};
+    process.stdout.write = (() => true) as typeof process.stdout.write;
+
+    try {
+      const token = await login("https://cloudeval.ai", {
+        browserOpener: (url: string) => {
+          openedUrls.push(url);
+          return true;
+        },
+      });
+      assert.equal(token, "access-token");
+      assert.deepEqual(openedUrls, [
+        "https://cloudeval.ai/device/login?user_code=ABCD-EFGH",
+      ]);
+    } finally {
+      global.fetch = originalFetch;
+      global.setTimeout = originalSetTimeout;
+      console.log = originalLog;
+      process.stdout.write = originalWrite;
+    }
+  } finally {
+    if (previousOverride === undefined) {
+      delete process.env.CLOUDEVAL_ALLOW_INSECURE_FILE_STORAGE;
+    } else {
+      process.env.CLOUDEVAL_ALLOW_INSECURE_FILE_STORAGE = previousOverride;
+    }
+  }
+});
+
 test("browser-assisted device flow honors frontend URL override", async () => {
   const tempHome = await mkdtemp(path.join(os.tmpdir(), "cloudeval-auth-"));
   const previousStorageOverride = process.env.CLOUDEVAL_ALLOW_INSECURE_FILE_STORAGE;

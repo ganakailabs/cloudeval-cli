@@ -773,7 +773,17 @@ const resolveDeviceVerificationUrl = (deviceCodeData: DeviceCodeResponse): strin
       );
     }
   }
-  return deviceCodeData.verification_uri_complete || deviceCodeData.verification_uri;
+  if (deviceCodeData.verification_uri_complete) {
+    return deviceCodeData.verification_uri_complete;
+  }
+  try {
+    return buildDeviceVerificationUrl(
+      deviceCodeData.verification_uri,
+      deviceCodeData.user_code
+    );
+  } catch {
+    return deviceCodeData.verification_uri;
+  }
 };
 
 const openBrowser = (url: string): boolean => {

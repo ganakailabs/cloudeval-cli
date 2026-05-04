@@ -46,6 +46,9 @@ export interface FrontendLinkOptions {
   issuesFullscreen?: boolean;
   issuesView?: string;
   downloadPdf?: boolean;
+  pdfVerbosity?: string;
+  downloadReport?: string;
+  reportVerbosity?: string;
 }
 
 const trimTrailingSlash = (value: string): string => value.replace(/\/+$/, "");
@@ -74,19 +77,26 @@ export const resolveFrontendBaseUrl = ({
 };
 
 const appUrl = (baseUrl: string, path: string): URL =>
-  new URL(`/app${path.startsWith("/") ? path : `/${path}`}`, `${trimTrailingSlash(baseUrl)}/`);
+  new URL(
+    `/app${path.startsWith("/") ? path : `/${path}`}`,
+    `${trimTrailingSlash(baseUrl)}/`,
+  );
 
 const setParam = (
   url: URL,
   key: string,
-  value: string | number | boolean | undefined
+  value: string | number | boolean | undefined,
 ) => {
   if (value !== undefined && value !== "" && value !== false) {
     url.searchParams.set(key, String(value));
   }
 };
 
-const setArrayParam = (url: URL, key: string, value: string | string[] | undefined) => {
+const setArrayParam = (
+  url: URL,
+  key: string,
+  value: string | string[] | undefined,
+) => {
   if (!value) {
     return;
   }
@@ -118,7 +128,10 @@ export const buildFrontendUrl = (options: FrontendLinkOptions): string => {
       if (!options.projectId) {
         throw new Error("projectId is required for project frontend links.");
       }
-      url = appUrl(options.baseUrl, `/projects/${encodeURIComponent(options.projectId)}`);
+      url = appUrl(
+        options.baseUrl,
+        `/projects/${encodeURIComponent(options.projectId)}`,
+      );
       setParam(url, "view", options.view);
       setParam(url, "layout", options.layout);
       setArrayParam(url, "node", options.node);
@@ -128,7 +141,11 @@ export const buildFrontendUrl = (options: FrontendLinkOptions): string => {
       setArrayParam(url, "files", options.files);
       setParam(url, "cursor", options.cursor);
       setParam(url, "selection", options.selection);
-      setParam(url, "workspaceFocus", options.workspaceFocus ? "true" : undefined);
+      setParam(
+        url,
+        "workspaceFocus",
+        options.workspaceFocus ? "true" : undefined,
+      );
       setParam(url, "mode", options.presentation ? "presentation" : undefined);
       break;
     case "connections":
@@ -137,13 +154,21 @@ export const buildFrontendUrl = (options: FrontendLinkOptions): string => {
       break;
     case "connection":
       if (!options.connectionId) {
-        throw new Error("connectionId is required for connection frontend links.");
+        throw new Error(
+          "connectionId is required for connection frontend links.",
+        );
       }
-      url = appUrl(options.baseUrl, `/connections/${encodeURIComponent(options.connectionId)}`);
+      url = appUrl(
+        options.baseUrl,
+        `/connections/${encodeURIComponent(options.connectionId)}`,
+      );
       break;
     case "reports":
       url = options.projectId
-        ? appUrl(options.baseUrl, `/reports/${encodeURIComponent(options.projectId)}`)
+        ? appUrl(
+            options.baseUrl,
+            `/reports/${encodeURIComponent(options.projectId)}`,
+          )
         : appUrl(options.baseUrl, "/reports");
       setParam(url, "tab", options.tab);
       setParam(url, "reportType", options.reportType);
@@ -151,16 +176,25 @@ export const buildFrontendUrl = (options: FrontendLinkOptions): string => {
       setParam(url, "persona", options.persona);
       setParam(url, "cadence", options.cadence);
       setParam(url, "issuesQuery", options.issuesQuery);
-      setParam(url, "issuesFullscreen", options.issuesFullscreen ? "1" : undefined);
+      setParam(
+        url,
+        "issuesFullscreen",
+        options.issuesFullscreen ? "1" : undefined,
+      );
       setParam(url, "issuesView", options.issuesView);
       setParam(url, "downloadPdf", options.downloadPdf ? "1" : undefined);
+      setParam(url, "pdfVerbosity", options.pdfVerbosity);
+      setParam(url, "downloadReport", options.downloadReport);
+      setParam(url, "reportVerbosity", options.reportVerbosity);
       break;
     case "billing":
       url = appUrl(options.baseUrl, "/subscription");
       setParam(url, "tab", options.tab);
       break;
     default:
-      throw new Error(`Unsupported frontend target '${String(options.target)}'.`);
+      throw new Error(
+        `Unsupported frontend target '${String(options.target)}'.`,
+      );
   }
   return url.toString();
 };

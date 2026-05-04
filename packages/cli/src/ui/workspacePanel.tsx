@@ -146,7 +146,7 @@ const allNumbers = (value: unknown, limit = 36): number[] => {
 const firstString = (
   value: unknown,
   keys: string[],
-  fallback = "unknown"
+  fallback = "unknown",
 ): string => {
   const record = toRecord(value);
   if (!record) {
@@ -182,7 +182,9 @@ const firstNumber = (value: unknown, keys: string[]): number | undefined => {
 const formatNumber = (value: number | undefined): string =>
   value === undefined
     ? "-"
-    : new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(value);
+    : new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(
+        value,
+      );
 
 const formatPercent = (value: number | undefined): string =>
   value === undefined ? "-" : `${Math.round(value * 100)}%`;
@@ -205,7 +207,11 @@ const billingToneColor = (tone?: string): string | undefined => {
 };
 
 const metricToneFromBillingTone = (tone?: string): Metric["tone"] =>
-  tone === "exhausted" ? "danger" : tone === "low" || tone === "warning" ? "warning" : "success";
+  tone === "exhausted"
+    ? "danger"
+    : tone === "low" || tone === "warning"
+      ? "warning"
+      : "success";
 
 const chartValue = (value: number): string =>
   new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 }).format(value);
@@ -219,16 +225,19 @@ const sampleValues = (values: number[], width: number): number[] => {
     return clean;
   }
   const step = (clean.length - 1) / Math.max(1, width - 1);
-  return Array.from({ length: width }, (_, index) => clean[Math.round(index * step)]);
+  return Array.from(
+    { length: width },
+    (_, index) => clean[Math.round(index * step)],
+  );
 };
 
 const sparkBlocks = ["▁", "▂", "▃", "▄", "▅", "▆", "▇", "█"];
 
-const InlineSparkline: React.FC<{ values: number[]; width: number; tone?: Metric["tone"] }> = ({
-  values,
-  width,
-  tone,
-}) => {
+const InlineSparkline: React.FC<{
+  values: number[];
+  width: number;
+  tone?: Metric["tone"];
+}> = ({ values, width, tone }) => {
   const sampled = sampleValues(values, Math.max(4, width));
   if (!sampled.length) {
     return <Text dimColor>no trend data</Text>;
@@ -242,7 +251,10 @@ const InlineSparkline: React.FC<{ values: number[]; width: number; tone?: Metric
         .map((value) => {
           const index = Math.min(
             sparkBlocks.length - 1,
-            Math.max(0, Math.round(((value - min) / span) * (sparkBlocks.length - 1)))
+            Math.max(
+              0,
+              Math.round(((value - min) / span) * (sparkBlocks.length - 1)),
+            ),
           );
           return sparkBlocks[index];
         })
@@ -261,7 +273,11 @@ const AsciiLineChart: React.FC<{
   if (sampled.length < 2) {
     return (
       <Box flexDirection="row">
-        <InlineSparkline values={sampled} width={Math.max(8, width - 12)} tone={tone} />
+        <InlineSparkline
+          values={sampled}
+          width={Math.max(8, width - 12)}
+          tone={tone}
+        />
         <Text dimColor> current only</Text>
       </Box>
     );
@@ -314,7 +330,7 @@ const rowLabel = (value: unknown, fallback: string): string => {
       "status",
       "id",
     ],
-    fallback
+    fallback,
   );
 };
 
@@ -326,19 +342,29 @@ const rowDetail = (value: unknown): string => {
   const parts = [
     firstString(record, ["cloud_provider", "provider"], ""),
     (() => {
-      const status = firstString(record, ["effective_status", "status", "outcome"], "");
-      return status.toLowerCase().replace(/[\s-]+/g, "_") === "trial_active" ? "" : status;
+      const status = firstString(
+        record,
+        ["effective_status", "status", "outcome"],
+        "",
+      );
+      return status.toLowerCase().replace(/[\s-]+/g, "_") === "trial_active"
+        ? ""
+        : status;
     })(),
-    firstString(record, ["created_at", "updated_at", "timestamp", "period"], ""),
+    firstString(
+      record,
+      ["created_at", "updated_at", "timestamp", "period"],
+      "",
+    ),
   ].filter(Boolean);
   return parts.join(" | ");
 };
 
-const Bar: React.FC<{ value?: number; width?: number; tone?: Metric["tone"] }> = ({
-  value,
-  width = 28,
-  tone,
-}) => {
+const Bar: React.FC<{
+  value?: number;
+  width?: number;
+  tone?: Metric["tone"];
+}> = ({ value, width = 28, tone }) => {
   if (value === undefined) {
     return <Text dimColor>{"-".repeat(Math.min(width, 28))}</Text>;
   }
@@ -368,7 +394,9 @@ const BarList: React.FC<{
         bars.slice(0, 6).map((bar) => (
           <Box key={bar.label} flexDirection="row">
             <Box width={labelWidth}>
-              <Text wrap="truncate">{truncateForTerminal(normalizeLabel(bar.label), labelWidth - 2)}</Text>
+              <Text wrap="truncate">
+                {truncateForTerminal(normalizeLabel(bar.label), labelWidth - 2)}
+              </Text>
             </Box>
             <Bar value={bar.ratio} width={barWidth} tone={bar.tone} />
             <Text color={metricColor(bar.tone)}> {chartValue(bar.value)}</Text>
@@ -399,13 +427,20 @@ const TrendSummary: React.FC<{ trend: OverviewTrend; width: number }> = ({
     <Box flexDirection="column">
       <Box flexDirection="row">
         <Box width={labelWidth}>
-          <Text bold wrap="truncate">{truncateForTerminal(trend.label, labelWidth - 1)}</Text>
+          <Text bold wrap="truncate">
+            {truncateForTerminal(trend.label, labelWidth - 1)}
+          </Text>
         </Box>
         <Text color={metricColor(trend.tone)}>
           {icon} {trend.summary}
         </Text>
       </Box>
-      <AsciiLineChart values={trend.values} width={chartWidth} height={3} tone={trend.tone} />
+      <AsciiLineChart
+        values={trend.values}
+        width={chartWidth}
+        height={3}
+        tone={trend.tone}
+      />
     </Box>
   );
 };
@@ -439,21 +474,22 @@ const CreditProgress: React.FC<{
   const filled = Math.round(ratio * safeWidth);
   return (
     <Text>
-      [
-      <Text color={billingToneColor(tone)}>
-        {"█".repeat(filled)}
-      </Text>
-      {" ".repeat(safeWidth - filled)}
-      ] {Math.round(ratio * 100)}%
+      [<Text color={billingToneColor(tone)}>{"█".repeat(filled)}</Text>
+      {" ".repeat(safeWidth - filled)}] {Math.round(ratio * 100)}%
     </Text>
   );
 };
 
-const BillingSummaryLine: React.FC<{ billing: BillingSummaryState }> = ({ billing }) => (
+const BillingSummaryLine: React.FC<{ billing: BillingSummaryState }> = ({
+  billing,
+}) => (
   <Box flexDirection="row" flexWrap="wrap" columnGap={1}>
-    <Text dimColor>Plan: <Text>{billing.plan}</Text></Text>
     <Text dimColor>
-      Credits: <Text color={billingToneColor(billing.tone)}>
+      Plan: <Text>{billing.plan}</Text>
+    </Text>
+    <Text dimColor>
+      Credits:{" "}
+      <Text color={billingToneColor(billing.tone)}>
         {formatCredits(billing.remaining)}/{formatCredits(billing.total)}
       </Text>
     </Text>
@@ -467,13 +503,16 @@ const BillingSummaryLine: React.FC<{ billing: BillingSummaryState }> = ({ billin
   </Box>
 );
 
-const MetricStrip: React.FC<{ metrics: Metric[]; compact: boolean }> = ({ metrics, compact }) => (
+const MetricStrip: React.FC<{ metrics: Metric[]; compact: boolean }> = ({
+  metrics,
+  compact,
+}) => (
   <Box flexDirection={compact ? "column" : "row"} gap={1} flexWrap="wrap">
     {metrics.map((metric) => {
       const width = Math.max(
         metric.label.length + 8,
         metric.value.length + 6,
-        compact ? 0 : 17
+        compact ? 0 : 17,
       );
       return (
         <TitledBox
@@ -487,7 +526,9 @@ const MetricStrip: React.FC<{ metrics: Metric[]; compact: boolean }> = ({ metric
           width={width}
           flexShrink={0}
         >
-          <Text bold color={metricColor(metric.tone)} wrap="truncate">{metric.value}</Text>
+          <Text bold color={metricColor(metric.tone)} wrap="truncate">
+            {metric.value}
+          </Text>
         </TitledBox>
       );
     })}
@@ -525,33 +566,41 @@ const ResponsiveTable: React.FC<{
           </Box>
         ))}
         <Box flexDirection="row" justifyContent="space-between">
-          <Text dimColor>rows {startIndex + 1}-{startIndex + visibleRows.length} of {rows.length}</Text>
+          <Text dimColor>
+            rows {startIndex + 1}-{startIndex + visibleRows.length} of{" "}
+            {rows.length}
+          </Text>
           <Text dimColor>[ prev | ] next | D download</Text>
         </Box>
       </Box>
     );
   }
   const availableWidth = Math.max(48, terminalColumns - 14);
-  const minimumWidth = (column: string): number => (column === "#" || column === "" ? 3 : 8);
+  const minimumWidth = (column: string): number =>
+    column === "#" || column === "" ? 3 : 8;
   const preferredWidths = columns.map((column) => {
     const contentWidth = Math.max(
       column.length,
-      ...visibleRows.map((row) => String(row[column] ?? "").length)
+      ...visibleRows.map((row) => String(row[column] ?? "").length),
     );
     return Math.max(minimumWidth(column), contentWidth + 1);
   });
   const totalGap = Math.max(0, columns.length - 1);
-  const preferredTotal = preferredWidths.reduce((sum, width) => sum + width, 0) + totalGap;
+  const preferredTotal =
+    preferredWidths.reduce((sum, width) => sum + width, 0) + totalGap;
   const widths =
     preferredTotal <= availableWidth
       ? preferredWidths
       : preferredWidths.map((width, index) => {
           const column = columns[index] ?? "";
           const min = minimumWidth(column);
-          const scaled = Math.floor((width / preferredTotal) * (availableWidth - totalGap));
+          const scaled = Math.floor(
+            (width / preferredTotal) * (availableWidth - totalGap),
+          );
           return Math.max(min, scaled);
         });
-  const columnWidth = (column: string): number => widths[columns.indexOf(column)] ?? 10;
+  const columnWidth = (column: string): number =>
+    widths[columns.indexOf(column)] ?? 10;
   const renderRow = (row: TableRow, key: string, heading = false) => (
     <Box key={key} flexDirection="row">
       {columns.map((column) => {
@@ -576,7 +625,9 @@ const ResponsiveTable: React.FC<{
   return (
     <Box flexDirection="column">
       {renderRow({}, "header", true)}
-      <Text dimColor>{truncateForTerminal("─".repeat(availableWidth), availableWidth)}</Text>
+      <Text dimColor>
+        {truncateForTerminal("─".repeat(availableWidth), availableWidth)}
+      </Text>
       <Box flexDirection="row">
         <Box flexDirection="column" flexGrow={1}>
           {visibleRows.map((row, index) => renderRow(row, String(index)))}
@@ -584,15 +635,23 @@ const ResponsiveTable: React.FC<{
         {hiddenCount > 0 ? (
           <Box flexDirection="column" marginLeft={1}>
             <Text color={terminalTheme.brand}>┃</Text>
-            {Array.from({ length: Math.max(1, visibleRows.length - 2) }, (_, index) => (
-              <Text key={index} dimColor>│</Text>
-            ))}
+            {Array.from(
+              { length: Math.max(1, visibleRows.length - 2) },
+              (_, index) => (
+                <Text key={index} dimColor>
+                  │
+                </Text>
+              ),
+            )}
             <Text dimColor>╵</Text>
           </Box>
         ) : null}
       </Box>
       <Box flexDirection="row" justifyContent="space-between">
-        <Text dimColor>rows {startIndex + 1}-{startIndex + visibleRows.length} of {rows.length}</Text>
+        <Text dimColor>
+          rows {startIndex + 1}-{startIndex + visibleRows.length} of{" "}
+          {rows.length}
+        </Text>
         <Text dimColor>
           page {safePage + 1}/{pageCount} | [ prev | ] next | D download
         </Text>
@@ -606,7 +665,11 @@ const HelpLegend: React.FC<{ includeQuit?: boolean; wrap?: boolean }> = ({
   wrap = false,
 }) => {
   const segments = [
-    { key: `1-${workspaceTabs.length}`, label: "tabs", color: terminalTheme.brand },
+    {
+      key: `1-${workspaceTabs.length}`,
+      label: "tabs",
+      color: terminalTheme.brand,
+    },
     { key: "Left/Right", label: "switch", color: terminalTheme.brand },
     { key: "R", label: "refresh", color: terminalTheme.warning },
     { key: "O", label: "open", color: terminalTheme.success },
@@ -620,7 +683,9 @@ const HelpLegend: React.FC<{ includeQuit?: boolean; wrap?: boolean }> = ({
       {segments.map((segment, index) => (
         <Box key={segment.key} flexDirection="row">
           {index > 0 ? <Text dimColor>| </Text> : null}
-          <Text bold color={segment.color}>{segment.key}</Text>
+          <Text bold color={segment.color}>
+            {segment.key}
+          </Text>
           <Text dimColor> {segment.label}</Text>
         </Box>
       ))}
@@ -644,30 +709,41 @@ const ResourceSummary: React.FC<{
       </Text>
       {rows.slice(0, 5).map((row, index) => (
         <Text key={`${label}-${index}`} wrap="truncate">
-          {index + 1}. {truncateForTerminal(rowLabel(row, `row ${index + 1}`), 36)}
-          {rowDetail(row) ? ` - ${truncateForTerminal(rowDetail(row), 64)}` : ""}
+          {index + 1}.{" "}
+          {truncateForTerminal(rowLabel(row, `row ${index + 1}`), 36)}
+          {rowDetail(row)
+            ? ` - ${truncateForTerminal(rowDetail(row), 64)}`
+            : ""}
         </Text>
       ))}
-      {!rows.length && !toRecord(value) ? <Text dimColor>No data returned.</Text> : null}
+      {!rows.length && !toRecord(value) ? (
+        <Text dimColor>No data returned.</Text>
+      ) : null}
     </Box>
   );
 };
 
-const cleanBackendWarning = (warning: string, terminalColumns: number): string => {
+const cleanBackendWarning = (
+  warning: string,
+  terminalColumns: number,
+): string => {
   const compact = warning
     .replace(
       /:\s*\{"detail":"Device token not authorized for this endpoint"\}/g,
-      " (backend denied CLI device-token access)"
+      " (backend denied CLI device-token access)",
     )
     .replace(/\s+/g, " ")
     .trim();
-  return truncateForTerminal(compact, Math.max(72, Math.min(180, terminalColumns - 8)));
+  return truncateForTerminal(
+    compact,
+    Math.max(72, Math.min(180, terminalColumns - 8)),
+  );
 };
 
-const ProjectsView: React.FC<{ projects: Project[]; selectedProject: Project | null }> = ({
-  projects,
-  selectedProject,
-}) => (
+const ProjectsView: React.FC<{
+  projects: Project[];
+  selectedProject: Project | null;
+}> = ({ projects, selectedProject }) => (
   <Box flexDirection="column" gap={1}>
     <MetricStrip
       compact={false}
@@ -680,7 +756,9 @@ const ProjectsView: React.FC<{ projects: Project[]; selectedProject: Project | n
       projects.slice(0, 12).map((project, index) => (
         <Text
           key={project.id ?? index}
-          color={project.id === selectedProject?.id ? terminalTheme.brand : undefined}
+          color={
+            project.id === selectedProject?.id ? terminalTheme.brand : undefined
+          }
           wrap="truncate"
         >
           {project.id === selectedProject?.id ? ">" : " "} {project.name} |{" "}
@@ -703,9 +781,15 @@ const ConnectionsView: React.FC<{
     />
     {connections.length ? (
       connections.slice(0, 12).map((connection, index) => (
-        <Text key={String(firstString(connection, ["id"], String(index)))} wrap="truncate">
-          {index + 1}. {truncateForTerminal(rowLabel(connection, "connection"), 36)}
-          {rowDetail(connection) ? ` - ${truncateForTerminal(rowDetail(connection), 72)}` : ""}
+        <Text
+          key={String(firstString(connection, ["id"], String(index)))}
+          wrap="truncate"
+        >
+          {index + 1}.{" "}
+          {truncateForTerminal(rowLabel(connection, "connection"), 36)}
+          {rowDetail(connection)
+            ? ` - ${truncateForTerminal(rowDetail(connection), 72)}`
+            : ""}
         </Text>
       ))
     ) : (
@@ -733,13 +817,31 @@ const BillingView: React.FC<{
   const tone = metricToneFromBillingTone(creditTone);
   const remaining = firstNumber(creditStatus, ["remaining"]);
   const total = firstNumber(creditStatus, ["total"]);
-  const plansUrl = buildFrontendUrl({ baseUrl: frontendUrl, target: "billing", tab: "plans" });
-  const topUpUrl = buildFrontendUrl({ baseUrl: frontendUrl, target: "billing", tab: "usage" });
+  const plansUrl = buildFrontendUrl({
+    baseUrl: frontendUrl,
+    target: "billing",
+    tab: "plans",
+  });
+  const topUpUrl = buildFrontendUrl({
+    baseUrl: frontendUrl,
+    target: "billing",
+    tab: "usage",
+  });
   const metrics: Metric[] = [
-    { label: "Plan", value: firstString(creditStatus, ["planName"], firstString(plan, ["name"], "-")) },
+    {
+      label: "Plan",
+      value: firstString(
+        creditStatus,
+        ["planName"],
+        firstString(plan, ["name"], "-"),
+      ),
+    },
     { label: "Remaining", value: formatNumber(remaining) },
     { label: "Used", value: formatNumber(firstNumber(creditStatus, ["used"])) },
-    { label: "Top-up", value: formatNumber(firstNumber(creditStatus, ["topUpBalance"])) },
+    {
+      label: "Top-up",
+      value: formatNumber(firstNumber(creditStatus, ["topUpBalance"])),
+    },
   ];
   return (
     <Box flexDirection="column" gap={1}>
@@ -747,7 +849,12 @@ const BillingView: React.FC<{
       <Box flexDirection="row" gap={1}>
         <Text dimColor>Credit balance</Text>
         {remaining !== undefined && total !== undefined ? (
-          <CreditProgress remaining={remaining} total={total} width={28} tone={creditTone} />
+          <CreditProgress
+            remaining={remaining}
+            total={total}
+            width={28}
+            tone={creditTone}
+          />
         ) : (
           <>
             <Bar value={remainingRatio} tone={tone} />
@@ -766,37 +873,72 @@ const BillingView: React.FC<{
           tone="normal"
         />
       </SectionCard>
-      <ResourceSummary label="Recent ledger" value={ledger} terminalColumns={terminalColumns} />
-      <ResourceSummary label="Invoices" value={invoices} terminalColumns={terminalColumns} />
-      <ResourceSummary label="Top-ups" value={topups} terminalColumns={terminalColumns} />
-      <ResourceSummary label="Notifications" value={notifications} terminalColumns={terminalColumns} />
+      <ResourceSummary
+        label="Recent ledger"
+        value={ledger}
+        terminalColumns={terminalColumns}
+      />
+      <ResourceSummary
+        label="Invoices"
+        value={invoices}
+        terminalColumns={terminalColumns}
+      />
+      <ResourceSummary
+        label="Top-ups"
+        value={topups}
+        terminalColumns={terminalColumns}
+      />
+      <ResourceSummary
+        label="Notifications"
+        value={notifications}
+        terminalColumns={terminalColumns}
+      />
     </Box>
   );
 };
 
 const statusTextColor = (status: string): string | undefined => {
   const normalized = status.toLowerCase();
-  if (normalized === "completed" || normalized === "fresh") return terminalTheme.success;
-  if (normalized === "running" || normalized === "partial" || normalized === "stale") {
+  if (normalized === "completed" || normalized === "fresh")
+    return terminalTheme.success;
+  if (
+    normalized === "running" ||
+    normalized === "partial" ||
+    normalized === "stale"
+  ) {
     return terminalTheme.warning;
   }
-  if (normalized === "failed" || normalized === "outdated" || normalized === "missing") {
+  if (
+    normalized === "failed" ||
+    normalized === "outdated" ||
+    normalized === "missing"
+  ) {
     return terminalTheme.danger;
   }
   return terminalTheme.muted;
 };
 
 const compactStatusLabel = (status: string): string =>
-  normalizeLabel(status || "not_started")
-    .replace(/\b\w/g, (match) => match.toUpperCase());
+  normalizeLabel(status || "not_started").replace(/\b\w/g, (match) =>
+    match.toUpperCase(),
+  );
 
 const statusHeatColor = (status: string): string | undefined => {
   const normalized = status.toLowerCase();
-  if (normalized === "completed" || normalized === "fresh") return terminalTheme.success;
-  if (normalized === "running" || normalized === "partial" || normalized === "stale") {
+  if (normalized === "completed" || normalized === "fresh")
+    return terminalTheme.success;
+  if (
+    normalized === "running" ||
+    normalized === "partial" ||
+    normalized === "stale"
+  ) {
     return terminalTheme.warning;
   }
-  if (normalized === "failed" || normalized === "missing" || normalized === "outdated") {
+  if (
+    normalized === "failed" ||
+    normalized === "missing" ||
+    normalized === "outdated"
+  ) {
     return terminalTheme.danger;
   }
   return terminalTheme.muted;
@@ -821,12 +963,17 @@ const ReportsHeatmap: React.FC<{
     return (
       <Box width={width}>
         <Text color={statusHeatColor(status)}>● </Text>
-        <Text wrap="truncate">{truncateForTerminal(label, Math.max(4, width - 2))}</Text>
+        <Text wrap="truncate">
+          {truncateForTerminal(label, Math.max(4, width - 2))}
+        </Text>
       </Box>
     );
   };
 
-  const nameWidth = Math.max(18, Math.min(34, Math.floor(terminalColumns * 0.28)));
+  const nameWidth = Math.max(
+    18,
+    Math.min(34, Math.floor(terminalColumns * 0.28)),
+  );
   const statusWidth = terminalColumns < 100 ? 12 : 16;
   const columns = [
     { key: "costStatus", label: "Cost report" },
@@ -837,23 +984,32 @@ const ReportsHeatmap: React.FC<{
   return (
     <Box flexDirection="column" gap={1}>
       <Text dimColor wrap="wrap">
-        Each row shows whether the selected project has generated report artifacts and whether they are current.
+        Each row shows whether the selected project has generated report
+        artifacts and whether they are current.
       </Text>
       <Text dimColor>
         <Text color={terminalTheme.success}>● ready</Text>
-        <Text>  </Text>
+        <Text> </Text>
         <Text color={terminalTheme.warning}>● running/partial/stale</Text>
-        <Text>  </Text>
+        <Text> </Text>
         <Text color={terminalTheme.danger}>● failed/missing/outdated</Text>
       </Text>
       <Box flexDirection="row">
-        <Box width={nameWidth}><Text color={terminalTheme.brand} bold>Project</Text></Box>
+        <Box width={nameWidth}>
+          <Text color={terminalTheme.brand} bold>
+            Project
+          </Text>
+        </Box>
         {columns.map((column) => (
           <Box key={column.key} width={statusWidth}>
-            <Text color={terminalTheme.brand} bold>{column.label}</Text>
+            <Text color={terminalTheme.brand} bold>
+              {column.label}
+            </Text>
           </Box>
         ))}
-        <Text color={terminalTheme.brand} bold>Critical issues</Text>
+        <Text color={terminalTheme.brand} bold>
+          Critical issues
+        </Text>
       </Box>
       {visibleRows.map((row) => (
         <Box key={row.projectId} flexDirection="row">
@@ -868,14 +1024,23 @@ const ReportsHeatmap: React.FC<{
               </React.Fragment>
             );
           })}
-          <Text color={row.criticalIssues ? terminalTheme.danger : terminalTheme.success}>
+          <Text
+            color={
+              row.criticalIssues ? terminalTheme.danger : terminalTheme.success
+            }
+          >
             {row.criticalIssues}
           </Text>
         </Box>
       ))}
       <Box flexDirection="row" justifyContent="space-between">
-        <Text dimColor>rows {startIndex + 1}-{startIndex + visibleRows.length} of {rows.length}</Text>
-        <Text dimColor>page {safePage + 1}/{pageCount} | [ prev | ] next | D download</Text>
+        <Text dimColor>
+          rows {startIndex + 1}-{startIndex + visibleRows.length} of{" "}
+          {rows.length}
+        </Text>
+        <Text dimColor>
+          page {safePage + 1}/{pageCount} | [ prev | ] next | D download
+        </Text>
       </Box>
     </Box>
   );
@@ -884,7 +1049,8 @@ const ReportsHeatmap: React.FC<{
 const ReportRunActions: React.FC<{ compact: boolean }> = ({ compact }) => (
   <Box flexDirection="column" gap={1}>
     <Text dimColor wrap="wrap">
-      Run report generation directly through backend report APIs using the selected project context.
+      Run report generation directly through backend report APIs using the
+      selected project context.
     </Text>
     <Box flexDirection="row" gap={1} flexWrap="wrap">
       {[
@@ -902,7 +1068,9 @@ const ReportRunActions: React.FC<{ compact: boolean }> = ({ compact }) => (
           minWidth={compact ? undefined : 18}
         >
           <Text>
-            <Text color={terminalTheme.brand} bold>{keyName}</Text>
+            <Text color={terminalTheme.brand} bold>
+              {keyName}
+            </Text>
             <Text> {label}</Text>
           </Text>
         </Box>
@@ -911,10 +1079,10 @@ const ReportRunActions: React.FC<{ compact: boolean }> = ({ compact }) => (
   </Box>
 );
 
-const ProjectDropdownButton: React.FC<{ projectName: string; compact: boolean }> = ({
-  projectName,
-  compact,
-}) => (
+const ProjectDropdownButton: React.FC<{
+  projectName: string;
+  compact: boolean;
+}> = ({ projectName, compact }) => (
   <Box
     borderStyle={raisedButtonStyle.border}
     borderColor={terminalTheme.brand}
@@ -922,7 +1090,8 @@ const ProjectDropdownButton: React.FC<{ projectName: string; compact: boolean }>
     minWidth={compact ? undefined : 28}
   >
     <Text color={terminalTheme.brand} bold wrap="truncate">
-      {raisedButtonStyle.activeMarker} Project [{truncateForTerminal(projectName, compact ? 28 : 36)}] ▾
+      {raisedButtonStyle.activeMarker} Project [
+      {truncateForTerminal(projectName, compact ? 28 : 36)}] ▾
     </Text>
   </Box>
 );
@@ -934,7 +1103,14 @@ const ReportsView: React.FC<{
   compact: boolean;
   terminalColumns: number;
   tablePage: number;
-}> = ({ state, projects, selectedProject, compact, terminalColumns, tablePage }) => {
+}> = ({
+  state,
+  projects,
+  selectedProject,
+  compact,
+  terminalColumns,
+  tablePage,
+}) => {
   const model = buildReportsDashboardModel({
     dashboard: state.data.dashboard,
     reportsSummary: state.data.reportsSummary,
@@ -950,11 +1126,16 @@ const ReportsView: React.FC<{
 
   return (
     <Box flexDirection="column" gap={1}>
-      <Box flexDirection={compact ? "column" : "row"} justifyContent="space-between" gap={1}>
+      <Box
+        flexDirection={compact ? "column" : "row"}
+        justifyContent="space-between"
+        gap={1}
+      >
         <Box flexDirection="column" flexShrink={1}>
           <Text bold>Reports home</Text>
           <Text dimColor wrap="wrap">
-            Portfolio summary, score signals, report health, and selected project drilldown.
+            Portfolio summary, score signals, report health, and selected
+            project drilldown.
           </Text>
         </Box>
         <Box flexDirection="column">
@@ -967,10 +1148,34 @@ const ReportsView: React.FC<{
       </Box>
 
       {!hasReportData ? (
-        <Text dimColor>No report summary returned yet. Generate a report or refresh this tab.</Text>
+        <Text dimColor>
+          No report summary returned yet. Generate a report or refresh this tab.
+        </Text>
       ) : null}
 
       <MetricStrip metrics={model.metrics} compact={compact} />
+
+      <SectionCard title="Report sections">
+        <Box flexDirection="column" gap={1}>
+          <Box flexDirection={compact ? "column" : "row"} gap={1}>
+            {model.reportTabs.map((tab) => (
+              <Text key={tab.id} color={tab.selected ? "cyan" : undefined}>
+                {tab.selected ? ">" : "-"} {tab.label}
+              </Text>
+            ))}
+          </Box>
+          <ResponsiveTable
+            terminalColumns={terminalColumns}
+            columns={["#", "Section", "What it shows"]}
+            rows={model.tableOfContents.map((section, index) => ({
+              "#": index + 1,
+              Section: section.label,
+              "What it shows": section.description,
+            }))}
+            page={tablePage}
+          />
+        </Box>
+      </SectionCard>
 
       <SectionCard title="Run reports">
         <ReportRunActions compact={compact} />
@@ -989,7 +1194,11 @@ const ReportsView: React.FC<{
           <SectionCard title="Portfolio coverage">
             <Box flexDirection="row" gap={1}>
               <Text wrap="truncate">{model.coverageLabel}</Text>
-              <Bar value={model.coverageRatio} width={compact ? 16 : 24} tone="success" />
+              <Bar
+                value={model.coverageRatio}
+                width={compact ? 16 : 24}
+                tone="success"
+              />
               <Text>{formatPercent(model.coverageRatio)}</Text>
             </Box>
             <Box marginTop={1}>
@@ -1023,13 +1232,23 @@ const ReportsView: React.FC<{
       </Box>
 
       <SectionCard title="Project reports">
-        <Box flexDirection={compact ? "column" : "row"} justifyContent="space-between" gap={1}>
+        <Box
+          flexDirection={compact ? "column" : "row"}
+          justifyContent="space-between"
+          gap={1}
+        >
           <Box flexDirection="column" flexShrink={1}>
-            <Text bold wrap="truncate">{selectedSummary.projectName}</Text>
+            <Text bold wrap="truncate">
+              {selectedSummary.projectName}
+            </Text>
             {selectedSummary.projectId ? (
-              <Text dimColor wrap="truncate">{selectedSummary.projectId}</Text>
+              <Text dimColor wrap="truncate">
+                {selectedSummary.projectId}
+              </Text>
             ) : (
-              <Text dimColor>Select a project to load cost and architecture report details.</Text>
+              <Text dimColor>
+                Select a project to load cost and architecture report details.
+              </Text>
             )}
           </Box>
           {selectedSummary.lastReportAt ? (
@@ -1049,14 +1268,20 @@ const ReportsView: React.FC<{
             </Text>
             <Text>
               <Text dimColor>Architecture </Text>
-              <Text color={statusTextColor(selectedStatuses.architecture ?? "")}>
-                {compactStatusLabel(selectedStatuses.architecture ?? "not_started")}
+              <Text
+                color={statusTextColor(selectedStatuses.architecture ?? "")}
+              >
+                {compactStatusLabel(
+                  selectedStatuses.architecture ?? "not_started",
+                )}
               </Text>
             </Text>
             <Text>
               <Text dimColor>Unit tests </Text>
               <Text color={statusTextColor(selectedStatuses.unitTests ?? "")}>
-                {compactStatusLabel(selectedStatuses.unitTests ?? "not_started")}
+                {compactStatusLabel(
+                  selectedStatuses.unitTests ?? "not_started",
+                )}
               </Text>
             </Text>
           </Box>
@@ -1074,7 +1299,15 @@ const ReportsView: React.FC<{
         <SectionCard title="Project health">
           <ResponsiveTable
             terminalColumns={terminalColumns}
-            columns={["", "Project", "Cost", "Architecture", "Fresh", "Coverage", "Critical"]}
+            columns={[
+              "",
+              "Project",
+              "Cost",
+              "Architecture",
+              "Fresh",
+              "Coverage",
+              "Critical",
+            ]}
             rows={model.projectRows.map((row) => ({
               "": row.isSelected ? ">" : "",
               Project: row.projectName,
@@ -1122,7 +1355,8 @@ const ReportsView: React.FC<{
 
       {projects.length && !model.projectRows.length ? (
         <Text dimColor>
-          {projects.length} project(s) available. Pick a project from the dropdown to inspect specific reports.
+          {projects.length} project(s) available. Pick a project from the
+          dropdown to inspect specific reports.
         </Text>
       ) : null}
     </Box>
@@ -1136,7 +1370,14 @@ const OverviewView: React.FC<{
   compact: boolean;
   terminalColumns: number;
   tablePage: number;
-}> = ({ state, projects, selectedProject, compact, terminalColumns, tablePage }) => {
+}> = ({
+  state,
+  projects,
+  selectedProject,
+  compact,
+  terminalColumns,
+  tablePage,
+}) => {
   const connections = directArray(state.data.connections);
   const model: OverviewDashboardModel = buildOverviewDashboardModel({
     dashboard: state.data.dashboard,
@@ -1151,7 +1392,9 @@ const OverviewView: React.FC<{
       <MetricStrip metrics={model.metrics} compact={compact} />
       <Text wrap="wrap">
         Project: {selectedProject?.name ?? "none"}{" "}
-        <Text dimColor>{selectedProject?.id ? `(${selectedProject.id})` : ""}</Text>
+        <Text dimColor>
+          {selectedProject?.id ? `(${selectedProject.id})` : ""}
+        </Text>
       </Text>
       <Box flexDirection={compact ? "column" : "row"} gap={2}>
         <Box flexDirection="column" gap={1} flexGrow={1}>
@@ -1287,7 +1530,8 @@ const OptionsView: React.FC<WorkspacePanelProps> = ({
       <Text wrap="wrap">API: {apiBase}</Text>
       <Text wrap="wrap">Frontend: {frontendUrl}</Text>
       <Text dimColor wrap="wrap">
-        Keys: 1-{workspaceTabs.length} jump tabs | {keys.tabSwitch} tabs | {keys.refresh} | {keys.open} | Ctrl+Q quit
+        Keys: 1-{workspaceTabs.length} jump tabs | {keys.tabSwitch} tabs |{" "}
+        {keys.refresh} | {keys.open} | Ctrl+Q quit
       </Text>
     </Box>
   );
@@ -1320,7 +1564,8 @@ const HelpView: React.FC = () => {
       </SectionCard>
       <SectionCard title="Prompt Input" borderColor={terminalTheme.brand}>
         <Text wrap="wrap">
-          {keys.submit} | {keys.newline} | {keys.commandComplete} | {keys.historySearch} | {keys.cancel} | {keys.quit}
+          {keys.submit} | {keys.newline} | {keys.commandComplete} |{" "}
+          {keys.historySearch} | {keys.cancel} | {keys.quit}
         </Text>
       </SectionCard>
       <SectionCard title="Slash Commands" borderColor={terminalTheme.brand}>
@@ -1337,7 +1582,8 @@ const HelpView: React.FC = () => {
           </Text>
         ))}
         <Text dimColor wrap="wrap">
-          Common flags: --base-url, --api-key, --api-key-stdin, --machine, --frontend-url, --format, --json, --verbose, --help
+          Common flags: --base-url, --api-key, --api-key-stdin, --machine,
+          --frontend-url, --format, --json, --verbose, --help
         </Text>
       </SectionCard>
     </Box>
@@ -1362,7 +1608,9 @@ export const WorkspaceTabBar: React.FC<{
           paddingX={1}
         >
           <Box flexDirection="row" gap={1}>
-            <Text bold color={terminalTheme.brand}>CloudEval</Text>
+            <Text bold color={terminalTheme.brand}>
+              CloudEval
+            </Text>
             <Text dimColor>agent console</Text>
           </Box>
         </TitledBox>
@@ -1382,7 +1630,9 @@ export const WorkspaceTabBar: React.FC<{
                 bold={active}
                 color={active ? terminalTheme.brand : undefined}
               >
-                {active ? raisedButtonStyle.activeMarker : raisedButtonStyle.inactiveMarker}{" "}
+                {active
+                  ? raisedButtonStyle.activeMarker
+                  : raisedButtonStyle.inactiveMarker}{" "}
                 {workspaceTabButtonLabel(tab)}
               </Text>
             </Box>
@@ -1390,9 +1640,7 @@ export const WorkspaceTabBar: React.FC<{
         })}
       </Box>
       <HelpLegend />
-      {billingSummary ? (
-        <BillingSummaryLine billing={billingSummary} />
-      ) : null}
+      {billingSummary ? <BillingSummaryLine billing={billingSummary} /> : null}
     </Box>
   );
 };
@@ -1402,7 +1650,9 @@ export const WorkspacePanel: React.FC<WorkspacePanelProps> = (props) => {
   const state = props.state;
   const connections = directArray(state.data.connections);
   const isInitialLoading = state.status === "loading";
-  const isBackgroundRefreshing = Boolean(state.isRefreshing && !isInitialLoading);
+  const isBackgroundRefreshing = Boolean(
+    state.isRefreshing && !isInitialLoading,
+  );
 
   return (
     <TitledBox
@@ -1414,7 +1664,9 @@ export const WorkspacePanel: React.FC<WorkspacePanelProps> = (props) => {
     >
       {state.loadedAt && !isInitialLoading && !isBackgroundRefreshing ? (
         <Box flexDirection="row" justifyContent="flex-end">
-          <Text dimColor>loaded {new Date(state.loadedAt).toLocaleTimeString()}</Text>
+          <Text dimColor>
+            loaded {new Date(state.loadedAt).toLocaleTimeString()}
+          </Text>
         </Box>
       ) : null}
       {isInitialLoading ? (
@@ -1426,7 +1678,9 @@ export const WorkspacePanel: React.FC<WorkspacePanelProps> = (props) => {
       {isBackgroundRefreshing ? (
         <Box flexDirection="row" gap={1}>
           <Spinner type="dots" />
-          <Text color={terminalTheme.brand}>Refreshing in background, showing cached data...</Text>
+          <Text color={terminalTheme.brand}>
+            Refreshing in background, showing cached data...
+          </Text>
         </Box>
       ) : null}
       {state.status === "error" ? (
@@ -1438,7 +1692,8 @@ export const WorkspacePanel: React.FC<WorkspacePanelProps> = (props) => {
           paddingX={1}
         >
           <Text color={terminalTheme.danger} wrap="wrap">
-            {" "}{state.error ?? "Unable to load this tab."}
+            {" "}
+            {state.error ?? "Unable to load this tab."}
           </Text>
         </TitledBox>
       ) : null}
@@ -1481,9 +1736,14 @@ export const WorkspacePanel: React.FC<WorkspacePanelProps> = (props) => {
         />
       ) : null}
       {props.tab === "projects" ? (
-        <ProjectsView projects={props.projects} selectedProject={props.selectedProject} />
+        <ProjectsView
+          projects={props.projects}
+          selectedProject={props.selectedProject}
+        />
       ) : null}
-      {props.tab === "connections" ? <ConnectionsView connections={connections} /> : null}
+      {props.tab === "connections" ? (
+        <ConnectionsView connections={connections} />
+      ) : null}
       {props.tab === "billing" ? (
         <BillingView
           state={state}

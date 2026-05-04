@@ -71,6 +71,8 @@ cloudeval doctor --mcp --format json</code></pre>
       <pre><code>cloudeval mcp setup codex --dry-run
 codex mcp add cloudeval -- cloudeval mcp serve
 codex mcp list</code></pre>
+      <p>Generic MCP clients and Ollama-powered agent hosts can use a standard stdio config:</p>
+      <pre><code>cloudeval mcp setup generic --dry-run --toolset readonly --format json</code></pre>
       <ul>
         <li>Tools: <code>ask</code>, <code>projects.list</code>, <code>reports.run</code>, <code>reports.download</code>, <code>billing.usage</code>, and <code>open.url</code>.</li>
         <li>Resources: <code>cloudeval://capabilities</code>, <code>cloudeval://projects</code>, <code>cloudeval://billing/summary</code>, and <code>cloudeval://reports/latest</code>.</li>

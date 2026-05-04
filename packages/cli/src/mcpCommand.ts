@@ -22,6 +22,7 @@ import {
 } from "./outputFormatter.js";
 import { resolveReportProjectId } from "./reports/reportProject.js";
 import {
+  MCP_SETUP_CLIENTS,
   buildMcpClientSetup,
   normalizeMcpSetupClient,
   normalizeMcpSetupToolset,
@@ -717,7 +718,7 @@ export const getMcpStatusData = () => ({
   tools: mcpToolNames,
   resources: mcpResourceDefinitions.map((resource) => resource.uri),
   prompts: mcpPromptDefinitions.map((prompt) => prompt.name),
-  setupClients: ["codex", "claude", "cursor"],
+  setupClients: MCP_SETUP_CLIENTS,
 });
 
 export const getMcpDoctorChecks = () => {
@@ -2038,7 +2039,7 @@ export const registerMcpCommand = (
   mcp
     .command("setup")
     .description("Generate or install CloudEval MCP client configuration")
-    .argument("<client>", "MCP client: codex, claude, cursor")
+    .argument("<client>", `MCP client: ${MCP_SETUP_CLIENTS.join(", ")}`)
     .option("--dry-run", "Print config without writing client files", false)
     .option("--command <path>", "CloudEval command path for the MCP client", "cloudeval")
     .option(
@@ -2046,7 +2047,7 @@ export const registerMcpCommand = (
       "Toolset to expose: all, readonly, projects, reports, billing",
       "all"
     )
-    .option("--config-path <path>", "Override Claude/Cursor config path")
+    .option("--config-path <path>", "Override MCP client config path")
     .option("--format <format>", "Output format: text, json, ndjson, markdown", "text")
     .option("--output <file>", "Output file")
     .action(async (
@@ -2078,6 +2079,8 @@ export const registerMcpCommand = (
           note:
             setup.client === "codex" && !writtenPath
               ? "Run the printed Codex command to register this MCP server."
+              : setup.client === "generic" && !writtenPath
+                ? "Copy the printed MCP server config into your MCP client."
               : undefined,
         },
         format: options.format,

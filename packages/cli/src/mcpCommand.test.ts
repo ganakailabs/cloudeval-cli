@@ -4,7 +4,6 @@ import fs from "node:fs/promises";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
-import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 
@@ -100,21 +99,44 @@ const startMcp = async (args: string[] = []) => {
     childExit = { code, signal };
   });
 
-  const lines = createInterface({ input: child.stdout, crlfDelay: Infinity });
+  let stdoutBuffer = Buffer.alloc(0);
   const messages: unknown[] = [];
   const waiters: Array<(value: unknown) => void> = [];
-  lines.on("line", (line) => {
-    const parsed = JSON.parse(line);
-    const waiter = waiters.shift();
-    if (waiter) {
-      waiter(parsed);
-      return;
+
+  const readFramedMessages = () => {
+    while (stdoutBuffer.length) {
+      const headerEnd = stdoutBuffer.indexOf("\r\n\r\n");
+      if (headerEnd === -1) {
+        return;
+      }
+      const header = stdoutBuffer.subarray(0, headerEnd).toString("ascii");
+      const contentLength = header.match(/^Content-Length:\s*(\d+)$/im);
+      assert(contentLength, `Missing MCP Content-Length header in stdout: ${header}`);
+      const bodyStart = headerEnd + 4;
+      const bodyLength = Number(contentLength[1]);
+      const bodyEnd = bodyStart + bodyLength;
+      if (stdoutBuffer.length < bodyEnd) {
+        return;
+      }
+      const parsed = JSON.parse(stdoutBuffer.subarray(bodyStart, bodyEnd).toString("utf8"));
+      stdoutBuffer = stdoutBuffer.subarray(bodyEnd);
+      const waiter = waiters.shift();
+      if (waiter) {
+        waiter(parsed);
+        continue;
+      }
+      messages.push(parsed);
     }
-    messages.push(parsed);
+  };
+
+  child.stdout.on("data", (chunk) => {
+    stdoutBuffer = Buffer.concat([stdoutBuffer, Buffer.from(chunk)]);
+    readFramedMessages();
   });
 
   const send = (message: unknown) => {
-    child.stdin.write(`${JSON.stringify(message)}\n`);
+    const body = JSON.stringify(message);
+    child.stdin.write(`Content-Length: ${Buffer.byteLength(body)}\r\n\r\n${body}`);
   };
   const read = async (): Promise<any> => {
     if (messages.length) {

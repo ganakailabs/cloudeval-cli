@@ -73,8 +73,8 @@ const cliInvocation = () => {
     return { command: path.resolve(explicit), prefix: [] as string[] };
   }
   return {
-    command: path.join(packageRoot, "node_modules/.bin/tsx"),
-    prefix: ["src/cli.tsx"],
+    command: process.execPath,
+    prefix: [path.join(packageRoot, "node_modules/tsx/dist/cli.mjs"), "src/cli.tsx"],
   };
 };
 

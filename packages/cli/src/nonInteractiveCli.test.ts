@@ -269,7 +269,32 @@ const startBackend = async (
       return json(res, { invoices: [{ id: "inv-1", amount_due: 0 }] });
     }
     if (url.pathname === "/api/v1/billing/top-up/packs") {
-      return json(res, { packs: [{ id: "pack-1", credits: 100 }] });
+      return json(res, {
+        packs: [
+          {
+            id: "starter",
+            name: "Starter",
+            credits: 1000,
+            price_usd: 9,
+            display_currency: "USD",
+            display_price_major: 9,
+          },
+        ],
+      });
+    }
+    if (url.pathname === "/api/v1/billing/checkout/session/top-up" && req.method === "POST") {
+      return json(res, {
+        session_id: "cs_topup_1",
+        flow_type: "top_up",
+        status: "created",
+        expires_at: "2026-05-04T03:00:00",
+        checkout_mode: "standard_checkout",
+        checkout_url: null,
+        launcher_url: "https://app.example.test/app/subscription/checkout-launcher?session_id=cs_topup_1",
+        resolved_currency: "USD",
+        display_amount_major: 9,
+        payment_methods: { card: true },
+      });
     }
     if (url.pathname === "/api/v1/billing/notifications") {
       return json(res, { notifications: [{ id: "note-1", type: "credit_low" }] });
@@ -674,6 +699,42 @@ test("billing and credits commands are non-interactive and JSON-safe", async () 
 
     const plans = parseJson(await runCli(["billing", "plans", ...common]));
     assert.equal(plans.data.plans[0].id, "free");
+
+    const topups = parseJson(await runCli(["billing", "topups", ...common]));
+    assert.equal(topups.data.packs[0].id, "starter");
+
+    const checkout = parseJson(await runCli([
+      "billing",
+      "topup",
+      "starter",
+      ...common,
+      "--currency",
+      "USD",
+      "--country-code",
+      "US",
+      "--frontend-url",
+      "https://app.example.test",
+      "--no-open",
+    ]));
+    assert.equal(checkout.command, "billing topup");
+    assert.equal(checkout.data.packId, "starter");
+    assert.equal(checkout.data.session.session_id, "cs_topup_1");
+    assert.equal(
+      checkout.data.checkoutUrl,
+      "https://app.example.test/app/subscription/checkout-launcher?session_id=cs_topup_1"
+    );
+
+    const checkoutRequest = backend.requests.find(
+      (request) => request.path === "/api/v1/billing/checkout/session/top-up"
+    );
+    assert(checkoutRequest);
+    assert.equal(checkoutRequest.method, "POST");
+    assert.deepEqual(JSON.parse(checkoutRequest.body), {
+      pack_id: "starter",
+      preferred_currency: "USD",
+      country_code: "US",
+      return_to: "https://app.example.test/app/subscription?tab=billing",
+    });
   } finally {
     await backend.close();
   }

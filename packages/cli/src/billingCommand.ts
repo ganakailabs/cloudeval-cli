@@ -28,6 +28,15 @@ type CommonOptions = AuthGuardOptions & {
   frontendUrl?: string;
 };
 
+type TopUpCheckoutOptions = CommonOptions & {
+  currency?: string;
+  countryCode?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  contactCountryCode?: string;
+  returnTo?: string;
+};
+
 const addCommon = <T extends Command>(command: T): T =>
   command
     .option("--format <format>", "Output format: text, json, ndjson, markdown", "text")
@@ -52,7 +61,8 @@ const billingUrl = (
 
 const maybeOpen = async (url: string, options: CommonOptions) => {
   if (options.printUrl) {
-    process.stdout.write(`${url}\n`);
+    const isMachineReadable = options.format === "json" || options.format === "ndjson";
+    (isMachineReadable ? process.stderr : process.stdout).write(`${url}\n`);
   }
   if (options.open !== false && (options.open || options.printUrl)) {
     await openExternalUrl(url);
@@ -84,6 +94,65 @@ const rangeToDates = (range?: string): { startAt?: string; endAt?: string } => {
   start.setDate(end.getDate() - (days - 1));
   start.setHours(0, 0, 0, 0);
   return { startAt: start.toISOString(), endAt: end.toISOString() };
+};
+
+const addTopUpCheckoutOptions = <T extends Command>(command: T): T =>
+  command
+    .option("--currency <currency>", "Preferred checkout currency, for example USD or INR")
+    .option("--country-code <code>", "Country code used for localized payment methods")
+    .option("--contact-email <email>", "Checkout prefill email")
+    .option("--contact-phone <phone>", "Checkout prefill phone")
+    .option("--contact-country-code <code>", "Checkout contact country code")
+    .option("--return-to <url>", "Frontend return URL after checkout") as T;
+
+const checkoutUrlFromSession = (session: any): string | undefined =>
+  String(session?.checkout_url || session?.launcher_url || "").trim() || undefined;
+
+const checkoutReturnUrl = (
+  context: { baseUrl: string },
+  options: TopUpCheckoutOptions
+): string => options.returnTo || billingUrl(context, { ...options, tab: "billing" });
+
+const runTopUpCheckout = async (
+  commandName: string,
+  packId: string,
+  options: TopUpCheckoutOptions,
+  command: Command,
+  deps: RegisterBillingCommandOptions
+) => {
+  try {
+    const context = requireAuthUser(await resolveAuthContext(options, command, deps));
+    const core = await import("@cloudeval/core");
+    const returnTo = checkoutReturnUrl(context, options);
+    const session = await core.createTopUpCheckoutSession({
+      baseUrl: context.baseUrl,
+      authToken: context.token,
+      packId,
+      preferredCurrency: options.currency,
+      countryCode: options.countryCode,
+      contactEmail: options.contactEmail,
+      contactPhone: options.contactPhone,
+      contactCountryCode: options.contactCountryCode,
+      returnTo,
+    });
+    const checkoutUrl = checkoutUrlFromSession(session);
+    await write(
+      commandName,
+      {
+        packId,
+        checkoutUrl,
+        session,
+      },
+      options,
+      checkoutUrl
+    );
+    if (checkoutUrl) {
+      await maybeOpen(checkoutUrl, options);
+    }
+  } catch (error: any) {
+    console.error(`Failed to start top-up checkout: ${error?.message ?? "Unknown error"}`);
+    process.exit(1);
+  }
 };
 
 export const registerBillingCommands = (
@@ -225,7 +294,6 @@ export const registerBillingCommands = (
 
   for (const [name, getter, tab] of [
     ["invoices", "getSubscriptionBillingInfo", "billing"],
-    ["topups", "getTopUpPacks", "billing"],
     ["notifications", "getBillingNotifications", "billing"],
   ] as const) {
     addCommon(addAuthOptions(billing.command(name).description(`Show billing ${name}`), deps.defaultBaseUrl))
@@ -248,4 +316,46 @@ export const registerBillingCommands = (
         }
       });
   }
+
+  const topups = billing.command("topups").description("Show billing top-ups");
+  addCommon(addAuthOptions(topups, deps.defaultBaseUrl))
+    .option("--limit <n>", "Result limit", "25")
+    .action(async (options: CommonOptions & { limit?: string }, command) => {
+      try {
+        const context = requireAuthUser(await resolveAuthContext(options, command, deps));
+        const core = await import("@cloudeval/core");
+        const data = await core.getTopUpPacks({
+          baseUrl: context.baseUrl,
+          authToken: context.token,
+        });
+        const url = billingUrl(context, { ...options, tab: "billing" });
+        await write("billing topups", data, options, url);
+        await maybeOpen(url, options);
+      } catch (error: any) {
+        console.error(`Failed to show billing topups: ${error?.message ?? "Unknown error"}`);
+        process.exit(1);
+      }
+    });
+
+  addTopUpCheckoutOptions(
+    addCommon(
+      addAuthOptions(
+        topups.command("buy <pack-id>").description("Buy a credit top-up pack"),
+        deps.defaultBaseUrl
+      )
+    )
+  ).action((packId: string, options: TopUpCheckoutOptions, command) =>
+    runTopUpCheckout("billing topups buy", packId, options, command, deps)
+  );
+
+  addTopUpCheckoutOptions(
+    addCommon(
+      addAuthOptions(
+        billing.command("topup <pack-id>").description("Buy a credit top-up pack"),
+        deps.defaultBaseUrl
+      )
+    )
+  ).action((packId: string, options: TopUpCheckoutOptions, command) =>
+    runTopUpCheckout("billing topup", packId, options, command, deps)
+  );
 };

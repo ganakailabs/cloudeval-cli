@@ -65,14 +65,40 @@ export interface CreditStatus {
   messagesRemaining: number | null;
 }
 
+export interface CheckoutSessionResponse {
+  session_id: string;
+  flow_type: string;
+  status: string;
+  expires_at: string;
+  checkout_mode?: string;
+  checkout_url?: string | null;
+  launcher_url?: string | null;
+  resolved_currency?: string | null;
+  currency_source?: string | null;
+  fallback_applied?: boolean;
+  fallback_reason?: string | null;
+  pricing_source?: string | null;
+  resolved_plan_id?: string | null;
+  offer_applied?: boolean;
+  offer_validation_status?: string | null;
+  display_amount_minor?: number | null;
+  display_amount_major?: number | null;
+  payment_methods?: Record<string, boolean>;
+  [key: string]: unknown;
+}
+
 const CREDIT_LOW_RATIO = 0.1;
 const CREDIT_WARNING_RATIO = 0.25;
-const DEFAULT_FREE_TRIAL_CREDITS_TOTAL = 150;
+const DEFAULT_FREE_TRIAL_CREDITS_TOTAL = 1000;
 
 const fetchBillingJson = async <T>(
   options: BillingClientOptions,
   path: string,
-  query: Record<string, string | number | undefined> = {}
+  query: Record<string, string | number | undefined> = {},
+  request: {
+    method?: "GET" | "POST";
+    body?: Record<string, unknown>;
+  } = {}
 ): Promise<T> => {
   const url = new URL(`${normalizeApiBase(options.baseUrl)}${path}`);
   for (const [key, value] of Object.entries(query)) {
@@ -80,9 +106,14 @@ const fetchBillingJson = async <T>(
       url.searchParams.set(key, String(value));
     }
   }
+  const headers = getCLIHeaders(options.authToken);
+  if (request.body) {
+    headers["content-type"] = "application/json";
+  }
   const response = await fetch(url, {
-    method: "GET",
-    headers: getCLIHeaders(options.authToken),
+    method: request.method ?? "GET",
+    headers,
+    ...(request.body ? { body: JSON.stringify(request.body) } : {}),
   });
   if (!response.ok) {
     const body = await response.text().catch(() => "");
@@ -125,6 +156,39 @@ export const getSubscriptionBillingInfo = (
 
 export const getTopUpPacks = (options: BillingClientOptions) =>
   fetchBillingJson(options, "/billing/top-up/packs");
+
+export const createTopUpCheckoutSession = (
+  options: BillingClientOptions & {
+    packId: string;
+    preferredCurrency?: string;
+    countryCode?: string;
+    contactEmail?: string;
+    contactPhone?: string;
+    contactCountryCode?: string;
+    returnTo?: string;
+  }
+): Promise<CheckoutSessionResponse> =>
+  fetchBillingJson(
+    options,
+    "/billing/checkout/session/top-up",
+    {},
+    {
+      method: "POST",
+      body: {
+        pack_id: options.packId,
+        ...(options.returnTo ? { return_to: options.returnTo } : {}),
+        ...(options.preferredCurrency
+          ? { preferred_currency: options.preferredCurrency }
+          : {}),
+        ...(options.countryCode ? { country_code: options.countryCode } : {}),
+        ...(options.contactEmail ? { contact_email: options.contactEmail } : {}),
+        ...(options.contactPhone ? { contact_phone: options.contactPhone } : {}),
+        ...(options.contactCountryCode
+          ? { contact_country_code: options.contactCountryCode }
+          : {}),
+      },
+    }
+  );
 
 export const getBillingNotifications = (
   options: BillingClientOptions & { limit?: number }

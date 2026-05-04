@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { getCreditStatus, getBillingEntitlement } from "./billingClient";
+import {
+  createTopUpCheckoutSession,
+  getCreditStatus,
+  getBillingEntitlement,
+} from "./billingClient";
 
 test("getCreditStatus derives visible credit state from entitlement", () => {
   const status = getCreditStatus({
@@ -61,6 +65,60 @@ test("getBillingEntitlement reads frontend-aligned endpoint", async () => {
     });
     assert.equal(calls[0], "https://api.example.test/api/v1/billing/entitlement");
     assert.equal(entitlement.plan.id, "free");
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});
+
+test("createTopUpCheckoutSession posts pack and checkout preferences", async () => {
+  const calls: Array<{ url: string; init?: RequestInit }> = [];
+  const previousFetch = globalThis.fetch;
+  globalThis.fetch = (async (url: string | URL, init?: RequestInit) => {
+    calls.push({ url: String(url), init });
+    return new Response(
+      JSON.stringify({
+        session_id: "cs_test",
+        flow_type: "top_up",
+        status: "created",
+        expires_at: "2026-05-04T03:00:00",
+        checkout_mode: "standard_checkout",
+        launcher_url: "https://app.example.test/app/subscription/checkout-launcher?session_id=cs_test",
+        resolved_currency: "USD",
+        display_amount_major: 9,
+      }),
+      { status: 200, headers: { "content-type": "application/json" } }
+    );
+  }) as typeof fetch;
+
+  try {
+    const session = await createTopUpCheckoutSession({
+      baseUrl: "https://api.example.test/api/v1",
+      authToken: "token",
+      packId: "starter",
+      preferredCurrency: "USD",
+      countryCode: "US",
+      contactEmail: "user@example.test",
+      returnTo: "https://app.example.test/app/subscription?tab=billing",
+    });
+
+    assert.equal(
+      calls[0].url,
+      "https://api.example.test/api/v1/billing/checkout/session/top-up"
+    );
+    assert.equal(calls[0].init?.method, "POST");
+    assert.equal(
+      (calls[0].init?.headers as Record<string, string>).Authorization,
+      "Bearer token"
+    );
+    assert.deepEqual(JSON.parse(String(calls[0].init?.body)), {
+      pack_id: "starter",
+      preferred_currency: "USD",
+      country_code: "US",
+      contact_email: "user@example.test",
+      return_to: "https://app.example.test/app/subscription?tab=billing",
+    });
+    assert.equal(session.session_id, "cs_test");
+    assert.equal(session.flow_type, "top_up");
   } finally {
     globalThis.fetch = previousFetch;
   }

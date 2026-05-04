@@ -52,6 +52,10 @@ cloudeval sessions list|get|export|delete|prune [--format text|json|ndjson|markd
 cloudeval tui [--base-url <url>] [--project <id>] [--model <name>] [--profile <name>]
 cloudeval chat [--base-url <url>] [--api-key-stdin|--api-key <key>] [--machine] [--conversation <id>] [--model <name>] [--debug] [--profile <name>]
 cloudeval ask <question> [--project <id>] [--output <file>] [--json] [--base-url <url>] [--api-key-stdin|--api-key <key>] [--machine] [--model <name>] [--profile <name>]
+cloudeval credits [--format text|json|ndjson|markdown]
+cloudeval billing topups [--format text|json|ndjson|markdown]
+cloudeval billing topup <pack-id> [--currency <code>] [--country-code <code>] [--print-url|--open] [--format text|json|ndjson|markdown]
+cloudeval billing topups buy <pack-id> [--currency <code>] [--country-code <code>] [--print-url|--open] [--format text|json|ndjson|markdown]
 cloudeval login [--headless]
 cloudeval logout [--all-devices]
 cloudeval auth status
@@ -88,7 +92,7 @@ pnpm -C packages/cli test:cli:noninteractive:packaged
 The suite starts a local mock backend and covers setup/config profiles,
 doctor/status diagnostics, model discovery/defaults, local session history,
 project creation/list/get, connections, report list/show/cost/WAF/rules/download,
-billing/credits, frontend deeplinks, shell completion, capabilities, auth status,
+billing/credits/top-up checkout, frontend deeplinks, shell completion, capabilities, auth status,
 and one-shot `ask` streaming. To test a specific binary, pass `CLOUDEVAL_CLI_BIN`:
 
 ```bash

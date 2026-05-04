@@ -469,6 +469,12 @@ test("phase one and two local commands are agent-safe and profile-aware", async 
     assert.equal(doctor.data.ok, true);
     assert.equal(doctor.data.checks.some((check: any) => check.id === "base-url-secure"), true);
 
+    const mcpDoctor = parseJson(await runCli(["doctor", "--profile", "agent", "--mcp", "--format", "json"], { home }));
+    assert.equal(mcpDoctor.command, "doctor");
+    assert.equal(mcpDoctor.data.ok, true);
+    assert.equal(mcpDoctor.data.checks.some((check: any) => check.id === "mcp-tools-list"), true);
+    assert.equal(mcpDoctor.data.mcp.toolsets.includes("readonly"), true);
+
     const capabilities = parseJson(await runCli(["capabilities", "--format", "json"], { home }));
     assert.equal(JSON.stringify(capabilities.data.domains).includes("doctor"), true);
     assert.equal(JSON.stringify(capabilities.data.domains).includes("sessions list"), true);
@@ -476,6 +482,32 @@ test("phase one and two local commands are agent-safe and profile-aware", async 
     await fs.rm(home, { recursive: true, force: true });
     await backend.close();
   }
+});
+
+test("mcp status and setup helpers are machine-readable", async () => {
+  const status = parseJson(await runCli(["mcp", "status", "--format", "json"]));
+  assert.equal(status.command, "mcp status");
+  assert.equal(status.data.protocolVersion, "2025-06-18");
+  assert.equal(status.data.toolsets.includes("readonly"), true);
+  assert.equal(status.data.resources.includes("cloudeval://capabilities"), true);
+  assert.equal(status.data.prompts.includes("cost-review"), true);
+
+  const setup = parseJson(await runCli([
+    "mcp",
+    "setup",
+    "codex",
+    "--dry-run",
+    "--command",
+    "/usr/local/bin/cloudeval",
+    "--toolset",
+    "readonly",
+    "--format",
+    "json",
+  ]));
+  assert.equal(setup.command, "mcp setup");
+  assert.equal(setup.data.client, "codex");
+  assert.deepEqual(setup.data.server.args, ["mcp", "serve", "--toolset", "readonly"]);
+  assert.match(setup.data.instructions[0], /codex mcp add cloudeval/);
 });
 
 test("auth status is non-interactive and respects explicit base url", async () => {
@@ -773,6 +805,8 @@ test("ask streams a single answer non-interactively with selected project and mo
       "project-main",
       "--model",
       "gpt-5-mini",
+      "--thread",
+      "thread-reuse",
       "--format",
       "json",
       "--non-interactive",
@@ -794,9 +828,25 @@ test("ask streams a single answer non-interactively with selected project and mo
     assert.equal(session.data.messages[0].role, "user");
     assert.equal(session.data.messages.at(-1).content, "Mock answer from Cloudeval AI.");
 
+    const search = parseJson(await runCli(["sessions", "search", "Mock answer", "--format", "json"], { home }));
+    assert.equal(search.command, "sessions search");
+    assert.equal(search.data[0].threadId, answer.data.threadId);
+
+    const renamed = parseJson(await runCli([
+      "sessions",
+      "rename",
+      answer.data.threadId,
+      "Reusable thread",
+      "--format",
+      "json",
+    ], { home }));
+    assert.equal(renamed.command, "sessions rename");
+    assert.equal(renamed.data.title, "Reusable thread");
+
     const streamRequest = backend.requests.find((request) => request.path === "/api/v1/chat/stream");
     assert(streamRequest);
     const payload = JSON.parse(streamRequest.body);
+    assert.equal(payload.thread_id, "thread-reuse");
     assert.equal(payload.project.id, "project-main");
     assert.equal(payload.settings.model, "gpt-5-mini");
     assert.equal(streamRequest.authorization, "Bearer test-token");

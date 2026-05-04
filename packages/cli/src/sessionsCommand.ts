@@ -5,6 +5,8 @@ import {
   getSession,
   listSessions,
   pruneSessions,
+  renameSession,
+  searchSessions,
 } from "./sessionsStore.js";
 import { getActiveConfigProfile } from "./cliConfig.js";
 import {
@@ -65,6 +67,44 @@ export const registerSessionsCommand = (program: Command) => {
     await writeFormattedOutput({
       command: "sessions get",
       data,
+      format: options.format,
+      output: options.output,
+    });
+  });
+
+  addSessionOutputOptions(
+    sessions.command("search").description("Search local sessions").argument("<query...>", "Search query")
+  )
+    .option("--limit <n>", "Max sessions to show", "20")
+    .action(async (queryParts: string[], options: SessionOptions, command) => {
+      const profile = options.profile || getActiveConfigProfile(command);
+      const data = await searchSessions(queryParts.join(" "), {
+        profile,
+        limit: Number(options.limit) || 20,
+      });
+      await writeFormattedOutput({
+        command: "sessions search",
+        data,
+        format: options.format,
+        output: options.output,
+      });
+    });
+
+  addSessionOutputOptions(
+    sessions
+      .command("rename")
+      .description("Rename one local session")
+      .argument("<thread-id>", "Thread id")
+      .argument("<title...>", "New title")
+  ).action(async (threadId: string, titleParts: string[], options: SessionOptions, command) => {
+    const profile = options.profile || getActiveConfigProfile(command);
+    const data = await renameSession(threadId, titleParts.join(" "), profile);
+    if (!data) {
+      throw new Error(`Session ${threadId} was not found.`);
+    }
+    await writeFormattedOutput({
+      command: "sessions rename",
+      data: sessionSummary(data),
       format: options.format,
       output: options.output,
     });

@@ -44,19 +44,21 @@ Run:
 ```bash
 cloudeval setup [--non-interactive] [--base-url <url>] [--frontend-url <url>] [--project <id>] [--model <name>] [--profile <name>]
 cloudeval config show|get|set|unset|path|profiles [--profile <name>] [--format text|json|ndjson|markdown]
-cloudeval doctor [--deep] [--format text|json|ndjson|markdown]
+cloudeval doctor [--deep] [--mcp] [--format text|json|ndjson|markdown]
 cloudeval status [--format text|json|ndjson|markdown]
 cloudeval models list [--base-url <url>] [--api-key-stdin|--api-key <key>] [--format text|json|ndjson|markdown]
 cloudeval models default get|set [--profile <name>]
-cloudeval sessions list|get|export|delete|prune [--format text|json|ndjson|markdown]
+cloudeval sessions list|get|search|rename|export|delete|prune [--format text|json|ndjson|markdown]
 cloudeval tui [--base-url <url>] [--project <id>] [--model <name>] [--profile <name>]
-cloudeval chat [--base-url <url>] [--api-key-stdin|--api-key <key>] [--machine] [--conversation <id>] [--model <name>] [--debug] [--profile <name>]
-cloudeval ask <question> [--project <id>] [--output <file>] [--json] [--base-url <url>] [--api-key-stdin|--api-key <key>] [--machine] [--model <name>] [--profile <name>]
+cloudeval chat [--base-url <url>] [--api-key-stdin|--api-key <key>] [--machine] [--conversation <id>|--continue|--resume <id-or-title>] [--model <name>] [--debug] [--profile <name>]
+cloudeval ask <question> [--project <id>] [--thread <id>] [--output <file>] [--json] [--base-url <url>] [--api-key-stdin|--api-key <key>] [--machine] [--model <name>] [--profile <name>]
 cloudeval credits [--format text|json|ndjson|markdown]
 cloudeval billing topups [--format text|json|ndjson|markdown]
 cloudeval billing topup <pack-id> [--currency <code>] [--country-code <code>] [--print-url|--open] [--format text|json|ndjson|markdown]
 cloudeval billing topups buy <pack-id> [--currency <code>] [--country-code <code>] [--print-url|--open] [--format text|json|ndjson|markdown]
-cloudeval mcp serve [--base-url <url>] [--frontend-url <url>] [--api-key <key>] [--machine] [--profile <name>]
+cloudeval mcp status [--format text|json|ndjson|markdown]
+cloudeval mcp setup codex|claude|cursor [--dry-run] [--command <path>] [--toolset all|readonly|projects|reports|billing]
+cloudeval mcp serve [--toolset all|readonly|projects|reports|billing] [--base-url <url>] [--frontend-url <url>] [--api-key <key>] [--machine] [--profile <name>]
 cloudeval login [--headless]
 cloudeval logout [--all-devices]
 cloudeval auth status
@@ -78,6 +80,12 @@ Model Context Protocol:
 cloudeval mcp serve
 ```
 
+For a read-only agent surface:
+
+```bash
+cloudeval mcp serve --toolset readonly
+```
+
 Example MCP client configuration:
 
 ```json
@@ -94,8 +102,16 @@ Example MCP client configuration:
 Codex CLI:
 
 ```bash
+cloudeval mcp setup codex --dry-run
 codex mcp add cloudeval -- cloudeval mcp serve
 codex mcp list
+```
+
+Claude Desktop and Cursor setup helpers:
+
+```bash
+cloudeval mcp setup claude --dry-run --toolset reports --format json
+cloudeval mcp setup cursor --dry-run --toolset billing --format json
 ```
 
 For local development before installing the binary:
@@ -130,6 +146,25 @@ or pass `--machine` with service-principal credentials. `--api-key-stdin` is not
 available for `mcp serve` because stdin is reserved for MCP JSON-RPC messages.
 The server writes protocol messages only to stdout; diagnostics from
 `--verbose` go to stderr.
+
+MCP also exposes resources (`cloudeval://capabilities`,
+`cloudeval://projects`, `cloudeval://billing/summary`,
+`cloudeval://reports/latest`) and prompt templates (`cost-review`,
+`waf-triage`, `architecture-review`, `billing-review`) for clients that support
+MCP resources and prompts. `cloudeval doctor --mcp --format json` verifies the
+local MCP discovery surface.
+
+## Session Search And Resume
+
+`ask` and MCP `ask` calls write local session history under the active profile.
+Use these commands to inspect and reuse sessions:
+
+```bash
+cloudeval sessions search "cost spike" --format json
+cloudeval sessions rename <thread-id> "Production cost review"
+cloudeval chat --resume "Production cost review"
+cloudeval ask "Follow up on the same investigation" --thread <thread-id>
+```
 
 For help:
 

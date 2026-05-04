@@ -389,6 +389,12 @@ const parseJson = (result: Awaited<ReturnType<typeof runCli>>) => {
   return JSON.parse(result.stdout);
 };
 
+const parseJsonError = (result: Awaited<ReturnType<typeof runCli>>) => {
+  assert.notEqual(result.exitCode, 0);
+  assert.equal(result.stderr, "");
+  return JSON.parse(result.stdout);
+};
+
 test("non-interactive discovery commands are machine-readable", async () => {
   const capabilities = parseJson(await runCli(["capabilities", "--format", "json"]));
   assert.equal(capabilities.ok, true);
@@ -738,6 +744,18 @@ test("billing and credits commands are non-interactive and JSON-safe", async () 
   } finally {
     await backend.close();
   }
+});
+
+test("billing auth failures preserve JSON output", async () => {
+  const plans = parseJsonError(await runCli(["billing", "plans", "--format", "json", "--non-interactive"]));
+  assert.equal(plans.ok, false);
+  assert.equal(plans.command, "billing plans");
+  assert.match(plans.error.message, /No authentication available/);
+
+  const topups = parseJsonError(await runCli(["billing", "topups", "--format", "json", "--non-interactive"]));
+  assert.equal(topups.ok, false);
+  assert.equal(topups.command, "billing topups");
+  assert.match(topups.error.message, /No authentication available/);
 });
 
 test("ask streams a single answer non-interactively with selected project and model", async () => {

@@ -4,7 +4,9 @@ import {
   type MachineOutputFormat,
 } from "./outputFormatter.js";
 import { buildDomains, cliCommands } from "./cliCommandRegistry.js";
-import { mcpToolNames } from "./mcpCommand.js";
+import { getMcpStatusData, mcpToolNames } from "./mcpCommand.js";
+
+const mcpStatus = getMcpStatusData();
 
 const capabilities = {
   version: 1,
@@ -55,6 +57,10 @@ const capabilities = {
     transport: "stdio",
     command: "cloudeval mcp serve",
     protocolVersions: ["2025-06-18", "2025-03-26", "2024-11-05"],
+    toolsets: mcpStatus.toolsets,
+    resources: mcpStatus.resources,
+    prompts: mcpStatus.prompts,
+    setupClients: mcpStatus.setupClients,
     auth: {
       preferred: "stored cloudeval login credentials or MCP client env CLOUDEVAL_API_KEY",
       machine: "Pass --machine and configure service-principal environment credentials.",

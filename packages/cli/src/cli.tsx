@@ -24,7 +24,7 @@ import { buildFrontendUrl, openExternalUrl, resolveFrontendBaseUrl } from "./fro
 import { CLI_VERSION } from "./version.js";
 import { getDefaultBaseUrl, shouldUseStoredBaseUrl } from "./baseUrl.js";
 import { getActiveConfigProfile, loadCliConfig } from "./cliConfig.js";
-import { recordSessionTurn } from "./sessionsStore.js";
+import { listSessions, recordSessionTurn, resolveSessionReference } from "./sessionsStore.js";
 
 const DEFAULT_BASE_URL = getDefaultBaseUrl();
 const SENSITIVE_KEY_PATTERN = /token|authorization|cookie|secret|password|api[_-]?key/i;
@@ -616,6 +616,8 @@ program
   .option("--api-key-stdin", "Read API key from stdin (recommended for automation)", false)
   .option("--machine", "Allow machine credential fallback (service principal)", false)
   .option("--conversation <id>", "Conversation/thread id to resume")
+  .option("--continue", "Resume the most recent local chat session", false)
+  .option("--resume <id-or-title>", "Resume a local chat session by thread id or title")
   .option("--model <name>", "Model name")
   .option("--debug", "Log raw chunks", false)
   .option("--health-check", "Enable health check (disabled by default)")
@@ -630,6 +632,7 @@ program
     ]);
     const baseUrl = await resolveBaseUrl(options, command);
     assertSecureBaseUrl(baseUrl);
+    const selectedProfile = getActiveConfigProfile(command);
     const cliConfig = await resolveCliConfig(command);
 
     let apiKey: string | undefined = options.apiKey;
@@ -654,12 +657,26 @@ program
         debug: options.debug,
       });
     }
+    let conversationId = options.conversation;
+    if (!conversationId && options.resume) {
+      conversationId = (await resolveSessionReference(options.resume, selectedProfile))?.threadId;
+      if (!conversationId) {
+        throw new Error(`Session '${options.resume}' was not found.`);
+      }
+    }
+    if (!conversationId && options.continue) {
+      conversationId = (await listSessions(1, selectedProfile))[0]?.threadId;
+      if (!conversationId) {
+        throw new Error("No local sessions are available to continue.");
+      }
+    }
+
     render(
       <App
         baseUrl={baseUrl}
         apiKey={apiKey}
         allowMachineAuth={!!options.machine}
-        conversationId={options.conversation}
+        conversationId={conversationId}
         model={options.model ?? cliConfig.model}
         initialProjectId={cliConfig.defaultProjectId}
         frontendUrl={cliConfig.frontendUrl}
@@ -689,6 +706,7 @@ program
   .option("--machine", "Allow machine credential fallback (service principal)", false)
   .option("--project <id>", "Project ID to use")
   .option("--model <name>", "Model name")
+  .option("--thread <id>", "Thread id to reuse for this ask")
   .option("--output <file>", "Output file (default: stdout)")
   .option("--format <format>", "Output format: text, json, ndjson, markdown", "text")
   .option("--json", "Output as JSON")
@@ -930,7 +948,7 @@ program
       }
 
       // Stream the chat response
-      const threadId = randomUUID();
+      const threadId = options.thread ?? randomUUID();
       verboseLog("Starting chat stream", {
         threadId,
         projectId: project.id,

@@ -1,7 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import { createInterface } from "node:readline";
 import type { Command } from "commander";
 import {
   buildFrontendUrl,
@@ -1790,9 +1789,24 @@ const protocolVersionFor = (requested: unknown): string =>
     ? requested
     : MCP_PROTOCOL_VERSION;
 
+const MCP_STDIO_SEPARATOR = "\r\n\r\n";
+
 const serializeJsonRpc = (
   message: JsonRpcResponse | JsonRpcNotification,
-): string => `${JSON.stringify(message)}\n`;
+): string => {
+  const body = JSON.stringify(message);
+  return `Content-Length: ${Buffer.byteLength(body, "utf8")}${MCP_STDIO_SEPARATOR}${body}`;
+};
+
+const parseContentLength = (header: string): number | undefined => {
+  for (const line of header.split(/\r?\n/)) {
+    const match = line.match(/^Content-Length:\s*(\d+)\s*$/i);
+    if (match) {
+      return Number(match[1]);
+    }
+  }
+  return undefined;
+};
 
 export const serveMcpServer = async (
   options: ServeMcpOptions,
@@ -1992,18 +2006,56 @@ export const serveMcpServer = async (
     }
   };
 
-  const readline = createInterface({
-    input: process.stdin,
-    crlfDelay: Infinity,
-  });
-
-  for await (const line of readline) {
-    const trimmed = line.trim();
-    if (!trimmed) {
-      continue;
+  let stdinBuffer = Buffer.alloc(0);
+  const processFrames = async () => {
+    while (stdinBuffer.length) {
+      const headerEnd = stdinBuffer.indexOf(MCP_STDIO_SEPARATOR);
+      if (headerEnd === -1) {
+        return;
+      }
+      const header = stdinBuffer.subarray(0, headerEnd).toString("ascii");
+      const contentLength = parseContentLength(header);
+      stdinBuffer = stdinBuffer.subarray(headerEnd + MCP_STDIO_SEPARATOR.length);
+      if (contentLength === undefined) {
+        send(
+          jsonRpcError(0, -32700, "Parse error", {
+            message: "Missing MCP Content-Length header.",
+          }),
+        );
+        continue;
+      }
+      if (stdinBuffer.length < contentLength) {
+        stdinBuffer = Buffer.concat([
+          Buffer.from(`${header}${MCP_STDIO_SEPARATOR}`, "ascii"),
+          stdinBuffer,
+        ]);
+        return;
+      }
+      const body = stdinBuffer.subarray(0, contentLength).toString("utf8");
+      stdinBuffer = stdinBuffer.subarray(contentLength);
+      try {
+        await handleMessage(JSON.parse(body) as JsonValue);
+      } catch (error: any) {
+        send(
+          jsonRpcError(0, -32700, "Parse error", {
+            message: error?.message ?? String(error),
+          }),
+        );
+      }
     }
+  };
+
+  for await (const chunk of process.stdin) {
+    stdinBuffer = Buffer.concat([
+      stdinBuffer,
+      Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk),
+    ]);
+    await processFrames();
+  }
+
+  if (stdinBuffer.toString("utf8").trim()) {
     try {
-      await handleMessage(JSON.parse(trimmed) as JsonValue);
+      await handleMessage(JSON.parse(stdinBuffer.toString("utf8")) as JsonValue);
     } catch (error: any) {
       send(
         jsonRpcError(0, -32700, "Parse error", {

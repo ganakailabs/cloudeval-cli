@@ -601,6 +601,26 @@ export const normalizeApiBase = (baseUrl?: string): string => {
   return trimmed.replace(/\/api\/?$/, "") + "/api/v1";
 };
 
+const resolveAuthBootstrapBase = (apiBase: string): string => {
+  try {
+    const url = new URL(apiBase);
+    const path = url.pathname.replace(/\/+$/, "");
+    if (
+      url.hostname.toLowerCase() === "cloudeval.ai" &&
+      /\/api\/proxy\/v1$/i.test(path)
+    ) {
+      url.pathname = path.replace(/\/api\/proxy\/v1$/i, "/api/v1");
+      url.search = "";
+      url.hash = "";
+      return url.toString().replace(/\/+$/, "");
+    }
+  } catch {
+    // normalizeApiBase already validates this path; keep the original base.
+  }
+
+  return apiBase;
+};
+
 const sanitizeStoredForDisk = (data: StoredAuth): StoredAuth => {
   const clone: StoredAuth = { ...data };
   delete clone.token;
@@ -1404,6 +1424,7 @@ const loginWithPkceBrowser = async (
   options: { browserOpener?: (url: string) => boolean } = {}
 ): Promise<string> => {
   const apiBase = normalizeApiBase(baseUrl);
+  const authBase = resolveAuthBootstrapBase(apiBase);
   const clientId = getCLIClientId();
   const state = createOpaqueState();
   const codeVerifier = createPkceVerifier();
@@ -1412,7 +1433,7 @@ const loginWithPkceBrowser = async (
   const { redirectUri, codePromise, close } = await createLoopbackCallback(state);
 
   try {
-    const startResponse = await fetch(`${apiBase}/auth/cli/login/start`, {
+    const startResponse = await fetch(`${authBase}/auth/cli/login/start`, {
       method: "POST",
       headers: getCLIHeaders(),
       body: JSON.stringify({
@@ -1452,7 +1473,7 @@ const loginWithPkceBrowser = async (
 
     const code = await codePromise;
 
-    const tokenResponse = await fetch(`${apiBase}/auth/token`, {
+    const tokenResponse = await fetch(`${authBase}/auth/token`, {
       method: "POST",
       headers: getCLIHeaders(),
       body: JSON.stringify({
@@ -1487,11 +1508,12 @@ export const loginWithDeviceCode = async (
   options: DeviceCodeLoginOptions = {}
 ): Promise<string> => {
   const apiBase = normalizeApiBase(baseUrl);
+  const authBase = resolveAuthBootstrapBase(apiBase);
   const clientId = getCLIClientId();
 
   const requestBody = JSON.stringify({ client_id: getCLIClientId() });
 
-  const deviceCodeResponse = await fetch(`${apiBase}/auth/device/code`, {
+  const deviceCodeResponse = await fetch(`${authBase}/auth/device/code`, {
     method: "POST",
     headers: getCLIHeaders(),
     body: requestBody,
@@ -1502,7 +1524,10 @@ export const loginWithDeviceCode = async (
 
     if (deviceCodeResponse.status === 404) {
       // Backward compatibility with existing endpoint path.
-      return loginWithLegacyDeviceEndpoints(apiBase, clientId, requestBody, options);
+      return loginWithLegacyDeviceEndpoints(authBase, clientId, requestBody, {
+        ...options,
+        persistBaseUrl: apiBase,
+      });
     }
 
     if (
@@ -1521,9 +1546,10 @@ export const loginWithDeviceCode = async (
     throw new Error(errorMessage);
   }
 
-  return pollDeviceCodeAndPersist(apiBase, clientId, deviceCodeResponse, {
+  return pollDeviceCodeAndPersist(authBase, clientId, deviceCodeResponse, {
     openInBrowser: options.openInBrowser,
     browserOpener: options.browserOpener,
+    persistBaseUrl: apiBase,
   });
 };
 
@@ -1531,7 +1557,7 @@ const loginWithLegacyDeviceEndpoints = async (
   apiBase: string,
   clientId: string,
   requestBody: string,
-  options: DeviceCodeLoginOptions = {}
+  options: DeviceCodeLoginOptions & { persistBaseUrl?: string } = {}
 ): Promise<string> => {
   const deviceCodeResponse = await fetch(`${apiBase}/device/code`, {
     method: "POST",
@@ -1548,6 +1574,7 @@ const loginWithLegacyDeviceEndpoints = async (
     useLegacyEndpoints: true,
     openInBrowser: options.openInBrowser,
     browserOpener: options.browserOpener,
+    persistBaseUrl: options.persistBaseUrl,
   });
 };
 
@@ -1559,6 +1586,7 @@ const pollDeviceCodeAndPersist = async (
     useLegacyEndpoints?: boolean;
     openInBrowser?: boolean;
     browserOpener?: (url: string) => boolean;
+    persistBaseUrl?: string;
   } = {}
 ): Promise<string> => {
   const deviceCodeData = (await deviceCodeResponse.json()) as DeviceCodeResponse;
@@ -1607,7 +1635,9 @@ const pollDeviceCodeAndPersist = async (
     const tokenData = (await tokenResponse.json()) as DeviceTokenResponse;
 
     if (tokenResponse.ok && tokenData.access_token) {
-      const accessToken = persistAuthTokens(tokenData, { baseUrl: apiBase });
+      const accessToken = persistAuthTokens(tokenData, {
+        baseUrl: options.persistBaseUrl ?? apiBase,
+      });
       console.log("\nAuthentication successful. Session saved.\n");
       return accessToken;
     }

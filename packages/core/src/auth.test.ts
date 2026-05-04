@@ -191,7 +191,7 @@ test("device code login falls back to Azure AD when backend bootstrap is protect
     const token = await loginWithDeviceCode("https://cloudeval.ai");
     assert.equal(token, "azure-access-token");
     assert.deepEqual(requests, [
-      "https://cloudeval.ai/api/proxy/v1/auth/device/code",
+      "https://cloudeval.ai/api/v1/auth/device/code",
       "https://login.microsoftonline.com/tenant-id/oauth2/v2.0/devicecode",
       "https://login.microsoftonline.com/tenant-id/oauth2/v2.0/token",
     ]);
@@ -746,7 +746,7 @@ test("login prefers browser-assisted device flow before PKCE", async () => {
   process.env.CLOUDEVAL_ALLOW_INSECURE_FILE_STORAGE = "1";
 
   try {
-    const { login } = await importFreshAuthModule(tempHome);
+    const { getAuthStatus, login } = await importFreshAuthModule(tempHome);
     const originalFetch = global.fetch;
     const originalSetTimeout = global.setTimeout;
     const originalLog = console.log;
@@ -801,9 +801,12 @@ test("login prefers browser-assisted device flow before PKCE", async () => {
         "https://cloudeval.ai/device/login?user_code=ABCD-EFGH",
       ]);
       assert.deepEqual(requests, [
-        "https://cloudeval.ai/api/proxy/v1/auth/device/code",
-        "https://cloudeval.ai/api/proxy/v1/auth/device/token",
+        "https://cloudeval.ai/api/v1/auth/device/code",
+        "https://cloudeval.ai/api/v1/auth/device/token",
       ]);
+
+      const status = await getAuthStatus("https://cloudeval.ai/api/proxy/v1");
+      assert.equal(status.baseUrl, "https://cloudeval.ai/api/proxy/v1");
     } finally {
       global.fetch = originalFetch;
       global.setTimeout = originalSetTimeout;

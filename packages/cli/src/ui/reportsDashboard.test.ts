@@ -96,12 +96,22 @@ test("builds reports home metrics and project drilldown from frontend-aligned pa
     },
   });
 
-  assert.equal(model.metrics.find((metric) => metric.label === "Total Reports")?.value, "9");
-  assert.equal(model.metrics.find((metric) => metric.label === "Average Score")?.value, "82/100");
-  assert.equal(model.metrics.find((metric) => metric.label === "Monthly Cost")?.value, "$4,200");
   assert.equal(
-    model.metrics.find((metric) => metric.label === "Savings Opportunity")?.value,
-    "$1,200"
+    model.metrics.find((metric) => metric.label === "Total Reports")?.value,
+    "9",
+  );
+  assert.equal(
+    model.metrics.find((metric) => metric.label === "Average Score")?.value,
+    "82/100",
+  );
+  assert.equal(
+    model.metrics.find((metric) => metric.label === "Monthly Cost")?.value,
+    "$4,200",
+  );
+  assert.equal(
+    model.metrics.find((metric) => metric.label === "Savings Opportunity")
+      ?.value,
+    "$1,200",
   );
   assert.equal(model.coverageLabel, "2 of 3 projects have reports");
   assert.deepEqual(
@@ -110,25 +120,46 @@ test("builds reports home metrics and project drilldown from frontend-aligned pa
       ["architecture", 4],
       ["cost", 3],
       ["unit_tests", 2],
-    ]
+    ],
   );
   assert.equal(model.activityTrend.summary, "+3 runs");
   assert.equal(model.projectRows[0]?.projectName, "Playground");
   assert.equal(model.projectRows[0]?.isSelected, true);
   assert.equal(model.selectedProjectSummary.projectName, "Playground");
   assert.equal(
-    model.selectedProjectSummary.metrics.find((metric) => metric.label === "WAF Score")?.value,
-    "72/100"
+    model.selectedProjectSummary.metrics.find(
+      (metric) => metric.label === "WAF Score",
+    )?.value,
+    "72/100",
   );
   assert.equal(
-    model.selectedProjectSummary.metrics.find((metric) => metric.label === "Monthly Cost")?.value,
-    "$310"
+    model.selectedProjectSummary.metrics.find(
+      (metric) => metric.label === "Monthly Cost",
+    )?.value,
+    "$310",
   );
   assert.equal(
-    model.selectedProjectSummary.metrics.find((metric) => metric.label === "Critical+High")?.value,
-    "4"
+    model.selectedProjectSummary.metrics.find(
+      (metric) => metric.label === "Critical+High",
+    )?.value,
+    "4",
   );
-  assert.equal(model.selectedProjectSummary.pillarScores[0]?.label, "Reliability");
+  assert.equal(
+    model.selectedProjectSummary.pillarScores[0]?.label,
+    "Reliability",
+  );
+  assert.deepEqual(
+    model.reportTabs.map((tab) => [tab.id, tab.label, tab.selected]),
+    [
+      ["overview", "Overview", true],
+      ["architecture", "Architecture", false],
+      ["cost", "Cost", false],
+    ],
+  );
+  assert.deepEqual(
+    model.tableOfContents.map((section) => section.label),
+    ["Overview", "Architecture", "Cost", "Priority fixes", "Evidence"],
+  );
   assert.equal(model.topActions[0]?.label, "Resolve public storage");
   assert.equal(model.topInsights[0], "2 critical issues across 2 projects");
 });

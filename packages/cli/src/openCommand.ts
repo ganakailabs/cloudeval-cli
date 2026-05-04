@@ -8,7 +8,7 @@ import { writeFormattedOutput } from "./outputFormatter.js";
 
 type ResolveBaseUrl = (
   options: { baseUrl?: string },
-  command?: Command
+  command?: Command,
 ) => Promise<string>;
 
 export interface RegisterOpenCommandOptions {
@@ -16,7 +16,10 @@ export interface RegisterOpenCommandOptions {
   resolveBaseUrl: ResolveBaseUrl;
 }
 
-const addOpenOptions = <T extends Command>(command: T, defaultBaseUrl: string): T =>
+const addOpenOptions = <T extends Command>(
+  command: T,
+  defaultBaseUrl: string,
+): T =>
   command
     .option("--base-url <url>", "Backend base URL", defaultBaseUrl)
     .option("--frontend-url <url>", "Frontend base URL")
@@ -25,7 +28,7 @@ const addOpenOptions = <T extends Command>(command: T, defaultBaseUrl: string): 
 
 const emitOrOpen = async (
   url: string,
-  options: { printUrl?: boolean; open?: boolean; format?: string }
+  options: { printUrl?: boolean; open?: boolean; format?: string },
 ) => {
   if (options.printUrl) {
     process.stdout.write(`${url}\n`);
@@ -45,7 +48,7 @@ const emitOrOpen = async (
 const base = async (
   options: { frontendUrl?: string; baseUrl?: string },
   command: Command,
-  deps: RegisterOpenCommandOptions
+  deps: RegisterOpenCommandOptions,
 ) =>
   resolveFrontendBaseUrl({
     frontendUrl: options.frontendUrl,
@@ -54,22 +57,27 @@ const base = async (
 
 export const registerOpenCommand = (
   program: Command,
-  deps: RegisterOpenCommandOptions
+  deps: RegisterOpenCommandOptions,
 ) => {
   const open = program
     .command("open")
     .description("Open CloudEval frontend deeplinks");
 
-  addOpenOptions(open.command("overview").description("Open overview"), deps.defaultBaseUrl)
-    .action(async (options, command) => {
-      const url = buildFrontendUrl({
-        baseUrl: await base(options, command, deps),
-        target: "overview",
-      });
-      await emitOrOpen(url, options);
+  addOpenOptions(
+    open.command("overview").description("Open overview"),
+    deps.defaultBaseUrl,
+  ).action(async (options, command) => {
+    const url = buildFrontendUrl({
+      baseUrl: await base(options, command, deps),
+      target: "overview",
     });
+    await emitOrOpen(url, options);
+  });
 
-  addOpenOptions(open.command("chat").description("Open chat"), deps.defaultBaseUrl)
+  addOpenOptions(
+    open.command("chat").description("Open chat"),
+    deps.defaultBaseUrl,
+  )
     .option("--thread <id>", "Thread id")
     .action(async (options, command) => {
       const url = buildFrontendUrl({
@@ -80,13 +88,20 @@ export const registerOpenCommand = (
       await emitOrOpen(url, options);
     });
 
-  addOpenOptions(open.command("projects").description("Open projects"), deps.defaultBaseUrl)
+  addOpenOptions(
+    open.command("projects").description("Open projects"),
+    deps.defaultBaseUrl,
+  )
     .option("--quick", "Open the quick project dialog", false)
     .option("--template-url <url>", "Template URL for quick project creation")
     .option("--name <name>", "Project name")
     .option("--description <text>", "Project description")
     .option("--provider <provider>", "Cloud provider")
-    .option("--auto-submit", "Ask frontend quick project dialog to auto-submit", false)
+    .option(
+      "--auto-submit",
+      "Ask frontend quick project dialog to auto-submit",
+      false,
+    )
     .action(async (options, command) => {
       const url = buildFrontendUrl({
         baseUrl: await base(options, command, deps),
@@ -102,8 +117,11 @@ export const registerOpenCommand = (
     });
 
   addOpenOptions(
-    open.command("project").description("Open a project").argument("<id>", "Project id"),
-    deps.defaultBaseUrl
+    open
+      .command("project")
+      .description("Open a project")
+      .argument("<id>", "Project id"),
+    deps.defaultBaseUrl,
   )
     .option("--view <view>", "View mode: preview, code, both")
     .option("--layout <layout>", "Preview layout: architecture, dependency")
@@ -136,7 +154,10 @@ export const registerOpenCommand = (
       await emitOrOpen(url, options);
     });
 
-  addOpenOptions(open.command("connections").description("Open connections"), deps.defaultBaseUrl)
+  addOpenOptions(
+    open.command("connections").description("Open connections"),
+    deps.defaultBaseUrl,
+  )
     .option("--dialog <dialog>", "Dialog to open, e.g. add-connection")
     .action(async (options, command) => {
       const url = buildFrontendUrl({
@@ -148,8 +169,11 @@ export const registerOpenCommand = (
     });
 
   addOpenOptions(
-    open.command("connection").description("Open a connection").argument("<id>", "Connection id"),
-    deps.defaultBaseUrl
+    open
+      .command("connection")
+      .description("Open a connection")
+      .argument("<id>", "Connection id"),
+    deps.defaultBaseUrl,
   ).action(async (id, options, command) => {
     const url = buildFrontendUrl({
       baseUrl: await base(options, command, deps),
@@ -159,7 +183,10 @@ export const registerOpenCommand = (
     await emitOrOpen(url, options);
   });
 
-  addOpenOptions(open.command("reports").description("Open reports"), deps.defaultBaseUrl)
+  addOpenOptions(
+    open.command("reports").description("Open reports"),
+    deps.defaultBaseUrl,
+  )
     .option("--project <id>", "Project id")
     .option("--tab <tab>", "Reports tab")
     .option("--report-type <type>", "Report type: all, cost, waf")
@@ -170,7 +197,25 @@ export const registerOpenCommand = (
     .option("--issues-fullscreen", "Open issues fullscreen", false)
     .option("--issues-view <view>", "Issues view: table, breakdown")
     .option("--download-pdf", "Trigger frontend PDF download", false)
+    .option(
+      "--pdf-verbosity <verbosity>",
+      "PDF export type: brief, detailed, evidence",
+    )
+    .option(
+      "--download-report <format>",
+      "Trigger frontend report download: pdf, markdown, json",
+    )
+    .option(
+      "--report-verbosity <verbosity>",
+      "Report export depth: brief, detailed, evidence",
+    )
     .action(async (options, command) => {
+      const useGenericReportDownload = Boolean(options.downloadReport);
+      const downloadReport = useGenericReportDownload
+        ? options.downloadReport
+        : undefined;
+      const reportVerbosity =
+        options.reportVerbosity ?? options.pdfVerbosity ?? undefined;
       const url = buildFrontendUrl({
         baseUrl: await base(options, command, deps),
         target: "reports",
@@ -183,12 +228,20 @@ export const registerOpenCommand = (
         issuesQuery: options.issuesQuery,
         issuesFullscreen: options.issuesFullscreen,
         issuesView: options.issuesView,
-        downloadPdf: options.downloadPdf,
+        downloadPdf: useGenericReportDownload ? false : options.downloadPdf,
+        pdfVerbosity: useGenericReportDownload
+          ? undefined
+          : options.pdfVerbosity,
+        downloadReport,
+        reportVerbosity: useGenericReportDownload ? reportVerbosity : undefined,
       });
       await emitOrOpen(url, options);
     });
 
-  addOpenOptions(open.command("billing").description("Open billing"), deps.defaultBaseUrl)
+  addOpenOptions(
+    open.command("billing").description("Open billing"),
+    deps.defaultBaseUrl,
+  )
     .option("--tab <tab>", "Billing tab: plans, usage, billing")
     .action(async (options, command) => {
       const url = buildFrontendUrl({

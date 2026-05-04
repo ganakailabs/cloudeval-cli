@@ -33,6 +33,18 @@ export interface SelectedProjectReportSummary {
   };
 }
 
+export interface ReportDashboardTab {
+  id: "overview" | "architecture" | "cost";
+  label: string;
+  selected: boolean;
+}
+
+export interface ReportDashboardTocSection {
+  id: string;
+  label: string;
+  description: string;
+}
+
 export interface ReportsDashboardModel {
   metrics: OverviewMetric[];
   coverageRatio?: number;
@@ -41,6 +53,8 @@ export interface ReportsDashboardModel {
   statusBars: OverviewBar[];
   freshnessBars: OverviewBar[];
   activityTrend: OverviewTrend;
+  reportTabs: ReportDashboardTab[];
+  tableOfContents: ReportDashboardTocSection[];
   projectRows: ReportsProjectHealthRow[];
   selectedProjectSummary: SelectedProjectReportSummary;
   topActions: Array<{
@@ -92,7 +106,7 @@ const firstString = (value: unknown, keys: string[]): string | undefined => {
 
 const firstRecord = (
   value: unknown,
-  path: string[]
+  path: string[],
 ): Record<string, unknown> | undefined => {
   let current: unknown = value;
   for (const key of path) {
@@ -120,13 +134,19 @@ const firstArray = (value: unknown, path: string[]): unknown[] => {
 const formatNumber = (value: number | undefined): string =>
   value === undefined
     ? "-"
-    : new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 }).format(value);
+    : new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 }).format(
+        value,
+      );
 
-const formatCurrency = (value: number | undefined, currency = "USD"): string => {
+const formatCurrency = (
+  value: number | undefined,
+  currency = "USD",
+): string => {
   if (value === undefined) {
     return "-";
   }
-  const symbol = currency.toUpperCase() === "USD" ? "$" : `${currency.toUpperCase()} `;
+  const symbol =
+    currency.toUpperCase() === "USD" ? "$" : `${currency.toUpperCase()} `;
   return `${symbol}${new Intl.NumberFormat("en-US", {
     maximumFractionDigits: 0,
   }).format(value)}`;
@@ -151,10 +171,18 @@ const toneFromCount = (count?: number): OverviewTone => {
 const toneFromStatus = (status: string): OverviewTone => {
   const normalized = status.toLowerCase();
   if (normalized === "completed" || normalized === "fresh") return "success";
-  if (normalized === "running" || normalized === "partial" || normalized === "stale") {
+  if (
+    normalized === "running" ||
+    normalized === "partial" ||
+    normalized === "stale"
+  ) {
     return "warning";
   }
-  if (normalized === "failed" || normalized === "outdated" || normalized === "missing") {
+  if (
+    normalized === "failed" ||
+    normalized === "outdated" ||
+    normalized === "missing"
+  ) {
     return "danger";
   }
   return "normal";
@@ -187,7 +215,9 @@ const extractPillarScores = (report: unknown): OverviewBar[] => {
       })
       .filter(Boolean)
       .reduce<Record<string, number>>((acc, row) => ({ ...acc, ...row }), {});
-    return objectEntriesAsBars(rows, { tone: (_label, value) => toneFromScore(value) });
+    return objectEntriesAsBars(rows, {
+      tone: (_label, value) => toneFromScore(value),
+    });
   }
 
   const scores =
@@ -195,7 +225,9 @@ const extractPillarScores = (report: unknown): OverviewBar[] => {
     firstRecord(report, ["processed", "pillar_scores"]) ??
     firstRecord(report, ["pillar_scores"]);
 
-  return objectEntriesAsBars(scores, { tone: (_label, value) => toneFromScore(value) });
+  return objectEntriesAsBars(scores, {
+    tone: (_label, value) => toneFromScore(value),
+  });
 };
 
 const extractMonthlyCost = (report: unknown): number | undefined =>
@@ -213,8 +245,12 @@ const extractMonthlyCost = (report: unknown): number | undefined =>
   firstNumber(report, ["total_monthly_cost", "monthly_cost", "monthly"]);
 
 const extractMonthlySavings = (report: unknown): number | undefined =>
-  firstNumber(firstRecord(report, ["parsed", "estimatedSavings"]), ["amount"]) ??
-  firstNumber(firstRecord(report, ["opportunity_summary"]), ["total_monthly_savings"]) ??
+  firstNumber(firstRecord(report, ["parsed", "estimatedSavings"]), [
+    "amount",
+  ]) ??
+  firstNumber(firstRecord(report, ["opportunity_summary"]), [
+    "total_monthly_savings",
+  ]) ??
   firstNumber(firstRecord(report, ["dashboard", "opportunity_summary"]), [
     "total_monthly_savings",
   ]) ??
@@ -262,14 +298,32 @@ const extractRecommendationCount = (report: unknown): number | undefined => {
 
 const extractCriticalHighCount = (report: unknown): number | undefined => {
   const critical =
-    firstNumber(firstRecord(report, ["parsed", "counts"]), ["critical", "criticalRisk"]) ??
-    firstNumber(firstRecord(report, ["dashboard"]), ["critical_count", "critical_issues"]) ??
-    firstNumber(firstRecord(report, ["processed"]), ["critical_count", "critical_issues"]) ??
+    firstNumber(firstRecord(report, ["parsed", "counts"]), [
+      "critical",
+      "criticalRisk",
+    ]) ??
+    firstNumber(firstRecord(report, ["dashboard"]), [
+      "critical_count",
+      "critical_issues",
+    ]) ??
+    firstNumber(firstRecord(report, ["processed"]), [
+      "critical_count",
+      "critical_issues",
+    ]) ??
     firstNumber(report, ["critical_count", "critical_issues"]);
   const high =
-    firstNumber(firstRecord(report, ["parsed", "counts"]), ["high", "highRisk"]) ??
-    firstNumber(firstRecord(report, ["dashboard"]), ["high_count", "high_issues"]) ??
-    firstNumber(firstRecord(report, ["processed"]), ["high_count", "high_issues"]) ??
+    firstNumber(firstRecord(report, ["parsed", "counts"]), [
+      "high",
+      "highRisk",
+    ]) ??
+    firstNumber(firstRecord(report, ["dashboard"]), [
+      "high_count",
+      "high_issues",
+    ]) ??
+    firstNumber(firstRecord(report, ["processed"]), [
+      "high_count",
+      "high_issues",
+    ]) ??
     firstNumber(report, ["high_count", "high_issues"]);
 
   if (critical === undefined && high === undefined) {
@@ -280,14 +334,16 @@ const extractCriticalHighCount = (report: unknown): number | undefined => {
 
 const projectHealthRows = (
   reportsSummary: unknown,
-  selectedProjectId?: string
+  selectedProjectId?: string,
 ): ReportsProjectHealthRow[] =>
   firstArray(reportsSummary, ["project_health"]).map((item) => {
     const record = toRecord(item) ?? {};
     const projectId = String(record.project_id ?? "");
     return {
       projectId,
-      projectName: String(record.project_name ?? (projectId || "Unknown project")),
+      projectName: String(
+        record.project_name ?? (projectId || "Unknown project"),
+      ),
       costStatus: String(record.cost_status ?? "not_started"),
       architectureStatus: String(record.architecture_status ?? "not_started"),
       unitTestsStatus: String(record.unit_tests_status ?? "not_started"),
@@ -313,16 +369,23 @@ export const buildReportsDashboardModel = ({
   wafReport?: unknown;
 }): ReportsDashboardModel => {
   const summarySignals = firstRecord(reportsSummary, ["signals"]);
-  const costOpportunities = firstRecord(dashboard, ["aggregated_cost_opportunities"]);
+  const costOpportunities = firstRecord(dashboard, [
+    "aggregated_cost_opportunities",
+  ]);
   const currency = extractCurrency(dashboard, costReport, costOpportunities);
   const totalProjects = firstNumber(reportsSummary, ["total_projects"]) ?? 0;
-  const projectsWithReports = firstNumber(reportsSummary, ["projects_with_reports"]) ?? 0;
+  const projectsWithReports =
+    firstNumber(reportsSummary, ["projects_with_reports"]) ?? 0;
   const coverageRatio =
-    totalProjects > 0 ? Math.max(0, Math.min(1, projectsWithReports / totalProjects)) : undefined;
+    totalProjects > 0
+      ? Math.max(0, Math.min(1, projectsWithReports / totalProjects))
+      : undefined;
   const totalReports = firstNumber(reportsSummary, ["total_reports"]);
   const averageScore =
     firstNumber(dashboard, ["average_score"]) ??
-    firstNumber(firstRecord(dashboard, ["aggregated_pillar_scores"]), ["overall_average"]);
+    firstNumber(firstRecord(dashboard, ["aggregated_pillar_scores"]), [
+      "overall_average",
+    ]);
   const totalMonthlyCost =
     firstNumber(dashboard, ["total_monthly_cost"]) ??
     firstNumber(firstRecord(dashboard, ["aggregated_service_breakdown"]), [
@@ -330,13 +393,21 @@ export const buildReportsDashboardModel = ({
     ]);
   const criticalHigh =
     (firstNumber(summarySignals, ["critical_issues_total"]) ??
-      firstNumber(firstRecord(dashboard, ["aggregated_issues"]), ["total_critical"]) ??
+      firstNumber(firstRecord(dashboard, ["aggregated_issues"]), [
+        "total_critical",
+      ]) ??
       0) +
     (firstNumber(summarySignals, ["high_issues_total"]) ??
-      firstNumber(firstRecord(dashboard, ["aggregated_issues"]), ["total_high"]) ??
+      firstNumber(firstRecord(dashboard, ["aggregated_issues"]), [
+        "total_high",
+      ]) ??
       0);
-  const savingsOpportunity = firstNumber(costOpportunities, ["total_monthly_savings"]);
-  const needsAttention = firstNumber(summarySignals, ["projects_needing_attention"]);
+  const savingsOpportunity = firstNumber(costOpportunities, [
+    "total_monthly_savings",
+  ]);
+  const needsAttention = firstNumber(summarySignals, [
+    "projects_needing_attention",
+  ]);
 
   const selectedProjectId = selectedProject?.id;
   const rows = projectHealthRows(reportsSummary, selectedProjectId);
@@ -381,24 +452,64 @@ export const buildReportsDashboardModel = ({
     ],
     coverageRatio,
     coverageLabel: `${projectsWithReports} of ${totalProjects} projects have reports`,
-    reportTypeBars: statusBars(firstRecord(reportsSummary, ["reports_by_type"])),
+    reportTypeBars: statusBars(
+      firstRecord(reportsSummary, ["reports_by_type"]),
+    ),
     statusBars: statusBars(firstRecord(reportsSummary, ["status_breakdown"])),
-    freshnessBars: statusBars(firstRecord(reportsSummary, ["freshness_breakdown"])),
+    freshnessBars: statusBars(
+      firstRecord(reportsSummary, ["freshness_breakdown"]),
+    ),
     activityTrend: {
-      ...buildTrendSummary(reportActivityValues(reportsSummary), "higher-is-better"),
+      ...buildTrendSummary(
+        reportActivityValues(reportsSummary),
+        "higher-is-better",
+      ),
       label: "Report activity",
       summary: (() => {
         const trend = buildTrendSummary(
           reportActivityValues(reportsSummary),
-          "higher-is-better"
+          "higher-is-better",
         );
         if (trend.current === undefined) return "no activity";
-        if (trend.delta === undefined) return `${formatNumber(trend.current)} current`;
+        if (trend.delta === undefined)
+          return `${formatNumber(trend.current)} current`;
         if (trend.delta > 0) return `+${formatNumber(trend.delta)} runs`;
         if (trend.delta < 0) return `${formatNumber(trend.delta)} runs`;
         return "unchanged";
       })(),
     },
+    reportTabs: [
+      { id: "overview", label: "Overview", selected: true },
+      { id: "architecture", label: "Architecture", selected: false },
+      { id: "cost", label: "Cost", selected: false },
+    ],
+    tableOfContents: [
+      {
+        id: "overview",
+        label: "Overview",
+        description: "Scores, freshness, savings, and selected project status.",
+      },
+      {
+        id: "architecture",
+        label: "Architecture",
+        description: "Pillar scores, high-risk findings, and design posture.",
+      },
+      {
+        id: "cost",
+        label: "Cost",
+        description: "Run-rate, modeled savings, and optimization queue.",
+      },
+      {
+        id: "priority-fixes",
+        label: "Priority fixes",
+        description: "Ranked actions by risk, confidence, impact, and effort.",
+      },
+      {
+        id: "evidence",
+        label: "Evidence",
+        description: "Freshness, source coverage, and report provenance.",
+      },
+    ],
     projectRows: rows,
     selectedProjectSummary: {
       projectId: selectedProjectId,

@@ -108,7 +108,7 @@ export interface RegisterMcpCommandOptions {
   defaultBaseUrl: string;
   resolveBaseUrl: (
     options: { baseUrl?: string },
-    command?: Command
+    command?: Command,
   ) => Promise<string>;
 }
 
@@ -139,11 +139,7 @@ type BillingGranularity = "hour" | "day" | "month";
 type McpToolsetName = "all" | "readonly" | "projects" | "reports" | "billing";
 
 const MCP_PROTOCOL_VERSION = "2025-06-18";
-const SUPPORTED_PROTOCOL_VERSIONS = [
-  "2025-06-18",
-  "2025-03-26",
-  "2024-11-05",
-];
+const SUPPORTED_PROTOCOL_VERSIONS = ["2025-06-18", "2025-03-26", "2024-11-05"];
 const STREAM_OUTPUT_NODES = new Set([
   "generate_response",
   "handle_social_interaction",
@@ -207,7 +203,7 @@ const projectIdProperty = {
 
 const makeInputSchema = (
   properties: Record<string, unknown>,
-  required: string[] = []
+  required: string[] = [],
 ): JsonSchema => ({
   type: "object",
   properties: {
@@ -235,49 +231,69 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
       "List CloudEval projects visible to the authenticated account.",
     inputSchema: makeInputSchema({}),
     outputSchema: envelopeSchema,
-    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: true,
+    },
   },
   {
     name: "projects.get",
     title: "Get Project",
     description:
       "Fetch one CloudEval project by id from the authenticated account's project list.",
-    inputSchema: makeInputSchema({
-      projectId: { ...projectIdProperty, description: "CloudEval project id to fetch." },
-    }, ["projectId"]),
+    inputSchema: makeInputSchema(
+      {
+        projectId: {
+          ...projectIdProperty,
+          description: "CloudEval project id to fetch.",
+        },
+      },
+      ["projectId"],
+    ),
     outputSchema: envelopeSchema,
-    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: true,
+    },
   },
   {
     name: "ask",
     title: "Ask CloudEval",
     description:
       "Ask CloudEval a one-shot question, optionally scoped to a project and model.",
-    inputSchema: makeInputSchema({
-      question: {
-        type: "string",
-        description: "Question or instruction to send to CloudEval.",
+    inputSchema: makeInputSchema(
+      {
+        question: {
+          type: "string",
+          description: "Question or instruction to send to CloudEval.",
+        },
+        projectId: projectIdProperty,
+        model: {
+          type: "string",
+          description:
+            "Model name. Defaults to active profile model if configured.",
+        },
+        threadId: {
+          type: "string",
+          description:
+            "Optional thread id to use for this one-shot ask. Defaults to a generated UUID.",
+        },
       },
-      projectId: projectIdProperty,
-      model: {
-        type: "string",
-        description:
-          "Model name. Defaults to active profile model if configured.",
-      },
-      threadId: {
-        type: "string",
-        description:
-          "Optional thread id to use for this one-shot ask. Defaults to a generated UUID.",
-      },
-    }, ["question"]),
+      ["question"],
+    ),
     outputSchema: envelopeSchema,
-    annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      openWorldHint: true,
+    },
   },
   {
     name: "reports.list",
     title: "List Reports",
-    description:
-      "List cost and Well-Architected reports for a project.",
+    description: "List cost and Well-Architected reports for a project.",
     inputSchema: makeInputSchema({
       projectId: projectIdProperty,
       kind: {
@@ -288,7 +304,11 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
       },
     }),
     outputSchema: envelopeSchema,
-    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: true,
+    },
   },
   {
     name: "reports.run",
@@ -334,7 +354,11 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
       },
     }),
     outputSchema: envelopeSchema,
-    annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      openWorldHint: true,
+    },
   },
   {
     name: "reports.download",
@@ -364,7 +388,11 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
       },
     }),
     outputSchema: envelopeSchema,
-    annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      openWorldHint: true,
+    },
   },
   {
     name: "billing.summary",
@@ -373,7 +401,11 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
       "Return CloudEval billing entitlement, credit status, and subscription status.",
     inputSchema: makeInputSchema({}),
     outputSchema: envelopeSchema,
-    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: true,
+    },
   },
   {
     name: "billing.usage",
@@ -399,13 +431,16 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
       chargeStatus: { type: "string" },
     }),
     outputSchema: envelopeSchema,
-    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: true,
+    },
   },
   {
     name: "billing.ledger",
     title: "Billing Ledger",
-    description:
-      "Return paginated CloudEval billing ledger entries.",
+    description: "Return paginated CloudEval billing ledger entries.",
     inputSchema: makeInputSchema({
       range: {
         type: "string",
@@ -422,75 +457,95 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
       cursor: { type: "string" },
     }),
     outputSchema: envelopeSchema,
-    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: true,
+    },
   },
   {
     name: "open.url",
     title: "Build Frontend URL",
     description:
       "Build a CloudEval frontend deep link. Optionally open it in the system browser.",
-    inputSchema: makeInputSchema({
-      target: {
-        type: "string",
-        enum: [
-          "overview",
-          "chat",
-          "projects",
-          "project",
-          "connections",
-          "connection",
-          "reports",
-          "billing",
-        ],
+    inputSchema: makeInputSchema(
+      {
+        target: {
+          type: "string",
+          enum: [
+            "overview",
+            "chat",
+            "projects",
+            "project",
+            "connections",
+            "connection",
+            "reports",
+            "billing",
+          ],
+        },
+        open: {
+          type: "boolean",
+          description:
+            "Open the URL with the system browser. Defaults to false for MCP safety.",
+          default: false,
+        },
+        threadId: { type: "string" },
+        projectId: { type: "string" },
+        connectionId: { type: "string" },
+        quick: { type: "boolean" },
+        templateUrl: { type: "string" },
+        name: { type: "string" },
+        description: { type: "string" },
+        provider: { type: "string" },
+        autoSubmit: { type: "boolean" },
+        view: { type: "string" },
+        layout: { type: "string" },
+        node: {
+          oneOf: [
+            { type: "string" },
+            { type: "array", items: { type: "string" } },
+          ],
+        },
+        resource: { type: "string" },
+        tab: { type: "string" },
+        file: { type: "string" },
+        files: {
+          oneOf: [
+            { type: "string" },
+            { type: "array", items: { type: "string" } },
+          ],
+        },
+        cursor: { type: "string" },
+        selection: { type: "string" },
+        workspaceFocus: { type: "boolean" },
+        presentation: { type: "boolean" },
+        dialog: { type: "string" },
+        reportType: { type: "string" },
+        timeRange: { type: "string" },
+        persona: { type: "string" },
+        cadence: { type: "string" },
+        issuesQuery: { type: "string" },
+        issuesFullscreen: { type: "boolean" },
+        issuesView: { type: "string" },
+        downloadPdf: { type: "boolean" },
+        pdfVerbosity: { type: "string" },
+        downloadReport: {
+          type: "string",
+          enum: ["pdf", "markdown", "json"],
+        },
+        reportVerbosity: {
+          type: "string",
+          enum: ["brief", "detailed", "evidence"],
+        },
       },
-      open: {
-        type: "boolean",
-        description:
-          "Open the URL with the system browser. Defaults to false for MCP safety.",
-        default: false,
-      },
-      threadId: { type: "string" },
-      projectId: { type: "string" },
-      connectionId: { type: "string" },
-      quick: { type: "boolean" },
-      templateUrl: { type: "string" },
-      name: { type: "string" },
-      description: { type: "string" },
-      provider: { type: "string" },
-      autoSubmit: { type: "boolean" },
-      view: { type: "string" },
-      layout: { type: "string" },
-      node: {
-        oneOf: [
-          { type: "string" },
-          { type: "array", items: { type: "string" } },
-        ],
-      },
-      resource: { type: "string" },
-      tab: { type: "string" },
-      file: { type: "string" },
-      files: {
-        oneOf: [
-          { type: "string" },
-          { type: "array", items: { type: "string" } },
-        ],
-      },
-      cursor: { type: "string" },
-      selection: { type: "string" },
-      workspaceFocus: { type: "boolean" },
-      presentation: { type: "boolean" },
-      dialog: { type: "string" },
-      reportType: { type: "string" },
-      timeRange: { type: "string" },
-      persona: { type: "string" },
-      cadence: { type: "string" },
-      issuesQuery: { type: "string" },
-      issuesFullscreen: { type: "boolean" },
-      issuesView: { type: "string" },
-      downloadPdf: { type: "boolean" },
-    }, ["target"]),
+      ["target"],
+    ),
     outputSchema: envelopeSchema,
-    annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      openWorldHint: true,
+    },
   },
 ];
 
@@ -713,10 +768,11 @@ const numberValue = (value: unknown): number | undefined =>
 const enumValue = <T extends string>(
   value: unknown,
   allowed: readonly T[],
-  fallback: T
+  fallback: T,
 ): T => {
-  return typeof value === "string" && (allowed as readonly string[]).includes(value)
-    ? value as T
+  return typeof value === "string" &&
+    (allowed as readonly string[]).includes(value)
+    ? (value as T)
     : fallback;
 };
 
@@ -775,7 +831,10 @@ const rangeToDates = (range?: string): { startAt?: string; endAt?: string } => {
   return { startAt: start.toISOString(), endAt: end.toISOString() };
 };
 
-const pickReportDownloadPayload = (value: unknown, view: ReportView): unknown => {
+const pickReportDownloadPayload = (
+  value: unknown,
+  view: ReportView,
+): unknown => {
   if (value && typeof value === "object") {
     const record = value as Record<string, unknown>;
     if (view === "raw") {
@@ -784,7 +843,13 @@ const pickReportDownloadPayload = (value: unknown, view: ReportView): unknown =>
     if (view === "parsed") {
       return record.parsed ?? record.processed ?? record.normalized ?? record;
     }
-    return record.formatted ?? record.summary ?? record.processed ?? record.parsed ?? record;
+    return (
+      record.formatted ??
+      record.summary ??
+      record.processed ??
+      record.parsed ??
+      record
+    );
   }
   return value;
 };
@@ -804,25 +869,32 @@ const extractJobId = (value: unknown): string | undefined => {
 
 const isTerminalJobStatus = (value: unknown): boolean => {
   if (!value || typeof value !== "object") return true;
-  const status = String((value as Record<string, any>).status ?? "").toLowerCase();
-  return ["completed", "succeeded", "failed", "error", "cancelled", "canceled"].includes(status);
+  const status = String(
+    (value as Record<string, any>).status ?? "",
+  ).toLowerCase();
+  return [
+    "completed",
+    "succeeded",
+    "failed",
+    "error",
+    "cancelled",
+    "canceled",
+  ].includes(status);
 };
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const resolveInvocationConfig = async (
   serverOptions: ServeMcpOptions,
-  args: JsonRecord
+  args: JsonRecord,
 ): Promise<InvocationConfig> => {
   const profile = normalizeConfigProfile(
-    stringValue(args.profile) ?? serverOptions.profile
+    stringValue(args.profile) ?? serverOptions.profile,
   );
   const config = await loadCliConfig(profile);
   return {
     baseUrl:
-      stringValue(args.baseUrl) ??
-      serverOptions.baseUrl ??
-      config.baseUrl,
+      stringValue(args.baseUrl) ?? serverOptions.baseUrl ?? config.baseUrl,
     frontendUrl:
       stringValue(args.frontendUrl) ??
       serverOptions.frontendUrl ??
@@ -843,7 +915,14 @@ const frontendBase = (config: InvocationConfig): string =>
 
 const reportsFrontendUrl = (
   config: InvocationConfig,
-  input: { projectId?: string; type?: string; tab?: string }
+  input: {
+    projectId?: string;
+    type?: string;
+    tab?: string;
+    pdfVerbosity?: string;
+    downloadReport?: string;
+    reportVerbosity?: string;
+  },
 ): string =>
   buildFrontendUrl({
     baseUrl: frontendBase(config),
@@ -857,11 +936,14 @@ const reportsFrontendUrl = (
           ? "architecture"
           : "overview"),
     reportType: input.type,
+    pdfVerbosity: input.pdfVerbosity,
+    downloadReport: input.downloadReport,
+    reportVerbosity: input.reportVerbosity,
   });
 
 const resolveAuth = async (
   config: InvocationConfig,
-  options: { requireUser?: boolean } = {}
+  options: { requireUser?: boolean } = {},
 ) => {
   const core = await import("@cloudeval/core");
   core.assertSecureBaseUrl(config.baseUrl);
@@ -874,12 +956,14 @@ const resolveAuth = async (
     });
   } catch (error: any) {
     throw new Error(
-      `${error?.message ?? "Authentication failed"} MCP stdio cannot run browser or stdin login flows; run 'cloudeval login' first or configure CLOUDEVAL_API_KEY / --api-key / --machine.`
+      `${error?.message ?? "Authentication failed"} MCP stdio cannot run browser or stdin login flows; run 'cloudeval login' first or configure CLOUDEVAL_API_KEY / --api-key / --machine.`,
     );
   }
   const status = await core.checkUserStatus(config.baseUrl, token);
   if (options.requireUser && !status.user?.id) {
-    throw new Error("Authenticated user id is unavailable. Run `cloudeval login` and retry.");
+    throw new Error(
+      "Authenticated user id is unavailable. Run `cloudeval login` and retry.",
+    );
   }
   return { core, token, user: status.user };
 };
@@ -887,7 +971,7 @@ const resolveAuth = async (
 const resolveProject = async (
   config: InvocationConfig,
   args: JsonRecord,
-  auth: Awaited<ReturnType<typeof resolveAuth>>
+  auth: Awaited<ReturnType<typeof resolveAuth>>,
 ) => {
   const requestedProjectId =
     stringValue(args.projectId) ?? config.defaultProjectId;
@@ -900,10 +984,16 @@ const resolveProject = async (
         cloud_provider: "azure",
       };
     }
-    throw new Error("Could not determine the authenticated user. Provide projectId.");
+    throw new Error(
+      "Could not determine the authenticated user. Provide projectId.",
+    );
   }
 
-  const projects = await auth.core.getProjects(config.baseUrl, auth.token, userId);
+  const projects = await auth.core.getProjects(
+    config.baseUrl,
+    auth.token,
+    userId,
+  );
   if (requestedProjectId) {
     return (
       projects.find((project: any) => project.id === requestedProjectId) ?? {
@@ -915,7 +1005,9 @@ const resolveProject = async (
     );
   }
 
-  const selected = projects.find((project: any) => project.name === "Playground") ?? projects[0];
+  const selected =
+    projects.find((project: any) => project.name === "Playground") ??
+    projects[0];
   if (selected) {
     return selected;
   }
@@ -929,24 +1021,29 @@ const resolveProject = async (
     });
   }
 
-  throw new Error("No project is available for this account. Provide projectId or run `cloudeval chat` to complete onboarding.");
+  throw new Error(
+    "No project is available for this account. Provide projectId or run `cloudeval chat` to complete onboarding.",
+  );
 };
 
 const assertModelAvailable = async (
   config: InvocationConfig,
-  token: string
+  token: string,
 ) => {
   if (!config.model) {
     return;
   }
   const core = await import("@cloudeval/core");
   try {
-    const response = await fetch(`${core.normalizeApiBase(config.baseUrl)}/models`, {
-      headers: {
-        Accept: "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    const response = await fetch(
+      `${core.normalizeApiBase(config.baseUrl)}/models`,
+      {
+        headers: {
+          Accept: "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
       },
-    });
+    );
     if (!response.ok) {
       return;
     }
@@ -960,14 +1057,18 @@ const assertModelAvailable = async (
           : [];
     const available = list
       .map((model: any) => model?.id ?? model?.name ?? model?.model)
-      .filter((id: unknown): id is string => typeof id === "string" && Boolean(id));
+      .filter(
+        (id: unknown): id is string => typeof id === "string" && Boolean(id),
+      );
     if (available.length && !available.includes(config.model)) {
       throw new Error(
-        `Model '${config.model}' is not available for this backend/account. Available models: ${available.join(", ")}.`
+        `Model '${config.model}' is not available for this backend/account. Available models: ${available.join(", ")}.`,
       );
     }
   } catch (error: any) {
-    if (error?.message?.startsWith(`Model '${config.model}' is not available`)) {
+    if (
+      error?.message?.startsWith(`Model '${config.model}' is not available`)
+    ) {
       throw error;
     }
   }
@@ -1008,13 +1109,12 @@ const waitForReportJobs = async (input: {
 const downloadReports = async (
   config: InvocationConfig,
   args: JsonRecord,
-  auth: Awaited<ReturnType<typeof resolveAuth>>
+  auth: Awaited<ReturnType<typeof resolveAuth>>,
 ) => {
   const projectId = await resolveReportProjectId({
     baseUrl: config.baseUrl,
     token: auth.token,
-    requestedProjectId:
-      stringValue(args.projectId) ?? config.defaultProjectId,
+    requestedProjectId: stringValue(args.projectId) ?? config.defaultProjectId,
     workspace: {
       checkUserStatus: auth.core.checkUserStatus,
       getProjects: auth.core.getProjects,
@@ -1023,12 +1123,12 @@ const downloadReports = async (
   const type = enumValue<DownloadReportType>(
     args.type,
     ["cost", "waf", "architecture", "all"],
-    "all"
+    "all",
   );
   const view = enumValue<ReportView>(
     args.view,
     ["raw", "parsed", "formatted"],
-    "raw"
+    "raw",
   );
   const reportTypes = type === "all" ? ["cost", "waf"] : [type];
   const timestamp = stringValue(args.timestamp);
@@ -1080,37 +1180,53 @@ const downloadReports = async (
   if (outputPath) {
     if (reportTypes.length > 1) {
       const stat = await fs.stat(outputPath).catch(() => undefined);
-      const outputIsDirectory = stat?.isDirectory() || !path.extname(outputPath);
+      const outputIsDirectory =
+        stat?.isDirectory() || !path.extname(outputPath);
       if (outputIsDirectory) {
         await fs.mkdir(outputPath, { recursive: true });
         for (const [key, value] of Object.entries(payload)) {
           const file = path.join(outputPath, `${projectId}-${key}-report.json`);
-          await fs.writeFile(file, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+          await fs.writeFile(
+            file,
+            `${JSON.stringify(value, null, 2)}\n`,
+            "utf8",
+          );
           filesWritten.push(file);
         }
       } else {
         await fs.mkdir(path.dirname(outputPath), { recursive: true });
-        await fs.writeFile(outputPath, `${JSON.stringify(data, null, 2)}\n`, "utf8");
+        await fs.writeFile(
+          outputPath,
+          `${JSON.stringify(data, null, 2)}\n`,
+          "utf8",
+        );
         filesWritten.push(outputPath);
       }
     } else {
       await fs.mkdir(path.dirname(outputPath), { recursive: true });
-      await fs.writeFile(outputPath, `${JSON.stringify(data, null, 2)}\n`, "utf8");
+      await fs.writeFile(
+        outputPath,
+        `${JSON.stringify(data, null, 2)}\n`,
+        "utf8",
+      );
       filesWritten.push(outputPath);
     }
   }
 
   return withEnvelope({
     command: "reports download",
-    data: outputPath && filesWritten.length
-      ? { projectId, type, view, payload: data, filesWritten }
-      : { projectId, type, view, payload: data },
+    data:
+      outputPath && filesWritten.length
+        ? { projectId, type, view, payload: data, filesWritten }
+        : { projectId, type, view, payload: data },
     frontendUrl,
     filesWritten,
   });
 };
 
-const buildToolHandlers = (serverOptions: ServeMcpOptions): Map<string, ToolHandler> => {
+const buildToolHandlers = (
+  serverOptions: ServeMcpOptions,
+): Map<string, ToolHandler> => {
   const handlers = new Map<string, ToolHandler>();
 
   handlers.set("capabilities.get", async (args) => {
@@ -1145,7 +1261,11 @@ const buildToolHandlers = (serverOptions: ServeMcpOptions): Map<string, ToolHand
   handlers.set("projects.list", async (args) => {
     const config = await resolveInvocationConfig(serverOptions, args);
     const auth = await resolveAuth(config, { requireUser: true });
-    const projects = await auth.core.getProjects(config.baseUrl, auth.token, auth.user!.id);
+    const projects = await auth.core.getProjects(
+      config.baseUrl,
+      auth.token,
+      auth.user!.id,
+    );
     const frontendUrl = buildFrontendUrl({
       baseUrl: frontendBase(config),
       target: "projects",
@@ -1164,7 +1284,11 @@ const buildToolHandlers = (serverOptions: ServeMcpOptions): Map<string, ToolHand
     }
     const config = await resolveInvocationConfig(serverOptions, args);
     const auth = await resolveAuth(config, { requireUser: true });
-    const projects = await auth.core.getProjects(config.baseUrl, auth.token, auth.user!.id);
+    const projects = await auth.core.getProjects(
+      config.baseUrl,
+      auth.token,
+      auth.user!.id,
+    );
     const project = projects.find((item: any) => item.id === projectId);
     if (!project) {
       throw new Error(`Project ${projectId} was not found.`);
@@ -1192,7 +1316,9 @@ const buildToolHandlers = (serverOptions: ServeMcpOptions): Map<string, ToolHand
     const project = await resolveProject(config, args, auth);
     const threadId = stringValue(args.threadId) ?? randomUUID();
     const email = auth.core.extractEmailFromToken(auth.token);
-    const userName = getFirstNameForDisplay({ email: email ?? auth.user?.email });
+    const userName = getFirstNameForDisplay({
+      email: email ?? auth.user?.email,
+    });
     let chatState: any = { ...auth.core.initialChatState, threadId };
     let responseText = "";
     for await (const chunk of auth.core.streamChat({
@@ -1221,13 +1347,17 @@ const buildToolHandlers = (serverOptions: ServeMcpOptions): Map<string, ToolHand
         responseText = latestMessage?.content || chunk.content;
       }
       if (chunk.type === "error") {
-        throw new Error(chunk.message || chunk.description || "CloudEval ask failed.");
+        throw new Error(
+          chunk.message || chunk.description || "CloudEval ask failed.",
+        );
       }
     }
     const finalMessage = [...chatState.messages]
       .reverse()
       .find((message: any) => message.role === "assistant");
-    const finalResponse = collapseRepeatedAssistantText(finalMessage?.content || responseText || "");
+    const finalResponse = collapseRepeatedAssistantText(
+      finalMessage?.content || responseText || "",
+    );
     const frontendUrl = buildFrontendUrl({
       baseUrl: frontendBase(config),
       target: "chat",
@@ -1309,7 +1439,7 @@ const buildToolHandlers = (serverOptions: ServeMcpOptions): Map<string, ToolHand
     const type = enumValue<ReportRunType>(
       args.type,
       ["cost", "waf", "architecture", "unit-tests", "all"],
-      "all"
+      "all",
     );
     const submitted = await auth.core.runReports({
       baseUrl: config.baseUrl,
@@ -1329,7 +1459,10 @@ const buildToolHandlers = (serverOptions: ServeMcpOptions): Map<string, ToolHand
           token: auth.token,
           userId: auth.user?.id,
           submitted,
-          pollIntervalMs: Math.max(500, numberValue(args.pollIntervalMs) ?? 2500),
+          pollIntervalMs: Math.max(
+            500,
+            numberValue(args.pollIntervalMs) ?? 2500,
+          ),
         })
       : undefined;
     return withEnvelope({
@@ -1355,8 +1488,14 @@ const buildToolHandlers = (serverOptions: ServeMcpOptions): Map<string, ToolHand
     const config = await resolveInvocationConfig(serverOptions, args);
     const auth = await resolveAuth(config, { requireUser: true });
     const [entitlement, subscriptionStatus] = await Promise.all([
-      auth.core.getBillingEntitlement({ baseUrl: config.baseUrl, authToken: auth.token }),
-      auth.core.getSubscriptionStatus({ baseUrl: config.baseUrl, authToken: auth.token }),
+      auth.core.getBillingEntitlement({
+        baseUrl: config.baseUrl,
+        authToken: auth.token,
+      }),
+      auth.core.getSubscriptionStatus({
+        baseUrl: config.baseUrl,
+        authToken: auth.token,
+      }),
     ]);
     const frontendUrl = buildFrontendUrl({
       baseUrl: frontendBase(config),
@@ -1386,7 +1525,7 @@ const buildToolHandlers = (serverOptions: ServeMcpOptions): Map<string, ToolHand
       granularity: enumValue<BillingGranularity>(
         args.granularity,
         ["hour", "day", "month"],
-        "day"
+        "day",
       ),
       actionType: stringValue(args.actionType),
       modelName: stringValue(args.model),
@@ -1418,7 +1557,10 @@ const buildToolHandlers = (serverOptions: ServeMcpOptions): Map<string, ToolHand
       modelName: stringValue(args.model),
       outcome: stringValue(args.outcome),
       chargeStatus: stringValue(args.chargeStatus),
-      limit: Math.max(1, Math.min(100, Math.floor(numberValue(args.limit) ?? 25))),
+      limit: Math.max(
+        1,
+        Math.min(100, Math.floor(numberValue(args.limit) ?? 25)),
+      ),
       cursor: stringValue(args.cursor),
     });
     const frontendUrl = buildFrontendUrl({
@@ -1453,11 +1595,17 @@ const buildToolHandlers = (serverOptions: ServeMcpOptions): Map<string, ToolHand
       autoSubmit: booleanValue(args.autoSubmit),
       view: stringValue(args.view),
       layout: stringValue(args.layout),
-      node: typeof args.node === "string" || Array.isArray(args.node) ? args.node as any : undefined,
+      node:
+        typeof args.node === "string" || Array.isArray(args.node)
+          ? (args.node as any)
+          : undefined,
       resource: stringValue(args.resource),
       tab: stringValue(args.tab),
       file: stringValue(args.file),
-      files: typeof args.files === "string" || Array.isArray(args.files) ? args.files as any : undefined,
+      files:
+        typeof args.files === "string" || Array.isArray(args.files)
+          ? (args.files as any)
+          : undefined,
       cursor: stringValue(args.cursor),
       selection: stringValue(args.selection),
       workspaceFocus: booleanValue(args.workspaceFocus),
@@ -1471,6 +1619,9 @@ const buildToolHandlers = (serverOptions: ServeMcpOptions): Map<string, ToolHand
       issuesFullscreen: booleanValue(args.issuesFullscreen),
       issuesView: stringValue(args.issuesView),
       downloadPdf: booleanValue(args.downloadPdf),
+      pdfVerbosity: stringValue(args.pdfVerbosity),
+      downloadReport: stringValue(args.downloadReport),
+      reportVerbosity: stringValue(args.reportVerbosity),
     });
     if (booleanValue(args.open)) {
       await openExternalUrl(url);
@@ -1606,7 +1757,9 @@ const isRequest = (message: JsonRpcMessage): message is JsonRpcRequest =>
   (typeof message.id === "string" || typeof message.id === "number") &&
   typeof (message as any).method === "string";
 
-const isNotification = (message: JsonRpcMessage): message is JsonRpcNotification =>
+const isNotification = (
+  message: JsonRpcMessage,
+): message is JsonRpcNotification =>
   !("id" in message) && typeof (message as any).method === "string";
 
 const jsonRpcResult = (id: JsonRpcId, result: JsonRecord): JsonRpcResponse => ({
@@ -1619,7 +1772,7 @@ const jsonRpcError = (
   id: JsonRpcId,
   code: number,
   message: string,
-  data?: unknown
+  data?: unknown,
 ): JsonRpcResponse => ({
   jsonrpc: "2.0",
   id,
@@ -1631,14 +1784,18 @@ const jsonRpcError = (
 });
 
 const protocolVersionFor = (requested: unknown): string =>
-  typeof requested === "string" && SUPPORTED_PROTOCOL_VERSIONS.includes(requested)
+  typeof requested === "string" &&
+  SUPPORTED_PROTOCOL_VERSIONS.includes(requested)
     ? requested
     : MCP_PROTOCOL_VERSION;
 
-const serializeJsonRpc = (message: JsonRpcResponse | JsonRpcNotification): string =>
-  `${JSON.stringify(message)}\n`;
+const serializeJsonRpc = (
+  message: JsonRpcResponse | JsonRpcNotification,
+): string => `${JSON.stringify(message)}\n`;
 
-export const serveMcpServer = async (options: ServeMcpOptions): Promise<void> => {
+export const serveMcpServer = async (
+  options: ServeMcpOptions,
+): Promise<void> => {
   const toolset = normalizeMcpToolset(options.toolset);
   const handlers = buildToolHandlers(options);
   const availableTools = toolsForToolset(toolset);
@@ -1651,16 +1808,20 @@ export const serveMcpServer = async (options: ServeMcpOptions): Promise<void> =>
       return;
     }
     process.stderr.write(
-      `[cloudeval-mcp] ${message}${data === undefined ? "" : ` ${JSON.stringify(data)}`}\n`
+      `[cloudeval-mcp] ${message}${data === undefined ? "" : ` ${JSON.stringify(data)}`}\n`,
     );
   };
   const send = (message: JsonRpcResponse | JsonRpcNotification) => {
     process.stdout.write(serializeJsonRpc(message));
   };
-  const handleRequest = async (request: JsonRpcRequest): Promise<JsonRpcResponse | undefined> => {
+  const handleRequest = async (
+    request: JsonRpcRequest,
+  ): Promise<JsonRpcResponse | undefined> => {
     try {
       if (request.method === "initialize") {
-        const protocolVersion = protocolVersionFor(request.params?.protocolVersion);
+        const protocolVersion = protocolVersionFor(
+          request.params?.protocolVersion,
+        );
         initialized = true;
         return jsonRpcResult(request.id, {
           protocolVersion,
@@ -1688,7 +1849,11 @@ export const serveMcpServer = async (options: ServeMcpOptions): Promise<void> =>
         return jsonRpcResult(request.id, {});
       }
       if (!initialized && request.method !== "tools/list") {
-        return jsonRpcError(request.id, -32002, "MCP server has not been initialized.");
+        return jsonRpcError(
+          request.id,
+          -32002,
+          "MCP server has not been initialized.",
+        );
       }
       if (request.method === "tools/list") {
         return jsonRpcResult(request.id, {
@@ -1698,7 +1863,11 @@ export const serveMcpServer = async (options: ServeMcpOptions): Promise<void> =>
       if (request.method === "tools/call") {
         const name = stringValue(request.params?.name);
         if (!name || !toolByName.has(name)) {
-          return jsonRpcError(request.id, -32602, `Unknown tool: ${name ?? "<missing>"}`);
+          return jsonRpcError(
+            request.id,
+            -32602,
+            `Unknown tool: ${name ?? "<missing>"}`,
+          );
         }
         if (!availableToolNames.has(name)) {
           return jsonRpcError(
@@ -1708,17 +1877,27 @@ export const serveMcpServer = async (options: ServeMcpOptions): Promise<void> =>
           );
         }
         const args = isObject(request.params?.arguments)
-          ? request.params!.arguments as JsonRecord
+          ? (request.params!.arguments as JsonRecord)
           : {};
         const handler = handlers.get(name);
         if (!handler) {
-          return jsonRpcError(request.id, -32603, `Tool has no handler: ${name}`);
+          return jsonRpcError(
+            request.id,
+            -32603,
+            `Tool has no handler: ${name}`,
+          );
         }
         try {
           const envelope = await handler(args);
-          return jsonRpcResult(request.id, toToolResult(envelope) as unknown as JsonRecord);
+          return jsonRpcResult(
+            request.id,
+            toToolResult(envelope) as unknown as JsonRecord,
+          );
         } catch (error) {
-          return jsonRpcResult(request.id, toToolError(name, error) as unknown as JsonRecord);
+          return jsonRpcResult(
+            request.id,
+            toToolError(name, error) as unknown as JsonRecord,
+          );
         }
       }
       if (request.method === "resources/list") {
@@ -1734,10 +1913,14 @@ export const serveMcpServer = async (options: ServeMcpOptions): Promise<void> =>
         try {
           return jsonRpcResult(
             request.id,
-            await readMcpResource(uri, handlers, availableToolNames, toolset)
+            await readMcpResource(uri, handlers, availableToolNames, toolset),
           );
         } catch (error: any) {
-          return jsonRpcError(request.id, -32602, error?.message ?? String(error));
+          return jsonRpcError(
+            request.id,
+            -32602,
+            error?.message ?? String(error),
+          );
         }
       }
       if (request.method === "prompts/list") {
@@ -1751,17 +1934,32 @@ export const serveMcpServer = async (options: ServeMcpOptions): Promise<void> =>
           return jsonRpcError(request.id, -32602, "Prompt name is required.");
         }
         const args = isObject(request.params?.arguments)
-          ? request.params!.arguments as JsonRecord
+          ? (request.params!.arguments as JsonRecord)
           : {};
         try {
-          return jsonRpcResult(request.id, getMcpPrompt(name, args, availableToolNames, toolset));
+          return jsonRpcResult(
+            request.id,
+            getMcpPrompt(name, args, availableToolNames, toolset),
+          );
         } catch (error: any) {
-          return jsonRpcError(request.id, -32602, error?.message ?? String(error));
+          return jsonRpcError(
+            request.id,
+            -32602,
+            error?.message ?? String(error),
+          );
         }
       }
-      return jsonRpcError(request.id, -32601, `Method not found: ${request.method}`);
+      return jsonRpcError(
+        request.id,
+        -32601,
+        `Method not found: ${request.method}`,
+      );
     } catch (error: any) {
-      return jsonRpcError(request.id, -32603, error?.message ?? "Internal MCP server error.");
+      return jsonRpcError(
+        request.id,
+        -32603,
+        error?.message ?? "Internal MCP server error.",
+      );
     }
   };
 
@@ -1806,18 +2004,22 @@ export const serveMcpServer = async (options: ServeMcpOptions): Promise<void> =>
     try {
       await handleMessage(JSON.parse(trimmed) as JsonValue);
     } catch (error: any) {
-      send(jsonRpcError(0, -32700, "Parse error", {
-        message: error?.message ?? String(error),
-      }));
+      send(
+        jsonRpcError(0, -32700, "Parse error", {
+          message: error?.message ?? String(error),
+        }),
+      );
     }
   }
 };
 
 export const registerMcpCommand = (
   program: Command,
-  deps: RegisterMcpCommandOptions
+  deps: RegisterMcpCommandOptions,
 ) => {
-  const mcp = program.command("mcp").description("Model Context Protocol utilities");
+  const mcp = program
+    .command("mcp")
+    .description("Model Context Protocol utilities");
 
   mcp
     .command("status")
@@ -1891,7 +2093,7 @@ export const registerMcpCommand = (
     .option(
       "--api-key <key>",
       "API key (prefer MCP client env or stored login)",
-      process.env.CLOUDEVAL_API_KEY
+      process.env.CLOUDEVAL_API_KEY,
     )
     .option("--machine", "Allow machine credential fallback", false)
     .option(

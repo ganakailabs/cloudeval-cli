@@ -95,6 +95,10 @@ const startMcp = async (args: string[] = []) => {
 
   const stderr: Buffer[] = [];
   child.stderr.on("data", (chunk) => stderr.push(Buffer.from(chunk)));
+  let childExit: { code: number | null; signal: NodeJS.Signals | null } | undefined;
+  child.on("exit", (code, signal) => {
+    childExit = { code, signal };
+  });
 
   const lines = createInterface({ input: child.stdout, crlfDelay: Infinity });
   const messages: unknown[] = [];
@@ -116,27 +120,46 @@ const startMcp = async (args: string[] = []) => {
     if (messages.length) {
       return messages.shift();
     }
+    if (childExit) {
+      throw new Error(
+        `MCP process exited before response: ${JSON.stringify(childExit)}. stderr:\n${Buffer.concat(stderr).toString("utf8")}`
+      );
+    }
     return await new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
         reject(new Error(`Timed out waiting for MCP response. stderr:\n${Buffer.concat(stderr).toString("utf8")}`));
       }, 5000);
+      const exitHandler = (code: number | null, signal: NodeJS.Signals | null) => {
+        clearTimeout(timeout);
+        reject(
+          new Error(
+            `MCP process exited before response: ${JSON.stringify({ code, signal })}. stderr:\n${Buffer.concat(stderr).toString("utf8")}`
+          )
+        );
+      };
+      child.once("exit", exitHandler);
       waiters.push((value) => {
         clearTimeout(timeout);
+        child.off("exit", exitHandler);
         resolve(value);
       });
     });
   };
   const close = async () => {
-    child.stdin.end();
-    const exitCode = await new Promise<number | null>((resolve) => {
-      const timeout = setTimeout(() => {
-        child.kill("SIGKILL");
-      }, 5000);
-      child.on("exit", (code) => {
-        clearTimeout(timeout);
-        resolve(code);
-      });
-    });
+    if (!child.stdin.destroyed) {
+      child.stdin.end();
+    }
+    const exitCode = childExit
+      ? childExit.code
+      : await new Promise<number | null>((resolve) => {
+          const timeout = setTimeout(() => {
+            child.kill("SIGKILL");
+          }, 5000);
+          child.on("exit", (code) => {
+            clearTimeout(timeout);
+            resolve(code);
+          });
+        });
     await fs.rm(home, { recursive: true, force: true });
     return {
       exitCode,
@@ -166,6 +189,7 @@ const initialize = async (mcp: Awaited<ReturnType<typeof startMcp>>) => {
     jsonrpc: "2.0",
     method: "notifications/initialized",
   });
+  return response;
 };
 
 test("mcp serve initializes, lists tools, and returns strict JSON-RPC stdout", async () => {
@@ -203,6 +227,142 @@ test("mcp serve initializes, lists tools, and returns strict JSON-RPC stdout", a
       called.result.structuredContent.data.url,
       /^https:\/\/app\.example\.test\/app\/projects\/project-main\?view=both/
     );
+  } finally {
+    const closed = await mcp.close();
+    assert.equal(closed.exitCode, 0, closed.stderr);
+  }
+});
+
+test("mcp serve filters tools by safety toolset", async () => {
+  const mcp = await startMcp(["--toolset", "readonly"]);
+  try {
+    await initialize(mcp);
+
+    mcp.send({ jsonrpc: "2.0", id: 2, method: "tools/list" });
+    const listed = await mcp.read();
+    const names = listed.result.tools.map((tool: any) => tool.name);
+    assert.deepEqual(names, [
+      "capabilities.get",
+      "projects.list",
+      "projects.get",
+      "reports.list",
+      "billing.summary",
+      "billing.usage",
+      "billing.ledger",
+    ]);
+
+    mcp.send({
+      jsonrpc: "2.0",
+      id: 3,
+      method: "tools/call",
+      params: { name: "reports.run", arguments: {} },
+    });
+    const blocked = await mcp.read();
+    assert.equal(blocked.id, 3);
+    assert.equal(blocked.error.code, -32602);
+    assert.match(blocked.error.message, /not available in toolset readonly/);
+  } finally {
+    const closed = await mcp.close();
+    assert.equal(closed.exitCode, 0, closed.stderr);
+  }
+});
+
+test("mcp serve filters resources and prompts by focused toolset", async () => {
+  const mcp = await startMcp(["--toolset", "billing"]);
+  try {
+    await initialize(mcp);
+
+    mcp.send({ jsonrpc: "2.0", id: 2, method: "resources/list" });
+    const resources = await mcp.read();
+    const resourceUris = resources.result.resources.map((resource: any) => resource.uri);
+    assert.deepEqual(resourceUris, [
+      "cloudeval://capabilities",
+      "cloudeval://billing/summary",
+    ]);
+
+    mcp.send({
+      jsonrpc: "2.0",
+      id: 3,
+      method: "resources/read",
+      params: { uri: "cloudeval://projects" },
+    });
+    const blockedResource = await mcp.read();
+    assert.equal(blockedResource.error.code, -32602);
+    assert.match(blockedResource.error.message, /not available in toolset billing/);
+
+    mcp.send({ jsonrpc: "2.0", id: 4, method: "prompts/list" });
+    const prompts = await mcp.read();
+    const promptNames = prompts.result.prompts.map((prompt: any) => prompt.name);
+    assert.deepEqual(promptNames, ["billing-review"]);
+
+    mcp.send({
+      jsonrpc: "2.0",
+      id: 5,
+      method: "prompts/get",
+      params: { name: "cost-review", arguments: {} },
+    });
+    const blockedPrompt = await mcp.read();
+    assert.equal(blockedPrompt.error.code, -32602);
+    assert.match(blockedPrompt.error.message, /not available in toolset billing/);
+  } finally {
+    const closed = await mcp.close();
+    assert.equal(closed.exitCode, 0, closed.stderr);
+  }
+});
+
+test("mcp serve exposes CloudEval resources and prompts", async () => {
+  const mcp = await startMcp(["--frontend-url", "https://app.example.test"]);
+  try {
+    const initialized = await initialize(mcp);
+    assert.equal(initialized.result.capabilities.resources.listChanged, false);
+    assert.equal(initialized.result.capabilities.prompts.listChanged, false);
+
+    mcp.send({ jsonrpc: "2.0", id: 2, method: "resources/list" });
+    const resources = await mcp.read();
+    assert.equal(resources.id, 2);
+    const resourceUris = resources.result.resources.map((resource: any) => resource.uri);
+    assert(resourceUris.includes("cloudeval://capabilities"));
+    assert(resourceUris.includes("cloudeval://projects"));
+    assert(resourceUris.includes("cloudeval://billing/summary"));
+    assert(resourceUris.includes("cloudeval://reports/latest"));
+
+    mcp.send({
+      jsonrpc: "2.0",
+      id: 3,
+      method: "resources/read",
+      params: { uri: "cloudeval://capabilities" },
+    });
+    const resource = await mcp.read();
+    assert.equal(resource.id, 3);
+    assert.equal(resource.result.contents[0].uri, "cloudeval://capabilities");
+    const capabilityPayload = JSON.parse(resource.result.contents[0].text);
+    assert.equal(capabilityPayload.cliVersion, "0.7.3");
+    assert(capabilityPayload.mcp.tools.includes("projects.list"));
+
+    mcp.send({ jsonrpc: "2.0", id: 4, method: "prompts/list" });
+    const prompts = await mcp.read();
+    assert.equal(prompts.id, 4);
+    const promptNames = prompts.result.prompts.map((prompt: any) => prompt.name);
+    assert.deepEqual(promptNames, [
+      "cost-review",
+      "waf-triage",
+      "architecture-review",
+      "billing-review",
+    ]);
+
+    mcp.send({
+      jsonrpc: "2.0",
+      id: 5,
+      method: "prompts/get",
+      params: {
+        name: "cost-review",
+        arguments: { projectId: "project-main", range: "30d" },
+      },
+    });
+    const prompt = await mcp.read();
+    assert.equal(prompt.id, 5);
+    assert.match(prompt.result.messages[0].content.text, /project-main/);
+    assert.match(prompt.result.messages[0].content.text, /30d/);
   } finally {
     const closed = await mcp.close();
     assert.equal(closed.exitCode, 0, closed.stderr);

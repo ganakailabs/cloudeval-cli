@@ -14,11 +14,19 @@ import { loadCliConfig, normalizeConfigProfile } from "./cliConfig.js";
 import { recordSessionTurn } from "./sessionsStore.js";
 import { CLI_VERSION } from "./version.js";
 import {
+  writeFormattedOutput,
   formatErrorEnvelope,
   formatSuccessEnvelope,
+  type MachineOutputFormat,
   type SuccessEnvelope,
 } from "./outputFormatter.js";
 import { resolveReportProjectId } from "./reports/reportProject.js";
+import {
+  buildMcpClientSetup,
+  normalizeMcpSetupClient,
+  normalizeMcpSetupToolset,
+  writeMcpClientConfig,
+} from "./mcpSetupCommand.js";
 
 type JsonValue =
   | string
@@ -77,6 +85,25 @@ interface McpToolDefinition {
   annotations?: JsonRecord;
 }
 
+interface McpResourceDefinition {
+  uri: string;
+  name: string;
+  title: string;
+  description: string;
+  mimeType: string;
+}
+
+interface McpPromptDefinition {
+  name: string;
+  title: string;
+  description: string;
+  arguments?: Array<{
+    name: string;
+    description: string;
+    required?: boolean;
+  }>;
+}
+
 export interface RegisterMcpCommandOptions {
   defaultBaseUrl: string;
   resolveBaseUrl: (
@@ -92,6 +119,7 @@ interface ServeMcpOptions {
   apiKey?: string;
   machine?: boolean;
   verbose?: boolean;
+  toolset?: McpToolsetName;
 }
 
 interface InvocationConfig {
@@ -108,6 +136,7 @@ type ReportRunType = "cost" | "waf" | "architecture" | "unit-tests" | "all";
 type DownloadReportType = "cost" | "waf" | "architecture" | "all";
 type ReportView = "raw" | "parsed" | "formatted";
 type BillingGranularity = "hour" | "day" | "month";
+type McpToolsetName = "all" | "readonly" | "projects" | "reports" | "billing";
 
 const MCP_PROTOCOL_VERSION = "2025-06-18";
 const SUPPORTED_PROTOCOL_VERSIONS = [
@@ -468,6 +497,206 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
 export const mcpToolNames = mcpToolDefinitions.map((tool) => tool.name);
 
 const toolByName = new Map(mcpToolDefinitions.map((tool) => [tool.name, tool]));
+
+const MCP_TOOLSETS: Record<McpToolsetName, readonly string[]> = {
+  all: mcpToolNames,
+  readonly: [
+    "capabilities.get",
+    "projects.list",
+    "projects.get",
+    "reports.list",
+    "billing.summary",
+    "billing.usage",
+    "billing.ledger",
+  ],
+  projects: [
+    "capabilities.get",
+    "projects.list",
+    "projects.get",
+    "open.url",
+  ],
+  reports: [
+    "capabilities.get",
+    "projects.list",
+    "projects.get",
+    "reports.list",
+    "reports.run",
+    "reports.download",
+    "open.url",
+  ],
+  billing: [
+    "capabilities.get",
+    "billing.summary",
+    "billing.usage",
+    "billing.ledger",
+    "open.url",
+  ],
+};
+
+const MCP_TOOLSET_NAMES = Object.keys(MCP_TOOLSETS) as McpToolsetName[];
+
+const normalizeMcpToolset = (value?: string): McpToolsetName => {
+  const normalized = (value ?? "all").toLowerCase();
+  if ((MCP_TOOLSET_NAMES as readonly string[]).includes(normalized)) {
+    return normalized as McpToolsetName;
+  }
+  throw new Error(`Unknown MCP toolset '${value}'. Expected one of: ${MCP_TOOLSET_NAMES.join(", ")}.`);
+};
+
+const toolsForToolset = (toolset: McpToolsetName): McpToolDefinition[] => {
+  const names = new Set(MCP_TOOLSETS[toolset]);
+  return mcpToolDefinitions.filter((tool) => names.has(tool.name));
+};
+
+const mcpResourceDefinitions: McpResourceDefinition[] = [
+  {
+    uri: "cloudeval://capabilities",
+    name: "capabilities",
+    title: "CloudEval Capabilities",
+    description: "CloudEval CLI and MCP capability metadata.",
+    mimeType: "application/json",
+  },
+  {
+    uri: "cloudeval://projects",
+    name: "projects",
+    title: "CloudEval Projects",
+    description: "Projects visible to the authenticated CloudEval account.",
+    mimeType: "application/json",
+  },
+  {
+    uri: "cloudeval://billing/summary",
+    name: "billing-summary",
+    title: "CloudEval Billing Summary",
+    description: "Billing entitlement, credits, and subscription status.",
+    mimeType: "application/json",
+  },
+  {
+    uri: "cloudeval://reports/latest",
+    name: "latest-reports",
+    title: "Latest CloudEval Reports",
+    description: "Latest cost and Well-Architected report list for the default project.",
+    mimeType: "application/json",
+  },
+];
+
+const mcpPromptDefinitions: McpPromptDefinition[] = [
+  {
+    name: "cost-review",
+    title: "Cost Review",
+    description: "Review CloudEval cost posture, usage trends, and savings opportunities.",
+    arguments: [
+      { name: "projectId", description: "CloudEval project id to review." },
+      { name: "range", description: "Usage/report range such as 7d, 30d, or 90d." },
+    ],
+  },
+  {
+    name: "waf-triage",
+    title: "Well-Architected Triage",
+    description: "Triage critical Well-Architected findings and next remediation steps.",
+    arguments: [
+      { name: "projectId", description: "CloudEval project id to triage." },
+      { name: "severity", description: "Finding severity focus.", required: false },
+    ],
+  },
+  {
+    name: "architecture-review",
+    title: "Architecture Review",
+    description: "Review a project architecture for reliability, cost, security, and operational risks.",
+    arguments: [
+      { name: "projectId", description: "CloudEval project id to review." },
+    ],
+  },
+  {
+    name: "billing-review",
+    title: "Billing Review",
+    description: "Summarize billing usage, credits, ledger anomalies, and recommended actions.",
+    arguments: [
+      { name: "range", description: "Usage range such as 7d, 30d, 90d, or all." },
+    ],
+  },
+];
+
+const MCP_RESOURCE_TOOL_REQUIREMENTS: Record<string, readonly string[]> = {
+  "cloudeval://capabilities": ["capabilities.get"],
+  "cloudeval://projects": ["projects.list"],
+  "cloudeval://billing/summary": ["billing.summary"],
+  "cloudeval://reports/latest": ["reports.list"],
+};
+
+const MCP_PROMPT_TOOL_REQUIREMENTS: Record<string, readonly string[]> = {
+  "cost-review": ["reports.list", "billing.usage"],
+  "waf-triage": ["reports.list"],
+  "architecture-review": ["reports.list"],
+  "billing-review": ["billing.summary", "billing.usage", "billing.ledger"],
+};
+
+const hasRequiredTools = (
+  requiredTools: readonly string[] | undefined,
+  availableToolNames: Set<string>
+): boolean => (requiredTools ?? []).every((toolName) => availableToolNames.has(toolName));
+
+const resourcesForToolset = (toolset: McpToolsetName): McpResourceDefinition[] => {
+  const availableToolNames = new Set(MCP_TOOLSETS[toolset]);
+  return mcpResourceDefinitions.filter((resource) =>
+    hasRequiredTools(MCP_RESOURCE_TOOL_REQUIREMENTS[resource.uri], availableToolNames)
+  );
+};
+
+const promptsForToolset = (toolset: McpToolsetName): McpPromptDefinition[] => {
+  const availableToolNames = new Set(MCP_TOOLSETS[toolset]);
+  return mcpPromptDefinitions.filter((prompt) =>
+    hasRequiredTools(MCP_PROMPT_TOOL_REQUIREMENTS[prompt.name], availableToolNames)
+  );
+};
+
+export const getMcpStatusData = () => ({
+  protocolVersion: MCP_PROTOCOL_VERSION,
+  protocolVersions: SUPPORTED_PROTOCOL_VERSIONS,
+  serverInfo: {
+    name: "cloudeval",
+    title: "CloudEval CLI MCP Server",
+    version: CLI_VERSION,
+  },
+  command: "cloudeval mcp serve",
+  toolsets: MCP_TOOLSET_NAMES,
+  tools: mcpToolNames,
+  resources: mcpResourceDefinitions.map((resource) => resource.uri),
+  prompts: mcpPromptDefinitions.map((prompt) => prompt.name),
+  setupClients: ["codex", "claude", "cursor"],
+});
+
+export const getMcpDoctorChecks = () => {
+  const status = getMcpStatusData();
+  return {
+    status,
+    checks: [
+      {
+        id: "mcp-initialize",
+        label: "MCP initialize metadata is available",
+        status: "pass" as const,
+        detail: status.protocolVersion,
+      },
+      {
+        id: "mcp-tools-list",
+        label: "MCP tools/list is available",
+        status: mcpToolDefinitions.length > 0 ? "pass" as const : "fail" as const,
+        detail: `${mcpToolDefinitions.length} tools across ${MCP_TOOLSET_NAMES.length} toolsets`,
+      },
+      {
+        id: "mcp-resources-list",
+        label: "MCP resources/list is available",
+        status: mcpResourceDefinitions.length > 0 ? "pass" as const : "fail" as const,
+        detail: `${mcpResourceDefinitions.length} resources`,
+      },
+      {
+        id: "mcp-prompts-list",
+        label: "MCP prompts/list is available",
+        status: mcpPromptDefinitions.length > 0 ? "pass" as const : "fail" as const,
+        detail: `${mcpPromptDefinitions.length} prompts`,
+      },
+    ],
+  };
+};
 
 const isObject = (value: unknown): value is JsonRecord =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -886,6 +1115,7 @@ const buildToolHandlers = (serverOptions: ServeMcpOptions): Map<string, ToolHand
 
   handlers.set("capabilities.get", async (args) => {
     const config = await resolveInvocationConfig(serverOptions, args);
+    const toolset = normalizeMcpToolset(serverOptions.toolset);
     return withEnvelope({
       command: "capabilities",
       data: {
@@ -895,7 +1125,11 @@ const buildToolHandlers = (serverOptions: ServeMcpOptions): Map<string, ToolHand
           transport: "stdio",
           protocolVersions: SUPPORTED_PROTOCOL_VERSIONS,
           serverCommand: "cloudeval mcp serve",
-          tools: mcpToolNames,
+          toolset,
+          toolsets: MCP_TOOLSETS,
+          tools: toolsForToolset(toolset).map((tool) => tool.name),
+          resources: resourcesForToolset(toolset).map((resource) => resource.uri),
+          prompts: promptsForToolset(toolset).map((prompt) => prompt.name),
         },
         defaults: {
           baseUrl: config.baseUrl,
@@ -1251,6 +1485,121 @@ const buildToolHandlers = (serverOptions: ServeMcpOptions): Map<string, ToolHand
   return handlers;
 };
 
+const resourceText = (uri: string, value: unknown) => ({
+  uri,
+  mimeType: "application/json",
+  text: `${JSON.stringify(value, null, 2)}\n`,
+});
+
+const readMcpResource = async (
+  uri: string,
+  handlers: Map<string, ToolHandler>,
+  availableToolNames: Set<string>,
+  toolset: McpToolsetName
+): Promise<JsonRecord> => {
+  if (!mcpResourceDefinitions.some((resource) => resource.uri === uri)) {
+    throw new Error(`Unknown resource: ${uri}`);
+  }
+  if (!hasRequiredTools(MCP_RESOURCE_TOOL_REQUIREMENTS[uri], availableToolNames)) {
+    throw new Error(`Resource ${uri} is not available in toolset ${toolset}.`);
+  }
+  if (uri === "cloudeval://capabilities") {
+    const envelope = await handlers.get("capabilities.get")?.({});
+    return { contents: [resourceText(uri, envelope?.data ?? {})] };
+  }
+
+  const toolName =
+    uri === "cloudeval://projects"
+      ? "projects.list"
+      : uri === "cloudeval://billing/summary"
+        ? "billing.summary"
+        : "reports.list";
+  const handler = handlers.get(toolName);
+  if (!handler) {
+    return {
+      contents: [
+        resourceText(uri, formatErrorEnvelope(toolName, new Error(`Tool ${toolName} is not available in this MCP toolset.`))),
+      ],
+    };
+  }
+  try {
+    const envelope = await handler({});
+    return { contents: [resourceText(uri, envelope)] };
+  } catch (error) {
+    return {
+      contents: [resourceText(uri, formatErrorEnvelope(toolName, error))],
+    };
+  }
+};
+
+const promptArgument = (
+  args: JsonRecord,
+  name: string,
+  fallback: string
+): string => stringValue(args[name]) ?? fallback;
+
+const renderPromptText = (name: string, args: JsonRecord): string => {
+  const projectId = promptArgument(args, "projectId", "the default CloudEval project");
+  const range = promptArgument(args, "range", "30d");
+  if (name === "cost-review") {
+    return [
+      `Run a CloudEval cost review for ${projectId} over ${range}.`,
+      "Use available CloudEval tools to inspect latest reports, billing usage, and project context.",
+      "Return the top cost drivers, savings opportunities, anomalies, and concrete next actions.",
+    ].join("\n");
+  }
+  if (name === "waf-triage") {
+    const severity = promptArgument(args, "severity", "critical and high");
+    return [
+      `Triage ${severity} Well-Architected findings for ${projectId}.`,
+      "Use CloudEval report data where available.",
+      "Group issues by pillar, identify likely blast radius, and propose an ordered remediation plan.",
+    ].join("\n");
+  }
+  if (name === "architecture-review") {
+    return [
+      `Review the CloudEval architecture for ${projectId}.`,
+      "Focus on reliability, security, operational excellence, performance, and cost efficiency.",
+      "Call out missing evidence separately from confirmed findings.",
+    ].join("\n");
+  }
+  if (name === "billing-review") {
+    return [
+      `Review CloudEval billing usage over ${range}.`,
+      "Inspect credits, usage, ledger patterns, and subscription status.",
+      "Summarize risks, unusual charges, forecast pressure, and recommended billing actions.",
+    ].join("\n");
+  }
+  throw new Error(`Unknown prompt: ${name}`);
+};
+
+const getMcpPrompt = (
+  name: string,
+  args: JsonRecord,
+  availableToolNames: Set<string>,
+  toolset: McpToolsetName
+): JsonRecord => {
+  const definition = mcpPromptDefinitions.find((prompt) => prompt.name === name);
+  if (!definition) {
+    throw new Error(`Unknown prompt: ${name}`);
+  }
+  if (!hasRequiredTools(MCP_PROMPT_TOOL_REQUIREMENTS[name], availableToolNames)) {
+    throw new Error(`Prompt ${name} is not available in toolset ${toolset}.`);
+  }
+  return {
+    description: definition.description,
+    messages: [
+      {
+        role: "user",
+        content: {
+          type: "text",
+          text: renderPromptText(name, args),
+        },
+      },
+    ],
+  };
+};
+
 const isRequest = (message: JsonRpcMessage): message is JsonRpcRequest =>
   "id" in message &&
   message.id !== null &&
@@ -1290,7 +1639,12 @@ const serializeJsonRpc = (message: JsonRpcResponse | JsonRpcNotification): strin
   `${JSON.stringify(message)}\n`;
 
 export const serveMcpServer = async (options: ServeMcpOptions): Promise<void> => {
+  const toolset = normalizeMcpToolset(options.toolset);
   const handlers = buildToolHandlers(options);
+  const availableTools = toolsForToolset(toolset);
+  const availableToolNames = new Set(availableTools.map((tool) => tool.name));
+  const availableResources = resourcesForToolset(toolset);
+  const availablePrompts = promptsForToolset(toolset);
   let initialized = false;
   const log = (message: string, data?: unknown) => {
     if (!options.verbose) {
@@ -1314,6 +1668,12 @@ export const serveMcpServer = async (options: ServeMcpOptions): Promise<void> =>
             tools: {
               listChanged: false,
             },
+            resources: {
+              listChanged: false,
+            },
+            prompts: {
+              listChanged: false,
+            },
           },
           serverInfo: {
             name: "cloudeval",
@@ -1332,13 +1692,20 @@ export const serveMcpServer = async (options: ServeMcpOptions): Promise<void> =>
       }
       if (request.method === "tools/list") {
         return jsonRpcResult(request.id, {
-          tools: mcpToolDefinitions,
+          tools: availableTools,
         });
       }
       if (request.method === "tools/call") {
         const name = stringValue(request.params?.name);
         if (!name || !toolByName.has(name)) {
           return jsonRpcError(request.id, -32602, `Unknown tool: ${name ?? "<missing>"}`);
+        }
+        if (!availableToolNames.has(name)) {
+          return jsonRpcError(
+            request.id,
+            -32602,
+            `Tool ${name} is not available in toolset ${toolset}.`
+          );
         }
         const args = isObject(request.params?.arguments)
           ? request.params!.arguments as JsonRecord
@@ -1352,6 +1719,44 @@ export const serveMcpServer = async (options: ServeMcpOptions): Promise<void> =>
           return jsonRpcResult(request.id, toToolResult(envelope) as unknown as JsonRecord);
         } catch (error) {
           return jsonRpcResult(request.id, toToolError(name, error) as unknown as JsonRecord);
+        }
+      }
+      if (request.method === "resources/list") {
+        return jsonRpcResult(request.id, {
+          resources: availableResources,
+        });
+      }
+      if (request.method === "resources/read") {
+        const uri = stringValue(request.params?.uri);
+        if (!uri) {
+          return jsonRpcError(request.id, -32602, "Resource uri is required.");
+        }
+        try {
+          return jsonRpcResult(
+            request.id,
+            await readMcpResource(uri, handlers, availableToolNames, toolset)
+          );
+        } catch (error: any) {
+          return jsonRpcError(request.id, -32602, error?.message ?? String(error));
+        }
+      }
+      if (request.method === "prompts/list") {
+        return jsonRpcResult(request.id, {
+          prompts: availablePrompts,
+        });
+      }
+      if (request.method === "prompts/get") {
+        const name = stringValue(request.params?.name);
+        if (!name) {
+          return jsonRpcError(request.id, -32602, "Prompt name is required.");
+        }
+        const args = isObject(request.params?.arguments)
+          ? request.params!.arguments as JsonRecord
+          : {};
+        try {
+          return jsonRpcResult(request.id, getMcpPrompt(name, args, availableToolNames, toolset));
+        } catch (error: any) {
+          return jsonRpcError(request.id, -32602, error?.message ?? String(error));
         }
       }
       return jsonRpcError(request.id, -32601, `Method not found: ${request.method}`);
@@ -1415,6 +1820,70 @@ export const registerMcpCommand = (
   const mcp = program.command("mcp").description("Model Context Protocol utilities");
 
   mcp
+    .command("status")
+    .description("Show CloudEval MCP server capabilities")
+    .option("--format <format>", "Output format: text, json, ndjson, markdown", "text")
+    .option("--output <file>", "Output file")
+    .action(async (options: { format?: MachineOutputFormat; output?: string }) => {
+      await writeFormattedOutput({
+        command: "mcp status",
+        data: getMcpStatusData(),
+        format: options.format,
+        output: options.output,
+      });
+    });
+
+  mcp
+    .command("setup")
+    .description("Generate or install CloudEval MCP client configuration")
+    .argument("<client>", "MCP client: codex, claude, cursor")
+    .option("--dry-run", "Print config without writing client files", false)
+    .option("--command <path>", "CloudEval command path for the MCP client", "cloudeval")
+    .option(
+      "--toolset <name>",
+      "Toolset to expose: all, readonly, projects, reports, billing",
+      "all"
+    )
+    .option("--config-path <path>", "Override Claude/Cursor config path")
+    .option("--format <format>", "Output format: text, json, ndjson, markdown", "text")
+    .option("--output <file>", "Output file")
+    .action(async (
+      client: string,
+      options: {
+        dryRun?: boolean;
+        command?: string;
+        toolset?: string;
+        configPath?: string;
+        format?: MachineOutputFormat;
+        output?: string;
+      }
+    ) => {
+      const setup = buildMcpClientSetup({
+        client: normalizeMcpSetupClient(client),
+        command: options.command ?? "cloudeval",
+        toolset: normalizeMcpSetupToolset(options.toolset),
+        configPath: options.configPath,
+      });
+      const writtenPath = options.dryRun
+        ? undefined
+        : await writeMcpClientConfig(setup);
+      await writeFormattedOutput({
+        command: "mcp setup",
+        data: {
+          ...setup,
+          dryRun: Boolean(options.dryRun),
+          writtenPath,
+          note:
+            setup.client === "codex" && !writtenPath
+              ? "Run the printed Codex command to register this MCP server."
+              : undefined,
+        },
+        format: options.format,
+        output: options.output,
+      });
+    });
+
+  mcp
     .command("serve")
     .description("Run CloudEval as a stdio MCP server")
     .option("--base-url <url>", "Backend base URL", deps.defaultBaseUrl)
@@ -1425,6 +1894,11 @@ export const registerMcpCommand = (
       process.env.CLOUDEVAL_API_KEY
     )
     .option("--machine", "Allow machine credential fallback", false)
+    .option(
+      "--toolset <name>",
+      `Expose a focused MCP toolset: ${MCP_TOOLSET_NAMES.join(", ")}`,
+      "all"
+    )
     .option("-v, --verbose", "Write MCP server diagnostics to stderr", false)
     .action(async (options, command) => {
       const baseUrl = await deps.resolveBaseUrl(options, command);
@@ -1434,6 +1908,7 @@ export const registerMcpCommand = (
         profile: normalizeConfigProfile(command.optsWithGlobals?.().profile),
         apiKey: stringValue(options.apiKey),
         machine: Boolean(options.machine),
+        toolset: normalizeMcpToolset(options.toolset),
         verbose: Boolean(options.verbose),
       });
     });

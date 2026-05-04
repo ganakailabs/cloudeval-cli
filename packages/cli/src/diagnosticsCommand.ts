@@ -4,6 +4,7 @@ import {
   writeFormattedOutput,
   type MachineOutputFormat,
 } from "./outputFormatter.js";
+import { getMcpDoctorChecks } from "./mcpCommand.js";
 
 interface DiagnosticsDeps {
   defaultBaseUrl: string;
@@ -17,6 +18,7 @@ interface DiagnosticsOptions {
   baseUrl?: string;
   format?: MachineOutputFormat;
   deep?: boolean;
+  mcp?: boolean;
 }
 
 type CheckStatus = "pass" | "warn" | "fail";
@@ -74,6 +76,7 @@ export const registerDiagnosticsCommands = (
     deps.defaultBaseUrl
   )
     .option("--deep", "Check backend reachability as well as local setup", false)
+    .option("--mcp", "Check local MCP server metadata and discovery surface", false)
     .action(async (options: DiagnosticsOptions, command) => {
       const baseUrl = await deps.resolveBaseUrl(options, command);
       const profile = getActiveConfigProfile(command);
@@ -137,13 +140,18 @@ export const registerDiagnosticsCommands = (
         }
       }
 
+      const mcp = options.mcp ? getMcpDoctorChecks() : undefined;
+      if (mcp) {
+        checks.push(...mcp.checks);
+      }
+
       const ok = checks.every((check) => check.status !== "fail");
       await writeFormattedOutput({
         command: "doctor",
         data:
           options.format === "text" || !options.format
-            ? { ok, checks: formatChecksText(checks), profile, config }
-            : { ok, checks, profile, config },
+            ? { ok, checks: formatChecksText(checks), profile, config, mcp: mcp?.status }
+            : { ok, checks, profile, config, mcp: mcp?.status },
         format: options.format,
       });
       if (!ok && options.format !== "json" && options.format !== "ndjson") {

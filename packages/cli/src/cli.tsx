@@ -434,12 +434,16 @@ authCommand
       const { assertSecureBaseUrl, getAuthStatus } = await import("@cloudeval/core");
       const effectiveBaseUrl = await resolveBaseUrl(options, command);
       assertSecureBaseUrl(effectiveBaseUrl);
-      const status = await getAuthStatus(effectiveBaseUrl);
+      const status = await getAuthStatus(effectiveBaseUrl, { validate: true });
 
       console.log(`Authenticated: ${status.authenticated ? "yes" : "no"}`);
+      console.log(`Authentication checked: ${status.validationAttempted ? "yes" : "no"}`);
       console.log(`Cached access token: ${status.accessTokenCached ? "yes" : "no"}`);
       console.log(`Refresh token available: ${status.hasRefreshToken ? "yes" : "no"}`);
       console.log(`Storage backend: ${status.storageBackend}`);
+      if (status.authError) {
+        console.log(`Auth error: ${status.authError}`);
+      }
       console.log(`CLI API URL: ${effectiveBaseUrl}`);
       if (status.accessTokenExpiresAt) {
         console.log(`Access token expires: ${new Date(status.accessTokenExpiresAt).toISOString()}`);

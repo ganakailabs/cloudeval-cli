@@ -54,7 +54,7 @@ export const registerDiagnosticsCommands = (
     const profile = getActiveConfigProfile(command);
     const config = await loadCliConfig(profile);
     const core = await import("@cloudeval/core");
-    const auth = await core.getAuthStatus(baseUrl);
+    const auth = await core.getAuthStatus(baseUrl, { validate: true });
     await writeFormattedOutput({
       command: "status",
       data: {

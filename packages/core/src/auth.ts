@@ -12,7 +12,9 @@ const DEFAULT_BACKEND_SCOPE =
 const DEFAULT_BACKEND_DEFAULT_SCOPE =
   "api://REMOVED_AZURE_CLIENT_ID/.default";
 const DEFAULT_BASE_URL = "https://cloudeval.ai/api/proxy/v1";
+const DEFAULT_FRONTEND_URL = "https://cloudeval.ai";
 const TOKEN_EXPIRY_SKEW_MS = 120_000;
+const ACCESS_SECRET_LABEL = "access-token";
 const REFRESH_SECRET_LABEL = "refresh-token";
 const INSECURE_FILE_FALLBACK_ENV = "CLOUDEVAL_ALLOW_INSECURE_FILE_STORAGE";
 const CONCURRENT_REFRESH_WAIT_STEPS_MS = [50, 100, 150, 250];
@@ -86,6 +88,7 @@ interface LoginOptions {
 
 interface StoredAuth {
   token?: string;
+  tokenRef?: string;
   tokenExpiresAt?: number;
   refreshToken?: string;
   refreshTokenRef?: string;
@@ -571,6 +574,16 @@ const sanitizeStoredForDisk = (data: StoredAuth): StoredAuth => {
 const migrateLegacySecrets = (parsed: StoredAuth): StoredAuth => {
   const migrated: StoredAuth = { ...parsed };
 
+  if (parsed.token && !parsed.tokenRef) {
+    const ref = ACCESS_SECRET_LABEL;
+    const persisted = setSecret(ref, parsed.token);
+    if (!persisted) {
+      warnOnInsecureSecretStorage();
+    }
+    migrated.tokenRef = ref;
+    delete migrated.token;
+  }
+
   if (parsed.refreshToken && !parsed.refreshTokenRef) {
     const ref = REFRESH_SECRET_LABEL;
     const persisted = setSecret(ref, parsed.refreshToken);
@@ -590,9 +603,10 @@ const loadStoredFromDisk = (): StoredAuth => {
     const parsed = JSON.parse(raw) as StoredAuth;
     const nextStored = migrateLegacySecrets(parsed);
 
-    if (nextStored.token) {
+    const accessToken = getAccessToken(nextStored);
+    if (accessToken) {
       cachedToken = {
-        token: nextStored.token,
+        token: accessToken,
         expiresAt: nextStored.tokenExpiresAt ?? 0,
       };
     }
@@ -651,6 +665,29 @@ const getRefreshToken = (data: StoredAuth): string | undefined => {
   return undefined;
 };
 
+const getAccessToken = (data: StoredAuth): string | undefined => {
+  if (data.tokenRef) {
+    return getSecret(data.tokenRef);
+  }
+  return data.token;
+};
+
+const saveAccessToken = (data: StoredAuth, accessToken?: string): StoredAuth => {
+  const next = { ...data };
+
+  if (!accessToken) {
+    return next;
+  }
+
+  const ref = next.tokenRef || ACCESS_SECRET_LABEL;
+  const persisted = setSecret(ref, accessToken);
+  if (!persisted) {
+    warnOnInsecureSecretStorage();
+  }
+  next.tokenRef = ref;
+  return next;
+};
+
 const saveRefreshToken = (data: StoredAuth, refreshToken?: string): StoredAuth => {
   const next = { ...data };
 
@@ -672,6 +709,9 @@ const clearLocalAuth = (data?: StoredAuth) => {
   refreshInFlight = null;
 
   const current = data ?? readStored();
+  if (current.tokenRef) {
+    deleteSecret(current.tokenRef);
+  }
   if (current.refreshTokenRef) {
     deleteSecret(current.refreshTokenRef);
   }
@@ -712,6 +752,7 @@ const persistAuthTokens = (
     lastRefreshAt: now(),
   };
 
+  next = saveAccessToken(next, tokenResponse.access_token);
   next = saveRefreshToken(next, tokenResponse.refresh_token);
   writeStored(next);
 
@@ -739,6 +780,15 @@ const buildDeviceVerificationUrl = (override: string, userCode?: string): string
   return url.toString();
 };
 
+const isLocalDeviceVerificationUrl = (value: string): boolean => {
+  try {
+    const url = new URL(value);
+    return url.hostname === "localhost" || url.hostname === "127.0.0.1";
+  } catch {
+    return false;
+  }
+};
+
 const resolveDeviceVerificationUrl = (deviceCodeData: DeviceCodeResponse): string => {
   const override = getDeviceVerificationOverride();
   if (override) {
@@ -750,7 +800,11 @@ const resolveDeviceVerificationUrl = (deviceCodeData: DeviceCodeResponse): strin
       );
     }
   }
-  return deviceCodeData.verification_uri_complete || deviceCodeData.verification_uri;
+  const backendUrl = deviceCodeData.verification_uri_complete || deviceCodeData.verification_uri;
+  if (isLocalDeviceVerificationUrl(backendUrl)) {
+    return buildDeviceVerificationUrl(DEFAULT_FRONTEND_URL, deviceCodeData.user_code);
+  }
+  return backendUrl;
 };
 
 const openBrowser = (url: string): boolean => {
@@ -1679,6 +1733,19 @@ const waitForConcurrentRefreshToken = async (
   return undefined;
 };
 
+const resolveRefreshBaseUrl = (
+  requestedBaseUrl: string | undefined,
+  storedBaseUrl: string | undefined
+): string | undefined => {
+  if (!requestedBaseUrl) {
+    return storedBaseUrl;
+  }
+  if (storedBaseUrl && normalizeApiBase(requestedBaseUrl) === DEFAULT_BASE_URL) {
+    return storedBaseUrl;
+  }
+  return requestedBaseUrl;
+};
+
 const performRefresh = async (options: AuthOptions): Promise<string> => {
   const disk = readStored();
   const refreshToken = getRefreshToken(disk);
@@ -1686,7 +1753,7 @@ const performRefresh = async (options: AuthOptions): Promise<string> => {
     throw new Error("No refresh token available. Please run 'cloudeval login'.");
   }
 
-  const refreshBaseUrl = options.baseUrl || disk.baseUrl;
+  const refreshBaseUrl = resolveRefreshBaseUrl(options.baseUrl, disk.baseUrl);
   const finishRefresh = async (
     currentRefreshToken: string,
     currentBaseUrl: string | undefined
@@ -1717,7 +1784,8 @@ const performRefresh = async (options: AuthOptions): Promise<string> => {
     }
 
     if (latestRefreshToken && latestRefreshToken !== refreshToken) {
-      const latestBaseUrl = options.baseUrl || latest.baseUrl || refreshBaseUrl;
+      const latestBaseUrl =
+        resolveRefreshBaseUrl(options.baseUrl, latest.baseUrl) || refreshBaseUrl;
       return finishRefresh(latestRefreshToken, latestBaseUrl);
     }
 
@@ -1748,8 +1816,7 @@ export const logout = async (
 ): Promise<{ revoked: boolean; localCleared: boolean }> => {
   const disk = readStored();
   const refreshToken = getRefreshToken(disk);
-  const currentToken =
-    cachedToken?.token || (disk.tokenExpiresAt && disk.token ? disk.token : undefined);
+  const currentToken = cachedToken?.token || getAccessToken(disk);
 
   let revoked = false;
   if (refreshToken) {
@@ -1780,13 +1847,18 @@ export const logout = async (
 export const getAuthStatus = async (baseUrl?: string): Promise<AuthStatus> => {
   const disk = readStored();
   const refreshToken = getRefreshToken(disk);
+  const accessToken = getAccessToken(disk);
+  const accessTokenCached = Boolean(
+    (cachedToken && cachedToken.expiresAt > now()) ||
+      (accessToken && disk.tokenExpiresAt && disk.tokenExpiresAt > now())
+  );
 
   return {
     authenticated: Boolean(
-      (cachedToken && cachedToken.expiresAt > now()) || refreshToken
+      accessTokenCached || refreshToken
     ),
-    accessTokenCached: Boolean(cachedToken && cachedToken.expiresAt > now()),
-    accessTokenExpiresAt: cachedToken?.expiresAt,
+    accessTokenCached,
+    accessTokenExpiresAt: cachedToken?.expiresAt ?? disk.tokenExpiresAt,
     hasRefreshToken: Boolean(refreshToken),
     sessionId: disk.sessionId,
     accountId: disk.accountId,
@@ -1974,12 +2046,11 @@ export const getAuthToken = async (options: AuthOptions = {}): Promise<string> =
 
   const disk = readStored();
   const refreshToken = getRefreshToken(disk);
+  const accessToken = getAccessToken(disk);
 
-  if (disk.token && disk.tokenExpiresAt && disk.tokenExpiresAt > minValidUntil) {
-    cachedToken = { token: disk.token, expiresAt: disk.tokenExpiresAt };
-    // Remove persisted access token from disk after migration.
-    writeStored({ ...disk, token: undefined });
-    return disk.token;
+  if (accessToken && disk.tokenExpiresAt && disk.tokenExpiresAt > minValidUntil) {
+    cachedToken = { token: accessToken, expiresAt: disk.tokenExpiresAt };
+    return accessToken;
   }
 
   if (refreshToken) {

@@ -4,6 +4,7 @@ import {
   type MachineOutputFormat,
 } from "./outputFormatter.js";
 import { buildDomains, cliCommands } from "./cliCommandRegistry.js";
+import { mcpToolNames } from "./mcpCommand.js";
 
 const capabilities = {
   version: 1,
@@ -50,6 +51,17 @@ const capabilities = {
     billing: "/app/subscription?tab=plans|usage|billing",
     connection: "/app/connections/<connection-id>",
   },
+  mcp: {
+    transport: "stdio",
+    command: "cloudeval mcp serve",
+    protocolVersions: ["2025-06-18", "2025-03-26", "2024-11-05"],
+    auth: {
+      preferred: "stored cloudeval login credentials or MCP client env CLOUDEVAL_API_KEY",
+      machine: "Pass --machine and configure service-principal environment credentials.",
+      stdin: "MCP uses stdin for JSON-RPC, so --api-key-stdin is intentionally unavailable for mcp serve.",
+    },
+    tools: mcpToolNames,
+  },
 };
 
 export const registerCapabilitiesCommand = (program: Command) => {
@@ -88,6 +100,7 @@ Stable JSON envelope:
 
 Discovery:
   cloudeval capabilities --format json
+  cloudeval mcp serve
   cloudeval doctor --format json
   cloudeval config show --format json
 `);

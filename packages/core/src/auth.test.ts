@@ -321,6 +321,128 @@ test("getAuthToken retries with the latest persisted refresh token after a concu
   }
 });
 
+test("getAuthToken refreshes saved interactive logins against the stored auth base URL", async () => {
+  const tempHome = await mkdtemp(path.join(os.tmpdir(), "cloudeval-auth-"));
+  const previousOverride = process.env.CLOUDEVAL_ALLOW_INSECURE_FILE_STORAGE;
+  process.env.CLOUDEVAL_ALLOW_INSECURE_FILE_STORAGE = "1";
+
+  try {
+    const { getAuthToken } = await importFreshAuthModule(tempHome);
+    const configDir = path.join(tempHome, ".config", "cloudeval");
+    fs.mkdirSync(configDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(configDir, "config.json"),
+      JSON.stringify(
+        {
+          refreshTokenRef: "refresh-token",
+          baseUrl: "https://stored-auth.example.com/api/v1",
+        },
+        null,
+        2
+      )
+    );
+    fs.writeFileSync(
+      path.join(configDir, "secrets.json"),
+      JSON.stringify(
+        {
+          "refresh-token": "stored-refresh-token",
+        },
+        null,
+        2
+      )
+    );
+
+    const originalFetch = global.fetch;
+    const seenUrls: string[] = [];
+
+    global.fetch = async (input, init) => {
+      const url = typeof input === "string" ? input : input.toString();
+      seenUrls.push(url);
+      assert.equal(url, "https://stored-auth.example.com/api/v1/auth/refresh");
+      const body = JSON.parse(String(init?.body ?? "{}")) as { refresh_token?: string };
+      assert.equal(body.refresh_token, "stored-refresh-token");
+      return jsonResponse({
+        access_token: "fresh-access-token",
+        refresh_token: "fresh-refresh-token",
+        token_type: "Bearer",
+        expires_in: 3600,
+      });
+    };
+
+    try {
+      const token = await getAuthToken({
+        baseUrl: "https://cloudeval.ai/api/proxy/v1",
+      });
+      assert.equal(token, "fresh-access-token");
+      assert.deepEqual(seenUrls, ["https://stored-auth.example.com/api/v1/auth/refresh"]);
+    } finally {
+      global.fetch = originalFetch;
+    }
+  } finally {
+    if (previousOverride === undefined) {
+      delete process.env.CLOUDEVAL_ALLOW_INSECURE_FILE_STORAGE;
+    } else {
+      process.env.CLOUDEVAL_ALLOW_INSECURE_FILE_STORAGE = previousOverride;
+    }
+  }
+});
+
+test("getAuthToken uses a secure persisted access token before refreshing", async () => {
+  const tempHome = await mkdtemp(path.join(os.tmpdir(), "cloudeval-auth-"));
+  const previousOverride = process.env.CLOUDEVAL_ALLOW_INSECURE_FILE_STORAGE;
+  process.env.CLOUDEVAL_ALLOW_INSECURE_FILE_STORAGE = "1";
+
+  try {
+    const { getAuthToken } = await importFreshAuthModule(tempHome);
+    const configDir = path.join(tempHome, ".config", "cloudeval");
+    fs.mkdirSync(configDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(configDir, "config.json"),
+      JSON.stringify(
+        {
+          tokenRef: "access-token",
+          tokenExpiresAt: Date.now() + 3_600_000,
+          refreshTokenRef: "refresh-token",
+          baseUrl: "https://stored-auth.example.com/api/v1",
+        },
+        null,
+        2
+      )
+    );
+    fs.writeFileSync(
+      path.join(configDir, "secrets.json"),
+      JSON.stringify(
+        {
+          "access-token": "stored-access-token",
+          "refresh-token": "stored-refresh-token",
+        },
+        null,
+        2
+      )
+    );
+
+    const originalFetch = global.fetch;
+    global.fetch = async () => {
+      throw new Error("refresh should not be called when access token is still valid");
+    };
+
+    try {
+      const token = await getAuthToken({
+        baseUrl: "https://cloudeval.ai/api/proxy/v1",
+      });
+      assert.equal(token, "stored-access-token");
+    } finally {
+      global.fetch = originalFetch;
+    }
+  } finally {
+    if (previousOverride === undefined) {
+      delete process.env.CLOUDEVAL_ALLOW_INSECURE_FILE_STORAGE;
+    } else {
+      process.env.CLOUDEVAL_ALLOW_INSECURE_FILE_STORAGE = previousOverride;
+    }
+  }
+});
+
 test("getAuthToken waits briefly for a concurrently persisted refresh token", async () => {
   const tempHome = await mkdtemp(path.join(os.tmpdir(), "cloudeval-auth-"));
   const previousOverride = process.env.CLOUDEVAL_ALLOW_INSECURE_FILE_STORAGE;
@@ -640,6 +762,100 @@ test("browser-assisted device flow honors frontend URL override", async () => {
       delete process.env.CLOUDEVAL_FRONTEND_URL;
     } else {
       process.env.CLOUDEVAL_FRONTEND_URL = previousFrontendUrl;
+    }
+  }
+});
+
+test("browser-assisted device flow rewrites backend localhost verification URLs to CloudEval", async () => {
+  const tempHome = await mkdtemp(path.join(os.tmpdir(), "cloudeval-auth-"));
+  const previousStorageOverride = process.env.CLOUDEVAL_ALLOW_INSECURE_FILE_STORAGE;
+  const previousFrontendUrl = process.env.CLOUDEVAL_FRONTEND_URL;
+  const previousWebUrl = process.env.CLOUDEVAL_WEB_URL;
+  const previousDeviceUri = process.env.CLOUDEVAL_DEVICE_VERIFICATION_URI;
+  process.env.CLOUDEVAL_ALLOW_INSECURE_FILE_STORAGE = "1";
+  delete process.env.CLOUDEVAL_FRONTEND_URL;
+  delete process.env.CLOUDEVAL_WEB_URL;
+  delete process.env.CLOUDEVAL_DEVICE_VERIFICATION_URI;
+
+  try {
+    const { login } = await importFreshAuthModule(tempHome);
+    const originalFetch = global.fetch;
+    const originalSetTimeout = global.setTimeout;
+    const originalLog = console.log;
+    const originalWrite = process.stdout.write.bind(process.stdout);
+    const openedUrls: string[] = [];
+
+    global.fetch = async (input) => {
+      const url = typeof input === "string" ? input : input.toString();
+
+      if (url.endsWith("/auth/device/code")) {
+        return jsonResponse({
+          device_code: "device-code",
+          user_code: "ABCD-EFGH",
+          verification_uri: "http://localhost:3000/device/login",
+          verification_uri_complete:
+            "http://localhost:3000/device/login?user_code=ABCD-EFGH",
+          expires_in: 60,
+          interval: 1,
+        });
+      }
+
+      if (url.endsWith("/auth/device/token")) {
+        return jsonResponse({
+          access_token: "access-token",
+          refresh_token: "refresh-token",
+          token_type: "Bearer",
+          expires_in: 3600,
+        });
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    };
+
+    global.setTimeout = ((callback: (...args: unknown[]) => void) => {
+      queueMicrotask(() => callback());
+      return 0 as unknown as NodeJS.Timeout;
+    }) as typeof setTimeout;
+    console.log = () => {};
+    process.stdout.write = (() => true) as typeof process.stdout.write;
+
+    try {
+      const token = await login("https://cloudeval.ai", {
+        browserOpener: (url: string) => {
+          openedUrls.push(url);
+          return true;
+        },
+      });
+      assert.equal(token, "access-token");
+      assert.deepEqual(openedUrls, [
+        "https://cloudeval.ai/device/login?user_code=ABCD-EFGH",
+      ]);
+    } finally {
+      global.fetch = originalFetch;
+      global.setTimeout = originalSetTimeout;
+      console.log = originalLog;
+      process.stdout.write = originalWrite;
+    }
+  } finally {
+    if (previousStorageOverride === undefined) {
+      delete process.env.CLOUDEVAL_ALLOW_INSECURE_FILE_STORAGE;
+    } else {
+      process.env.CLOUDEVAL_ALLOW_INSECURE_FILE_STORAGE = previousStorageOverride;
+    }
+    if (previousFrontendUrl === undefined) {
+      delete process.env.CLOUDEVAL_FRONTEND_URL;
+    } else {
+      process.env.CLOUDEVAL_FRONTEND_URL = previousFrontendUrl;
+    }
+    if (previousWebUrl === undefined) {
+      delete process.env.CLOUDEVAL_WEB_URL;
+    } else {
+      process.env.CLOUDEVAL_WEB_URL = previousWebUrl;
+    }
+    if (previousDeviceUri === undefined) {
+      delete process.env.CLOUDEVAL_DEVICE_VERIFICATION_URI;
+    } else {
+      process.env.CLOUDEVAL_DEVICE_VERIFICATION_URI = previousDeviceUri;
     }
   }
 });

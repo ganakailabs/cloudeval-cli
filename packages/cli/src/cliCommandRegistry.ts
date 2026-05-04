@@ -9,7 +9,8 @@ export type CliDomain =
   | "diagnostics"
   | "sessions"
   | "models"
-  | "setup";
+  | "setup"
+  | "mcp";
 
 export interface CliCommandMetadata {
   name: string;
@@ -289,6 +290,22 @@ export const cliCommands: CliCommandMetadata[] = [
     domain: "diagnostics",
     options: ["--format", "--profile", "--help"],
     workflows: ["capabilities"],
+  },
+  {
+    name: "mcp",
+    description: "Model Context Protocol utilities",
+    domain: "mcp",
+    options: [
+      "serve",
+      "--base-url",
+      "--frontend-url",
+      "--api-key",
+      "--machine",
+      "--verbose",
+      "--profile",
+      "--help",
+    ],
+    workflows: ["mcp serve"],
   },
   {
     name: "login",

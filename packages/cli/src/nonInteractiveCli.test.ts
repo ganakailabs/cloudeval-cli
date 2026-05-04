@@ -393,7 +393,7 @@ test("non-interactive discovery commands are machine-readable", async () => {
   const capabilities = parseJson(await runCli(["capabilities", "--format", "json"]));
   assert.equal(capabilities.ok, true);
   assert.deepEqual(
-    ["ask", "reports download", "projects create"].every((command) =>
+    ["ask", "reports download", "projects create", "mcp serve"].every((command) =>
       JSON.stringify(capabilities.data.domains).includes(command)
     ),
     true

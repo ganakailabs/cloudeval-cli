@@ -336,7 +336,10 @@ test("mcp serve exposes CloudEval resources and prompts", async () => {
     assert.equal(resource.id, 3);
     assert.equal(resource.result.contents[0].uri, "cloudeval://capabilities");
     const capabilityPayload = JSON.parse(resource.result.contents[0].text);
-    assert.equal(capabilityPayload.cliVersion, "0.7.3");
+    const packageJson = JSON.parse(
+      await fs.readFile(path.join(packageRoot, "package.json"), "utf8")
+    );
+    assert.equal(capabilityPayload.cliVersion, packageJson.version);
     assert(capabilityPayload.mcp.tools.includes("projects.list"));
 
     mcp.send({ jsonrpc: "2.0", id: 4, method: "prompts/list" });

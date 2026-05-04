@@ -12,6 +12,7 @@ import {
   resolveFrontendBaseUrl,
 } from "./frontendLinks.js";
 import {
+  formatErrorEnvelope,
   writeFormattedOutput,
   type MachineOutputFormat,
 } from "./outputFormatter.js";
@@ -84,6 +85,27 @@ const write = async (
   });
 };
 
+const failBillingCommand = (
+  command: string,
+  action: string,
+  error: unknown,
+  options: CommonOptions
+): never => {
+  const detail = error instanceof Error ? error.message : String(error || "Unknown error");
+  const message = `${action}: ${detail}`;
+  const envelope = formatErrorEnvelope(command, new Error(message));
+
+  if (options.format === "json") {
+    process.stdout.write(`${JSON.stringify(envelope, null, 2)}\n`);
+  } else if (options.format === "ndjson") {
+    process.stdout.write(`${JSON.stringify(envelope)}\n`);
+  } else {
+    console.error(message);
+  }
+
+  process.exit(1);
+};
+
 const rangeToDates = (range?: string): { startAt?: string; endAt?: string } => {
   if (!range || range === "all") {
     return {};
@@ -150,8 +172,7 @@ const runTopUpCheckout = async (
       await maybeOpen(checkoutUrl, options);
     }
   } catch (error: any) {
-    console.error(`Failed to start top-up checkout: ${error?.message ?? "Unknown error"}`);
-    process.exit(1);
+    failBillingCommand(commandName, "Failed to start top-up checkout", error, options);
   }
 };
 
@@ -177,8 +198,7 @@ export const registerBillingCommands = (
       await write("credits", { status, entitlement }, options, url);
       await maybeOpen(url, options);
     } catch (error: any) {
-      console.error(`Failed to show credits: ${error?.message ?? "Unknown error"}`);
-      process.exit(1);
+      failBillingCommand("credits", "Failed to show credits", error, options);
     }
   });
 
@@ -202,8 +222,7 @@ export const registerBillingCommands = (
         );
         await maybeOpen(url, options);
       } catch (error: any) {
-        console.error(`Failed to show billing summary: ${error?.message ?? "Unknown error"}`);
-        process.exit(1);
+        failBillingCommand("billing summary", "Failed to show billing summary", error, options);
       }
     });
 
@@ -217,8 +236,7 @@ export const registerBillingCommands = (
         await write("billing plans", data, options, url);
         await maybeOpen(url, options);
       } catch (error: any) {
-        console.error(`Failed to show billing plans: ${error?.message ?? "Unknown error"}`);
-        process.exit(1);
+        failBillingCommand("billing plans", "Failed to show billing plans", error, options);
       }
     });
 
@@ -251,8 +269,7 @@ export const registerBillingCommands = (
         await write("billing usage", data, options, url);
         await maybeOpen(url, options);
       } catch (error: any) {
-        console.error(`Failed to show billing usage: ${error?.message ?? "Unknown error"}`);
-        process.exit(1);
+        failBillingCommand("billing usage", "Failed to show billing usage", error, options);
       }
     });
 
@@ -287,8 +304,7 @@ export const registerBillingCommands = (
         await write("billing ledger", data, options, url);
         await maybeOpen(url, options);
       } catch (error: any) {
-        console.error(`Failed to show billing ledger: ${error?.message ?? "Unknown error"}`);
-        process.exit(1);
+        failBillingCommand("billing ledger", "Failed to show billing ledger", error, options);
       }
     });
 
@@ -311,8 +327,7 @@ export const registerBillingCommands = (
           await write(`billing ${name}`, data, options, url);
           await maybeOpen(url, options);
         } catch (error: any) {
-          console.error(`Failed to show billing ${name}: ${error?.message ?? "Unknown error"}`);
-          process.exit(1);
+          failBillingCommand(`billing ${name}`, `Failed to show billing ${name}`, error, options);
         }
       });
   }
@@ -332,8 +347,7 @@ export const registerBillingCommands = (
         await write("billing topups", data, options, url);
         await maybeOpen(url, options);
       } catch (error: any) {
-        console.error(`Failed to show billing topups: ${error?.message ?? "Unknown error"}`);
-        process.exit(1);
+        failBillingCommand("billing topups", "Failed to show billing topups", error, options);
       }
     });
 

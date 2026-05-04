@@ -56,6 +56,7 @@ cloudeval credits [--format text|json|ndjson|markdown]
 cloudeval billing topups [--format text|json|ndjson|markdown]
 cloudeval billing topup <pack-id> [--currency <code>] [--country-code <code>] [--print-url|--open] [--format text|json|ndjson|markdown]
 cloudeval billing topups buy <pack-id> [--currency <code>] [--country-code <code>] [--print-url|--open] [--format text|json|ndjson|markdown]
+cloudeval mcp serve [--base-url <url>] [--frontend-url <url>] [--api-key <key>] [--machine] [--profile <name>]
 cloudeval login [--headless]
 cloudeval logout [--all-devices]
 cloudeval auth status
@@ -67,6 +68,68 @@ cloudeval banner
 `~/.config/cloudeval`. `ask`, `chat`, `tui`, `models`, `status`, and `doctor`
 respect the active profile through `--profile` or `CLOUDEVAL_PROFILE`, while
 explicit flags still win for automation.
+
+## MCP Server
+
+CloudEval can run as a local stdio MCP server for agent tools that support the
+Model Context Protocol:
+
+```bash
+cloudeval mcp serve
+```
+
+Example MCP client configuration:
+
+```json
+{
+  "mcpServers": {
+    "cloudeval": {
+      "command": "cloudeval",
+      "args": ["mcp", "serve"]
+    }
+  }
+}
+```
+
+Codex CLI:
+
+```bash
+codex mcp add cloudeval -- cloudeval mcp serve
+codex mcp list
+```
+
+For local development before installing the binary:
+
+```bash
+pnpm --filter cloudeval-cli build
+codex mcp add cloudeval -- node /absolute/path/to/cloudeval-cli/packages/cli/dist/cli.js mcp serve
+```
+
+Claude Desktop, Cursor, and other JSON-configured MCP clients can use the same
+stdio command shape:
+
+```json
+{
+  "mcpServers": {
+    "cloudeval": {
+      "command": "cloudeval",
+      "args": ["mcp", "serve"],
+      "env": {
+        "CLOUDEVAL_API_KEY": "optional-machine-token"
+      }
+    }
+  }
+}
+```
+
+The server exposes `ask`, `projects.list`, `projects.get`, `reports.list`,
+`reports.run`, `reports.download`, `billing.summary`, `billing.usage`,
+`billing.ledger`, `open.url`, and `capabilities.get`. Authenticate with
+`cloudeval login`, configure `CLOUDEVAL_API_KEY` in the MCP client environment,
+or pass `--machine` with service-principal credentials. `--api-key-stdin` is not
+available for `mcp serve` because stdin is reserved for MCP JSON-RPC messages.
+The server writes protocol messages only to stdout; diagnostics from
+`--verbose` go to stderr.
 
 For help:
 

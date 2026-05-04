@@ -23,6 +23,20 @@ export const isLocalBaseUrl = (baseUrl?: string): boolean => {
   }
 };
 
+const isCloudEvalManagedBackendUrl = (baseUrl: string): boolean => {
+  try {
+    const { hostname } = new URL(baseUrl);
+    const normalized = hostname.toLowerCase();
+    return (
+      normalized === "api.cloudeval.ai" ||
+      (normalized.startsWith("cloudeval-api.") &&
+        normalized.endsWith(".azurecontainerapps.io"))
+    );
+  } catch {
+    return false;
+  }
+};
+
 export const shouldUseStoredBaseUrl = (
   storedBaseUrl?: string,
   env: NodeJS.ProcessEnv = process.env
@@ -34,6 +48,9 @@ export const shouldUseStoredBaseUrl = (
     return true;
   }
   if (env.CLOUDEVAL_ALLOW_STORED_LOCAL_BASE_URL === "1") {
+    return true;
+  }
+  if (isCloudEvalManagedBackendUrl(storedBaseUrl)) {
     return true;
   }
   return false;

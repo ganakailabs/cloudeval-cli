@@ -45,6 +45,16 @@ test("shouldUseStoredBaseUrl allows local stored base URLs only with explicit op
   );
 });
 
+test("shouldUseStoredBaseUrl allows CloudEval managed auth backend URLs by default", () => {
+  assert.equal(
+    shouldUseStoredBaseUrl(
+      "https://cloudeval-api.example.azurecontainerapps.io/api/v1",
+      {}
+    ),
+    true
+  );
+});
+
 test("shouldUseStoredBaseUrl ignores stale non-default auth base URLs by default", () => {
   assert.equal(shouldUseStoredBaseUrl("https://staging.cloudeval.ai/api/v1", {}), false);
 });

@@ -19,6 +19,7 @@ import { registerDiagnosticsCommands } from "./diagnosticsCommand.js";
 import { registerModelsCommand } from "./modelsCommand.js";
 import { registerSessionsCommand } from "./sessionsCommand.js";
 import { registerSetupCommand } from "./setupCommand.js";
+import { registerMcpCommand } from "./mcpCommand.js";
 import { buildFrontendUrl, openExternalUrl, resolveFrontendBaseUrl } from "./frontendLinks.js";
 import { CLI_VERSION } from "./version.js";
 import { getDefaultBaseUrl, shouldUseStoredBaseUrl } from "./baseUrl.js";
@@ -508,6 +509,11 @@ registerModelsCommand(program, {
 registerSessionsCommand(program);
 
 registerCapabilitiesCommand(program);
+
+registerMcpCommand(program, {
+  defaultBaseUrl: DEFAULT_BASE_URL,
+  resolveBaseUrl,
+});
 
 program
   .command("completion")

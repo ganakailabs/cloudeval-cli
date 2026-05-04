@@ -22,6 +22,11 @@
         letter-spacing: -0.08em;
         margin: 0 0 16px;
       }
+      h2 {
+        color: #eef9cf;
+        font-size: 24px;
+        margin: 40px 0 12px;
+      }
       p {
         color: #c8d0bf;
         font-size: 18px;
@@ -35,6 +40,15 @@
         overflow-x: auto;
         padding: 18px;
       }
+      code {
+        color: #f7ffcf;
+      }
+      ul {
+        color: #c8d0bf;
+        font-size: 16px;
+        line-height: 1.7;
+        padding-left: 22px;
+      }
       a {
         color: #8be6ff;
       }
@@ -46,6 +60,17 @@
       <p>Install the CloudEval CLI with checksum-verified GitHub Release binaries.</p>
       <pre><code>curl -fsSL https://cli.cloudeval.ai/install.sh | bash</code></pre>
       <p>After install, run <code>cloudeval login</code> and <code>cloudeval chat</code>.</p>
+      <h2>MCP server for agents</h2>
+      <p>Expose CloudEval to Codex, Claude Desktop, Cursor, and other MCP clients:</p>
+      <pre><code>cloudeval mcp serve</code></pre>
+      <p>Codex CLI setup:</p>
+      <pre><code>codex mcp add cloudeval -- cloudeval mcp serve
+codex mcp list</code></pre>
+      <ul>
+        <li>Tools: <code>ask</code>, <code>projects.list</code>, <code>reports.run</code>, <code>reports.download</code>, <code>billing.usage</code>, and <code>open.url</code>.</li>
+        <li>Auth: use <code>cloudeval login</code>, <code>CLOUDEVAL_API_KEY</code>, or <code>--machine</code>.</li>
+        <li>Transport: stdio MCP JSON-RPC. Server diagnostics use stderr only.</li>
+      </ul>
       <p><a href="https://github.com/ganakailabs/cloudeval-cli/releases/latest">Latest release</a></p>
     </main>
   </body>

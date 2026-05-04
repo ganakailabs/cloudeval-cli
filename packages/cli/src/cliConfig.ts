@@ -1,0 +1,147 @@
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import type { Command } from "commander";
+import type { MachineOutputFormat } from "./outputFormatter.js";
+
+export interface CliConfig {
+  baseUrl?: string;
+  frontendUrl?: string;
+  defaultProjectId?: string;
+  model?: string;
+  outputFormat?: MachineOutputFormat;
+}
+
+const CONFIG_PROFILE_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/;
+const SETTINGS_FILE = "settings.json";
+
+export const normalizeConfigProfile = (profile?: string): string => {
+  const normalized = (profile || process.env.CLOUDEVAL_PROFILE || "default").trim() || "default";
+  if (!CONFIG_PROFILE_PATTERN.test(normalized)) {
+    throw new Error(
+      `Invalid profile '${normalized}'. Use letters, numbers, dashes, or underscores.`
+    );
+  }
+  return normalized;
+};
+
+export const getActiveConfigProfile = (command?: Command): string => {
+  const opts =
+    typeof command?.optsWithGlobals === "function"
+      ? command.optsWithGlobals()
+      : command?.opts();
+  return normalizeConfigProfile(opts?.profile);
+};
+
+export const getCloudevalConfigDir = (): string =>
+  path.join(os.homedir(), ".config", "cloudeval");
+
+export const getCliConfigPath = (profile?: string): string => {
+  const normalized = normalizeConfigProfile(profile);
+  if (normalized === "default") {
+    return path.join(getCloudevalConfigDir(), SETTINGS_FILE);
+  }
+  return path.join(getCloudevalConfigDir(), "profiles", normalized, SETTINGS_FILE);
+};
+
+const ensureConfigParent = async (filePath: string) => {
+  await fs.mkdir(path.dirname(filePath), { recursive: true, mode: 0o700 });
+};
+
+export const loadCliConfig = async (profile?: string): Promise<CliConfig> => {
+  const filePath = getCliConfigPath(profile);
+  try {
+    const raw = await fs.readFile(filePath, "utf8");
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch (error: any) {
+    if (error?.code === "ENOENT") {
+      return {};
+    }
+    throw error;
+  }
+};
+
+export const saveCliConfig = async (
+  config: CliConfig,
+  profile?: string
+): Promise<string> => {
+  const filePath = getCliConfigPath(profile);
+  await ensureConfigParent(filePath);
+  const tempPath = `${filePath}.${process.pid}.tmp`;
+  await fs.writeFile(tempPath, `${JSON.stringify(config, null, 2)}\n`, {
+    encoding: "utf8",
+    mode: 0o600,
+  });
+  await fs.rename(tempPath, filePath);
+  return filePath;
+};
+
+export const listCliConfigProfiles = async (): Promise<string[]> => {
+  const profiles = new Set<string>(["default"]);
+  const profilesDir = path.join(getCloudevalConfigDir(), "profiles");
+  try {
+    const entries = await fs.readdir(profilesDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.isDirectory() && CONFIG_PROFILE_PATTERN.test(entry.name)) {
+        profiles.add(entry.name);
+      }
+    }
+  } catch (error: any) {
+    if (error?.code !== "ENOENT") {
+      throw error;
+    }
+  }
+  return [...profiles].sort();
+};
+
+const keyAliases: Record<string, keyof CliConfig> = {
+  project: "defaultProjectId",
+  projectId: "defaultProjectId",
+  defaultProject: "defaultProjectId",
+  defaultProjectId: "defaultProjectId",
+  model: "model",
+  baseUrl: "baseUrl",
+  frontendUrl: "frontendUrl",
+  outputFormat: "outputFormat",
+  format: "outputFormat",
+};
+
+export const normalizeConfigKey = (key: string): keyof CliConfig => {
+  const normalized = key.trim();
+  const mapped = keyAliases[normalized];
+  if (!mapped) {
+    throw new Error(
+      `Unsupported config key '${key}'. Supported keys: baseUrl, frontendUrl, defaultProjectId, model, outputFormat.`
+    );
+  }
+  return mapped;
+};
+
+export const readCliConfigValue = (
+  config: CliConfig,
+  key: string
+): string | undefined => {
+  const normalized = normalizeConfigKey(key);
+  const value = config[normalized];
+  return typeof value === "string" ? value : undefined;
+};
+
+export const writeCliConfigValue = (
+  config: CliConfig,
+  key: string,
+  value: string
+): CliConfig => {
+  const normalized = normalizeConfigKey(key);
+  return {
+    ...config,
+    [normalized]: value,
+  };
+};
+
+export const unsetCliConfigValue = (config: CliConfig, key: string): CliConfig => {
+  const normalized = normalizeConfigKey(key);
+  const next = { ...config };
+  delete next[normalized];
+  return next;
+};

@@ -22,6 +22,13 @@ test("resolveFrontendBaseUrl maps local API to local frontend", () => {
   );
 });
 
+test("resolveFrontendBaseUrl defaults to the public frontend host", () => {
+  assert.equal(
+    resolveFrontendBaseUrl({ apiBaseUrl: "https://cloudeval.ai/api/proxy/v1" }),
+    "https://cloudeval.ai"
+  );
+});
+
 test("buildFrontendUrl builds project preview/code deep links", () => {
   assert.equal(
     buildFrontendUrl({

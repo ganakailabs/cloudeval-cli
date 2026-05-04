@@ -1,4 +1,4 @@
-export const CLOUD_BASE_URL = "https://cloudeval.ai/api/v1";
+export const CLOUD_BASE_URL = "https://cloudeval.ai/api/proxy/v1";
 
 export const getDefaultBaseUrl = (env: NodeJS.ProcessEnv = process.env): string => {
   const configured = env.CLOUDEVAL_BASE_URL?.trim();

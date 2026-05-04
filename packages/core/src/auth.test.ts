@@ -234,6 +234,139 @@ test("insecure file storage override takes precedence over OS backends", async (
   }
 });
 
+test("validated auth status reports revoked refresh tokens as unauthenticated", async () => {
+  const tempHome = await mkdtemp(path.join(os.tmpdir(), "cloudeval-auth-"));
+  const previousOverride = process.env.CLOUDEVAL_ALLOW_INSECURE_FILE_STORAGE;
+  process.env.CLOUDEVAL_ALLOW_INSECURE_FILE_STORAGE = "1";
+
+  try {
+    const { getAuthStatus } = await importFreshAuthModule(tempHome);
+    const configDir = path.join(tempHome, ".config", "cloudeval");
+    fs.mkdirSync(configDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(configDir, "config.json"),
+      JSON.stringify(
+        {
+          refreshTokenRef: "refresh-token",
+          baseUrl: "http://127.0.0.1:8787/api/v1",
+        },
+        null,
+        2
+      )
+    );
+    fs.writeFileSync(
+      path.join(configDir, "secrets.json"),
+      JSON.stringify(
+        {
+          "refresh-token": "revoked-refresh-token",
+        },
+        null,
+        2
+      )
+    );
+
+    const originalFetch = global.fetch;
+    global.fetch = async (input) => {
+      const url = typeof input === "string" ? input : input.toString();
+      assert.match(url, /\/auth\/refresh$/);
+      return jsonResponse({ detail: "invalid_grant" }, 401);
+    };
+
+    try {
+      const status = await getAuthStatus("http://127.0.0.1:8787", {
+        validate: true,
+      });
+      assert.equal(status.authenticated, false);
+      assert.equal(status.hasRefreshToken, false);
+      assert.equal(status.validationAttempted, true);
+      assert.match(status.authError, /invalid_grant|No authentication available/);
+    } finally {
+      global.fetch = originalFetch;
+    }
+  } finally {
+    if (previousOverride === undefined) {
+      delete process.env.CLOUDEVAL_ALLOW_INSECURE_FILE_STORAGE;
+    } else {
+      process.env.CLOUDEVAL_ALLOW_INSECURE_FILE_STORAGE = previousOverride;
+    }
+  }
+});
+
+test("validated auth status clears refresh tokens rejected by Azure consent errors", async () => {
+  const tempHome = await mkdtemp(path.join(os.tmpdir(), "cloudeval-auth-"));
+  const previousOverride = process.env.CLOUDEVAL_ALLOW_INSECURE_FILE_STORAGE;
+  process.env.CLOUDEVAL_ALLOW_INSECURE_FILE_STORAGE = "1";
+
+  try {
+    const { getAuthStatus } = await importFreshAuthModule(tempHome);
+    const configDir = path.join(tempHome, ".config", "cloudeval");
+    fs.mkdirSync(configDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(configDir, "config.json"),
+      JSON.stringify(
+        {
+          refreshTokenRef: "refresh-token",
+          baseUrl: "https://cloudeval.ai/api/proxy/v1",
+        },
+        null,
+        2
+      )
+    );
+    fs.writeFileSync(
+      path.join(configDir, "secrets.json"),
+      JSON.stringify(
+        {
+          "refresh-token": "consent-required-refresh-token",
+        },
+        null,
+        2
+      )
+    );
+
+    const originalFetch = global.fetch;
+    const seenUrls: string[] = [];
+    global.fetch = async (input) => {
+      const url = typeof input === "string" ? input : input.toString();
+      seenUrls.push(url);
+      if (url.endsWith("/auth/refresh")) {
+        return jsonResponse(
+          {
+            error: "Authentication required for this endpoint",
+            code: "AUTH_REQUIRED_PUBLIC",
+          },
+          401
+        );
+      }
+      assert.match(url, /login\.microsoftonline\.com\/.+\/oauth2\/v2\.0\/token$/);
+      return jsonResponse(
+        {
+          error: "consent_required",
+          error_description: "AADSTS65001: The user or administrator has not consented.",
+        },
+        400
+      );
+    };
+
+    try {
+      const status = await getAuthStatus("https://cloudeval.ai/api/proxy/v1", {
+        validate: true,
+      });
+      assert.equal(status.authenticated, false);
+      assert.equal(status.hasRefreshToken, false);
+      assert.equal(status.validationAttempted, true);
+      assert.equal(seenUrls.length, 2);
+    } finally {
+      global.fetch = originalFetch;
+    }
+  } finally {
+    if (previousOverride === undefined) {
+      delete process.env.CLOUDEVAL_ALLOW_INSECURE_FILE_STORAGE;
+    } else {
+      process.env.CLOUDEVAL_ALLOW_INSECURE_FILE_STORAGE = previousOverride;
+    }
+  }
+});
+
 test("getAuthToken retries with the latest persisted refresh token after a concurrent refresh", async () => {
   const tempHome = await mkdtemp(path.join(os.tmpdir(), "cloudeval-auth-"));
   const previousOverride = process.env.CLOUDEVAL_ALLOW_INSECURE_FILE_STORAGE;

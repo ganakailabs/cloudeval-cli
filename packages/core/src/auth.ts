@@ -160,6 +160,12 @@ interface AuthStatus {
   accountId?: string;
   baseUrl?: string;
   storageBackend: SecretBackend;
+  validationAttempted?: boolean;
+  authError?: string;
+}
+
+interface AuthStatusOptions {
+  validate?: boolean;
 }
 
 type SecretBackend =
@@ -178,6 +184,29 @@ const memorySecrets = new Map<string, string>();
 const now = () => Date.now();
 const sleep = (ms: number) =>
   new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+const errorMessage = (error: unknown): string =>
+  error instanceof Error
+    ? error.message
+    : typeof error === "string"
+      ? error
+      : String(error ?? "Unknown error");
+
+const isRejectedRefreshTokenError = (error: unknown): boolean => {
+  const message = errorMessage(error).toLowerCase();
+  return (
+    message.includes("invalid_grant") ||
+    message.includes("consent_required") ||
+    message.includes("aadsts65001") ||
+    message.includes("interaction_required") ||
+    (message.includes("refresh token") &&
+      (message.includes("revoked") ||
+        message.includes("expired") ||
+        message.includes("invalid"))) ||
+    message.includes("aadsts700082") ||
+    message.includes("aadsts70000")
+  );
+};
 
 const isProcessAlive = (pid: number): boolean => {
   if (!Number.isInteger(pid) || pid <= 0) {
@@ -459,21 +488,29 @@ const deleteSecret = (key: string) => {
   const backend = detectSecretBackend();
   try {
     if (backend === "macos-keychain") {
-      execFileSync("security", [
-        "delete-generic-password",
-        "-a",
-        key,
-        "-s",
-        KEYCHAIN_SERVICE,
-      ]);
+      execFileSync(
+        "security",
+        [
+          "delete-generic-password",
+          "-a",
+          key,
+          "-s",
+          KEYCHAIN_SERVICE,
+        ],
+        { stdio: "ignore" }
+      );
     } else if (backend === "linux-libsecret") {
-      execFileSync("secret-tool", [
-        "clear",
-        "service",
-        KEYCHAIN_SERVICE,
-        "account",
-        key,
-      ]);
+      execFileSync(
+        "secret-tool",
+        [
+          "clear",
+          "service",
+          KEYCHAIN_SERVICE,
+          "account",
+          key,
+        ],
+        { stdio: "ignore" }
+      );
     } else if (backend === "windows-dpapi" || backend === "insecure-file") {
       const secrets = readSecretsFile();
       if (secrets[key]) {
@@ -1670,6 +1707,14 @@ const refreshViaBackend = async (
 
   if (!response.ok) {
     const errorText = await response.text();
+    const lowerErrorText = errorText.toLowerCase();
+    if (
+      (response.status === 401 || response.status === 403) &&
+      (lowerErrorText.includes("auth_required_public") ||
+        lowerErrorText.includes("authentication required for this endpoint"))
+    ) {
+      return null;
+    }
     throw new Error(errorText || "Token refresh failed");
   }
 
@@ -1844,19 +1889,50 @@ export const logout = async (
   return { revoked, localCleared: true };
 };
 
-export const getAuthStatus = async (baseUrl?: string): Promise<AuthStatus> => {
-  const disk = readStored();
-  const refreshToken = getRefreshToken(disk);
-  const accessToken = getAccessToken(disk);
-  const accessTokenCached = Boolean(
+export const getAuthStatus = async (
+  baseUrl?: string,
+  options: AuthStatusOptions = {}
+): Promise<AuthStatus> => {
+  let disk = readStored();
+  let refreshToken = getRefreshToken(disk);
+  let accessToken = getAccessToken(disk);
+  let accessTokenCached = Boolean(
     (cachedToken && cachedToken.expiresAt > now()) ||
       (accessToken && disk.tokenExpiresAt && disk.tokenExpiresAt > now())
   );
+  let authenticated = Boolean(accessTokenCached || refreshToken);
+  let authError: string | undefined;
+
+  if (options.validate && authenticated) {
+    try {
+      const validationBaseUrl = resolveRefreshBaseUrl(baseUrl, disk.baseUrl);
+      const token = await getAuthToken({ baseUrl: validationBaseUrl });
+      if (validationBaseUrl) {
+        await checkUserStatus(validationBaseUrl, token);
+      }
+      disk = readStored();
+      refreshToken = getRefreshToken(disk);
+      accessToken = getAccessToken(disk);
+      accessTokenCached = Boolean(
+        (cachedToken && cachedToken.expiresAt > now()) ||
+          (accessToken && disk.tokenExpiresAt && disk.tokenExpiresAt > now())
+      );
+      authenticated = true;
+    } catch (error) {
+      authError = errorMessage(error);
+      disk = readStored();
+      refreshToken = getRefreshToken(disk);
+      accessToken = getAccessToken(disk);
+      accessTokenCached = Boolean(
+        (cachedToken && cachedToken.expiresAt > now()) ||
+          (accessToken && disk.tokenExpiresAt && disk.tokenExpiresAt > now())
+      );
+      authenticated = false;
+    }
+  }
 
   return {
-    authenticated: Boolean(
-      accessTokenCached || refreshToken
-    ),
+    authenticated,
     accessTokenCached,
     accessTokenExpiresAt: cachedToken?.expiresAt ?? disk.tokenExpiresAt,
     hasRefreshToken: Boolean(refreshToken),
@@ -1864,6 +1940,8 @@ export const getAuthStatus = async (baseUrl?: string): Promise<AuthStatus> => {
     accountId: disk.accountId,
     baseUrl: disk.baseUrl || baseUrl,
     storageBackend: detectSecretBackend(),
+    validationAttempted: options.validate,
+    authError,
   };
 };
 
@@ -2047,6 +2125,7 @@ export const getAuthToken = async (options: AuthOptions = {}): Promise<string> =
   const disk = readStored();
   const refreshToken = getRefreshToken(disk);
   const accessToken = getAccessToken(disk);
+  let refreshError: unknown;
 
   if (accessToken && disk.tokenExpiresAt && disk.tokenExpiresAt > minValidUntil) {
     cachedToken = { token: accessToken, expiresAt: disk.tokenExpiresAt };
@@ -2056,7 +2135,11 @@ export const getAuthToken = async (options: AuthOptions = {}): Promise<string> =
   if (refreshToken) {
     try {
       return await refreshWithSingleFlight(options);
-    } catch {
+    } catch (error) {
+      refreshError = error;
+      if (isRejectedRefreshTokenError(error)) {
+        clearLocalAuth(disk);
+      }
       // Refresh token may be revoked; force interactive re-login path.
     }
   }
@@ -2068,9 +2151,12 @@ export const getAuthToken = async (options: AuthOptions = {}): Promise<string> =
     }
   }
 
-  throw new Error(
-    "No authentication available. Run 'cloudeval login' to authenticate. For machine auth, provide --machine with service credentials or use --api-key-stdin."
-  );
+  const loginHint =
+    "No authentication available. Run 'cloudeval login' to authenticate. For machine auth, provide --machine with service credentials or use --api-key-stdin.";
+  if (refreshError) {
+    throw new Error(`${loginHint} Stored refresh failed: ${errorMessage(refreshError)}`);
+  }
+  throw new Error(loginHint);
 };
 
 export const getAuthHeader = async (

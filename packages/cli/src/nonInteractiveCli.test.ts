@@ -491,6 +491,7 @@ test("mcp status and setup helpers are machine-readable", async () => {
   assert.equal(status.data.toolsets.includes("readonly"), true);
   assert.equal(status.data.resources.includes("cloudeval://capabilities"), true);
   assert.equal(status.data.prompts.includes("cost-review"), true);
+  assert.equal(status.data.setupClients.includes("generic"), true);
 
   const setup = parseJson(await runCli([
     "mcp",
@@ -508,6 +509,31 @@ test("mcp status and setup helpers are machine-readable", async () => {
   assert.equal(setup.data.client, "codex");
   assert.deepEqual(setup.data.server.args, ["mcp", "serve", "--toolset", "readonly"]);
   assert.match(setup.data.instructions[0], /codex mcp add cloudeval/);
+
+  const genericSetup = parseJson(await runCli([
+    "mcp",
+    "setup",
+    "generic",
+    "--dry-run",
+    "--command",
+    "cloudeval",
+    "--toolset",
+    "readonly",
+    "--format",
+    "json",
+  ]));
+  assert.equal(genericSetup.command, "mcp setup");
+  assert.equal(genericSetup.data.client, "generic");
+  assert.equal(genericSetup.data.configPath, undefined);
+  assert.deepEqual(genericSetup.data.config, {
+    mcpServers: {
+      cloudeval: {
+        command: "cloudeval",
+        args: ["mcp", "serve", "--toolset", "readonly"],
+      },
+    },
+  });
+  assert.match(genericSetup.data.instructions[0], /Copy the shown mcpServers\.cloudeval entry/);
 });
 
 test("auth status is non-interactive and respects explicit base url", async () => {

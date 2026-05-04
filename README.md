@@ -57,7 +57,7 @@ cloudeval billing topups [--format text|json|ndjson|markdown]
 cloudeval billing topup <pack-id> [--currency <code>] [--country-code <code>] [--print-url|--open] [--format text|json|ndjson|markdown]
 cloudeval billing topups buy <pack-id> [--currency <code>] [--country-code <code>] [--print-url|--open] [--format text|json|ndjson|markdown]
 cloudeval mcp status [--format text|json|ndjson|markdown]
-cloudeval mcp setup codex|claude|cursor [--dry-run] [--command <path>] [--toolset all|readonly|projects|reports|billing]
+cloudeval mcp setup codex|claude|cursor|generic [--dry-run] [--command <path>] [--toolset all|readonly|projects|reports|billing]
 cloudeval mcp serve [--toolset all|readonly|projects|reports|billing] [--base-url <url>] [--frontend-url <url>] [--api-key <key>] [--machine] [--profile <name>]
 cloudeval login [--headless]
 cloudeval logout [--all-devices]
@@ -113,6 +113,17 @@ Claude Desktop and Cursor setup helpers:
 cloudeval mcp setup claude --dry-run --toolset reports --format json
 cloudeval mcp setup cursor --dry-run --toolset billing --format json
 ```
+
+Generic MCP client configuration:
+
+```bash
+cloudeval mcp setup generic --dry-run --toolset readonly --format json
+```
+
+For Ollama-powered agents, configure the MCP host launched by Ollama, such as a
+local coding agent or editor extension. CloudEval does not need an
+Ollama-specific bridge; the host only needs a stdio MCP server entry pointing at
+`cloudeval mcp serve`.
 
 For local development before installing the binary:
 

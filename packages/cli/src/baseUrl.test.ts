@@ -26,7 +26,7 @@ test("isLocalBaseUrl detects localhost development endpoints", () => {
   assert.equal(isLocalBaseUrl("http://127.0.0.1:8000/api/v1"), true);
   assert.equal(isLocalBaseUrl("http://localhost:8000/api/v1"), true);
   assert.equal(isLocalBaseUrl("http://[::1]:8000/api/v1"), true);
-  assert.equal(isLocalBaseUrl("https://cloudeval.ai/api/v1"), false);
+  assert.equal(isLocalBaseUrl("https://cloudeval.ai/api/proxy/v1"), false);
 });
 
 test("shouldUseStoredBaseUrl ignores stale local auth base URLs by default", () => {

@@ -1,0 +1,32 @@
+minimum_pre_commit_version: "4.0.0"
+
+repos:
+  - repo: local
+    hooks:
+      - id: gitleaks-staged
+        name: gitleaks staged secret scan
+        entry: gitleaks git --pre-commit --staged --redact=100 --no-banner --no-color
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+
+      - id: block-private-keys
+        name: block private keys in staged files
+        entry: bash -c 'failed=0; while IFS= read -r -d "" f; do [ -f "$f" ] || continue; if grep -Iq . "$f" && grep -nE -- "-----BEGIN [A-Z ]*PRIVATE KEY-----" "$f"; then failed=1; fi; done < <(git diff --cached --name-only -z --diff-filter=ACMR); exit "$failed"'
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+
+      - id: block-merge-conflict-markers
+        name: block merge conflict markers
+        entry: bash -c 'failed=0; while IFS= read -r -d "" f; do [ -f "$f" ] || continue; if grep -Iq . "$f" && grep -nE -- "^(<<<<<<<|=======|>>>>>>>)" "$f"; then failed=1; fi; done < <(git diff --cached --name-only -z --diff-filter=ACMR); exit "$failed"'
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+
+      - id: block-large-files
+        name: block staged files larger than 1 MiB
+        entry: bash -c 'failed=0; while IFS= read -r -d "" f; do [ -f "$f" ] || continue; size=$(wc -c < "$f"); if [ "$size" -gt 1048576 ]; then echo "$f is larger than 1 MiB"; failed=1; fi; done < <(git diff --cached --name-only -z --diff-filter=ACMR); exit "$failed"'
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]

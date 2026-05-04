@@ -46,3 +46,9 @@
 *.token
 *.token.*
 secrets/
+.cloudeval-downloads/
+
+# Editor-local task files can carry environment values.
+.vscode/tasks.json
+.vscode/launch.json
+.vscode/settings.json

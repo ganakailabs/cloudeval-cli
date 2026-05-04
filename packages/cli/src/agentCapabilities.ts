@@ -3,6 +3,7 @@ import {
   writeFormattedOutput,
   type MachineOutputFormat,
 } from "./outputFormatter.js";
+import { buildDomains, cliCommands } from "./cliCommandRegistry.js";
 
 const capabilities = {
   version: 1,
@@ -23,6 +24,7 @@ const capabilities = {
     "--no-open",
     "--frontend-url",
     "--base-url",
+    "--profile",
   ],
   exitCodes: {
     success: 0,
@@ -32,14 +34,13 @@ const capabilities = {
     backendUnavailable: 4,
     notFound: 5,
   },
-  domains: {
-    chat: ["ask", "chat", "open chat"],
-    reports: ["reports list", "reports show", "reports cost", "reports waf", "reports download", "reports run", "reports rules"],
-    projects: ["projects list", "projects get", "projects open", "projects create"],
-    connections: ["connections list", "connections get", "connections open"],
-    billing: ["credits", "billing summary", "billing usage", "billing ledger", "billing invoices", "billing topups", "billing plans", "billing notifications"],
-    frontend: ["open overview", "open chat", "open projects", "open project", "open connections", "open connection", "open reports", "open billing"],
-  },
+  commands: cliCommands.map(({ name, description, domain, workflows }) => ({
+    name,
+    description,
+    domain,
+    workflows,
+  })),
+  domains: buildDomains(),
   deeplinks: {
     overview: "/app/overview",
     chat: "/app/chat?threadId=<thread-id>",
@@ -77,6 +78,7 @@ Use explicit subcommands for pipeable work. Machine-readable commands write data
 Preferred agent flags:
   --format json
   --non-interactive
+  --profile <name>
   --print-url --no-open
   --output <file>
 
@@ -86,6 +88,8 @@ Stable JSON envelope:
 
 Discovery:
   cloudeval capabilities --format json
+  cloudeval doctor --format json
+  cloudeval config show --format json
 `);
         return;
       }

@@ -11,7 +11,7 @@ const DEFAULT_BACKEND_SCOPE =
   "api://REMOVED_AZURE_CLIENT_ID/access_as_user offline_access";
 const DEFAULT_BACKEND_DEFAULT_SCOPE =
   "api://REMOVED_AZURE_CLIENT_ID/.default";
-const DEFAULT_BASE_URL = "https://cloudeval.ai/api/v1";
+const DEFAULT_BASE_URL = "https://cloudeval.ai/api/proxy/v1";
 const TOKEN_EXPIRY_SKEW_MS = 120_000;
 const REFRESH_SECRET_LABEL = "refresh-token";
 const INSECURE_FILE_FALLBACK_ENV = "CLOUDEVAL_ALLOW_INSECURE_FILE_STORAGE";
@@ -538,9 +538,27 @@ export const assertSecureBaseUrl = (rawBaseUrl: string): void => {
 export const normalizeApiBase = (baseUrl?: string): string => {
   const raw = baseUrl || process.env.CLOUDEVAL_BASE_URL || DEFAULT_BASE_URL;
   assertSecureBaseUrl(raw);
-  return raw.endsWith("/api/v1")
-    ? raw
-    : raw.replace(/\/api\/?$/, "") + "/api/v1";
+  const trimmed = raw.replace(/\/+$/, "");
+  try {
+    const url = new URL(trimmed);
+    const hostname = url.hostname.toLowerCase();
+    const path = url.pathname.replace(/\/+$/, "") || "/";
+    if (hostname === "cloudeval.ai" && ["/", "/api", "/api/v1"].includes(path)) {
+      url.pathname = "/api/proxy/v1";
+      url.search = "";
+      url.hash = "";
+      return url.toString().replace(/\/+$/, "");
+    }
+  } catch {
+    // assertSecureBaseUrl already validates this path; keep the legacy fallback below.
+  }
+  if (trimmed.endsWith("/api/v1") || trimmed.endsWith("/api/proxy/v1")) {
+    return trimmed;
+  }
+  if (trimmed.endsWith("/api/proxy")) {
+    return `${trimmed}/v1`;
+  }
+  return trimmed.replace(/\/api\/?$/, "") + "/api/v1";
 };
 
 const sanitizeStoredForDisk = (data: StoredAuth): StoredAuth => {

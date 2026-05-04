@@ -106,7 +106,11 @@ const collectBody = async (req: http.IncomingMessage): Promise<string> => {
   return Buffer.concat(chunks).toString("utf8");
 };
 
-const startBackend = async () => {
+const startBackend = async (
+  options: {
+    models?: Array<Record<string, unknown>>;
+  } = {}
+) => {
   const requests: RecordedRequest[] = [];
   const createdProjects: any[] = [];
 
@@ -124,6 +128,14 @@ const startBackend = async () => {
 
     if (url.pathname === "/api/v1/auth/me") {
       return json(res, user);
+    }
+    if (url.pathname === "/api/v1/models") {
+      return json(res, {
+        models: options.models ?? [
+          { id: "gpt-5-nano", name: "GPT-5 Nano" },
+          { id: "gpt-5-mini", name: "GPT-5 Mini" },
+        ],
+      });
     }
     if (url.pathname === `/api/v1/projects/user/${user.id}`) {
       return json(res, [project, ...createdProjects]);
@@ -305,9 +317,9 @@ const cliInvocation = () => {
 
 const runCli = async (
   args: string[],
-  options: { input?: string; env?: Record<string, string>; timeoutMs?: number } = {}
+  options: { input?: string; env?: Record<string, string>; timeoutMs?: number; home?: string } = {}
 ) => {
-  const home = await fs.mkdtemp(path.join(os.tmpdir(), "cloudeval-cli-test-home-"));
+  const home = options.home ?? await fs.mkdtemp(path.join(os.tmpdir(), "cloudeval-cli-test-home-"));
   const { command, prefix } = cliInvocation();
   const child = spawn(command, [...prefix, ...args], {
     cwd: path.resolve("."),
@@ -336,7 +348,9 @@ const runCli = async (
   const timeout = setTimeout(() => child.kill("SIGKILL"), options.timeoutMs ?? 20_000);
   const exitCode = await new Promise<number | null>((resolve) => child.on("exit", resolve));
   clearTimeout(timeout);
-  await fs.rm(home, { recursive: true, force: true });
+  if (!options.home) {
+    await fs.rm(home, { recursive: true, force: true });
+  }
 
   return {
     exitCode,
@@ -363,6 +377,74 @@ test("non-interactive discovery commands are machine-readable", async () => {
   const completion = await runCli(["completion", "zsh"]);
   assert.equal(completion.exitCode, 0, completion.stderr);
   assert.match(completion.stdout, /_cloudeval/);
+});
+
+test("phase one and two local commands are agent-safe and profile-aware", async () => {
+  const backend = await startBackend();
+  const home = await fs.mkdtemp(path.join(os.tmpdir(), "cloudeval-cli-phase12-home-"));
+  try {
+    const setup = parseJson(await runCli([
+      "setup",
+      "--non-interactive",
+      "--base-url",
+      backend.baseUrl,
+      "--frontend-url",
+      "https://app.example.test",
+      "--project",
+      "project-main",
+      "--model",
+      "gpt-5-mini",
+      "--profile",
+      "agent",
+      "--format",
+      "json",
+    ], { home }));
+    assert.equal(setup.command, "setup");
+    assert.equal(setup.data.config.baseUrl, backend.baseUrl);
+    assert.equal(setup.data.config.defaultProjectId, "project-main");
+
+    const config = parseJson(await runCli(["config", "show", "--profile", "agent", "--format", "json"], { home }));
+    assert.equal(config.command, "config show");
+    assert.equal(config.data.baseUrl, backend.baseUrl);
+    assert.equal(config.data.model, "gpt-5-mini");
+
+    const configPath = await runCli(["config", "path", "--profile", "agent"], { home });
+    assert.equal(configPath.exitCode, 0, configPath.stderr);
+    assert.match(configPath.stdout, /settings\.json/);
+
+    const modelDefault = parseJson(await runCli(["models", "default", "get", "--profile", "agent", "--format", "json"], { home }));
+    assert.equal(modelDefault.data.model, "gpt-5-mini");
+
+    const models = parseJson(await runCli([
+      "models",
+      "list",
+      "--api-key",
+      "test-token",
+      "--profile",
+      "agent",
+      "--format",
+      "json",
+    ], { home }));
+    assert.equal(models.command, "models list");
+    assert.equal(models.data.models[1].id, "gpt-5-mini");
+
+    const status = parseJson(await runCli(["status", "--profile", "agent", "--format", "json"], { home }));
+    assert.equal(status.command, "status");
+    assert.equal(status.data.baseUrl, backend.baseUrl);
+    assert.equal(status.data.auth.authenticated, false);
+
+    const doctor = parseJson(await runCli(["doctor", "--profile", "agent", "--format", "json"], { home }));
+    assert.equal(doctor.command, "doctor");
+    assert.equal(doctor.data.ok, true);
+    assert.equal(doctor.data.checks.some((check: any) => check.id === "base-url-secure"), true);
+
+    const capabilities = parseJson(await runCli(["capabilities", "--format", "json"], { home }));
+    assert.equal(JSON.stringify(capabilities.data.domains).includes("doctor"), true);
+    assert.equal(JSON.stringify(capabilities.data.domains).includes("sessions list"), true);
+  } finally {
+    await fs.rm(home, { recursive: true, force: true });
+    await backend.close();
+  }
 });
 
 test("auth status is non-interactive and respects explicit base url", async () => {
@@ -599,6 +681,7 @@ test("billing and credits commands are non-interactive and JSON-safe", async () 
 
 test("ask streams a single answer non-interactively with selected project and model", async () => {
   const backend = await startBackend();
+  const home = await fs.mkdtemp(path.join(os.tmpdir(), "cloudeval-cli-session-home-"));
   try {
     const answer = parseJson(await runCli([
       "ask",
@@ -618,10 +701,19 @@ test("ask streams a single answer non-interactively with selected project and mo
       "--no-open",
       "--frontend-url",
       "https://app.example.test",
-    ]));
+    ], { home }));
     assert.equal(answer.command, "ask");
     assert.equal(answer.data.response, "Mock answer from Cloudeval AI.");
     assert.equal(answer.data.project.id, "project-main");
+
+    const sessions = parseJson(await runCli(["sessions", "list", "--format", "json"], { home }));
+    assert.equal(sessions.command, "sessions list");
+    assert.equal(sessions.data[0].threadId, answer.data.threadId);
+    assert.equal(sessions.data[0].projectId, "project-main");
+
+    const session = parseJson(await runCli(["sessions", "get", answer.data.threadId, "--format", "json"], { home }));
+    assert.equal(session.data.messages[0].role, "user");
+    assert.equal(session.data.messages.at(-1).content, "Mock answer from Cloudeval AI.");
 
     const streamRequest = backend.requests.find((request) => request.path === "/api/v1/chat/stream");
     assert(streamRequest);
@@ -629,6 +721,40 @@ test("ask streams a single answer non-interactively with selected project and mo
     assert.equal(payload.project.id, "project-main");
     assert.equal(payload.settings.model, "gpt-5-mini");
     assert.equal(streamRequest.authorization, "Bearer test-token");
+  } finally {
+    await fs.rm(home, { recursive: true, force: true });
+    await backend.close();
+  }
+});
+
+test("ask rejects unavailable backend models before opening a chat stream", async () => {
+  const backend = await startBackend({
+    models: [{ id: "gpt-5-nano", name: "GPT-5 Nano" }],
+  });
+  try {
+    const result = await runCli([
+      "ask",
+      "What can you do?",
+      "--base-url",
+      backend.baseUrl,
+      "--api-key",
+      "test-token",
+      "--project",
+      "project-main",
+      "--model",
+      "gpt-5-mini",
+      "--format",
+      "json",
+      "--non-interactive",
+    ]);
+
+    assert.equal(result.exitCode, 1);
+    assert.match(result.stderr, /Model 'gpt-5-mini' is not available/);
+    assert.match(result.stderr, /gpt-5-nano/);
+    assert.equal(
+      backend.requests.some((request) => request.path === "/api/v1/chat/stream"),
+      false
+    );
   } finally {
     await backend.close();
   }

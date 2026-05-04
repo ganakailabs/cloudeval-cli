@@ -33,11 +33,26 @@ test("normalizeApiBase appends api/v1 exactly once", async () => {
   const tempHome = await mkdtemp(path.join(os.tmpdir(), "cloudeval-auth-"));
   const { normalizeApiBase } = await importFreshAuthModule(tempHome);
 
-  assert.equal(normalizeApiBase("https://cloudeval.ai"), "https://cloudeval.ai/api/v1");
-  assert.equal(normalizeApiBase("https://cloudeval.ai/api"), "https://cloudeval.ai/api/v1");
+  assert.equal(normalizeApiBase(), "https://cloudeval.ai/api/proxy/v1");
+  assert.equal(
+    normalizeApiBase("https://cloudeval.ai"),
+    "https://cloudeval.ai/api/proxy/v1"
+  );
+  assert.equal(
+    normalizeApiBase("https://cloudeval.ai/api"),
+    "https://cloudeval.ai/api/proxy/v1"
+  );
+  assert.equal(
+    normalizeApiBase("https://cloudeval.ai/api/proxy"),
+    "https://cloudeval.ai/api/proxy/v1"
+  );
+  assert.equal(
+    normalizeApiBase("https://cloudeval.ai/api/proxy/v1"),
+    "https://cloudeval.ai/api/proxy/v1"
+  );
   assert.equal(
     normalizeApiBase("https://cloudeval.ai/api/v1"),
-    "https://cloudeval.ai/api/v1"
+    "https://cloudeval.ai/api/proxy/v1"
   );
 });
 
@@ -46,6 +61,7 @@ test("assertSecureBaseUrl rejects insecure non-localhost URLs", async () => {
   const { assertSecureBaseUrl } = await importFreshAuthModule(tempHome);
 
   assert.doesNotThrow(() => assertSecureBaseUrl("https://cloudeval.ai"));
+  assert.doesNotThrow(() => assertSecureBaseUrl("https://cloudeval.ai/api/proxy/v1"));
   assert.doesNotThrow(() => assertSecureBaseUrl("http://127.0.0.1:8787"));
   assert.throws(
     () => assertSecureBaseUrl("http://example.com"),
@@ -175,7 +191,7 @@ test("device code login falls back to Azure AD when backend bootstrap is protect
     const token = await loginWithDeviceCode("https://cloudeval.ai");
     assert.equal(token, "azure-access-token");
     assert.deepEqual(requests, [
-      "https://cloudeval.ai/api/v1/auth/device/code",
+      "https://cloudeval.ai/api/proxy/v1/auth/device/code",
       "https://login.microsoftonline.com/tenant-id/oauth2/v2.0/devicecode",
       "https://login.microsoftonline.com/tenant-id/oauth2/v2.0/token",
     ]);
@@ -530,8 +546,8 @@ test("login prefers browser-assisted device flow before PKCE", async () => {
         "https://cloudeval.ai/device/login?user_code=ABCD-EFGH",
       ]);
       assert.deepEqual(requests, [
-        "https://cloudeval.ai/api/v1/auth/device/code",
-        "https://cloudeval.ai/api/v1/auth/device/token",
+        "https://cloudeval.ai/api/proxy/v1/auth/device/code",
+        "https://cloudeval.ai/api/proxy/v1/auth/device/token",
       ]);
     } finally {
       global.fetch = originalFetch;

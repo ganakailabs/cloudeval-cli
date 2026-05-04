@@ -14,9 +14,16 @@ import { registerProjectsCommand } from "./projectsCommand.js";
 import { registerConnectionsCommand } from "./connectionsCommand.js";
 import { registerBillingCommands } from "./billingCommand.js";
 import { registerCapabilitiesCommand } from "./agentCapabilities.js";
+import { registerConfigCommand } from "./configCommand.js";
+import { registerDiagnosticsCommands } from "./diagnosticsCommand.js";
+import { registerModelsCommand } from "./modelsCommand.js";
+import { registerSessionsCommand } from "./sessionsCommand.js";
+import { registerSetupCommand } from "./setupCommand.js";
 import { buildFrontendUrl, openExternalUrl, resolveFrontendBaseUrl } from "./frontendLinks.js";
 import { CLI_VERSION } from "./version.js";
 import { getDefaultBaseUrl, shouldUseStoredBaseUrl } from "./baseUrl.js";
+import { getActiveConfigProfile, loadCliConfig } from "./cliConfig.js";
+import { recordSessionTurn } from "./sessionsStore.js";
 
 const DEFAULT_BASE_URL = getDefaultBaseUrl();
 const SENSITIVE_KEY_PATTERN = /token|authorization|cookie|secret|password|api[_-]?key/i;
@@ -119,6 +126,82 @@ const collapseRepeatedAssistantText = (value: string): string => {
   return first === second ? first : value;
 };
 
+const normalizeModelEntry = (raw: unknown): Record<string, unknown> | null => {
+  if (typeof raw === "string") {
+    return { id: raw, name: raw };
+  }
+  if (!raw || typeof raw !== "object") {
+    return null;
+  }
+  const value = raw as Record<string, unknown>;
+  const id = value.id ?? value.name ?? value.model ?? value.slug ?? value.deployment_name;
+  if (typeof id !== "string" || !id.trim()) {
+    return null;
+  }
+  return { ...value, id, name: typeof value.name === "string" ? value.name : id };
+};
+
+const normalizeModelsPayload = (payload: unknown): Array<Record<string, unknown>> => {
+  const list: unknown[] = Array.isArray(payload)
+    ? payload
+    : Array.isArray((payload as any)?.models)
+      ? (payload as any).models
+      : Array.isArray((payload as any)?.data)
+        ? (payload as any).data
+        : Array.isArray((payload as any)?.all)
+          ? (payload as any).all
+          : [];
+  return list
+    .map(normalizeModelEntry)
+    .filter((model): model is Record<string, unknown> => Boolean(model));
+};
+
+const availableModelId = (model: Record<string, unknown>): string | undefined => {
+  if (model.disabled === true) {
+    return undefined;
+  }
+  const availability = typeof model.availability === "string" ? model.availability.toLowerCase() : "";
+  if (availability && availability !== "available") {
+    return undefined;
+  }
+  return typeof model.id === "string" ? model.id : undefined;
+};
+
+const assertModelAvailable = async (input: {
+  baseUrl: string;
+  authToken?: string;
+  model?: string;
+  normalizeApiBase: (baseUrl?: string) => string;
+}) => {
+  if (!input.model) {
+    return;
+  }
+  try {
+    const response = await fetch(`${input.normalizeApiBase(input.baseUrl)}/models`, {
+      headers: {
+        Accept: "application/json",
+        ...(input.authToken ? { Authorization: `Bearer ${input.authToken}` } : {}),
+      },
+    });
+    if (!response.ok) {
+      return;
+    }
+    const available = normalizeModelsPayload(await response.json())
+      .map(availableModelId)
+      .filter((id): id is string => Boolean(id));
+    if (!available.length || available.includes(input.model)) {
+      return;
+    }
+    throw new Error(
+      `Model '${input.model}' is not available for this backend/account. Available models: ${available.join(", ")}.`
+    );
+  } catch (error: any) {
+    if (error?.message?.startsWith(`Model '${input.model}' is not available`)) {
+      throw error;
+    }
+  }
+};
+
 export const setVerbose = (enabled: boolean) => {
   verboseEnabled = enabled;
 };
@@ -206,6 +289,17 @@ const resolveBaseUrl = async (
   }
 
   try {
+    const config = await loadCliConfig(getActiveConfigProfile(command));
+    if (config.baseUrl) {
+      return config.baseUrl;
+    }
+  } catch (error: any) {
+    verboseLog("Ignoring CLI config while resolving base URL", {
+      message: error?.message,
+    });
+  }
+
+  try {
     const { getAuthStatus } = await import("@cloudeval/core");
     const status = await getAuthStatus();
     const storedBaseUrl = status.baseUrl;
@@ -223,6 +317,14 @@ const resolveBaseUrl = async (
   }
 
   return configuredBaseUrl;
+};
+
+const resolveCliConfig = async (command?: Command) => {
+  try {
+    return await loadCliConfig(getActiveConfigProfile(command));
+  } catch {
+    return {};
+  }
 };
 
 program
@@ -243,6 +345,7 @@ Examples:
   cloudeval capabilities --format json
 `
   )
+  .option("--profile <name>", "Configuration profile", process.env.CLOUDEVAL_PROFILE)
   .option("-v, --verbose", "Enable verbose logging", false)
   .hook("preAction", (thisCommand) => {
     const opts = thisCommand.opts();
@@ -387,6 +490,23 @@ registerBillingCommands(program, {
   isHeadlessEnvironment,
 });
 
+registerConfigCommand(program);
+
+registerSetupCommand(program, DEFAULT_BASE_URL);
+
+registerDiagnosticsCommands(program, {
+  defaultBaseUrl: DEFAULT_BASE_URL,
+  resolveBaseUrl,
+});
+
+registerModelsCommand(program, {
+  defaultBaseUrl: DEFAULT_BASE_URL,
+  resolveBaseUrl,
+  readStdinValue,
+});
+
+registerSessionsCommand(program);
+
 registerCapabilitiesCommand(program);
 
 program
@@ -439,6 +559,7 @@ program
     ]);
     const baseUrl = await resolveBaseUrl(options, command);
     assertSecureBaseUrl(baseUrl);
+    const cliConfig = await resolveCliConfig(command);
 
     let apiKey: string | undefined = options.apiKey;
     if (options.apiKeyStdin) {
@@ -457,10 +578,10 @@ program
         apiKey={apiKey}
         allowMachineAuth={!!options.machine}
         conversationId={undefined}
-        model={options.model}
+        model={options.model ?? cliConfig.model}
         initialTab={options.tab}
-        initialProjectId={options.project}
-        frontendUrl={options.frontendUrl}
+        initialProjectId={options.project ?? cliConfig.defaultProjectId}
+        frontendUrl={options.frontendUrl ?? cliConfig.frontendUrl}
         debug={options.debug}
         disableBanner={options.banner === false}
         disableAnim={options.anim === false}
@@ -499,6 +620,7 @@ program
     ]);
     const baseUrl = await resolveBaseUrl(options, command);
     assertSecureBaseUrl(baseUrl);
+    const cliConfig = await resolveCliConfig(command);
 
     let apiKey: string | undefined = options.apiKey;
     if (options.apiKeyStdin) {
@@ -518,7 +640,7 @@ program
         hasApiKey: !!apiKey,
         machineMode: options.machine,
         conversationId: options.conversation,
-        model: options.model,
+        model: options.model ?? cliConfig.model,
         debug: options.debug,
       });
     }
@@ -528,7 +650,9 @@ program
         apiKey={apiKey}
         allowMachineAuth={!!options.machine}
         conversationId={options.conversation}
-        model={options.model}
+        model={options.model ?? cliConfig.model}
+        initialProjectId={cliConfig.defaultProjectId}
+        frontendUrl={cliConfig.frontendUrl}
         debug={options.debug}
         disableBanner={options.banner === false}
         disableAnim={options.anim === false}
@@ -573,6 +697,11 @@ program
     const { assertSecureBaseUrl } = await import("@cloudeval/core");
     const baseUrl = await resolveBaseUrl(options, command);
     assertSecureBaseUrl(baseUrl);
+    const selectedProfile = getActiveConfigProfile(command);
+    const cliConfig = await resolveCliConfig(command);
+    const selectedProjectId = options.project ?? cliConfig.defaultProjectId;
+    const selectedModel = options.model ?? cliConfig.model;
+    const selectedFrontendUrl = options.frontendUrl ?? cliConfig.frontendUrl;
     const progressMode = normalizeAskProgressMode(options.progress);
     const outputFormat = options.json ? "json" : String(options.format ?? "text").toLowerCase();
     const jsonOutput = outputFormat === "json";
@@ -597,8 +726,8 @@ program
         baseUrl,
         hasApiKey: !!providedApiKey,
         machineMode: options.machine,
-        project: options.project,
-        model: options.model,
+        project: selectedProjectId,
+        model: selectedModel,
         output: options.output,
         json: options.json,
         format: options.format,
@@ -700,17 +829,24 @@ program
         verboseLog("Using provided API key for authentication");
       }
 
+      await assertModelAvailable({
+        baseUrl,
+        authToken: token,
+        model: selectedModel,
+        normalizeApiBase,
+      });
+
       // Get project
       verboseLog("Determining project to use");
       writeAskEvent(progressOptions, {
         type: "request",
         step: "project",
-        message: options.project ? `Using project ${options.project}` : "Resolving project",
+        message: selectedProjectId ? `Using project ${selectedProjectId}` : "Resolving project",
       });
       let project: Project | undefined;
       let authenticatedUserId: string | undefined;
-      if (options.project) {
-        verboseLog("Using provided project ID:", options.project);
+      if (selectedProjectId) {
+        verboseLog("Using provided project ID:", selectedProjectId);
         try {
           const userStatus = await checkUserStatus(baseUrl, token);
           authenticatedUserId = userStatus.user?.id;
@@ -720,7 +856,7 @@ program
         // If project ID provided, we'd need to fetch it
         // For now, use a basic project object
         project = {
-          id: options.project,
+          id: selectedProjectId,
           name: "Selected Project",
           user_id: authenticatedUserId,
           cloud_provider: "azure",
@@ -789,7 +925,7 @@ program
         threadId,
         projectId: project.id,
         projectName: project.name,
-        model: options.model,
+        model: selectedModel,
       });
       let chatState: ChatState = { ...initialChatState, threadId };
       let responseText = "";
@@ -846,7 +982,7 @@ program
         userName,
         projectId: project.id,
         projectName: project.name,
-        settings: options.model ? { model: options.model } : undefined,
+        settings: selectedModel ? { model: selectedModel } : undefined,
       });
 
       const logHeaders: Record<string, string> = {
@@ -879,7 +1015,7 @@ program
           threadId,
           user: { id: project.user_id ?? authenticatedUserId ?? "cli-user", name: userName },
           project,
-          settings: options.model ? { model: options.model } : undefined,
+          settings: selectedModel ? { model: selectedModel } : undefined,
           debug: options.debug,
           completeAfterResponse: true,
           responseCompletionGraceMs: 5000,
@@ -989,12 +1125,30 @@ program
       const finalResponse = collapseRepeatedAssistantText(finalMessage?.content || responseText || "");
       const frontendUrl = buildFrontendUrl({
         baseUrl: resolveFrontendBaseUrl({
-          frontendUrl: options.frontendUrl,
+          frontendUrl: selectedFrontendUrl,
           apiBaseUrl: baseUrl,
         }),
         target: "chat",
         threadId: chatState.threadId,
       });
+
+      try {
+        await recordSessionTurn({
+          threadId: chatState.threadId,
+          question,
+          response: finalResponse,
+          project: {
+            id: project.id,
+            name: project.name,
+          },
+          model: selectedModel,
+          profile: selectedProfile,
+        });
+      } catch (error: any) {
+        verboseLog("Failed to record local session history", {
+          message: error?.message,
+        });
+      }
 
       if (jsonOutput) {
         const output = {

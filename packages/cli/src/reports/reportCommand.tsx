@@ -1,4 +1,3 @@
-import React from "react";
 import type { Command } from "commander";
 import {
   type ReportEnvelope,
@@ -11,7 +10,6 @@ import {
   selectReportModePayload,
   serializeReportOutput,
 } from "./reportRender.js";
-import { ReportDashboard } from "./ReportDashboard.js";
 import { resolveReportProjectId } from "./reportProject.js";
 import {
   buildFrontendUrl,
@@ -173,13 +171,15 @@ const writeReport = async (
   const mode = resolveMode(options);
   const format = resolveFormat(options.format, tuiDefault);
   if (format === "tui") {
-    const { render } = await import("ink");
-    render(
-      <ReportDashboard
-        report={report}
-        initialMode={mode === "formatted" ? "overview" : mode}
-      />
-    );
+    const [{ default: React }, { render }, { ReportDashboard }] = await Promise.all([
+      import("react"),
+      import("ink"),
+      import("./ReportDashboard.js"),
+    ]);
+    render(React.createElement(ReportDashboard, {
+      report,
+      initialMode: mode === "formatted" ? "overview" : mode,
+    }));
     return;
   }
   const textFormat = format === "text" || format === "table" ? "summary" : format;

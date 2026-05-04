@@ -70,7 +70,7 @@ export const resolveFrontendBaseUrl = ({
     // Fall through to public frontend.
   }
 
-  return "https://www.cloudeval.ai";
+  return "https://cloudeval.ai";
 };
 
 const appUrl = (baseUrl: string, path: string): URL =>

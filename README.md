@@ -42,13 +42,27 @@ Run:
 ## Commands
 
 ```bash
-cloudeval chat [--base-url <url>] [--api-key-stdin|--api-key <key>] [--machine] [--conversation <id>] [--model <name>] [--debug]
-cloudeval ask <question> [--project <id>] [--output <file>] [--json] [--base-url <url>] [--api-key-stdin|--api-key <key>] [--machine] [--model <name>]
+cloudeval setup [--non-interactive] [--base-url <url>] [--frontend-url <url>] [--project <id>] [--model <name>] [--profile <name>]
+cloudeval config show|get|set|unset|path|profiles [--profile <name>] [--format text|json|ndjson|markdown]
+cloudeval doctor [--deep] [--format text|json|ndjson|markdown]
+cloudeval status [--format text|json|ndjson|markdown]
+cloudeval models list [--base-url <url>] [--api-key-stdin|--api-key <key>] [--format text|json|ndjson|markdown]
+cloudeval models default get|set [--profile <name>]
+cloudeval sessions list|get|export|delete|prune [--format text|json|ndjson|markdown]
+cloudeval tui [--base-url <url>] [--project <id>] [--model <name>] [--profile <name>]
+cloudeval chat [--base-url <url>] [--api-key-stdin|--api-key <key>] [--machine] [--conversation <id>] [--model <name>] [--debug] [--profile <name>]
+cloudeval ask <question> [--project <id>] [--output <file>] [--json] [--base-url <url>] [--api-key-stdin|--api-key <key>] [--machine] [--model <name>] [--profile <name>]
 cloudeval login [--headless]
 cloudeval logout [--all-devices]
 cloudeval auth status
+cloudeval capabilities --format json
 cloudeval banner
 ```
+
+`setup` and `config` write profile-specific defaults under
+`~/.config/cloudeval`. `ask`, `chat`, `tui`, `models`, `status`, and `doctor`
+respect the active profile through `--profile` or `CLOUDEVAL_PROFILE`, while
+explicit flags still win for automation.
 
 For help:
 
@@ -71,10 +85,11 @@ Run the same suite against the fully packaged local executable:
 pnpm -C packages/cli test:cli:noninteractive:packaged
 ```
 
-The suite starts a local mock backend and covers project creation/list/get,
-connections, report list/show/cost/WAF/rules/download, billing/credits, frontend
-deeplinks, shell completion, capabilities, auth status, and one-shot `ask`
-streaming. To test a specific binary, pass `CLOUDEVAL_CLI_BIN`:
+The suite starts a local mock backend and covers setup/config profiles,
+doctor/status diagnostics, model discovery/defaults, local session history,
+project creation/list/get, connections, report list/show/cost/WAF/rules/download,
+billing/credits, frontend deeplinks, shell completion, capabilities, auth status,
+and one-shot `ask` streaming. To test a specific binary, pass `CLOUDEVAL_CLI_BIN`:
 
 ```bash
 CLOUDEVAL_CLI_BIN=/path/to/cloudeval pnpm -C packages/cli test:cli:noninteractive

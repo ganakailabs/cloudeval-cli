@@ -47,3 +47,24 @@ test("buildMcpClientSetup creates Claude and Cursor mcpServers config", () => {
     },
   });
 });
+
+test("buildMcpClientSetup creates generic mcpServers config for other MCP clients", () => {
+  const setup = buildMcpClientSetup({
+    client: "generic",
+    command: "cloudeval",
+    toolset: "readonly",
+  });
+
+  assert.equal(setup.client, "generic");
+  assert.equal(setup.transport, "stdio");
+  assert.equal(setup.configPath, undefined);
+  assert.deepEqual(setup.config, {
+    mcpServers: {
+      cloudeval: {
+        command: "cloudeval",
+        args: ["mcp", "serve", "--toolset", "readonly"],
+      },
+    },
+  });
+  assert.match(setup.instructions[0], /Copy the shown mcpServers\.cloudeval entry/);
+});

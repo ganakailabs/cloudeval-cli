@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-export type McpSetupClient = "codex" | "claude" | "cursor";
+export type McpSetupClient = "codex" | "claude" | "cursor" | "generic";
 export type McpSetupToolset = "all" | "readonly" | "projects" | "reports" | "billing";
 
 export interface McpServerConfig {
@@ -30,7 +30,9 @@ export interface BuildMcpClientSetupOptions {
   configPath?: string;
 }
 
-const CLIENTS = new Set<McpSetupClient>(["codex", "claude", "cursor"]);
+export const MCP_SETUP_CLIENTS: McpSetupClient[] = ["codex", "claude", "cursor", "generic"];
+
+const CLIENTS = new Set<McpSetupClient>(MCP_SETUP_CLIENTS);
 const TOOLSETS = new Set<McpSetupToolset>([
   "all",
   "readonly",
@@ -44,7 +46,7 @@ export const normalizeMcpSetupClient = (value: string): McpSetupClient => {
   if (CLIENTS.has(normalized)) {
     return normalized;
   }
-  throw new Error("MCP setup client must be one of: codex, claude, cursor.");
+  throw new Error(`MCP setup client must be one of: ${MCP_SETUP_CLIENTS.join(", ")}.`);
 };
 
 export const normalizeMcpSetupToolset = (value?: string): McpSetupToolset => {
@@ -112,6 +114,13 @@ export const buildMcpClientSetup = ({
       cloudeval: server,
     },
   };
+  if (normalizedClient === "generic") {
+    setup.instructions.push(
+      "Copy the shown mcpServers.cloudeval entry into your MCP client's configuration. Use stdio transport."
+    );
+    return setup;
+  }
+
   setup.instructions.push(
     `Merge the shown mcpServers.cloudeval entry into ${setup.configPath}. Restart ${normalizedClient === "claude" ? "Claude Desktop" : "Cursor"} after updating the file.`
   );

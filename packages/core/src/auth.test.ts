@@ -367,7 +367,7 @@ test("validated auth status clears refresh tokens rejected by Azure consent erro
   }
 });
 
-test("validated auth status fails when backend rejects current user lookup", async () => {
+test("validated auth status clears stored auth when backend rejects current user lookup", async () => {
   const tempHome = await mkdtemp(path.join(os.tmpdir(), "cloudeval-auth-"));
   const previousOverride = process.env.CLOUDEVAL_ALLOW_INSECURE_FILE_STORAGE;
   process.env.CLOUDEVAL_ALLOW_INSECURE_FILE_STORAGE = "1";
@@ -417,9 +417,15 @@ test("validated auth status fails when backend rejects current user lookup", asy
         validate: true,
       });
       assert.equal(status.authenticated, false);
-      assert.equal(status.accessTokenCached, true);
+      assert.equal(status.accessTokenCached, false);
+      assert.equal(status.hasRefreshToken, false);
       assert.equal(status.validationAttempted, true);
       assert.match(status.authError, /Current user lookup failed: 401/);
+      assert.equal(fs.existsSync(path.join(configDir, "config.json")), false);
+      assert.deepEqual(
+        JSON.parse(fs.readFileSync(path.join(configDir, "secrets.json"), "utf8")),
+        {}
+      );
     } finally {
       global.fetch = originalFetch;
     }

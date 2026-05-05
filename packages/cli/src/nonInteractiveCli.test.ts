@@ -109,6 +109,7 @@ const collectBody = async (req: http.IncomingMessage): Promise<string> => {
 const startBackend = async (
   options: {
     models?: Array<Record<string, unknown>>;
+    authMeStatus?: number;
   } = {}
 ) => {
   const requests: RecordedRequest[] = [];
@@ -127,6 +128,9 @@ const startBackend = async (
     requests.push(record);
 
     if (url.pathname === "/api/v1/auth/me") {
+      if (options.authMeStatus && options.authMeStatus >= 400) {
+        return json(res, { detail: "Invalid token" }, options.authMeStatus);
+      }
       return json(res, user);
     }
     if (url.pathname === "/api/v1/models") {
@@ -567,6 +571,59 @@ test("auth status is non-interactive and respects explicit base url", async () =
     assert.match(result.stdout, new RegExp(`CLI API URL: ${backend.baseUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
   } finally {
     await backend.close();
+  }
+});
+
+test("auth-gated project commands clear backend-rejected stored auth", async () => {
+  const backend = await startBackend({ authMeStatus: 401 });
+  const home = await fs.mkdtemp(path.join(os.tmpdir(), "cloudeval-cli-rejected-auth-"));
+  const configDir = path.join(home, ".config", "cloudeval");
+  const configPath = path.join(configDir, "config.json");
+  const secretsPath = path.join(configDir, "secrets.json");
+
+  try {
+    await fs.mkdir(configDir, { recursive: true });
+    await fs.writeFile(
+      configPath,
+      JSON.stringify(
+        {
+          tokenRef: "access-token",
+          tokenExpiresAt: Date.now() + 3_600_000,
+          baseUrl: backend.baseUrl,
+        },
+        null,
+        2
+      )
+    );
+    await fs.writeFile(
+      secretsPath,
+      JSON.stringify(
+        {
+          "access-token": "backend-rejected-token",
+        },
+        null,
+        2
+      )
+    );
+
+    const result = await runCli([
+      "projects",
+      "list",
+      "--base-url",
+      backend.baseUrl,
+      "--format",
+      "json",
+      "--non-interactive",
+    ], { home });
+
+    assert.notEqual(result.exitCode, 0);
+    assert.match(result.stderr, /Run `cloudeval login` and retry/);
+    assert.match(result.stderr, /Stored authentication was rejected by CloudEval/);
+    await assert.rejects(fs.stat(configPath), { code: "ENOENT" });
+    assert.deepEqual(JSON.parse(await fs.readFile(secretsPath, "utf8")), {});
+  } finally {
+    await backend.close();
+    await fs.rm(home, { recursive: true, force: true });
   }
 });
 

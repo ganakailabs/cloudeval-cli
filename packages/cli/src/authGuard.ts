@@ -68,7 +68,17 @@ export const resolveAuthContext = async (
     }
   }
 
-  const status = await core.checkUserStatus(baseUrl, token);
+  let status;
+  try {
+    status = await core.checkUserStatus(baseUrl, token);
+  } catch (error) {
+    if (!apiKey && !options.machine && core.isAuthLookupFailure(error)) {
+      throw new Error(
+        "Stored authentication was rejected by CloudEval. Run `cloudeval login` and retry."
+      );
+    }
+    throw error;
+  }
   return {
     baseUrl,
     token,

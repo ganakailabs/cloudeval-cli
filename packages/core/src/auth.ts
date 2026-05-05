@@ -785,6 +785,10 @@ const clearLocalAuth = (data?: StoredAuth) => {
   }
 };
 
+export const clearAuthSession = (): void => {
+  clearLocalAuth();
+};
+
 const setCachedToken = (token: string, expiresInSeconds: number) => {
   cachedToken = {
     token,
@@ -2015,6 +2019,18 @@ const authLookupError = async (response: Response, context: string): Promise<Err
 const isAuthLookupError = (error: unknown): boolean =>
   error instanceof Error && error.name === AUTH_LOOKUP_ERROR;
 
+export const isAuthLookupFailure = (error: unknown): boolean => isAuthLookupError(error);
+
+const clearStoredAuthIfTokenMatches = (token: string): boolean => {
+  const disk = readStored();
+  const diskAccessToken = getAccessToken(disk);
+  if (cachedToken?.token === token || diskAccessToken === token) {
+    clearLocalAuth(disk);
+    return true;
+  }
+  return false;
+};
+
 const fetchCurrentUserFromServer = async (
   apiBase: string,
   token: string
@@ -2041,6 +2057,7 @@ const fetchCurrentUserFromServer = async (
     return user;
   } catch (error) {
     if (isAuthLookupError(error)) {
+      clearStoredAuthIfTokenMatches(token);
       throw error;
     }
     return null;
@@ -2095,6 +2112,7 @@ export const checkUserStatus = async (
     return { exists: true, onboardingCompleted: true };
   } catch (error) {
     if (isAuthLookupError(error)) {
+      clearStoredAuthIfTokenMatches(token);
       throw error;
     }
     return { exists: true, onboardingCompleted: true };

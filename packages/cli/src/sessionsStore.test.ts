@@ -13,8 +13,10 @@ import {
 
 const withTempHome = async (fn: (home: string) => Promise<void>) => {
   const previousHome = process.env.HOME;
+  const previousUserProfile = process.env.USERPROFILE;
   const home = await fs.mkdtemp(path.join(os.tmpdir(), "cloudeval-session-store-home-"));
   process.env.HOME = home;
+  process.env.USERPROFILE = home;
   try {
     await fn(home);
   } finally {
@@ -22,6 +24,11 @@ const withTempHome = async (fn: (home: string) => Promise<void>) => {
       delete process.env.HOME;
     } else {
       process.env.HOME = previousHome;
+    }
+    if (previousUserProfile === undefined) {
+      delete process.env.USERPROFILE;
+    } else {
+      process.env.USERPROFILE = previousUserProfile;
     }
     await fs.rm(home, { recursive: true, force: true });
   }

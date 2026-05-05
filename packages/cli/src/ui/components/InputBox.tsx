@@ -37,7 +37,16 @@ export interface InputBoxProps {
   maxInputRows?: number;
   scrollOffset?: number;
   onTabShortcut?: (tab: WorkspaceTab) => void;
+  blinkCursor?: boolean;
 }
+
+export const shouldAnimateInputCursor = ({
+  disabled,
+  blinkCursor = false,
+}: {
+  disabled?: boolean;
+  blinkCursor?: boolean;
+}): boolean => !disabled && blinkCursor;
 
 const Scrollbar: React.FC<{ totalRows: number; visibleRows: number; startRow: number }> = ({
   totalRows,
@@ -85,6 +94,7 @@ export const InputBox: React.FC<InputBoxProps> = ({
   maxInputRows = DEFAULT_INPUT_MAX_ROWS,
   scrollOffset,
   onTabShortcut,
+  blinkCursor = false,
 }) => {
   const [cursorVisible, setCursorVisible] = useState(true);
   const keyBindings = getTuiKeyBindings();
@@ -107,13 +117,13 @@ export const InputBox: React.FC<InputBoxProps> = ({
   const visibleRows = inputViewport.visibleRows;
 
   useEffect(() => {
-    if (disabled) {
+    if (!shouldAnimateInputCursor({ disabled, blinkCursor })) {
       setCursorVisible(true);
       return;
     }
     const timer = setInterval(() => setCursorVisible((current) => !current), 520);
     return () => clearInterval(timer);
-  }, [disabled, value]);
+  }, [blinkCursor, disabled, value]);
 
   const handleChange = (nextValue: string) => {
     const cleanedValue = sanitizeTerminalMultilineInput(nextValue);

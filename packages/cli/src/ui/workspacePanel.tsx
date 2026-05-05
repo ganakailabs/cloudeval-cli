@@ -54,6 +54,7 @@ export interface WorkspacePanelProps {
   frontendUrl: string;
   terminalColumns: number;
   tablePage: number;
+  animate?: boolean;
 }
 
 type Metric = {
@@ -1648,6 +1649,7 @@ export const WorkspaceTabBar: React.FC<{
 export const WorkspacePanel: React.FC<WorkspacePanelProps> = (props) => {
   const compact = props.terminalColumns < 88;
   const state = props.state;
+  const animate = props.animate ?? true;
   const connections = directArray(state.data.connections);
   const isInitialLoading = state.status === "loading";
   const isBackgroundRefreshing = Boolean(
@@ -1671,13 +1673,13 @@ export const WorkspacePanel: React.FC<WorkspacePanelProps> = (props) => {
       ) : null}
       {isInitialLoading ? (
         <Box flexDirection="row" gap={1}>
-          <Spinner type="dots" />
+          <Spinner type="dots" animate={animate} />
           <Text color={terminalTheme.brand}>Loading real API data...</Text>
         </Box>
       ) : null}
       {isBackgroundRefreshing ? (
         <Box flexDirection="row" gap={1}>
-          <Spinner type="dots" />
+          <Spinner type="dots" animate={animate} />
           <Text color={terminalTheme.brand}>
             Refreshing in background, showing cached data...
           </Text>

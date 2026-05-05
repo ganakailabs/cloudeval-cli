@@ -13,6 +13,7 @@ export interface TranscriptProps {
   excludeStreaming?: boolean;
   expandedThinkingMessageIds?: Set<string>;
   emptyLabel?: string;
+  animate?: boolean;
 }
 
 const AI_NAME = "Cloudeval AI";
@@ -244,7 +245,8 @@ const ThinkingSteps: React.FC<{
   message: ChatMessage;
   expanded: boolean;
   forceExpanded?: boolean;
-}> = ({ message, expanded, forceExpanded = false }) => {
+  animate?: boolean;
+}> = ({ message, expanded, forceExpanded = false, animate = true }) => {
   const steps = message.thinkingSteps ?? [];
   const [now, setNow] = React.useState(() => Date.now());
   const isExpanded = expanded || forceExpanded || Boolean(message.pending);
@@ -282,7 +284,7 @@ const ThinkingSteps: React.FC<{
         <Text color={message.pending ? terminalTheme.brand : terminalTheme.muted}>
           {isExpanded ? "▾" : "▸"} Reasoning
         </Text>
-        {message.pending ? <Spinner type="pulse" /> : null}
+        {message.pending ? <Spinner type="pulse" animate={animate} /> : null}
         <ProgressBar
           completed={completedCount}
           failed={failedCount}
@@ -295,7 +297,7 @@ const ThinkingSteps: React.FC<{
       {!isExpanded && runningStep ? (
         <Box paddingLeft={2}>
           <Text color={terminalTheme.brand} wrap="wrap">
-            <Spinner type="line" /> {runningStep.description || runningStep.node || "Working"}
+            <Spinner type="line" animate={animate} /> {runningStep.description || runningStep.node || "Working"}
           </Text>
         </Box>
       ) : null}
@@ -310,7 +312,7 @@ const ThinkingSteps: React.FC<{
               <Box key={`${message.id}-${step.node}-${idx}`} flexDirection="column">
                 <Box flexDirection="row" gap={1}>
                   {step.status === "streaming" ? (
-                    <Text color={meta.color}><Spinner type="line" /></Text>
+                    <Text color={meta.color}><Spinner type="line" animate={animate} /></Text>
                   ) : (
                     <Text color={meta.color}>{meta.marker}</Text>
                   )}
@@ -338,6 +340,7 @@ export const Transcript: React.FC<TranscriptProps> = ({
   excludeStreaming = false,
   expandedThinkingMessageIds,
   emptyLabel = "Thread is empty.",
+  animate = true,
 }) => {
   const completedMessages = messages.filter(m => !m.pending || m.role === "user");
   const streamingMessage = excludeStreaming ? null : messages.find(m => m.role === "assistant" && m.pending);
@@ -367,6 +370,7 @@ export const Transcript: React.FC<TranscriptProps> = ({
               <ThinkingSteps
                 message={message}
                 expanded={Boolean(expandedThinkingMessageIds?.has(message.id))}
+                animate={animate}
               />
             ) : null}
             <Box paddingLeft={0}>
@@ -416,6 +420,7 @@ export const Transcript: React.FC<TranscriptProps> = ({
                 message={streamingMessage}
                 expanded={true}
                 forceExpanded
+                animate={animate}
               />
             </Box>
           );
@@ -431,6 +436,7 @@ export const Transcript: React.FC<TranscriptProps> = ({
                 message={streamingMessage}
                 expanded={Boolean(expandedThinkingMessageIds?.has(streamingMessage.id))}
                 forceExpanded
+                animate={animate}
               />
               <Box paddingLeft={0}>
                   <FormattedContent content={content} role="assistant" />

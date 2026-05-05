@@ -559,7 +559,7 @@ program
   .option("--debug", "Log raw chunks", false)
   .option("--health-check", "Enable health check (disabled by default)")
   .option("--no-banner", "Disable ASCII banner")
-  .option("--no-anim", "Disable loader animation")
+  .option("--no-anim", "Disable TUI animations")
   .option("-v, --verbose", "Enable verbose logging", false)
   .action(async (options, command) => {
     const { assertSecureBaseUrl } = await import("@cloudeval/core");
@@ -622,7 +622,7 @@ program
   .option("--debug", "Log raw chunks", false)
   .option("--health-check", "Enable health check (disabled by default)")
   .option("--no-banner", "Disable ASCII banner")
-  .option("--no-anim", "Disable loader animation")
+  .option("--no-anim", "Disable TUI animations")
   .option("-v, --verbose", "Enable verbose logging", false)
   .action(async (options, command) => {
     const { assertSecureBaseUrl } = await import("@cloudeval/core");

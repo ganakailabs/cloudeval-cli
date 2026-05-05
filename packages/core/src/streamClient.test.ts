@@ -231,6 +231,82 @@ test("streamChat treats response content idleness as completion", async () => {
   }
 });
 
+test("streamChat fails when no stream response arrives before the idle timeout", async () => {
+  const originalFetch = global.fetch;
+
+  global.fetch = async (_input, init) =>
+    new Promise<Response>((_resolve, reject) => {
+      const signal = init?.signal as AbortSignal | undefined;
+      signal?.addEventListener("abort", () => reject(new Error("aborted")), { once: true });
+    });
+
+  try {
+    await assert.rejects(
+      async () => {
+        for await (const _chunk of streamChat({
+          baseUrl: "http://127.0.0.1:8787/api/v1",
+          authToken: "token",
+          message: "hello",
+          threadId: "thread-no-response",
+          user: { id: "user-1", name: "User" },
+          streamIdleTimeoutMs: 25,
+        })) {
+          // drain stream
+        }
+      },
+      /No chat stream response received within 25ms/
+    );
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test("streamChat fails when no stream data arrives before the idle timeout", async () => {
+  const originalFetch = global.fetch;
+
+  global.fetch = async () =>
+    new Response(
+      new ReadableStream<Uint8Array>({
+        start() {
+          // Keep the stream open without emitting data.
+        },
+      }),
+      {
+        status: 200,
+        headers: {
+          "Content-Type": "text/event-stream",
+        },
+      }
+    );
+
+  try {
+    await assert.rejects(
+      async () => {
+        await Promise.race([
+          (async () => {
+            for await (const _chunk of streamChat({
+              baseUrl: "http://127.0.0.1:8787/api/v1",
+              authToken: "token",
+              message: "hello",
+              threadId: "thread-no-data",
+              user: { id: "user-1", name: "User" },
+              streamIdleTimeoutMs: 25,
+            })) {
+              // drain stream
+            }
+          })(),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error("stream did not timeout")), 500)
+          ),
+        ]);
+      },
+      /No chat stream data received within 25ms/
+    );
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
 test("streamChat preserves backend fallback error metadata", async () => {
   const originalFetch = global.fetch;
 

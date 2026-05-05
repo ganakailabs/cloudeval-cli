@@ -1726,7 +1726,8 @@ const refreshViaBackend = async (
   apiBase: string,
   refreshToken: string
 ): Promise<TokenResponse | null> => {
-  const response = await fetch(`${apiBase}/auth/refresh`, {
+  const authBase = resolveAuthBootstrapBase(apiBase);
+  const response = await fetch(`${authBase}/auth/refresh`, {
     method: "POST",
     headers: getCLIHeaders(),
     body: JSON.stringify({

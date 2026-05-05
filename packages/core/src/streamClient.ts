@@ -36,6 +36,7 @@ export interface StreamChatOptions {
   debug?: boolean;
   completeAfterResponse?: boolean;
   responseCompletionGraceMs?: number;
+  streamIdleTimeoutMs?: number;
   hitlResume?: {
     checkpointId: string;
     responses: HitlResponse[];
@@ -341,6 +342,12 @@ export async function* streamChat(
   const payload = buildPayload(options);
   const apiBase = normalizeApiBase(options.baseUrl);
   const url = `${apiBase}/chat/stream`;
+  const streamIdleTimeoutMs =
+    typeof options.streamIdleTimeoutMs === "number" &&
+    Number.isFinite(options.streamIdleTimeoutMs) &&
+    options.streamIdleTimeoutMs > 0
+      ? options.streamIdleTimeoutMs
+      : undefined;
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -353,12 +360,50 @@ export async function* streamChat(
     headers.Authorization = `Bearer ${options.authToken}`;
   }
 
-  const response = await fetch(url, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(payload),
-    signal: options.signal,
-  });
+  let connectTimedOut = false;
+  let connectTimeout: ReturnType<typeof setTimeout> | undefined;
+  let removeExternalAbort: (() => void) | undefined;
+  let requestSignal = options.signal;
+  const connectController = streamIdleTimeoutMs ? new AbortController() : undefined;
+  if (connectController) {
+    requestSignal = connectController.signal;
+    if (options.signal) {
+      const abortFromExternal = () => connectController.abort(options.signal?.reason);
+      if (options.signal.aborted) {
+        abortFromExternal();
+      } else {
+        options.signal.addEventListener("abort", abortFromExternal, { once: true });
+        removeExternalAbort = () =>
+          options.signal?.removeEventListener("abort", abortFromExternal);
+      }
+    }
+    connectTimeout = setTimeout(() => {
+      connectTimedOut = true;
+      connectController.abort();
+    }, streamIdleTimeoutMs);
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(payload),
+      signal: requestSignal,
+    });
+  } catch (error) {
+    if (connectTimedOut && streamIdleTimeoutMs) {
+      throw new Error(
+        `No chat stream response received within ${streamIdleTimeoutMs}ms. Please retry or check backend availability.`
+      );
+    }
+    throw error;
+  } finally {
+    if (connectTimeout) {
+      clearTimeout(connectTimeout);
+    }
+    removeExternalAbort?.();
+  }
 
   if (!response.ok) {
     const body = compactErrorBody(await response.text().catch(() => ""));
@@ -379,6 +424,7 @@ export async function* streamChat(
   let sseDataLines: string[] = [];
   let doneSeen = false;
   let responseCompleteDeadline: number | undefined;
+  let streamActivityAt = Date.now();
   const responseCompletionGraceMs = options.responseCompletionGraceMs ?? 5000;
 
   const parsePayload = (rawPayload: string) => {
@@ -447,19 +493,30 @@ export async function* streamChat(
   };
 
   const readWithOptionalDeadline = async () => {
-    if (!responseCompleteDeadline) {
+    if (!responseCompleteDeadline && !streamIdleTimeoutMs) {
       return { type: "read" as const, result: await reader.read() };
     }
 
-    const remainingMs = responseCompleteDeadline - Date.now();
+    const deadline = responseCompleteDeadline ?? streamActivityAt + streamIdleTimeoutMs!;
+    const remainingMs = deadline - Date.now();
     if (remainingMs <= 0) {
-      return { type: "deadline" as const };
+      return responseCompleteDeadline
+        ? { type: "deadline" as const }
+        : { type: "idle-timeout" as const };
     }
 
     return Promise.race([
       reader.read().then((result) => ({ type: "read" as const, result })),
-      new Promise<{ type: "deadline" }>((resolve) =>
-        setTimeout(() => resolve({ type: "deadline" }), remainingMs)
+      new Promise<{ type: "deadline" } | { type: "idle-timeout" }>((resolve) =>
+        setTimeout(
+          () =>
+            resolve(
+              responseCompleteDeadline
+                ? { type: "deadline" }
+                : { type: "idle-timeout" }
+            ),
+          remainingMs
+        )
       ),
     ]);
   };
@@ -488,9 +545,17 @@ export async function* streamChat(
       if (read.type === "deadline") {
         return;
       }
+      if (read.type === "idle-timeout") {
+        throw new Error(
+          `No chat stream data received within ${streamIdleTimeoutMs}ms. Please retry or check backend availability.`
+        );
+      }
 
       const { value, done } = read.result;
       if (done) break;
+      if (value?.length) {
+        streamActivityAt = Date.now();
+      }
 
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split("\n");

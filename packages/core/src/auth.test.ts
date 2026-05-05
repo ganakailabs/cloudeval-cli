@@ -216,6 +216,70 @@ test("device code login falls back to Azure AD when backend bootstrap is protect
   }
 });
 
+test("stored refresh uses the direct auth backend for cloudeval proxy base URLs", async () => {
+  const tempHome = await mkdtemp(path.join(os.tmpdir(), "cloudeval-auth-"));
+  const previousOverride = process.env.CLOUDEVAL_ALLOW_INSECURE_FILE_STORAGE;
+  process.env.CLOUDEVAL_ALLOW_INSECURE_FILE_STORAGE = "1";
+
+  try {
+    const { getAuthToken } = await importFreshAuthModule(tempHome);
+    const configDir = path.join(tempHome, ".config", "cloudeval");
+    fs.mkdirSync(configDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(configDir, "config.json"),
+      JSON.stringify(
+        {
+          refreshTokenRef: "refresh-token",
+          baseUrl: "https://cloudeval.ai/api/proxy/v1",
+        },
+        null,
+        2
+      )
+    );
+    fs.writeFileSync(
+      path.join(configDir, "secrets.json"),
+      JSON.stringify(
+        {
+          "refresh-token": "backend-refresh-token",
+        },
+        null,
+        2
+      )
+    );
+
+    const originalFetch = global.fetch;
+    const requests: string[] = [];
+    global.fetch = async (input, init) => {
+      const url = typeof input === "string" ? input : input.toString();
+      requests.push(url);
+      assert.equal(url, "https://cloudeval.ai/api/v1/auth/refresh");
+      assert.equal(JSON.parse(String(init?.body)).refresh_token, "backend-refresh-token");
+      return jsonResponse({
+        access_token: "new-access-token",
+        refresh_token: "new-refresh-token",
+        token_type: "Bearer",
+        expires_in: 3600,
+      });
+    };
+
+    try {
+      const token = await getAuthToken({
+        baseUrl: "https://cloudeval.ai/api/proxy/v1",
+      });
+      assert.equal(token, "new-access-token");
+      assert.deepEqual(requests, ["https://cloudeval.ai/api/v1/auth/refresh"]);
+    } finally {
+      global.fetch = originalFetch;
+    }
+  } finally {
+    if (previousOverride === undefined) {
+      delete process.env.CLOUDEVAL_ALLOW_INSECURE_FILE_STORAGE;
+    } else {
+      process.env.CLOUDEVAL_ALLOW_INSECURE_FILE_STORAGE = previousOverride;
+    }
+  }
+});
+
 test("insecure file storage override takes precedence over OS backends", async () => {
   const tempHome = await mkdtemp(path.join(os.tmpdir(), "cloudeval-auth-"));
   const previousOverride = process.env.CLOUDEVAL_ALLOW_INSECURE_FILE_STORAGE;

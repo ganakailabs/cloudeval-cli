@@ -152,6 +152,7 @@ const STREAM_OUTPUT_NODES = new Set([
   "handle_social_interaction",
   "response_compose",
 ]);
+const ASK_STREAM_IDLE_TIMEOUT_MS = 90_000;
 const DEFAULT_REPORT_REGION = "eastus";
 const DEFAULT_REPORT_CURRENCY = "USD";
 
@@ -1477,6 +1478,7 @@ const buildToolHandlers = (
       settings: config.model ? { model: config.model } : undefined,
       completeAfterResponse: true,
       responseCompletionGraceMs: 5000,
+      streamIdleTimeoutMs: ASK_STREAM_IDLE_TIMEOUT_MS,
     })) {
       chatState = auth.core.reduceChunk(chatState, chunk);
       const latestMessage = [...chatState.messages]

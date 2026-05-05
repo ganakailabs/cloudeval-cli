@@ -31,6 +31,7 @@ import { getActiveConfigProfile, loadCliConfig } from "./cliConfig.js";
 import { listSessions, recordSessionTurn, resolveSessionReference } from "./sessionsStore.js";
 
 const DEFAULT_BASE_URL = getDefaultBaseUrl();
+const ASK_STREAM_IDLE_TIMEOUT_MS = 90_000;
 const SENSITIVE_KEY_PATTERN = /token|authorization|cookie|secret|password|api[_-]?key/i;
 const STREAM_OUTPUT_NODES = new Set([
   "generate_response",
@@ -1068,6 +1069,7 @@ program
           debug: options.debug,
           completeAfterResponse: true,
           responseCompletionGraceMs: 5000,
+          streamIdleTimeoutMs: ASK_STREAM_IDLE_TIMEOUT_MS,
         })) {
           chunkCount++;
           if (options.verbose && chunkCount % 10 === 0) {

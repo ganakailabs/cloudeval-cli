@@ -7,16 +7,16 @@ Command-line interface for Cloudeval.
 ### One-line install (recommended)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ganakailabs/cloudeval-cli/main/scripts/install.sh | bash
+curl -fsSL https://cli.cloudeval.ai/install.sh | bash
 ```
 
 The installer downloads release binaries from GitHub Releases and verifies the
 matching `.sha256` checksum before installing.
 
-After `cli.cloudeval.ai` is configured, the preferred vanity URL can be:
+If the vanity URL is unavailable, use the GitHub fallback:
 
 ```bash
-curl -fsSL https://cli.cloudeval.ai/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/ganakailabs/cloudeval-cli/main/scripts/install.sh | bash
 ```
 
 After install:
@@ -44,14 +44,15 @@ Run:
 ```bash
 cloudeval setup [--non-interactive] [--base-url <url>] [--frontend-url <url>] [--project <id>] [--model <name>] [--profile <name>]
 cloudeval config show|get|set|unset|path|profiles [--profile <name>] [--format text|json|ndjson|markdown]
-cloudeval doctor [--deep] [--mcp] [--format text|json|ndjson|markdown]
+cloudeval doctor [--deep] [--format text|json|ndjson|markdown]
 cloudeval status [--format text|json|ndjson|markdown]
 cloudeval models list [--base-url <url>] [--api-key-stdin|--api-key <key>] [--format text|json|ndjson|markdown]
 cloudeval models default get|set [--profile <name>]
-cloudeval sessions list|get|search|rename|export|delete|prune [--format text|json|ndjson|markdown]
+cloudeval sessions list|get|export|delete|prune [--format text|json|ndjson|markdown]
 cloudeval tui [--base-url <url>] [--project <id>] [--model <name>] [--profile <name>]
-cloudeval chat [--base-url <url>] [--api-key-stdin|--api-key <key>] [--machine] [--conversation <id>|--continue|--resume <id-or-title>] [--model <name>] [--debug] [--profile <name>]
-cloudeval ask <question> [--project <id>] [--thread <id>] [--output <file>] [--json] [--base-url <url>] [--api-key-stdin|--api-key <key>] [--machine] [--model <name>] [--profile <name>]
+cloudeval chat [--base-url <url>] [--api-key-stdin|--api-key <key>] [--machine] [--conversation <id>] [--model <name>] [--debug] [--profile <name>]
+cloudeval ask <question> [--project <id>] [--output <file>] [--json] [--base-url <url>] [--api-key-stdin|--api-key <key>] [--machine] [--model <name>] [--profile <name>]
+cloudeval projects export-diagram <id> --layout architecture|dependency --format png|jpeg|svg --labels all|viewport --output <file> [--headers-output <file>] [--public] [--frontend-url <url>] [--api-key <key>]
 cloudeval credits [--format text|json|ndjson|markdown]
 cloudeval billing topups [--format text|json|ndjson|markdown]
 cloudeval billing topup <pack-id> [--currency <code>] [--country-code <code>] [--print-url|--open] [--format text|json|ndjson|markdown]
@@ -71,6 +72,11 @@ cloudeval banner
 respect the active profile through `--profile` or `CLOUDEVAL_PROFILE`, while
 explicit flags still win for automation.
 
+`cloudeval projects export-diagram` reports resolved absolute paths in human
+output, JSON `data.output`, JSON `data.headersOutput`, and `filesWritten` so
+headless agents can open the downloaded image without inferring the working
+directory.
+
 ## MCP Server
 
 CloudEval can run as a local stdio MCP server for agent tools that support the
@@ -78,12 +84,6 @@ Model Context Protocol:
 
 ```bash
 cloudeval mcp serve
-```
-
-For a read-only agent surface:
-
-```bash
-cloudeval mcp serve --toolset readonly
 ```
 
 Example MCP client configuration:
@@ -102,7 +102,6 @@ Example MCP client configuration:
 Codex CLI:
 
 ```bash
-cloudeval mcp setup codex --dry-run
 codex mcp add cloudeval -- cloudeval mcp serve
 codex mcp list
 ```
@@ -149,33 +148,15 @@ stdio command shape:
 }
 ```
 
-The server exposes `ask`, `projects.list`, `projects.get`, `reports.list`,
-`reports.run`, `reports.download`, `billing.summary`, `billing.usage`,
-`billing.ledger`, `open.url`, and `capabilities.get`. Authenticate with
+The server exposes `ask`, `projects.list`, `projects.get`,
+`projects.exportDiagram`, `reports.list`, `reports.run`, `reports.download`,
+`billing.summary`, `billing.usage`, `billing.ledger`, `open.url`, and
+`capabilities.get`. Authenticate with
 `cloudeval login`, configure `CLOUDEVAL_API_KEY` in the MCP client environment,
 or pass `--machine` with service-principal credentials. `--api-key-stdin` is not
 available for `mcp serve` because stdin is reserved for MCP JSON-RPC messages.
 The server writes protocol messages only to stdout; diagnostics from
 `--verbose` go to stderr.
-
-MCP also exposes resources (`cloudeval://capabilities`,
-`cloudeval://projects`, `cloudeval://billing/summary`,
-`cloudeval://reports/latest`) and prompt templates (`cost-review`,
-`waf-triage`, `architecture-review`, `billing-review`) for clients that support
-MCP resources and prompts. `cloudeval doctor --mcp --format json` verifies the
-local MCP discovery surface.
-
-## Session Search And Resume
-
-`ask` and MCP `ask` calls write local session history under the active profile.
-Use these commands to inspect and reuse sessions:
-
-```bash
-cloudeval sessions search "cost spike" --format json
-cloudeval sessions rename <thread-id> "Production cost review"
-cloudeval chat --resume "Production cost review"
-cloudeval ask "Follow up on the same investigation" --thread <thread-id>
-```
 
 For help:
 
@@ -201,8 +182,9 @@ pnpm -C packages/cli test:cli:noninteractive:packaged
 The suite starts a local mock backend and covers setup/config profiles,
 doctor/status diagnostics, model discovery/defaults, local session history,
 project creation/list/get, connections, report list/show/cost/WAF/rules/download,
-billing/credits/top-up checkout, frontend deeplinks, shell completion, capabilities, auth status,
-and one-shot `ask` streaming. To test a specific binary, pass `CLOUDEVAL_CLI_BIN`:
+diagram image downloads, billing/credits/top-up checkout, frontend deeplinks,
+shell completion, capabilities, auth status, and one-shot `ask` streaming. To
+test a specific binary, pass `CLOUDEVAL_CLI_BIN`:
 
 ```bash
 CLOUDEVAL_CLI_BIN=/path/to/cloudeval pnpm -C packages/cli test:cli:noninteractive
@@ -221,3 +203,26 @@ creation by default; include it with:
 ```bash
 CLOUDEVAL_LIVE_ALLOW_MUTATION=1 pnpm -C packages/cli test:cli:noninteractive:live
 ```
+
+## Release Smoke Tests
+
+Smoke-test the public installer and installed release binary against the real
+CloudEval FQDN:
+
+```bash
+bash scripts/smoke-release-real-backend.sh
+```
+
+or through the root package script:
+
+```bash
+pnpm smoke:release:real
+```
+
+The smoke test runs the same public installer users run, with `HOME` pointed at
+a temporary directory. It verifies the installed binary, `yoga.wasm`, `eva`
+alias, and PATH resolution, then runs `status`, `capabilities`, `models list`,
+and unauthenticated billing JSON-envelope checks against
+`https://cloudeval.ai/api/proxy/v1`. See
+[docs/release-smoke-tests.md](docs/release-smoke-tests.md) for covered checks,
+environment variables, authenticated optional checks, and expected output.

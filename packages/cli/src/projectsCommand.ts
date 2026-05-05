@@ -18,6 +18,13 @@ import {
   writeFormattedOutput,
   type MachineOutputFormat,
 } from "./outputFormatter.js";
+import {
+  downloadProjectDiagramImage,
+  normalizeProjectDiagramImageFormat,
+  normalizeProjectDiagramImageLabels,
+  normalizeProjectDiagramImageLayout,
+  resolveProjectDiagramImageFrontendUrl,
+} from "./projectDiagramImage.js";
 
 export interface RegisterProjectsCommandOptions extends AuthGuardDeps {
   defaultBaseUrl: string;
@@ -29,6 +36,18 @@ type CommonOptions = AuthGuardOptions & {
   open?: boolean;
   printUrl?: boolean;
   frontendUrl?: string;
+};
+
+type DiagramImageCommandOptions = AuthGuardOptions & {
+  frontendUrl?: string;
+  layout?: string;
+  format?: string;
+  labels?: string;
+  output: string;
+  headersOutput?: string;
+  public?: boolean;
+  syncVersion?: string;
+  json?: boolean;
 };
 
 const addCommon = <T extends Command>(command: T): T =>
@@ -175,6 +194,130 @@ const fileBlob = async (filePath?: string): Promise<{ blob: Blob; name: string }
   };
 };
 
+const writeDiagramImageHeaders = async (
+  outputPath: string,
+  headers: Record<string, string>
+) => {
+  await fs.mkdir(path.dirname(outputPath), { recursive: true });
+  const text = Object.entries(headers)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([key, value]) => `${key}: ${value}`)
+    .join("\n");
+  await fs.writeFile(outputPath, `${text}\n`, "utf8");
+};
+
+const configureDiagramExportCommand = (
+  command: Command,
+  deps: RegisterProjectsCommandOptions
+) =>
+  addAuthOptions(command, deps.defaultBaseUrl)
+    .option(
+      "--frontend-url <url>",
+      "Frontend base URL (defaults to https://cloudeval.ai; set for local/dev frontends)"
+    )
+    .option("--layout <layout>", "Diagram layout: architecture, dependency", "architecture")
+    .option("--format <format>", "Image format: png, jpeg, jpg, svg", "png")
+    .option("--labels <labels>", "Label mode: all, viewport", "all")
+    .requiredOption("--output <file>", "Image output file")
+    .option("--headers-output <file>", "Optional response headers output file")
+    .option("--public", "Download the explicit public/share graph without authentication", false)
+    .option("--sync-version <version>", "Optional project sync version")
+    .option("--json", "Print machine-readable metadata to stdout", false)
+    .action(async (id: string, options: DiagramImageCommandOptions, actionCommand) => {
+      try {
+        const publicGraph = Boolean(options.public);
+        const layout = normalizeProjectDiagramImageLayout(options.layout);
+        const imageFormat = normalizeProjectDiagramImageFormat(options.format);
+        const labels = normalizeProjectDiagramImageLabels(options.labels);
+
+        let token: string | undefined;
+        let userId: string | undefined;
+        if (publicGraph) {
+          await deps.resolveBaseUrl(options, actionCommand);
+        } else {
+          const context = requireAuthUser(
+            await resolveAuthContext(options, actionCommand, deps)
+          );
+          const core = await import("@cloudeval/core");
+          const projects = await core.getProjects(
+            context.baseUrl,
+            context.token,
+            context.user.id
+          );
+          if (!projects.some((project: any) => project.id === id)) {
+            throw new Error(
+              `Project ${id} was not found for authenticated user ${context.user.id}. ` +
+                "Run `cloudeval projects list` to choose a visible project, or use --public only for explicit public/share graph exports."
+            );
+          }
+          token = context.token;
+          userId = context.user.id;
+        }
+
+        const frontendUrl = resolveProjectDiagramImageFrontendUrl({
+          frontendUrl: options.frontendUrl,
+        });
+        const result = await downloadProjectDiagramImage({
+          frontendUrl,
+          projectId: id,
+          layout,
+          format: imageFormat,
+          labels,
+          token,
+          userId,
+          publicGraph,
+          syncVersion: options.syncVersion,
+        });
+
+        const outputPath = path.resolve(options.output);
+        const headersOutputPath = options.headersOutput
+          ? path.resolve(options.headersOutput)
+          : undefined;
+        await fs.mkdir(path.dirname(outputPath), { recursive: true });
+        await fs.writeFile(outputPath, result.bytes);
+        const filesWritten = [outputPath];
+        if (headersOutputPath) {
+          await writeDiagramImageHeaders(headersOutputPath, result.headers);
+          filesWritten.push(headersOutputPath);
+        }
+
+        const data = {
+          projectId: id,
+          layout,
+          format: imageFormat,
+          labels,
+          public: publicGraph,
+          output: outputPath,
+          headersOutput: headersOutputPath,
+          contentType: result.contentType,
+          bytes: result.bytes.length,
+          authMode: result.headers["x-cloudeval-diagram-auth-mode"],
+          graphPrivate: result.headers["x-cloudeval-diagram-graph-private"],
+          graphSource: result.headers["x-cloudeval-diagram-graph-source"],
+        };
+
+        if (options.json) {
+          process.stdout.write(
+            formatOutput({
+              command: "projects export-diagram",
+              data,
+              format: "json",
+              frontendUrl: result.url,
+              filesWritten,
+            })
+          );
+          return;
+        }
+
+        process.stdout.write(
+          `Downloaded ${layout} diagram to ${outputPath} (${result.contentType}, ${result.bytes.length} bytes)\n`
+        );
+      } catch (error: any) {
+        console.error(`Failed to export project diagram: ${error?.message ?? "Unknown error"}`);
+        process.exit(1);
+      }
+    });
+
 export const registerProjectsCommand = (
   program: Command,
   deps: RegisterProjectsCommandOptions
@@ -260,6 +403,22 @@ export const registerProjectsCommand = (
         process.exit(1);
       }
     });
+
+  configureDiagramExportCommand(
+    projects
+      .command("export-diagram")
+      .description("Export a project diagram image")
+      .argument("<id>", "Project id"),
+    deps
+  );
+
+  configureDiagramExportCommand(
+    projects
+      .command("diagram-image", { hidden: true })
+      .description("Export a project diagram image")
+      .argument("<id>", "Project id"),
+    deps
+  );
 
   addCommon(addAuthOptions(projects.command("create").description("Create a quick template project"), deps.defaultBaseUrl))
     .option("--template-url <url>", "Template URL")

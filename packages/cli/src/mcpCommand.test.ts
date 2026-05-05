@@ -38,17 +38,29 @@ const json = (res: http.ServerResponse, value: unknown, status = 200) => {
 };
 
 const startBackend = async () => {
-  const requests: Array<{ path: string; authorization?: string }> = [];
+  const requests: Array<{ path: string; query: URLSearchParams; authorization?: string }> = [];
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url ?? "/", "http://127.0.0.1");
     await collectBody(req);
-    requests.push({ path: url.pathname, authorization: req.headers.authorization });
+    requests.push({ path: url.pathname, query: url.searchParams, authorization: req.headers.authorization });
 
     if (url.pathname === "/api/v1/auth/me") {
       return json(res, user);
     }
     if (url.pathname === `/api/v1/projects/user/${user.id}`) {
       return json(res, [project]);
+    }
+    if (url.pathname === `/api/projects/${project.id}/diagram-image`) {
+      assert.equal(req.headers.authorization, "Bearer test-token");
+      assert.equal(url.searchParams.get("user_id"), user.id);
+      res.writeHead(200, {
+        "Content-Type": "image/svg+xml",
+        "X-CloudEval-Diagram-Auth-Mode": "bearer",
+        "X-CloudEval-Diagram-Graph-Private": "1",
+        "X-CloudEval-Diagram-Labels": url.searchParams.get("labels") || "all",
+      });
+      res.end("<svg>mcp</svg>");
+      return;
     }
     return json(res, { detail: `Unhandled ${req.method} ${url.pathname}` }, 404);
   });
@@ -225,6 +237,8 @@ test("mcp serve initializes, lists tools, and returns strict JSON-RPC stdout", a
     const names = listed.result.tools.map((tool: any) => tool.name);
     assert(names.includes("ask"));
     assert(names.includes("projects.list"));
+    assert(names.includes("projects.exportDiagram"));
+    assert(!names.includes("projects.diagramImage"));
     assert(names.includes("reports.run"));
     assert(names.includes("open.url"));
 
@@ -363,6 +377,8 @@ test("mcp serve exposes CloudEval resources and prompts", async () => {
     );
     assert.equal(capabilityPayload.cliVersion, packageJson.version);
     assert(capabilityPayload.mcp.tools.includes("projects.list"));
+    assert(capabilityPayload.mcp.tools.includes("projects.exportDiagram"));
+    assert(!capabilityPayload.mcp.tools.includes("projects.diagramImage"));
 
     mcp.send({ jsonrpc: "2.0", id: 4, method: "prompts/list" });
     const prompts = await mcp.read();
@@ -396,6 +412,7 @@ test("mcp serve exposes CloudEval resources and prompts", async () => {
 
 test("mcp tools can call authenticated CloudEval APIs without stdin credentials", async () => {
   const backend = await startBackend();
+  const outputDir = await fs.mkdtemp(path.join(os.tmpdir(), "cloudeval-mcp-image-"));
   const mcp = await startMcp([
     "--base-url",
     backend.baseUrl,
@@ -424,9 +441,78 @@ test("mcp tools can call authenticated CloudEval APIs without stdin credentials"
       backend.requests.some((request) => request.authorization === "Bearer test-token"),
       true
     );
+
+    const absoluteOutputPath = path.join(outputDir, "dependency.svg");
+    const outputPath = path.relative(process.cwd(), absoluteOutputPath);
+    mcp.send({
+      jsonrpc: "2.0",
+      id: 3,
+      method: "tools/call",
+      params: {
+        name: "projects.exportDiagram",
+        arguments: {
+          projectId: "project-main",
+          frontendUrl: new URL(backend.baseUrl).origin,
+          layout: "dependency",
+          format: "svg",
+          labels: "all",
+          outputPath,
+        },
+      },
+    });
+    const imageResponse = await mcp.read();
+    assert.equal(imageResponse.id, 3);
+    assert.equal(imageResponse.result.isError, false);
+    assert.equal(imageResponse.result.structuredContent.command, "projects export-diagram");
+    assert.equal(
+      imageResponse.result.structuredContent.data.outputPath,
+      absoluteOutputPath,
+    );
+    assert.deepEqual(imageResponse.result.structuredContent.filesWritten, [
+      absoluteOutputPath,
+    ]);
+    assert.equal(await fs.readFile(absoluteOutputPath, "utf8"), "<svg>mcp</svg>");
+    assert(
+      backend.requests.some(
+        (request) =>
+          request.path === "/api/projects/project-main/diagram-image" &&
+          request.query.get("layout") === "dependency" &&
+          request.query.get("format") === "svg" &&
+          request.query.get("labels") === "all" &&
+          request.query.get("user_id") === user.id &&
+          request.authorization === "Bearer test-token",
+      ),
+    );
+
+    const legacyOutputPath = path.join(outputDir, "legacy.svg");
+    mcp.send({
+      jsonrpc: "2.0",
+      id: 4,
+      method: "tools/call",
+      params: {
+        name: "projects.diagramImage",
+        arguments: {
+          projectId: "project-main",
+          frontendUrl: new URL(backend.baseUrl).origin,
+          layout: "dependency",
+          format: "svg",
+          labels: "all",
+          outputPath: legacyOutputPath,
+        },
+      },
+    });
+    const legacyImageResponse = await mcp.read();
+    assert.equal(legacyImageResponse.id, 4);
+    assert.equal(legacyImageResponse.result.isError, false);
+    assert.equal(
+      legacyImageResponse.result.structuredContent.command,
+      "projects export-diagram",
+    );
+    assert.equal(await fs.readFile(legacyOutputPath, "utf8"), "<svg>mcp</svg>");
   } finally {
     const closed = await mcp.close();
     assert.equal(closed.exitCode, 0, closed.stderr);
+    await fs.rm(outputDir, { recursive: true, force: true });
     await backend.close();
   }
 });

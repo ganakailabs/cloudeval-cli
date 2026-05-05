@@ -341,6 +341,7 @@ Examples:
   cloudeval tui --tab billing
   cloudeval ask "Summarize project risk" --format json
   cloudeval projects create --template-url https://example.com/template.json --format json
+  cloudeval projects export-diagram <id> --layout architecture --format png --labels all --output architecture.png
   cloudeval reports download --project <id> --type all --output ./reports
   cloudeval open project <id> --view both --layout dependency --print-url --no-open
   cloudeval capabilities --format json

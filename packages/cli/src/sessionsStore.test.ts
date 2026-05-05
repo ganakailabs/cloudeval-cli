@@ -40,6 +40,68 @@ test("recordSessionTurn creates deterministic concise titles", async () => {
 
     const sessions = await listSessions(10, "agent");
     assert.equal(sessions[0].title, "Investigate production cost spike in Azure");
+    const sqlitePath = path.join(
+      os.homedir(),
+      ".config",
+      "cloudeval",
+      "profiles",
+      "agent",
+      "sessions.sqlite"
+    );
+    const sqliteStat = await fs.stat(sqlitePath);
+    assert(sqliteStat.isFile());
+  });
+});
+
+test("listSessions migrates legacy JSON sessions into SQLite", async () => {
+  await withTempHome(async () => {
+    const legacyDir = path.join(
+      os.homedir(),
+      ".config",
+      "cloudeval",
+      "profiles",
+      "agent",
+      "sessions"
+    );
+    await fs.mkdir(legacyDir, { recursive: true });
+    await fs.writeFile(
+      path.join(legacyDir, "legacy-thread.json"),
+      `${JSON.stringify(
+        {
+          threadId: "legacy-thread",
+          title: "Legacy imported session",
+          profile: "agent",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-02T00:00:00.000Z",
+          messageCount: 1,
+          messages: [
+            {
+              role: "user",
+              content: "Legacy question",
+              createdAt: "2026-01-01T00:00:00.000Z",
+            },
+          ],
+        },
+        null,
+        2
+      )}\n`
+    );
+
+    const sessions = await listSessions(10, "agent");
+
+    assert.equal(sessions.length, 1);
+    assert.equal(sessions[0].threadId, "legacy-thread");
+    assert.equal(sessions[0].messages[0].content, "Legacy question");
+    await fs.access(
+      path.join(
+        os.homedir(),
+        ".config",
+        "cloudeval",
+        "profiles",
+        "agent",
+        "sessions.sqlite"
+      )
+    );
   });
 });
 

@@ -63,29 +63,21 @@
       <h2>MCP server for agents</h2>
       <p>Expose CloudEval to Codex, Claude Desktop, Cursor, and other MCP clients:</p>
       <pre><code>cloudeval mcp serve</code></pre>
-      <p>Focused toolsets are available for safer agent access:</p>
-      <pre><code>cloudeval mcp serve --toolset readonly
-cloudeval mcp status --format json
-cloudeval doctor --mcp --format json</code></pre>
       <p>Codex CLI setup:</p>
-      <pre><code>cloudeval mcp setup codex --dry-run
-codex mcp add cloudeval -- cloudeval mcp serve
+      <pre><code>codex mcp add cloudeval -- cloudeval mcp serve
 codex mcp list</code></pre>
       <p>Generic MCP clients and Ollama-powered agent hosts can use a standard stdio config:</p>
       <pre><code>cloudeval mcp setup generic --dry-run --toolset readonly --format json</code></pre>
       <ul>
-        <li>Tools: <code>ask</code>, <code>projects.list</code>, <code>reports.run</code>, <code>reports.download</code>, <code>billing.usage</code>, and <code>open.url</code>.</li>
-        <li>Resources: <code>cloudeval://capabilities</code>, <code>cloudeval://projects</code>, <code>cloudeval://billing/summary</code>, and <code>cloudeval://reports/latest</code>.</li>
-        <li>Prompts: <code>cost-review</code>, <code>waf-triage</code>, <code>architecture-review</code>, and <code>billing-review</code>.</li>
+        <li>Tools: <code>ask</code>, <code>projects.list</code>, <code>projects.exportDiagram</code>, <code>reports.run</code>, <code>reports.download</code>, <code>billing.usage</code>, and <code>open.url</code>.</li>
         <li>Auth: use <code>cloudeval login</code>, <code>CLOUDEVAL_API_KEY</code>, or <code>--machine</code>.</li>
         <li>Transport: stdio MCP JSON-RPC. Server diagnostics use stderr only.</li>
       </ul>
-      <h2>Session search and resume</h2>
-      <pre><code>cloudeval sessions search "cost spike" --format json
-cloudeval sessions rename &lt;thread-id&gt; "Production cost review"
-cloudeval chat --resume "Production cost review"
-cloudeval ask "Follow up" --thread &lt;thread-id&gt;</code></pre>
       <p><a href="https://github.com/ganakailabs/cloudeval-cli/releases/latest">Latest release</a></p>
+      <h2>Release smoke tests</h2>
+      <p>Verify the public installer and installed binary against the real CloudEval FQDN:</p>
+      <pre><code>bash scripts/smoke-release-real-backend.sh</code></pre>
+      <p><a href="https://github.com/ganakailabs/cloudeval-cli/blob/main/docs/release-smoke-tests.md">Smoke test coverage and runbook</a></p>
     </main>
   </body>
 </html>

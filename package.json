@@ -9,7 +9,9 @@
   "scripts": {
     "build": "pnpm -r build",
     "lint": "pnpm -r --workspace-concurrency=1 --if-present lint",
-    "test": "pnpm -r --workspace-concurrency=1 --if-present test"
+    "test": "pnpm -r --workspace-concurrency=1 --if-present test",
+    "smoke:release:real": "bash scripts/smoke-release-real-backend.sh",
+    "smoke:readonly:real": "bash scripts/smoke-readonly-real-backend.sh"
   },
   "devDependencies": {
     "@types/node": "^20.14.11",

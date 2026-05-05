@@ -27,6 +27,13 @@ import {
   normalizeMcpSetupToolset,
   writeMcpClientConfig,
 } from "./mcpSetupCommand.js";
+import {
+  downloadProjectDiagramImage,
+  normalizeProjectDiagramImageFormat,
+  normalizeProjectDiagramImageLabels,
+  normalizeProjectDiagramImageLayout,
+  resolveProjectDiagramImageFrontendUrl,
+} from "./projectDiagramImage.js";
 
 type JsonValue =
   | string
@@ -254,6 +261,60 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
     outputSchema: envelopeSchema,
     annotations: {
       readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: true,
+    },
+  },
+  {
+    name: "projects.exportDiagram",
+    title: "Export Project Diagram",
+    description:
+      "Export a GraphEditor-rendered architecture or dependency diagram to a local PNG, JPEG, or SVG file for CLI and MCP agents.",
+    inputSchema: makeInputSchema(
+      {
+        projectId: {
+          ...projectIdProperty,
+          description: "CloudEval project id to render.",
+        },
+        layout: {
+          type: "string",
+          enum: ["architecture", "dependency"],
+          default: "architecture",
+        },
+        format: {
+          type: "string",
+          enum: ["png", "jpeg", "jpg", "svg"],
+          default: "png",
+        },
+        labels: {
+          type: "string",
+          enum: ["all", "viewport"],
+          default: "all",
+        },
+        outputPath: {
+          type: "string",
+          description: "Absolute or relative local path for the downloaded image.",
+        },
+        headersOutputPath: {
+          type: "string",
+          description: "Optional local path for response headers.",
+        },
+        public: {
+          type: "boolean",
+          description:
+            "Use the explicit public/share graph without sending private auth.",
+          default: false,
+        },
+        syncVersion: {
+          type: "string",
+          description: "Optional project sync version.",
+        },
+      },
+      ["projectId", "outputPath"],
+    ),
+    outputSchema: envelopeSchema,
+    annotations: {
+      readOnlyHint: false,
       destructiveHint: false,
       openWorldHint: true,
     },
@@ -552,6 +613,9 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
 export const mcpToolNames = mcpToolDefinitions.map((tool) => tool.name);
 
 const toolByName = new Map(mcpToolDefinitions.map((tool) => [tool.name, tool]));
+const MCP_TOOL_ALIASES: Record<string, string> = {
+  "projects.diagramImage": "projects.exportDiagram",
+};
 
 const MCP_TOOLSETS: Record<McpToolsetName, readonly string[]> = {
   all: mcpToolNames,
@@ -568,6 +632,7 @@ const MCP_TOOLSETS: Record<McpToolsetName, readonly string[]> = {
     "capabilities.get",
     "projects.list",
     "projects.get",
+    "projects.exportDiagram",
     "open.url",
   ],
   reports: [
@@ -883,6 +948,18 @@ const isTerminalJobStatus = (value: unknown): boolean => {
 };
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const writeHeaderFile = async (
+  outputPath: string,
+  headers: Record<string, string>,
+) => {
+  await fs.mkdir(path.dirname(outputPath), { recursive: true });
+  const text = Object.entries(headers)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([key, value]) => `${key}: ${value}`)
+    .join("\n");
+  await fs.writeFile(outputPath, `${text}\n`, "utf8");
+};
 
 const resolveInvocationConfig = async (
   serverOptions: ServeMcpOptions,
@@ -1302,6 +1379,72 @@ const buildToolHandlers = (
       command: "projects get",
       data: project,
       frontendUrl,
+    });
+  });
+
+  handlers.set("projects.exportDiagram", async (args) => {
+    const config = await resolveInvocationConfig(serverOptions, args);
+    const projectId = stringValue(args.projectId) ?? config.defaultProjectId;
+    if (!projectId) {
+      throw new Error("projectId is required.");
+    }
+    const rawOutputPath = stringValue(args.outputPath);
+    if (!rawOutputPath) {
+      throw new Error("outputPath is required.");
+    }
+    const outputPath = path.resolve(rawOutputPath);
+
+    const publicGraph = booleanValue(args.public) ?? false;
+    const auth = publicGraph
+      ? undefined
+      : await resolveAuth(config, { requireUser: true });
+    const layout = normalizeProjectDiagramImageLayout(stringValue(args.layout));
+    const imageFormat = normalizeProjectDiagramImageFormat(stringValue(args.format));
+    const labels = normalizeProjectDiagramImageLabels(stringValue(args.labels));
+    const result = await downloadProjectDiagramImage({
+      frontendUrl: resolveProjectDiagramImageFrontendUrl({
+        frontendUrl: config.frontendUrl,
+      }),
+      projectId,
+      layout,
+      format: imageFormat,
+      labels,
+      token: auth?.token,
+      userId: auth?.user?.id,
+      publicGraph,
+      syncVersion: stringValue(args.syncVersion),
+    });
+
+    await fs.mkdir(path.dirname(outputPath), { recursive: true });
+    await fs.writeFile(outputPath, result.bytes);
+    const filesWritten = [outputPath];
+    const rawHeadersOutputPath = stringValue(args.headersOutputPath);
+    const headersOutputPath = rawHeadersOutputPath
+      ? path.resolve(rawHeadersOutputPath)
+      : undefined;
+    if (headersOutputPath) {
+      await writeHeaderFile(headersOutputPath, result.headers);
+      filesWritten.push(headersOutputPath);
+    }
+
+    return withEnvelope({
+      command: "projects export-diagram",
+      data: {
+        projectId,
+        layout,
+        format: imageFormat,
+        labels,
+        public: publicGraph,
+        outputPath,
+        headersOutputPath,
+        contentType: result.contentType,
+        bytes: result.bytes.length,
+        authMode: result.headers["x-cloudeval-diagram-auth-mode"],
+        graphPrivate: result.headers["x-cloudeval-diagram-graph-private"],
+        graphSource: result.headers["x-cloudeval-diagram-graph-source"],
+      },
+      frontendUrl: result.url,
+      filesWritten,
     });
   });
 
@@ -1876,12 +2019,13 @@ export const serveMcpServer = async (
         });
       }
       if (request.method === "tools/call") {
-        const name = stringValue(request.params?.name);
+        const requestedName = stringValue(request.params?.name);
+        const name = requestedName ? MCP_TOOL_ALIASES[requestedName] ?? requestedName : undefined;
         if (!name || !toolByName.has(name)) {
           return jsonRpcError(
             request.id,
             -32602,
-            `Unknown tool: ${name ?? "<missing>"}`,
+            `Unknown tool: ${requestedName ?? "<missing>"}`,
           );
         }
         if (!availableToolNames.has(name)) {

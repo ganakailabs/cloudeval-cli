@@ -1995,6 +1995,26 @@ export const extractEmailFromToken = (token: string): string | null => {
   }
 };
 
+const AUTH_LOOKUP_ERROR = "CloudEvalAuthLookupError";
+
+const authLookupError = async (response: Response, context: string): Promise<Error> => {
+  let detail = "";
+  try {
+    const body = await response.text();
+    if (body) {
+      detail = ` - ${body.slice(0, 300)}`;
+    }
+  } catch {
+    // ignore response body parsing errors
+  }
+  const error = new Error(`${context} failed: ${response.status} ${response.statusText}${detail}`);
+  error.name = AUTH_LOOKUP_ERROR;
+  return error;
+};
+
+const isAuthLookupError = (error: unknown): boolean =>
+  error instanceof Error && error.name === AUTH_LOOKUP_ERROR;
+
 const fetchCurrentUserFromServer = async (
   apiBase: string,
   token: string
@@ -2004,6 +2024,10 @@ const fetchCurrentUserFromServer = async (
       method: "GET",
       headers: getCLIHeaders(token),
     });
+
+    if (response.status === 401 || response.status === 403) {
+      throw await authLookupError(response, "Current user lookup");
+    }
 
     if (!response.ok) {
       return null;
@@ -2015,7 +2039,10 @@ const fetchCurrentUserFromServer = async (
     }
 
     return user;
-  } catch {
+  } catch (error) {
+    if (isAuthLookupError(error)) {
+      throw error;
+    }
     return null;
   }
 };
@@ -2049,6 +2076,10 @@ export const checkUserStatus = async (
       body: JSON.stringify({ email }),
     });
 
+    if (response.status === 401 || response.status === 403) {
+      throw await authLookupError(response, "User email lookup");
+    }
+
     if (response.ok) {
       const user = await response.json();
       return {
@@ -2062,7 +2093,10 @@ export const checkUserStatus = async (
     }
 
     return { exists: true, onboardingCompleted: true };
-  } catch {
+  } catch (error) {
+    if (isAuthLookupError(error)) {
+      throw error;
+    }
     return { exists: true, onboardingCompleted: true };
   }
 };

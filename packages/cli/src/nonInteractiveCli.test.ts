@@ -140,6 +140,28 @@ const startBackend = async (
     if (url.pathname === `/api/v1/projects/user/${user.id}`) {
       return json(res, [project, ...createdProjects]);
     }
+    if (url.pathname === `/api/projects/${project.id}/diagram-image`) {
+      const format = url.searchParams.get("format") || "png";
+      const isPublic = url.searchParams.get("public") === "1";
+      if (!isPublic) {
+        assert.equal(req.headers.authorization, "Bearer test-token");
+        assert.equal(url.searchParams.get("user_id"), user.id);
+      }
+      const contentType =
+        format === "svg"
+          ? "image/svg+xml"
+          : format === "jpeg"
+            ? "image/jpeg"
+            : "image/png";
+      res.writeHead(200, {
+        "Content-Type": contentType,
+        "X-CloudEval-Diagram-Auth-Mode": isPublic ? "public" : "bearer",
+        "X-CloudEval-Diagram-Graph-Private": isPublic ? "0" : "1",
+        "X-CloudEval-Diagram-Labels": url.searchParams.get("labels") || "all",
+      });
+      res.end(format === "svg" ? "<svg>mock</svg>" : "mock-image-bytes");
+      return;
+    }
     if (url.pathname === "/api/v1/connection/" && req.method === "POST") {
       return json(res, { ...connection, id: "conn-created", sync_status: { status: "queued" } }, 201);
     }
@@ -627,6 +649,155 @@ test("project creation, project reads, output files, and stdin API key work non-
     assert.equal(get.stdout, "");
     const saved = JSON.parse(await fs.readFile(output, "utf8"));
     assert.equal(saved.data.id, "project-main");
+
+    const frontendUrl = new URL(backend.baseUrl).origin;
+    const imageOutput = path.join(outputDir, "architecture.png");
+    const headersOutput = path.join(outputDir, "architecture.headers");
+    const relativeImageOutput = path.relative(path.resolve("."), imageOutput);
+    const relativeHeadersOutput = path.relative(path.resolve("."), headersOutput);
+    const image = await runCli([
+      "projects",
+      "export-diagram",
+      "project-main",
+      "--base-url",
+      backend.baseUrl,
+      "--frontend-url",
+      frontendUrl,
+      "--api-key",
+      "test-token",
+      "--layout",
+      "architecture",
+      "--format",
+      "png",
+      "--labels",
+      "all",
+      "--output",
+      relativeImageOutput,
+      "--headers-output",
+      relativeHeadersOutput,
+      "--non-interactive",
+    ]);
+    assert.equal(image.exitCode, 0, image.stderr);
+    assert.match(
+      image.stdout,
+      new RegExp(`Downloaded architecture diagram to ${imageOutput.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`)
+    );
+    assert.equal(await fs.readFile(imageOutput, "utf8"), "mock-image-bytes");
+    const imageHeaders = await fs.readFile(headersOutput, "utf8");
+    assert.match(imageHeaders, /x-cloudeval-diagram-auth-mode: bearer/i);
+    assert.match(imageHeaders, /x-cloudeval-diagram-labels: all/i);
+    assert(
+      backend.requests.some(
+        (request) =>
+          request.path === "/api/projects/project-main/diagram-image" &&
+          request.query.get("layout") === "architecture" &&
+          request.query.get("format") === "png" &&
+          request.query.get("labels") === "all" &&
+          request.query.get("user_id") === user.id &&
+          request.authorization === "Bearer test-token",
+      ),
+    );
+
+    const missingImageRequestsBefore = backend.requests.filter(
+      (request) => request.path === "/api/projects/missing-project/diagram-image",
+    ).length;
+    const missingImage = await runCli([
+      "projects",
+      "export-diagram",
+      "missing-project",
+      "--base-url",
+      backend.baseUrl,
+      "--frontend-url",
+      frontendUrl,
+      "--api-key",
+      "test-token",
+      "--layout",
+      "architecture",
+      "--format",
+      "png",
+      "--labels",
+      "all",
+      "--output",
+      path.join(outputDir, "missing.png"),
+      "--non-interactive",
+    ]);
+    assert.equal(missingImage.exitCode, 1);
+    assert.match(missingImage.stderr, /Project missing-project was not found/);
+    assert.equal(
+      backend.requests.filter(
+        (request) => request.path === "/api/projects/missing-project/diagram-image",
+      ).length,
+      missingImageRequestsBefore,
+    );
+
+    const publicImageOutput = path.join(outputDir, "dependency.svg");
+    const publicHeadersOutput = path.join(outputDir, "dependency.headers");
+    const publicImage = await runCli([
+      "projects",
+      "export-diagram",
+      "project-main",
+      "--frontend-url",
+      frontendUrl,
+      "--public",
+      "--layout",
+      "dependency",
+      "--format",
+      "svg",
+      "--labels",
+      "viewport",
+      "--output",
+      path.relative(path.resolve("."), publicImageOutput),
+      "--headers-output",
+      path.relative(path.resolve("."), publicHeadersOutput),
+      "--json",
+      "--non-interactive",
+    ]);
+    assert.equal(publicImage.exitCode, 0, publicImage.stderr);
+    assert.equal(await fs.readFile(publicImageOutput, "utf8"), "<svg>mock</svg>");
+    const publicImagePayload = JSON.parse(publicImage.stdout);
+    assert.equal(publicImagePayload.data.output, publicImageOutput);
+    assert.equal(publicImagePayload.data.headersOutput, publicHeadersOutput);
+    assert.deepEqual(publicImagePayload.filesWritten, [
+      publicImageOutput,
+      publicHeadersOutput,
+    ]);
+    assert(
+      backend.requests.some(
+        (request) =>
+          request.path === "/api/projects/project-main/diagram-image" &&
+          request.query.get("layout") === "dependency" &&
+          request.query.get("format") === "svg" &&
+          request.query.get("labels") === "viewport" &&
+          request.query.get("public") === "1" &&
+          !request.authorization,
+      ),
+    );
+
+    const projectsHelp = await runCli(["projects", "--help"]);
+    assert.equal(projectsHelp.exitCode, 0, projectsHelp.stderr);
+    assert.match(projectsHelp.stdout, /export-diagram \[options\] <id>/);
+    assert.doesNotMatch(projectsHelp.stdout, /diagram-image/);
+
+    const legacyImageOutput = path.join(outputDir, "legacy.png");
+    const legacyImage = await runCli([
+      "projects",
+      "diagram-image",
+      "project-main",
+      "--frontend-url",
+      frontendUrl,
+      "--public",
+      "--layout",
+      "architecture",
+      "--format",
+      "png",
+      "--labels",
+      "all",
+      "--output",
+      legacyImageOutput,
+      "--non-interactive",
+    ]);
+    assert.equal(legacyImage.exitCode, 0, legacyImage.stderr);
+    assert.equal(await fs.readFile(legacyImageOutput, "utf8"), "mock-image-bytes");
   } finally {
     await fs.rm(outputDir, { recursive: true, force: true });
     await backend.close();

@@ -18,8 +18,9 @@ test("buildCompletionScript emits command and option completions", () => {
   assert.match(bash, /complete -F _cloudeval_completion cloudeval eva/);
   assert.match(
     bash,
-    /tui chat ask reports projects connections billing credits open capabilities mcp login logout auth banner completion help/
+    /tui chat ask reports projects connections billing credits open capabilities mcp login logout auth update banner completion help/
   );
+  assert.match(bash, /update\) opts="[^"]*--check[^"]*-c[^"]*--yes[^"]*-y/);
   assert.match(bash, /--template-url/);
   assert.match(bash, /--print-url/);
   assert.doesNotMatch(bash, /--sample/);
@@ -28,5 +29,7 @@ test("buildCompletionScript emits command and option completions", () => {
   assert.match(fish, /complete -c cloudeval/);
   assert.match(fish, /-a "reports"/);
   assert.match(fish, /--long model/);
+  assert.match(fish, /__fish_seen_subcommand_from update" --long check/);
+  assert.match(fish, /__fish_seen_subcommand_from update" --short c/);
   assert.doesNotMatch(fish, /sample/);
 });

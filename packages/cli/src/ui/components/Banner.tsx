@@ -20,6 +20,56 @@ const wordArt = [
 
 const artWidth = (art: string[]): number => Math.max(...art.map((line) => line.length));
 
+type BannerSegmentTone = "fill" | "outline" | "space";
+
+const outlineGlyphs = new Set(["╔", "╗", "╚", "╝", "═", "║", "╦", "╩", "╠", "╣"]);
+
+const bannerSegmentTone = (character: string): BannerSegmentTone => {
+  if (character === " ") {
+    return "space";
+  }
+  return outlineGlyphs.has(character) ? "outline" : "fill";
+};
+
+export const splitBannerLineSegments = (
+  line: string
+): Array<{ text: string; tone: BannerSegmentTone }> => {
+  const segments: Array<{ text: string; tone: BannerSegmentTone }> = [];
+  for (const character of line) {
+    const tone = bannerSegmentTone(character);
+    const previous = segments.at(-1);
+    if (previous?.tone === tone) {
+      previous.text += character;
+    } else {
+      segments.push({ text: character, tone });
+    }
+  }
+  return segments;
+};
+
+const bannerSegmentColor = (tone: BannerSegmentTone): string | undefined => {
+  if (tone === "outline") {
+    return terminalTheme.brand;
+  }
+  if (tone === "fill") {
+    return terminalTheme.accent;
+  }
+  return undefined;
+};
+
+const BannerArtLine: React.FC<{ line: string }> = ({ line }) => (
+  <Text>
+    {splitBannerLineSegments(line).map((segment, index) => (
+      <Text
+        key={`${index}-${segment.text}`}
+        color={bannerSegmentColor(segment.tone)}
+      >
+        {segment.text}
+      </Text>
+    ))}
+  </Text>
+);
+
 export const Banner: React.FC<BannerProps> = ({
   disable = false,
   details = [],
@@ -42,9 +92,7 @@ export const Banner: React.FC<BannerProps> = ({
           <Box flexDirection="row" gap={2}>
             <Box flexDirection="column">
               {art.map((line) => (
-                <Text key={line} color={terminalTheme.accent}>
-                  {line}
-                </Text>
+                <BannerArtLine key={line} line={line} />
               ))}
             </Box>
             {showDetailsBesideArt ? (

@@ -20,6 +20,7 @@ import { registerModelsCommand } from "./modelsCommand.js";
 import { registerSessionsCommand } from "./sessionsCommand.js";
 import { registerSetupCommand } from "./setupCommand.js";
 import { registerMcpCommand } from "./mcpCommand.js";
+import { maybeShowUpdateNudge, registerUpdateCommand } from "./updateCommand.js";
 import { buildFrontendUrl, openExternalUrl, resolveFrontendBaseUrl } from "./frontendLinks.js";
 import {
   writeFormattedOutput,
@@ -350,16 +351,25 @@ Examples:
   cloudeval reports download --project <id> --type all --output ./reports
   cloudeval open project <id> --view both --layout dependency --print-url --no-open
   cloudeval capabilities --format json
+  cloudeval update --check
 `
   )
   .option("--profile <name>", "Configuration profile", process.env.CLOUDEVAL_PROFILE)
   .option("-v, --verbose", "Enable verbose logging", false)
-  .hook("preAction", (thisCommand) => {
-    const opts = thisCommand.opts();
+  .hook("preAction", async (thisCommand, actionCommand) => {
+    const opts =
+      typeof actionCommand.optsWithGlobals === "function"
+        ? actionCommand.optsWithGlobals()
+        : thisCommand.opts();
     if (opts.verbose) {
       setVerbose(true);
       verboseLog("Verbose logging enabled");
     }
+    await maybeShowUpdateNudge({
+      commandName: actionCommand.name(),
+      args: process.argv.slice(2),
+      options: opts,
+    });
   });
 
 program.addHelpCommand(false);
@@ -540,6 +550,8 @@ registerMcpCommand(program, {
   defaultBaseUrl: DEFAULT_BASE_URL,
   resolveBaseUrl,
 });
+
+registerUpdateCommand(program);
 
 program
   .command("completion")

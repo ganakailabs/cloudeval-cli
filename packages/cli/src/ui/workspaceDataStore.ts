@@ -7,6 +7,16 @@ export const WORKSPACE_PANEL_STALE_CHECK_MS = 30 * 1000;
 export type WorkspacePanelLoadReason = "initial" | "manual" | "stale";
 export type WorkspacePanelDataStore = Record<WorkspaceTab, WorkspacePanelState>;
 
+export const shouldHydrateAuthenticatedWorkspace = ({
+  authToken,
+  currentUserId,
+  isHydrating,
+}: {
+  authToken?: string;
+  currentUserId?: string;
+  isHydrating: boolean;
+}): boolean => Boolean(authToken && !currentUserId && !isHydrating);
+
 const hasStoredPayload = (state: WorkspacePanelState): boolean =>
   Boolean(state.loadedAt) || Object.keys(state.data).length > 0;
 

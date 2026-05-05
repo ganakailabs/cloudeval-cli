@@ -1,6 +1,7 @@
 import React from "react";
 import { Box, Text } from "ink";
 import { ChatMessage } from "@cloudeval/shared";
+import { supportsLanguage } from "cli-highlight";
 import SyntaxHighlight from "ink-syntax-highlight";
 import { terminalTheme } from "../theme.js";
 import { hasRenderableTranscriptMessages } from "../transcriptModel.js";
@@ -24,6 +25,20 @@ interface ParsedBlock {
   language?: string;
 }
 
+const normalizeFenceLanguage = (language?: string): string => {
+  const normalized = (language ?? "")
+    .replace(/^```/, "")
+    .trim()
+    .split(/\s+/)[0]
+    ?.toLowerCase();
+  return normalized || "text";
+};
+
+export const getSyntaxHighlightLanguage = (language?: string): string => {
+  const normalized = normalizeFenceLanguage(language);
+  return supportsLanguage(normalized) ? normalized : "text";
+};
+
 const parseMarkdown = (text: string): ParsedBlock[] => {
   const blocks: ParsedBlock[] = [];
   const parts = text.split(/```/g);
@@ -42,8 +57,8 @@ const parseMarkdown = (text: string): ParsedBlock[] => {
       let code = part;
 
       if (newlineIndex !== -1) {
-          language = part.substring(0, newlineIndex).trim();
-          code = part.substring(newlineIndex + 1);
+        language = part.substring(0, newlineIndex).trim();
+        code = part.substring(newlineIndex + 1);
       }
 
       // If code is empty but we have a block, keep it empty
@@ -133,17 +148,19 @@ const FormattedContent: React.FC<{ content: string; role: "user" | "assistant" }
     <Box flexDirection="column">
       {blocks.map((block, idx) => {
         if (block.type === "code") {
+          const syntaxLanguage = getSyntaxHighlightLanguage(block.language);
+          const blockTitle = block.language ? normalizeFenceLanguage(block.language) : "Code";
           return (
             <TitledBox
               key={idx}
-              title={block.language || "Code"}
+              title={blockTitle}
               borderStyle="single"
               borderColor={terminalTheme.muted}
               padding={0}
               paddingX={1}
               marginY={1}
             >
-                <SyntaxHighlight code={block.content} language={block.language || "text"} />
+              <SyntaxHighlight code={block.content} language={syntaxLanguage} />
             </TitledBox>
           );
         }

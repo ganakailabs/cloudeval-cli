@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import fs from "node:fs/promises";
 import test from "node:test";
+import { CLI_VERSION } from "./version.js";
 
 type RecordedRequest = {
   method: string;
@@ -421,6 +422,46 @@ const parseJsonError = (result: Awaited<ReturnType<typeof runCli>>) => {
   return JSON.parse(result.stdout);
 };
 
+const bumpPatchVersion = (version: string): string => {
+  const [major = "0", minor = "0", patch = "0"] = version.replace(/^v/i, "").split(".");
+  return `${Number(major)}.${Number(minor)}.${Number(patch.split("-")[0]) + 1}`;
+};
+
+const startUpdateServer = async (latestVersion: string) => {
+  const requests: string[] = [];
+  const server = http.createServer(async (req, res) => {
+    const url = new URL(req.url ?? "/", "http://127.0.0.1");
+    requests.push(url.pathname);
+    if (url.pathname === "/latest") {
+      return json(res, {
+        tag_name: `v${latestVersion}`,
+        html_url: `https://example.test/releases/v${latestVersion}`,
+        published_at: "2026-05-05T00:00:00.000Z",
+      });
+    }
+    if (url.pathname === "/install.sh") {
+      res.writeHead(200, { "Content-Type": "text/x-shellscript" });
+      return res.end(
+        [
+          "#!/usr/bin/env bash",
+          "set -euo pipefail",
+          "printf '%s\\n' \"$1\" > \"$CLOUDEVAL_UPDATE_TEST_MARKER\"",
+          "",
+        ].join("\n")
+      );
+    }
+    return json(res, { detail: `Unhandled ${req.method} ${url.pathname}` }, 404);
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  assert(address && typeof address === "object");
+  return {
+    baseUrl: `http://127.0.0.1:${address.port}`,
+    requests,
+    close: () => new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve())),
+  };
+};
+
 test("non-interactive discovery commands are machine-readable", async () => {
   const capabilities = parseJson(await runCli(["capabilities", "--format", "json"]));
   assert.equal(capabilities.ok, true);
@@ -434,6 +475,36 @@ test("non-interactive discovery commands are machine-readable", async () => {
   const completion = await runCli(["completion", "zsh"]);
   assert.equal(completion.exitCode, 0, completion.stderr);
   assert.match(completion.stdout, /_cloudeval/);
+});
+
+test("update command checks and installs latest release non-interactively", async () => {
+  const latestVersion = bumpPatchVersion(CLI_VERSION);
+  const server = await startUpdateServer(latestVersion);
+  const home = await fs.mkdtemp(path.join(os.tmpdir(), "cloudeval-cli-update-home-"));
+  const marker = path.join(home, "updated-version.txt");
+  const env = {
+    CLOUDEVAL_UPDATE_CHECK_URL: `${server.baseUrl}/latest`,
+    CLOUDEVAL_UPDATE_INSTALLER_URL: `${server.baseUrl}/install.sh`,
+    CLOUDEVAL_UPDATE_TEST_MARKER: marker,
+  };
+
+  try {
+    const check = parseJson(await runCli(["update", "--check", "--format", "json"], { home, env }));
+    assert.equal(check.data.action, "available");
+    assert.equal(check.data.currentVersion, CLI_VERSION);
+    assert.equal(check.data.latestVersion, latestVersion);
+    assert.equal(check.data.updateAvailable, true);
+    await assert.rejects(fs.readFile(marker, "utf8"), /ENOENT/);
+
+    const updated = parseJson(await runCli(["update", "--yes", "--format", "json"], { home, env }));
+    assert.equal(updated.data.action, "updated");
+    assert.equal(updated.data.latestTag, `v${latestVersion}`);
+    assert.equal((await fs.readFile(marker, "utf8")).trim(), `v${latestVersion}`);
+    assert.deepEqual(server.requests, ["/latest", "/latest", "/install.sh"]);
+  } finally {
+    await server.close();
+    await fs.rm(home, { recursive: true, force: true });
+  }
 });
 
 test("phase one and two local commands are agent-safe and profile-aware", async () => {

@@ -26,6 +26,16 @@ cloudeval chat
 eva chat
 ```
 
+Update later:
+
+```bash
+cloudeval update --check
+cloudeval update --yes
+```
+
+Interactive text commands show a cached once-per-day update nudge when a newer
+release is available. Set `CLOUDEVAL_NO_UPDATE_CHECK=1` to suppress the nudge.
+
 ### Build locally
 
 ```bash
@@ -63,6 +73,7 @@ cloudeval mcp serve [--toolset all|readonly|projects|reports|billing] [--base-ur
 cloudeval login [--headless]
 cloudeval logout [--all-devices]
 cloudeval auth status
+cloudeval update [--check|-c] [--yes|-y] [--format|-f text|json|ndjson|markdown] [--output|-o <file>]
 cloudeval capabilities --format json
 cloudeval banner
 ```
@@ -183,7 +194,7 @@ The suite starts a local mock backend and covers setup/config profiles,
 doctor/status diagnostics, model discovery/defaults, local session history,
 project creation/list/get, connections, report list/show/cost/WAF/rules/download,
 diagram image downloads, billing/credits/top-up checkout, frontend deeplinks,
-shell completion, capabilities, auth status, and one-shot `ask` streaming. To
+shell completion, capabilities, auth status, update checks, and one-shot `ask` streaming. To
 test a specific binary, pass `CLOUDEVAL_CLI_BIN`:
 
 ```bash

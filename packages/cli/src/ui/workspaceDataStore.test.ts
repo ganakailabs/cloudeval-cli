@@ -5,6 +5,7 @@ import {
   completeWorkspacePanelRefresh,
   getWorkspacePanelLoadReason,
   markWorkspacePanelRefreshing,
+  shouldHydrateAuthenticatedWorkspace,
 } from "./workspaceDataStore.js";
 import type { WorkspacePanelState } from "./workspacePanel.js";
 
@@ -174,4 +175,39 @@ test("does not preserve cached payload after a failed refresh for a different ca
   assert.equal(refreshed.status, "error");
   assert.deepEqual(refreshed.data, {});
   assert.equal(refreshed.error, "No dashboard data could be loaded from the backend.");
+});
+
+test("hydrates workspace identity whenever a token exists but no user id is loaded", () => {
+  assert.equal(
+    shouldHydrateAuthenticatedWorkspace({
+      authToken: "token",
+      currentUserId: undefined,
+      isHydrating: false,
+    }),
+    true
+  );
+  assert.equal(
+    shouldHydrateAuthenticatedWorkspace({
+      authToken: "token",
+      currentUserId: "user-1",
+      isHydrating: false,
+    }),
+    false
+  );
+  assert.equal(
+    shouldHydrateAuthenticatedWorkspace({
+      authToken: undefined,
+      currentUserId: undefined,
+      isHydrating: false,
+    }),
+    false
+  );
+  assert.equal(
+    shouldHydrateAuthenticatedWorkspace({
+      authToken: "token",
+      currentUserId: undefined,
+      isHydrating: true,
+    }),
+    false
+  );
 });

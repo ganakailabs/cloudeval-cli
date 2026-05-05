@@ -13,6 +13,21 @@ const optionCaseBlock = (indent: string): string =>
 const escapedSingleQuote = (value: string): string =>
   value.replace(/'/g, "'\\''");
 
+const buildFishCommandCompletion = (
+  binary: string,
+  commandName: string,
+  option: string
+): string => {
+  const condition = `__fish_seen_subcommand_from ${commandName}`;
+  if (option.startsWith("--")) {
+    return `complete -c ${binary} -f -n "${condition}" --long ${option.slice(2)}`;
+  }
+  if (/^-[A-Za-z0-9]$/.test(option)) {
+    return `complete -c ${binary} -f -n "${condition}" --short ${option.slice(1)}`;
+  }
+  return `complete -c ${binary} -f -n "${condition}" -a "${option}"`;
+};
+
 export const normalizeCompletionShell = (
   shell?: string
 ): CompletionShell | undefined => {
@@ -90,11 +105,7 @@ const buildFishCompletion = (binaryName: string): string => {
       ),
       ...commands.flatMap((command) =>
         command.options.map((option) =>
-          option.startsWith("--")
-            ? `complete -c ${binary} -f -n "__fish_seen_subcommand_from ${command.name}" --long ${option.slice(
-                2
-              )}`
-            : `complete -c ${binary} -f -n "__fish_seen_subcommand_from ${command.name}" -a "${option}"`
+          buildFishCommandCompletion(binary, command.name, option)
         )
       ),
     ])

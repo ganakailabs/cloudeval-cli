@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import "../../runtime/prepareInk";
 import type { ChatMessage } from "@cloudeval/shared";
 import { hasRenderableTranscriptMessages } from "../transcriptModel";
+import { getSyntaxHighlightLanguage } from "./Transcript.js";
 
 test("hasRenderableTranscriptMessages reports empty threads", () => {
   assert.equal(hasRenderableTranscriptMessages([]), false);
@@ -44,4 +46,10 @@ test("hasRenderableTranscriptMessages can exclude pending assistant streams", ()
 
   assert.equal(hasRenderableTranscriptMessages([message], true), false);
   assert.equal(hasRenderableTranscriptMessages([message], false), true);
+});
+
+test("getSyntaxHighlightLanguage falls back for unsupported mermaid fences", () => {
+  assert.equal(getSyntaxHighlightLanguage("mermaid"), "text");
+  assert.equal(getSyntaxHighlightLanguage("```mermaid"), "text");
+  assert.equal(getSyntaxHighlightLanguage("typescript"), "typescript");
 });

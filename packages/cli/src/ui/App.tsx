@@ -50,6 +50,7 @@ import {
   completeWorkspacePanelRefresh,
   getWorkspacePanelLoadReason,
   markWorkspacePanelRefreshing,
+  shouldHydrateAuthenticatedWorkspace,
   type WorkspacePanelDataStore,
 } from "./workspaceDataStore.js";
 import { raisedButtonStyle, terminalTheme } from "./theme.js";
@@ -1203,12 +1204,25 @@ export const App: React.FC<AppProps> = ({
         });
       }
 
-      // Step 1.5: Check onboarding status and fetch projects (only if not using API key)
-      if (!apiKey && !allowMachineAuth && token) {
+      // Step 1.5: Check onboarding status and fetch projects.
+      // Dashboard-style tabs need a backend user id even when the token came
+      // from API-key or machine auth paths.
+      if (
+        token &&
+        shouldHydrateAuthenticatedWorkspace({
+          authToken: token,
+          currentUserId,
+          isHydrating: checkingOnboarding || loadingProjects,
+        })
+      ) {
         setCheckingOnboarding(true);
         try {
           const userStatus = await refreshAuthenticatedWorkspace(token);
-          if (!userStatus.onboardingCompleted) {
+          if (!userStatus.user?.id) {
+            setSelectedProject(defaultProject);
+            setSelectingProject(false);
+          }
+          if (!apiKey && !allowMachineAuth && !userStatus.onboardingCompleted) {
             setNeedsOnboarding(true);
             setPhase("ready"); // Show onboarding UI
             setCheckingOnboarding(false);
@@ -1245,7 +1259,7 @@ export const App: React.FC<AppProps> = ({
         setCheckingOnboarding(false);
         setLoadingProjects(false);
       } else {
-        // Using API key, use default project
+        // If no token is available or workspace identity is already hydrated, keep a fallback project.
         setSelectedProject(defaultProject);
         setSelectingProject(false);
       }
@@ -1484,7 +1498,6 @@ export const App: React.FC<AppProps> = ({
     currentUserId,
     phase,
     setWorkspacePanelTabState,
-    workspacePanelStore,
     workspaceRefreshKeys,
     workspaceStaleTick,
   ]);

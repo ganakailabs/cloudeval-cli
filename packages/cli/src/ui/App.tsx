@@ -700,6 +700,7 @@ const PromptControlBar: React.FC<{
   statusText: string;
   statusColor?: string;
   busy: boolean;
+  animate: boolean;
 }> = ({
   focused,
   selectedProject,
@@ -713,6 +714,7 @@ const PromptControlBar: React.FC<{
   statusText,
   statusColor,
   busy,
+  animate,
 }) => {
   const controlGap = compact ? 0 : 1;
   return (
@@ -766,7 +768,7 @@ const PromptControlBar: React.FC<{
         ) : null}
         <Box flexGrow={1} justifyContent="flex-end">
           <Box flexDirection="row" gap={1}>
-            {busy ? <Spinner type="line" /> : null}
+            {busy ? <Spinner type="line" animate={animate} /> : null}
             <Text color={statusColor}>{statusText}</Text>
           </Box>
         </Box>
@@ -2147,6 +2149,7 @@ export const App: React.FC<AppProps> = ({
     : false;
   const thinkingSummary = summarizeThinkingSteps(latestThinkingMessage);
   const bannerDisabledByConfig = disableBanner || Boolean(process.env.CLOUDEVAL_NO_BANNER);
+  const animationsEnabled = !disableAnim && !process.env.CLOUDEVAL_NO_ANIM;
   const tuiLayout = getResponsiveTuiLayout(terminalSize, {
     disableBanner: bannerDisabledByConfig,
     hasQueue: queuedMessages.length > 0,
@@ -2723,11 +2726,7 @@ export const App: React.FC<AppProps> = ({
             <Text dimColor>Please complete authentication in your browser.</Text>
           </Box>
         ) : (
-          <Loader
-            step={loaderStep}
-            steps={bootSteps}
-            animate={!disableAnim && !process.env.CLOUDEVAL_NO_ANIM}
-          />
+          <Loader step={loaderStep} steps={bootSteps} animate={animationsEnabled} />
         )}
       </Box>
     );
@@ -2810,7 +2809,7 @@ export const App: React.FC<AppProps> = ({
         <Text>Select a project to chat with:</Text>
         {loadingProjects ? (
           <Box flexDirection="row" gap={1}>
-            <Spinner type="line" />
+            <Spinner type="line" animate={animationsEnabled} />
             <Text color={terminalTheme.brand}>Loading projects...</Text>
           </Box>
         ) : (
@@ -2861,6 +2860,7 @@ export const App: React.FC<AppProps> = ({
                 frontendUrl={workspaceFrontendUrl}
                 terminalColumns={workspaceContentWidth}
                 tablePage={activeTablePage}
+                animate={animationsEnabled}
               />
             </ScrollView>
           </Box>
@@ -2975,6 +2975,7 @@ export const App: React.FC<AppProps> = ({
                 excludeStreaming={false}
                 expandedThinkingMessageIds={expandedThinkingMessageIds}
                 emptyLabel={isSearching ? "No matching messages." : "Thread is empty."}
+                animate={animationsEnabled}
               />
             </ScrollView>
           </Box>
@@ -3098,6 +3099,7 @@ export const App: React.FC<AppProps> = ({
                   statusText={chatStatusText}
                   statusColor={chatStatusColor}
                   busy={chatBusy}
+                  animate={animationsEnabled}
                 />
                 <Text dimColor wrap="wrap">
                   /project | /model | /mode | /thinking | /stop | /open | /help

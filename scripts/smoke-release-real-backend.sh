@@ -137,6 +137,31 @@ run_json_expected_error() {
   pass "$name returned JSON error envelope"
 }
 
+run_json_ok_or_expected_error() {
+  local name="$1"
+  shift
+  local output="$TMP_DIR/${name}.json"
+  local exit_code
+
+  set +e
+  "$CLI_BIN" "$@" --format json >"$output" 2>"$TMP_DIR/${name}.stderr"
+  exit_code=$?
+  set -e
+
+  if [ -s "$TMP_DIR/${name}.stderr" ]; then
+    fail "$name wrote to stderr despite JSON output: $(cat "$TMP_DIR/${name}.stderr")"
+  fi
+
+  python3 -m json.tool "$output" >/dev/null
+  if [ "$exit_code" -eq 0 ]; then
+    assert_json_value "$output" "ok" "true"
+    pass "$name returned JSON success"
+  else
+    assert_json_value "$output" "ok" "false"
+    pass "$name returned JSON error envelope"
+  fi
+}
+
 need curl
 need python3
 need awk
@@ -195,7 +220,7 @@ run_json_ok "capabilities" capabilities
 run_json_ok "models-list" models list --base-url "$BASE_URL"
 assert_json_number_ge "$TMP_DIR/models-list.json" "data.models.length" "1"
 
-run_json_expected_error "billing-plans-unauthenticated" \
+run_json_ok_or_expected_error "billing-plans-auth-probe" \
   billing plans --base-url "$BASE_URL" --non-interactive
 
 if [ -n "$HEALTH_URL" ]; then

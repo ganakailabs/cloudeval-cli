@@ -12,6 +12,7 @@ import {
   resolveFrontendBaseUrl,
 } from "./frontendLinks.js";
 import {
+  formatTextTable,
   writeFormattedOutput,
   type MachineOutputFormat,
 } from "./outputFormatter.js";
@@ -55,6 +56,79 @@ const maybeOpen = async (url: string, options: CommonOptions) => {
   }
 };
 
+const scalar = (value: unknown, fallback = "-"): string => {
+  if (value === null || value === undefined || value === "") {
+    return fallback;
+  }
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  return fallback;
+};
+
+const syncStatus = (connection: Record<string, unknown>): string =>
+  scalar(
+    connection.last_sync_status ??
+      (connection.sync_status as Record<string, unknown> | undefined)?.status ??
+      connection.status
+  );
+
+const renderConnectionsListText = (connections: unknown[]): string =>
+  formatTextTable(
+    connections.map((connection) => {
+      const record =
+        connection && typeof connection === "object" && !Array.isArray(connection)
+          ? (connection as Record<string, unknown>)
+          : {};
+      return {
+        id: scalar(record.id),
+        name: scalar(record.name),
+        provider: scalar(record.cloud_provider),
+        type: scalar(record.type),
+        sync: syncStatus(record),
+        updated: scalar(record.last_synced ?? record.updated_at ?? record.created_at),
+      };
+    }),
+    [
+      { key: "id", header: "ID", width: 36 },
+      { key: "name", header: "Name", maxWidth: 28 },
+      { key: "provider", header: "Provider", width: 10 },
+      { key: "type", header: "Type", width: 10 },
+      { key: "sync", header: "Sync", maxWidth: 16 },
+      { key: "updated", header: "Updated", maxWidth: 19 },
+    ],
+    { emptyMessage: "No connections found." }
+  );
+
+const writeConnectionsListOutput = async ({
+  data,
+  options,
+  frontendUrl,
+}: {
+  data: unknown[];
+  options: CommonOptions;
+  frontendUrl: string;
+}) => {
+  const format = options.format ?? "text";
+  if (format === "text") {
+    const text = renderConnectionsListText(data);
+    if (options.output) {
+      const fs = await import("node:fs/promises");
+      await fs.writeFile(options.output, text, "utf8");
+      return;
+    }
+    process.stdout.write(text);
+    return;
+  }
+  await writeFormattedOutput({
+    command: "connections list",
+    data,
+    format,
+    output: options.output,
+    frontendUrl,
+  });
+};
+
 export const registerConnectionsCommand = (
   program: Command,
   deps: RegisterConnectionsCommandOptions
@@ -75,13 +149,7 @@ export const registerConnectionsCommand = (
           baseUrl: frontendBase(context, options),
           target: "connections",
         });
-        await writeFormattedOutput({
-          command: "connections list",
-          data,
-          format: options.format,
-          output: options.output,
-          frontendUrl: url,
-        });
+        await writeConnectionsListOutput({ data, options, frontendUrl: url });
         await maybeOpen(url, options);
       } catch (error: any) {
         console.error(`Failed to list connections: ${error?.message ?? "Unknown error"}`);

@@ -44,6 +44,30 @@ const formatChecksText = (checks: DoctorCheck[]): Array<Record<string, string>> 
     detail: check.detail ?? check.label,
   }));
 
+const formatAuthStatusText = (
+  auth: Record<string, any>,
+  effectiveBaseUrl: string
+): Record<string, unknown> => {
+  const accessTokenExpiresAt = auth.accessTokenExpiresAt
+    ? new Date(auth.accessTokenExpiresAt).toISOString()
+    : undefined;
+  return {
+    Authenticated: auth.authenticated ? "yes" : "no",
+    "Authentication checked": auth.validationAttempted ? "yes" : "no",
+    "Cached access token": auth.accessTokenCached ? "yes" : "no",
+    "Refresh token available": auth.hasRefreshToken ? "yes" : "no",
+    "Storage backend": auth.storageBackend,
+    ...(auth.authError ? { "Auth error": auth.authError } : {}),
+    "CLI API URL": effectiveBaseUrl,
+    ...(accessTokenExpiresAt ? { "Access token expires": accessTokenExpiresAt } : {}),
+    ...(auth.sessionId ? { "Session ID": auth.sessionId } : {}),
+    ...(auth.accountId ? { "Account ID": auth.accountId } : {}),
+    ...(auth.baseUrl && auth.baseUrl !== effectiveBaseUrl
+      ? { "Stored auth URL": auth.baseUrl }
+      : {}),
+  };
+};
+
 export const registerDiagnosticsCommands = (
   program: Command,
   deps: DiagnosticsDeps
@@ -59,14 +83,24 @@ export const registerDiagnosticsCommands = (
     const auth = await core.getAuthStatus(baseUrl, { validate: true });
     await writeFormattedOutput({
       command: "status",
-      data: {
-        profile,
-        baseUrl,
-        configPath: getCliConfigPath(profile),
-        config,
-        auth,
-        node: process.versions.node,
-      },
+      data:
+        options.format === "text" || !options.format
+          ? {
+              profile,
+              baseUrl,
+              configPath: getCliConfigPath(profile),
+              config,
+              auth: formatAuthStatusText(auth as Record<string, any>, baseUrl),
+              node: process.versions.node,
+            }
+          : {
+              profile,
+              baseUrl,
+              configPath: getCliConfigPath(profile),
+              config,
+              auth,
+              node: process.versions.node,
+            },
       format: options.format,
     });
   });
@@ -150,7 +184,13 @@ export const registerDiagnosticsCommands = (
         command: "doctor",
         data:
           options.format === "text" || !options.format
-            ? { ok, checks: formatChecksText(checks), profile, config, mcp: mcp?.status }
+            ? {
+                ok,
+                checks: formatChecksText(checks),
+                profile,
+                config,
+                ...(mcp?.status ? { mcp: mcp.status } : {}),
+              }
             : { ok, checks, profile, config, mcp: mcp?.status },
         format: options.format,
       });

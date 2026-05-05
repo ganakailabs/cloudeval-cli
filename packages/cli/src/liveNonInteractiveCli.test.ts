@@ -52,7 +52,7 @@ const selectProject = (projects: any[]) => {
 test("live non-interactive CLI commands work against the authenticated backend", async (t) => {
   const auth = runCli(["auth", "status"]);
   assertOk("auth status", auth);
-  assert.match(auth.stdout, /Authenticated: yes/);
+  assert.match(auth.stdout, /^Authenticated\s+yes$/m);
   assert.doesNotMatch(auth.stdout, /CLI API URL: http:\/\/127\.0\.0\.1/);
 
   const projectsResult = runCli([

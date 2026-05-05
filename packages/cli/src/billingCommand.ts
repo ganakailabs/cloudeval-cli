@@ -13,6 +13,7 @@ import {
 } from "./frontendLinks.js";
 import {
   formatErrorEnvelope,
+  formatTextTable,
   writeFormattedOutput,
   type MachineOutputFormat,
 } from "./outputFormatter.js";
@@ -70,12 +71,251 @@ const maybeOpen = async (url: string, options: CommonOptions) => {
   }
 };
 
+const money = (amount: unknown, currency = "USD"): string => {
+  if (typeof amount !== "number") {
+    return "-";
+  }
+  const prefix = currency === "USD" ? "$" : `${currency} `;
+  return `${prefix}${Number.isInteger(amount) ? amount : amount.toFixed(2)}`;
+};
+
+const planPrice = (plan: Record<string, any>): string => {
+  if (plan.billing_interval === "custom") {
+    return "custom";
+  }
+  const price = money(plan.price_usd, "USD");
+  return plan.billing_interval ? `${price}/${plan.billing_interval}` : price;
+};
+
+const extractEntitlement = (data: any) => data?.entitlement?.data ?? data?.entitlement ?? data?.data ?? data;
+
+const renderCreditSummary = (data: any): string => {
+  const entitlement = extractEntitlement(data);
+  const status = data?.creditStatus ?? data?.status ?? {};
+  const plan = entitlement?.plan ?? status?.plan ?? {};
+  const balance = entitlement?.balance ?? {};
+  const rows = [
+    { field: "Plan", value: status.planName ?? plan.name ?? plan.id },
+    { field: "Plan source", value: entitlement?.plan_source ?? entitlement?.planSource ?? "-" },
+    { field: "Credits used", value: status.used ?? balance.credits_used ?? balance.credits_used_cycle },
+    { field: "Credits remaining", value: status.remaining ?? balance.credits_remaining ?? balance.credits_remaining_effective },
+    { field: "Credits total", value: status.total ?? balance.credits_total ?? balance.credits_total_effective },
+    { field: "Top-up balance", value: status.topUpBalance ?? entitlement?.top_up_credits_balance },
+    { field: "Next reset", value: entitlement?.next_reset_at ?? data?.subscriptionStatus?.next_reset_at },
+  ];
+  return formatTextTable(rows, [
+    { key: "field", header: "Field" },
+    { key: "value", header: "Value", maxWidth: 40 },
+  ]);
+};
+
+const renderPlans = (data: any): string =>
+  formatTextTable(
+    (data?.plans ?? []).map((plan: Record<string, any>) => ({
+      id: plan.id,
+      name: plan.name,
+      price: planPrice(plan),
+      credits: plan.credits_per_period || "-",
+      interval: plan.credits_period ?? plan.billing_interval ?? "-",
+      available: plan.available === false ? "no" : "yes",
+    })),
+    [
+      { key: "id", header: "ID", maxWidth: 18 },
+      { key: "name", header: "Name", maxWidth: 24 },
+      { key: "price", header: "Price", maxWidth: 18 },
+      { key: "credits", header: "Credits", align: "right" },
+      { key: "interval", header: "Interval", maxWidth: 12 },
+      { key: "available", header: "Available", width: 9 },
+    ],
+    { emptyMessage: "No billing plans found." }
+  );
+
+const objectRows = (value: Record<string, unknown> | undefined, keyLabel: string, valueLabel: string) =>
+  Object.entries(value ?? {}).map(([key, amount]) => ({
+    [keyLabel]: key,
+    [valueLabel]: amount,
+  }));
+
+const renderUsage = (data: any): string => {
+  const totals = data?.totals ?? data;
+  const sections = [
+    formatTextTable(
+      [
+        { field: "Range start", value: data?.range_start ?? data?.start_at },
+        { field: "Range end", value: data?.range_end ?? data?.end_at },
+        { field: "Granularity", value: data?.granularity },
+        { field: "Credits used", value: totals?.credits_used ?? totals?.total_credits },
+        { field: "Events", value: totals?.events ?? totals?.total_events },
+        { field: "Input tokens", value: totals?.input_tokens },
+        { field: "Output tokens", value: totals?.output_tokens },
+      ],
+      [
+        { key: "field", header: "Field" },
+        { key: "value", header: "Value", maxWidth: 40 },
+      ]
+    ).trimEnd(),
+  ];
+
+  const byAction = objectRows(data?.by_action_type, "Action", "Credits");
+  if (byAction.length) {
+    sections.push(
+      `By action\n${formatTextTable(byAction, [
+        { key: "Action", header: "Action", maxWidth: 32 },
+        { key: "Credits", header: "Credits", align: "right" },
+      ]).trimEnd()}`
+    );
+  }
+
+  const buckets = Array.isArray(data?.buckets) ? data.buckets : [];
+  if (buckets.length) {
+    sections.push(
+      `Buckets\n${formatTextTable(
+        buckets.map((bucket: Record<string, any>) => ({
+          start: bucket.bucket_start ?? bucket.start,
+          end: bucket.bucket_end ?? bucket.end,
+          credits: bucket.credits_used ?? bucket.total_credits,
+          events: bucket.events ?? bucket.total_events,
+          input: bucket.input_tokens,
+          output: bucket.output_tokens,
+        })),
+        [
+          { key: "start", header: "Start", maxWidth: 19 },
+          { key: "end", header: "End", maxWidth: 19 },
+          { key: "credits", header: "Credits", align: "right" },
+          { key: "events", header: "Events", align: "right" },
+          { key: "input", header: "Input", align: "right" },
+          { key: "output", header: "Output", align: "right" },
+        ]
+      ).trimEnd()}`
+    );
+  }
+
+  return `${sections.join("\n\n")}\n`;
+};
+
+const renderLedger = (data: any): string =>
+  formatTextTable(
+    (data?.items ?? []).map((item: Record<string, any>) => ({
+      id: item.id,
+      action: item.action_type ?? item.operation_type ?? item.action,
+      outcome: item.outcome,
+      credits: item.charged_credits ?? item.credits ?? item.total_credits,
+      charge: item.charge_status,
+      model: item.model_name,
+      time: item.event_time ?? item.created_at ?? item.recorded_at,
+    })),
+    [
+      { key: "id", header: "ID", maxWidth: 28 },
+      { key: "action", header: "Action", maxWidth: 24 },
+      { key: "outcome", header: "Outcome", maxWidth: 10 },
+      { key: "credits", header: "Credits", align: "right" },
+      { key: "charge", header: "Charge", maxWidth: 12 },
+      { key: "model", header: "Model", maxWidth: 18 },
+      { key: "time", header: "Time", maxWidth: 19 },
+    ],
+    { emptyMessage: "No billing ledger events found." }
+  );
+
+const renderTopUps = (data: any): string =>
+  formatTextTable(
+    (data?.packs ?? data?.items ?? []).map((pack: Record<string, any>) => ({
+      id: pack.id,
+      name: pack.name,
+      credits: pack.credits,
+      price: money(pack.display_price_major ?? pack.price_usd, pack.display_currency ?? "USD"),
+      currency: pack.display_currency ?? "USD",
+      available: pack.available === false ? "no" : "yes",
+    })),
+    [
+      { key: "id", header: "ID", maxWidth: 18 },
+      { key: "name", header: "Name", maxWidth: 24 },
+      { key: "credits", header: "Credits", align: "right" },
+      { key: "price", header: "Price", maxWidth: 12 },
+      { key: "currency", header: "Currency", width: 8 },
+      { key: "available", header: "Available", width: 9 },
+    ],
+    { emptyMessage: "No top-up packs found." }
+  );
+
+const renderInvoices = (data: any): string =>
+  formatTextTable(
+    (data?.invoices ?? data?.items ?? []).map((invoice: Record<string, any>) => ({
+      id: invoice.id,
+      status: invoice.status,
+      amount: invoice.amount_due ?? invoice.amount_paid ?? invoice.amount,
+      currency: invoice.currency,
+      due: invoice.due_date ?? invoice.created_at,
+    })),
+    [
+      { key: "id", header: "ID", maxWidth: 28 },
+      { key: "status", header: "Status", maxWidth: 12 },
+      { key: "amount", header: "Amount", align: "right" },
+      { key: "currency", header: "Currency", maxWidth: 8 },
+      { key: "due", header: "Due", maxWidth: 19 },
+    ],
+    { emptyMessage: "No invoices found." }
+  );
+
+const renderNotifications = (data: any): string =>
+  formatTextTable(
+    (data?.notifications ?? data?.items ?? []).map((notification: Record<string, any>) => ({
+      id: notification.id,
+      type: notification.type,
+      severity: notification.severity ?? notification.level,
+      message: notification.message ?? notification.title,
+      created: notification.created_at,
+    })),
+    [
+      { key: "id", header: "ID", maxWidth: 28 },
+      { key: "type", header: "Type", maxWidth: 20 },
+      { key: "severity", header: "Severity", maxWidth: 10 },
+      { key: "message", header: "Message", maxWidth: 48 },
+      { key: "created", header: "Created", maxWidth: 19 },
+    ],
+    { emptyMessage: "No billing notifications found." }
+  );
+
+const renderBillingText = (command: string, data: unknown): string | undefined => {
+  const record = data as Record<string, any>;
+  switch (command) {
+    case "credits":
+    case "billing summary":
+      return renderCreditSummary(record);
+    case "billing plans":
+      return renderPlans(record);
+    case "billing usage":
+      return renderUsage(record);
+    case "billing ledger":
+      return renderLedger(record);
+    case "billing topups":
+      return renderTopUps(record);
+    case "billing invoices":
+      return renderInvoices(record);
+    case "billing notifications":
+      return renderNotifications(record);
+    default:
+      return undefined;
+  }
+};
+
 const write = async (
   command: string,
   data: unknown,
   options: CommonOptions,
   frontendUrl?: string
 ) => {
+  if ((options.format ?? "text") === "text") {
+    const text = renderBillingText(command, data);
+    if (text) {
+      if (options.output) {
+        const fs = await import("node:fs/promises");
+        await fs.writeFile(options.output, text, "utf8");
+        return;
+      }
+      process.stdout.write(text);
+      return;
+    }
+  }
   await writeFormattedOutput({
     command,
     data,

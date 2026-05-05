@@ -5,6 +5,7 @@ import {
   type ReportOutputFormat,
   type WafParsedReport,
 } from "@cloudeval/shared";
+import { formatTextTable } from "../outputFormatter.js";
 
 export interface SerializeReportOptions {
   format: Exclude<ReportOutputFormat, "tui">;
@@ -181,12 +182,19 @@ export const renderReportList = (
     ].join("\n");
   }
 
-  const lines = [
-    `${pad("id", 28)} ${pad("kind", 6)} ${pad("project", 18)} generated`,
-    ...reports.map(
-      (report) =>
-        `${pad(report.id, 28)} ${pad(report.kind, 6)} ${pad(report.projectId, 18)} ${report.generatedAt}`
-    ),
-  ];
-  return `${lines.join("\n")}\n`;
+  return formatTextTable(
+    reports.map((report) => ({
+      id: report.id,
+      kind: report.kind,
+      project: report.projectId,
+      generated: report.generatedAt,
+    })),
+    [
+      { key: "id", header: "ID", maxWidth: 44 },
+      { key: "kind", header: "Kind", width: 6 },
+      { key: "project", header: "Project", maxWidth: 36 },
+      { key: "generated", header: "Generated", maxWidth: 26 },
+    ],
+    { emptyMessage: "No reports found." }
+  );
 };

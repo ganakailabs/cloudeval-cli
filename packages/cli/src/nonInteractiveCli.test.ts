@@ -567,8 +567,9 @@ test("auth status is non-interactive and respects explicit base url", async () =
   try {
     const result = await runCli(["auth", "status", "--base-url", backend.baseUrl]);
     assert.equal(result.exitCode, 0, result.stderr);
-    assert.match(result.stdout, /Authenticated: no/);
-    assert.match(result.stdout, new RegExp(`CLI API URL: ${backend.baseUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
+    assert.match(result.stdout, /^Field\s+Value/m);
+    assert.match(result.stdout, /^Authenticated\s+no$/m);
+    assert.match(result.stdout, new RegExp(`^CLI API URL\\s+${backend.baseUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "m"));
   } finally {
     await backend.close();
   }
@@ -1027,6 +1028,40 @@ test("billing and credits commands are non-interactive and JSON-safe", async () 
       country_code: "US",
       return_to: "https://app.example.test/app/subscription?tab=billing",
     });
+  } finally {
+    await backend.close();
+  }
+});
+
+test("default human output uses tables for list-style authenticated commands", async () => {
+  const backend = await startBackend();
+  try {
+    const common = ["--base-url", backend.baseUrl, "--api-key", "test-token", "--non-interactive"];
+
+    const reports = await runCli(["reports", "list", ...common]);
+    assert.equal(reports.exitCode, 0, reports.stderr);
+    assert.match(reports.stdout, /^ID\s+Kind\s+Project\s+Generated/m);
+    assert.match(reports.stdout, /^--/m);
+
+    const connections = await runCli(["connections", "list", ...common]);
+    assert.equal(connections.exitCode, 0, connections.stderr);
+    assert.match(connections.stdout, /^ID\s+Name\s+Provider\s+Type\s+Sync/m);
+    assert.doesNotMatch(connections.stdout, /^id: /m);
+
+    const models = await runCli(["models", "list", ...common]);
+    assert.equal(models.exitCode, 0, models.stderr);
+    assert.match(models.stdout, /^ID\s+Name\s+Provider\s+Availability/m);
+    assert.doesNotMatch(models.stdout, /^models: \[/m);
+
+    const plans = await runCli(["billing", "plans", ...common]);
+    assert.equal(plans.exitCode, 0, plans.stderr);
+    assert.match(plans.stdout, /^ID\s+Name\s+Price\s+Credits/m);
+    assert.doesNotMatch(plans.stdout, /^plans: \[/m);
+
+    const ledger = await runCli(["billing", "ledger", ...common, "--limit", "5"]);
+    assert.equal(ledger.exitCode, 0, ledger.stderr);
+    assert.match(ledger.stdout, /^ID\s+Action\s+Outcome\s+Credits/m);
+    assert.doesNotMatch(ledger.stdout, /^items: \[/m);
   } finally {
     await backend.close();
   }

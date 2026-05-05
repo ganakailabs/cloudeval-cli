@@ -21,6 +21,10 @@ import { registerSessionsCommand } from "./sessionsCommand.js";
 import { registerSetupCommand } from "./setupCommand.js";
 import { registerMcpCommand } from "./mcpCommand.js";
 import { buildFrontendUrl, openExternalUrl, resolveFrontendBaseUrl } from "./frontendLinks.js";
+import {
+  writeFormattedOutput,
+  type MachineOutputFormat,
+} from "./outputFormatter.js";
 import { CLI_VERSION } from "./version.js";
 import { getDefaultBaseUrl, shouldUseStoredBaseUrl } from "./baseUrl.js";
 import { getActiveConfigProfile, loadCliConfig } from "./cliConfig.js";
@@ -430,6 +434,7 @@ authCommand
     "Backend base URL",
     DEFAULT_BASE_URL
   )
+  .option("--format <format>", "Output format: text, json, ndjson, markdown", "text")
   .action(async (options, command) => {
     try {
       const { assertSecureBaseUrl, getAuthStatus } = await import("@cloudeval/core");
@@ -437,27 +442,42 @@ authCommand
       assertSecureBaseUrl(effectiveBaseUrl);
       const status = await getAuthStatus(effectiveBaseUrl, { validate: true });
 
-      console.log(`Authenticated: ${status.authenticated ? "yes" : "no"}`);
-      console.log(`Authentication checked: ${status.validationAttempted ? "yes" : "no"}`);
-      console.log(`Cached access token: ${status.accessTokenCached ? "yes" : "no"}`);
-      console.log(`Refresh token available: ${status.hasRefreshToken ? "yes" : "no"}`);
-      console.log(`Storage backend: ${status.storageBackend}`);
-      if (status.authError) {
-        console.log(`Auth error: ${status.authError}`);
-      }
-      console.log(`CLI API URL: ${effectiveBaseUrl}`);
-      if (status.accessTokenExpiresAt) {
-        console.log(`Access token expires: ${new Date(status.accessTokenExpiresAt).toISOString()}`);
-      }
-      if (status.sessionId) {
-        console.log(`Session ID: ${status.sessionId}`);
-      }
-      if (status.accountId) {
-        console.log(`Account ID: ${status.accountId}`);
-      }
-      if (status.baseUrl && status.baseUrl !== effectiveBaseUrl) {
-        console.log(`Stored auth URL: ${status.baseUrl}`);
-      }
+      const accessTokenExpiresAt = status.accessTokenExpiresAt
+        ? new Date(status.accessTokenExpiresAt).toISOString()
+        : undefined;
+      const textData = {
+        Authenticated: status.authenticated ? "yes" : "no",
+        "Authentication checked": status.validationAttempted ? "yes" : "no",
+        "Cached access token": status.accessTokenCached ? "yes" : "no",
+        "Refresh token available": status.hasRefreshToken ? "yes" : "no",
+        "Storage backend": status.storageBackend,
+        ...(status.authError ? { "Auth error": status.authError } : {}),
+        "CLI API URL": effectiveBaseUrl,
+        ...(accessTokenExpiresAt ? { "Access token expires": accessTokenExpiresAt } : {}),
+        ...(status.sessionId ? { "Session ID": status.sessionId } : {}),
+        ...(status.accountId ? { "Account ID": status.accountId } : {}),
+        ...(status.baseUrl && status.baseUrl !== effectiveBaseUrl
+          ? { "Stored auth URL": status.baseUrl }
+          : {}),
+      };
+      const machineData = {
+        authenticated: status.authenticated,
+        validationAttempted: status.validationAttempted,
+        accessTokenCached: status.accessTokenCached,
+        hasRefreshToken: status.hasRefreshToken,
+        storageBackend: status.storageBackend,
+        authError: status.authError,
+        cliApiUrl: effectiveBaseUrl,
+        accessTokenExpiresAt,
+        sessionId: status.sessionId,
+        accountId: status.accountId,
+        storedAuthUrl: status.baseUrl && status.baseUrl !== effectiveBaseUrl ? status.baseUrl : undefined,
+      };
+      await writeFormattedOutput({
+        command: "auth status",
+        data: options.format === "text" || !options.format ? textData : machineData,
+        format: options.format as MachineOutputFormat,
+      });
     } catch (error: any) {
       console.error(`❌ Failed to fetch auth status: ${error?.message || "Unknown error"}`);
       process.exit(1);

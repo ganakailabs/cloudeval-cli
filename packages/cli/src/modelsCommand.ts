@@ -6,6 +6,7 @@ import {
   saveCliConfig,
 } from "./cliConfig.js";
 import {
+  formatTextTable,
   writeFormattedOutput,
   type MachineOutputFormat,
 } from "./outputFormatter.js";
@@ -85,6 +86,84 @@ const resolveToken = async (options: ModelListOptions, deps: ModelsDeps, baseUrl
   }
 };
 
+const modelScalar = (value: unknown, fallback = "-"): string => {
+  if (value === null || value === undefined || value === "") {
+    return fallback;
+  }
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  return fallback;
+};
+
+const renderModelsListText = (
+  models: Array<Record<string, unknown>>,
+  context: { source: string; defaultModel?: string | null }
+): string => {
+  const table = formatTextTable(
+    models.map((model) => ({
+      id: modelScalar(model.id),
+      name: modelScalar(model.name),
+      provider: modelScalar(model.provider),
+      availability: modelScalar(model.availability, model.disabled ? "disabled" : "available"),
+      category: modelScalar(model.category),
+      default: context.defaultModel && context.defaultModel === model.id ? "yes" : "",
+    })),
+    [
+      { key: "id", header: "ID", maxWidth: 28 },
+      { key: "name", header: "Name", maxWidth: 28 },
+      { key: "provider", header: "Provider", maxWidth: 12 },
+      { key: "availability", header: "Availability", maxWidth: 14 },
+      { key: "category", header: "Category", maxWidth: 10 },
+      { key: "default", header: "Default", width: 7 },
+    ],
+    { emptyMessage: "No models found." }
+  );
+  const meta = formatTextTable(
+    [
+      { field: "Source", value: context.source },
+      { field: "Default model", value: context.defaultModel || "-" },
+    ],
+    [
+      { key: "field", header: "Field" },
+      { key: "value", header: "Value" },
+    ]
+  );
+  return `${table}\n${meta}`;
+};
+
+const writeModelsListOutput = async (input: {
+  models: Array<Record<string, unknown>>;
+  source: string;
+  defaultModel?: string | null;
+  options: ModelListOptions;
+}) => {
+  const format = input.options.format ?? "text";
+  if (format === "text") {
+    const text = renderModelsListText(input.models, {
+      source: input.source,
+      defaultModel: input.defaultModel,
+    });
+    if (input.options.output) {
+      const fs = await import("node:fs/promises");
+      await fs.writeFile(input.options.output, text, "utf8");
+      return;
+    }
+    process.stdout.write(text);
+    return;
+  }
+  await writeFormattedOutput({
+    command: "models list",
+    data: {
+      models: input.models,
+      source: input.source,
+      defaultModel: input.defaultModel ?? null,
+    },
+    format,
+    output: input.options.output,
+  });
+};
+
 export const registerModelsCommand = (program: Command, deps: ModelsDeps) => {
   const models = program.command("models").description("List models and manage the default model");
 
@@ -116,15 +195,11 @@ export const registerModelsCommand = (program: Command, deps: ModelsDeps) => {
       }
       const profile = getActiveConfigProfile(command);
       const config = await loadCliConfig(profile);
-      await writeFormattedOutput({
-        command: "models list",
-        data: {
-          models: modelList,
-          source,
-          defaultModel: config.model ?? null,
-        },
-        format: options.format,
-        output: options.output,
+      await writeModelsListOutput({
+        models: modelList,
+        source,
+        defaultModel: config.model ?? null,
+        options,
       });
     });
 

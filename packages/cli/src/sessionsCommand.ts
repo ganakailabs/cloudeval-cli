@@ -10,6 +10,7 @@ import {
 } from "./sessionsStore.js";
 import { getActiveConfigProfile } from "./cliConfig.js";
 import {
+  formatTextTable,
   writeFormattedOutput,
   type MachineOutputFormat,
 } from "./outputFormatter.js";
@@ -40,6 +41,51 @@ const sessionSummary = (session: any) => ({
   messageCount: session.messageCount,
 });
 
+const renderSessionsTable = (sessions: Array<ReturnType<typeof sessionSummary>>): string =>
+  formatTextTable(
+    sessions.map((session) => ({
+      threadId: session.threadId,
+      title: session.title,
+      project: session.projectName || session.projectId || "-",
+      model: session.model || "-",
+      updated: session.updatedAt,
+      messages: session.messageCount,
+    })),
+    [
+      { key: "threadId", header: "Thread", maxWidth: 36 },
+      { key: "title", header: "Title", maxWidth: 42 },
+      { key: "project", header: "Project", maxWidth: 22 },
+      { key: "model", header: "Model", maxWidth: 18 },
+      { key: "updated", header: "Updated", maxWidth: 19 },
+      { key: "messages", header: "Messages", align: "right" },
+    ],
+    { emptyMessage: "No sessions found." }
+  );
+
+const writeSessionTableOutput = async (
+  command: string,
+  data: Array<ReturnType<typeof sessionSummary>>,
+  options: SessionOptions
+) => {
+  const format = options.format ?? "text";
+  if (format === "text") {
+    const text = renderSessionsTable(data);
+    if (options.output) {
+      const fs = await import("node:fs/promises");
+      await fs.writeFile(options.output, text, "utf8");
+      return;
+    }
+    process.stdout.write(text);
+    return;
+  }
+  await writeFormattedOutput({
+    command,
+    data,
+    format,
+    output: options.output,
+  });
+};
+
 export const registerSessionsCommand = (program: Command) => {
   const sessions = program.command("sessions").description("Manage local CLI session history");
 
@@ -48,12 +94,7 @@ export const registerSessionsCommand = (program: Command) => {
     .action(async (options: SessionOptions, command) => {
       const profile = options.profile || getActiveConfigProfile(command);
       const data = (await listSessions(Number(options.limit) || 20, profile)).map(sessionSummary);
-      await writeFormattedOutput({
-        command: "sessions list",
-        data,
-        format: options.format,
-        output: options.output,
-      });
+      await writeSessionTableOutput("sessions list", data, options);
     });
 
   addSessionOutputOptions(
@@ -82,12 +123,7 @@ export const registerSessionsCommand = (program: Command) => {
         profile,
         limit: Number(options.limit) || 20,
       });
-      await writeFormattedOutput({
-        command: "sessions search",
-        data,
-        format: options.format,
-        output: options.output,
-      });
+      await writeSessionTableOutput("sessions search", data.map(sessionSummary), options);
     });
 
   addSessionOutputOptions(

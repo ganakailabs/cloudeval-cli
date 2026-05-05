@@ -53,6 +53,97 @@ test("formatOutput serializes json markdown text and ndjson", () => {
   );
   assert.equal(
     formatOutput({ format: "text", command: "test", data: { a: 1 } }),
-    "a: 1\n"
+    "Field  Value\n-----  -----\na      1\n"
+  );
+});
+
+test("formatOutput renders arrays of records as text tables", () => {
+  assert.equal(
+    formatOutput({
+      format: "text",
+      command: "test list",
+      data: [
+        { id: "one", name: "First", credits: 10 },
+        { id: "two", name: "Second", credits: 20 },
+      ],
+    }),
+    [
+      "id   name    credits",
+      "---  ------  -------",
+      "one  First   10",
+      "two  Second  20",
+      "",
+    ].join("\n")
+  );
+});
+
+test("formatOutput renders arrays of scalar values as one-column text tables", () => {
+  assert.equal(
+    formatOutput({
+      format: "text",
+      command: "config profiles",
+      data: ["default", "prod"],
+    }),
+    [
+      "Value",
+      "-------",
+      "default",
+      "prod",
+      "",
+    ].join("\n")
+  );
+});
+
+test("formatOutput renders object array properties as named text tables", () => {
+  assert.equal(
+    formatOutput({
+      format: "text",
+      command: "models list",
+      data: {
+        models: [
+          { id: "gpt-5-nano", provider: "OpenAI", availability: "available" },
+        ],
+        source: "backend",
+      },
+    }),
+    [
+      "Models",
+      "id          provider  availability",
+      "----------  --------  ------------",
+      "gpt-5-nano  OpenAI    available",
+      "",
+      "Field   Value",
+      "------  -------",
+      "source  backend",
+      "",
+    ].join("\n")
+  );
+});
+
+test("formatOutput renders nested objects as named text tables", () => {
+  assert.equal(
+    formatOutput({
+      format: "text",
+      command: "status",
+      data: {
+        profile: "default",
+        auth: {
+          authenticated: true,
+          storageBackend: "macos-keychain",
+        },
+      },
+    }),
+    [
+      "Field    Value",
+      "-------  -------",
+      "profile  default",
+      "",
+      "Auth",
+      "Field           Value",
+      "--------------  --------------",
+      "authenticated   true",
+      "storageBackend  macos-keychain",
+      "",
+    ].join("\n")
   );
 });

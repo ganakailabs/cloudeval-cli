@@ -529,13 +529,43 @@ messages = [
     {"jsonrpc": "2.0", "id": 3, "method": "resources/list", "params": {}},
     {"jsonrpc": "2.0", "id": 4, "method": "prompts/list", "params": {}},
 ]
-payload = "\n".join(json.dumps(message) for message in messages) + "\n"
+
+def encode_frame(message):
+    body = json.dumps(message, separators=(",", ":")).encode("utf-8")
+    return b"Content-Length: %d\r\n\r\n" % len(body) + body
+
+def decode_frames(payload):
+    responses = []
+    offset = 0
+    while offset < len(payload):
+        header_end = payload.find(b"\r\n\r\n", offset)
+        if header_end == -1:
+            trailing = payload[offset:].decode("utf-8", errors="replace").strip()
+            if trailing:
+                raise SystemExit(f"incomplete MCP stdout frame: {trailing!r}")
+            break
+        header = payload[offset:header_end].decode("ascii", errors="replace")
+        content_length = None
+        for line in header.splitlines():
+            if line.lower().startswith("content-length:"):
+                content_length = int(line.split(":", 1)[1].strip())
+                break
+        if content_length is None:
+            raise SystemExit(f"missing MCP Content-Length header: {header!r}")
+        body_start = header_end + 4
+        body_end = body_start + content_length
+        if len(payload) < body_end:
+            raise SystemExit(f"incomplete MCP stdout body for header: {header!r}")
+        responses.append(json.loads(payload[body_start:body_end].decode("utf-8")))
+        offset = body_end
+    return responses
+
+payload = b"".join(encode_frame(message) for message in messages)
 process = subprocess.Popen(
     [cli, "mcp", "serve", "--base-url", base_url],
     stdin=subprocess.PIPE,
     stdout=subprocess.PIPE,
     stderr=subprocess.PIPE,
-    text=True,
 )
 try:
     stdout, stderr = process.communicate(payload, timeout=8)
@@ -543,20 +573,16 @@ except subprocess.TimeoutExpired:
     process.kill()
     stdout, stderr = process.communicate()
 
-responses = []
-for line in stdout.splitlines():
-    try:
-        responses.append(json.loads(line))
-    except json.JSONDecodeError:
-        raise SystemExit(f"non-json MCP stdout: {line!r}\nstderr={stderr}")
+stderr_text = stderr.decode("utf-8", errors="replace")
+responses = decode_frames(stdout)
 
 by_id = {response.get("id"): response for response in responses if "id" in response}
 for required_id in (1, 2, 3, 4):
     if required_id not in by_id or "error" in by_id[required_id]:
-        raise SystemExit(f"missing/error MCP response {required_id}: {by_id.get(required_id)} stderr={stderr}")
+        raise SystemExit(f"missing/error MCP response {required_id}: {by_id.get(required_id)} stderr={stderr_text}")
 tools = by_id[2].get("result", {}).get("tools", [])
 if not tools:
-    raise SystemExit(f"MCP tools/list returned no tools stderr={stderr}")
+    raise SystemExit(f"MCP tools/list returned no tools stderr={stderr_text}")
 print(f"tools={len(tools)} resources={len(by_id[3].get('result', {}).get('resources', []))} prompts={len(by_id[4].get('result', {}).get('prompts', []))}")
 PY
 )"

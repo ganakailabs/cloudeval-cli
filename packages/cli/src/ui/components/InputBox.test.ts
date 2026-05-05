@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import "../../runtime/prepareInk";
 import { shouldSubmitInputOnReturn } from "../inputSubmitBehavior";
 import { shouldAnimateInputCursor } from "./InputBox";
 import {

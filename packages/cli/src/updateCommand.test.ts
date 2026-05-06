@@ -68,6 +68,7 @@ test("runInstaller pipes installer script to bash with the resolved release tag"
   const run = runInstaller({
     installerUrl: "https://example.test/install.sh",
     targetTag: "v0.12.0",
+    platform: "linux",
     fetchImpl: async () => ({
       ok: true,
       status: 200,
@@ -97,6 +98,23 @@ test("runInstaller pipes installer script to bash with the resolved release tag"
   await run;
   assert.match(Buffer.concat(stderrChunks).toString("utf8"), /installer stdout/);
   assert.match(Buffer.concat(stderrChunks).toString("utf8"), /installer stderr/);
+});
+
+test("runInstaller reports a helpful error on Windows", async () => {
+  await assert.rejects(
+    runInstaller({
+      installerUrl: "https://example.test/install.sh",
+      targetTag: "v0.12.0",
+      platform: "win32",
+      fetchImpl: async () => {
+        throw new Error("fetch should not run on Windows");
+      },
+      spawnImpl: () => {
+        throw new Error("spawn should not run on Windows");
+      },
+    }),
+    /Automatic update currently requires bash/
+  );
 });
 
 test("shouldAttemptVersionNudge avoids machine-readable and noninteractive contexts", () => {

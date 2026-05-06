@@ -60,6 +60,7 @@ interface RunInstallerOptions {
   fetchImpl?: FetchImpl;
   spawnImpl?: SpawnImpl;
   output?: Writable;
+  platform?: NodeJS.Platform;
 }
 
 interface UpdateCommandOptions {
@@ -224,8 +225,9 @@ export const runInstaller = async ({
   fetchImpl = fetch,
   spawnImpl = spawn,
   output = process.stderr,
+  platform = process.platform,
 }: RunInstallerOptions): Promise<void> => {
-  if (process.platform === "win32") {
+  if (platform === "win32") {
     throw new Error(
       "Automatic update currently requires bash. Install the latest CLI from https://cli.cloudeval.ai/install.sh in Git Bash, WSL, or another POSIX shell."
     );

@@ -9,6 +9,7 @@ export interface LoaderProps {
 }
 
 const asciiFrames = ["[. ]", "[..]", "[--]", "[  ]"];
+export const LOADER_FRAME_INTERVAL_MS = 400;
 
 export const Loader: React.FC<LoaderProps> = ({
   step,
@@ -22,7 +23,7 @@ export const Loader: React.FC<LoaderProps> = ({
     if (!animate) return;
     const id = setInterval(() => {
       setFrame((f) => (f + 1) % frames.length);
-    }, 100);
+    }, LOADER_FRAME_INTERVAL_MS);
     return () => clearInterval(id);
   }, [animate, frames.length]);
 

@@ -44,28 +44,69 @@ const formatChecksText = (checks: DoctorCheck[]): Array<Record<string, string>> 
     detail: check.detail ?? check.label,
   }));
 
-const formatAuthStatusText = (
-  auth: Record<string, any>,
-  effectiveBaseUrl: string
-): Record<string, unknown> => {
+const summarizeConfig = (config: Record<string, unknown>): string => {
+  const keys = Object.keys(config);
+  if (!keys.length) {
+    return "empty";
+  }
+  const selected = [
+    typeof config.baseUrl === "string" ? `baseUrl=${config.baseUrl}` : undefined,
+    typeof config.frontendUrl === "string" ? `frontendUrl=${config.frontendUrl}` : undefined,
+    typeof config.defaultProjectId === "string"
+      ? `project=${config.defaultProjectId}`
+      : undefined,
+    typeof config.model === "string" ? `model=${config.model}` : undefined,
+  ].filter(Boolean);
+  return selected.length ? selected.join(", ") : `${keys.length} setting${keys.length === 1 ? "" : "s"}`;
+};
+
+const formatDiagnosticStatusText = ({
+  profile,
+  baseUrl,
+  configPath,
+  config,
+  auth,
+  node,
+}: {
+  profile: string;
+  baseUrl: string;
+  configPath: string;
+  config: Record<string, unknown>;
+  auth: Record<string, any>;
+  node: string;
+}): string => {
   const accessTokenExpiresAt = auth.accessTokenExpiresAt
     ? new Date(auth.accessTokenExpiresAt).toISOString()
     : undefined;
-  return {
-    Authenticated: auth.authenticated ? "yes" : "no",
-    "Authentication checked": auth.validationAttempted ? "yes" : "no",
-    "Cached access token": auth.accessTokenCached ? "yes" : "no",
-    "Refresh token available": auth.hasRefreshToken ? "yes" : "no",
-    "Storage backend": auth.storageBackend,
-    ...(auth.authError ? { "Auth error": auth.authError } : {}),
-    "CLI API URL": effectiveBaseUrl,
-    ...(accessTokenExpiresAt ? { "Access token expires": accessTokenExpiresAt } : {}),
-    ...(auth.sessionId ? { "Session ID": auth.sessionId } : {}),
-    ...(auth.accountId ? { "Account ID": auth.accountId } : {}),
-    ...(auth.baseUrl && auth.baseUrl !== effectiveBaseUrl
-      ? { "Stored auth URL": auth.baseUrl }
-      : {}),
-  };
+  const lines = [
+    "CloudEval CLI Status",
+    `Profile: ${profile}`,
+    `Base URL: ${baseUrl}`,
+    `Config path: ${configPath}`,
+    `Config: ${summarizeConfig(config)}`,
+    `Node: ${node}`,
+    `Auth: ${auth.authenticated ? "signed in" : "signed out"}`,
+    `Auth checked: ${auth.validationAttempted ? "yes" : "no"}`,
+    `Cached access token: ${auth.accessTokenCached ? "yes" : "no"}`,
+    `Refresh token: ${auth.hasRefreshToken ? "available" : "missing"}`,
+    `Storage: ${auth.storageBackend ?? "unknown"}`,
+  ];
+  if (auth.authError) {
+    lines.push(`Auth error: ${auth.authError}`);
+  }
+  if (accessTokenExpiresAt) {
+    lines.push(`Access token expires: ${accessTokenExpiresAt}`);
+  }
+  if (auth.sessionId) {
+    lines.push(`Session ID: ${auth.sessionId}`);
+  }
+  if (auth.accountId) {
+    lines.push(`Account ID: ${auth.accountId}`);
+  }
+  if (auth.baseUrl && auth.baseUrl !== baseUrl) {
+    lines.push(`Stored auth URL: ${auth.baseUrl}`);
+  }
+  return `${lines.join("\n")}\n`;
 };
 
 export const registerDiagnosticsCommands = (
@@ -81,26 +122,29 @@ export const registerDiagnosticsCommands = (
     const config = await loadCliConfig(profile);
     const core = await import("@cloudeval/core");
     const auth = await core.getAuthStatus(baseUrl, { validate: true });
+    if (options.format === "text" || !options.format) {
+      process.stdout.write(
+        formatDiagnosticStatusText({
+          profile,
+          baseUrl,
+          configPath: getCliConfigPath(profile),
+          config: config as Record<string, unknown>,
+          auth: auth as Record<string, any>,
+          node: process.versions.node,
+        })
+      );
+      return;
+    }
     await writeFormattedOutput({
       command: "status",
-      data:
-        options.format === "text" || !options.format
-          ? {
-              profile,
-              baseUrl,
-              configPath: getCliConfigPath(profile),
-              config,
-              auth: formatAuthStatusText(auth as Record<string, any>, baseUrl),
-              node: process.versions.node,
-            }
-          : {
-              profile,
-              baseUrl,
-              configPath: getCliConfigPath(profile),
-              config,
-              auth,
-              node: process.versions.node,
-            },
+      data: {
+        profile,
+        baseUrl,
+        configPath: getCliConfigPath(profile),
+        config,
+        auth,
+        node: process.versions.node,
+      },
       format: options.format,
     });
   });

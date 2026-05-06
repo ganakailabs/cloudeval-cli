@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState, startTransition } from "react";
-import { Box, Text, useApp, useInput, useStdout } from "ink";
+import { Box, Text, useApp, useInput } from "ink";
 import { ScrollView, type ScrollViewRef } from "ink-scroll-view";
 import { randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
@@ -53,6 +53,7 @@ import {
   shouldHydrateAuthenticatedWorkspace,
   type WorkspacePanelDataStore,
 } from "./workspaceDataStore.js";
+import { loadWorkspacePanelData } from "./workspacePanelLoader.js";
 import { raisedButtonStyle, terminalTheme } from "./theme.js";
 import { CLI_VERSION } from "../version.js";
 import { buildFrontendUrl, resolveFrontendBaseUrl as resolveSharedFrontendBaseUrl } from "../frontendLinks.js";
@@ -887,7 +888,6 @@ export const App: React.FC<AppProps> = ({
   skipHealthCheck = true, // Disable health check by default
 }) => {
   const { exit } = useApp();
-  const { write } = useStdout();
   const [phase, setPhase] = useState<"boot" | "ready" | "error">("boot");
   const [loaderStep, setLoaderStep] = useState(0);
   const [bootError, setBootError] = useState<string | undefined>();
@@ -1372,102 +1372,28 @@ export const App: React.FC<AppProps> = ({
     );
 
     const load = async () => {
-      const data: Record<string, unknown> = {};
-      const warnings: string[] = [];
-      const client = { baseUrl: apiBase, authToken };
-      const capture = async <T,>(
-        key: string,
-        label: string,
-        loader: () => Promise<T>
-      ) => {
-        try {
-          data[key] = await loader();
-        } catch (error: any) {
-          warnings.push(`${label}: ${error?.message ?? "request failed"}`);
-        }
-      };
-
-      if (tab === "overview" || tab === "connections") {
-        if (currentUserId) {
-          await capture("connections", "Connections", () =>
-            listConnections({ ...client, userId: currentUserId })
-          );
-        } else {
-          warnings.push("Connections: user id was not returned by auth status.");
-        }
-      }
-
-      if (tab === "overview" || tab === "reports") {
-        if (currentUserId) {
-          await capture("dashboard", "Dashboard overview", () =>
-            fetchReportResource(client, `/dashboard/user/${encodeURIComponent(currentUserId)}`, {
-              include_historical: "true",
-              days: "30",
-            })
-          );
-        } else {
-          warnings.push("Dashboard overview: user id was not returned by auth status.");
-        }
-      }
-
-      if (tab === "overview" || tab === "reports") {
-        if (currentUserId) {
-          await capture("reportsSummary", "Reports summary", () =>
-            fetchReportResource(client, "/reports/summary", {
-              user_id: currentUserId,
-            })
-          );
-        } else {
-          warnings.push("Reports summary: user id was not returned by auth status.");
-        }
-      }
-
-      if (tab === "reports") {
-        if (activeProjectId) {
-          await capture("costReport", "Cost report", () =>
-            getCostReportFull({ ...client, projectId: activeProjectId, userId: currentUserId })
-          );
-          await capture("wafReport", "Well-Architected report", () =>
-            getWafReportFull({ ...client, projectId: activeProjectId, userId: currentUserId })
-          );
-        } else {
-          warnings.push("Reports: select a project before loading full report payloads.");
-        }
-      }
-
-      if (tab === "overview" || tab === "billing") {
-        await capture("entitlement", "Billing entitlement", () => getBillingEntitlement(client));
-        if (data.entitlement) {
-          data.creditStatus = getCreditStatus(data.entitlement as any);
-        }
-      }
-
-      if (tab === "billing") {
-        const range = thirtyDayUsageRange();
-        await capture("usageSummary", "Billing usage summary", () =>
-          getBillingUsageSummary({
-            ...client,
-            startAt: range.startAt,
-            endAt: range.endAt,
-            granularity: "day",
-          })
-        );
-        await capture("ledger", "Billing ledger", () =>
-          getBillingUsageLedger({
-            ...client,
-            startAt: range.startAt,
-            endAt: range.endAt,
-            limit: 12,
-          })
-        );
-        await capture("billingInfo", "Billing info", () =>
-          getSubscriptionBillingInfo({ ...client, limit: 12 })
-        );
-        await capture("topups", "Top-ups", () => getTopUpPacks(client));
-        await capture("notifications", "Billing notifications", () =>
-          getBillingNotifications({ ...client, limit: 8 })
-        );
-      }
+      const { data, warnings } = await loadWorkspacePanelData({
+        tab,
+        client: { baseUrl: apiBase, authToken },
+        currentUserId,
+        activeProjectId,
+        projects,
+        selectedProject,
+        usageRange: thirtyDayUsageRange(),
+        deps: {
+          listConnections,
+          fetchReportResource,
+          getCostReportFull,
+          getWafReportFull,
+          getBillingEntitlement,
+          getBillingUsageSummary,
+          getBillingUsageLedger,
+          getSubscriptionBillingInfo,
+          getTopUpPacks,
+          getBillingNotifications,
+          getCreditStatus,
+        },
+      });
 
       if (!cancelled) {
         setWorkspacePanelTabState(tab, (previous) =>
@@ -1497,6 +1423,8 @@ export const App: React.FC<AppProps> = ({
     authToken,
     currentUserId,
     phase,
+    projects,
+    selectedProject,
     setWorkspacePanelTabState,
     workspaceRefreshKeys,
     workspaceStaleTick,
@@ -2288,7 +2216,6 @@ export const App: React.FC<AppProps> = ({
 
   useEffect(() => {
     if (previousWorkspaceTabRef.current !== activeWorkspaceTab) {
-      write("\x1b[2J\x1b[H");
       previousWorkspaceTabRef.current = activeWorkspaceTab;
       setScrollOffset(0);
       setContentHeight(0);
@@ -2300,7 +2227,7 @@ export const App: React.FC<AppProps> = ({
     } else {
       setTimeout(() => scrollViewRef.current?.scrollToTop(), 0);
     }
-  }, [activeWorkspaceTab, write]);
+  }, [activeWorkspaceTab]);
 
   const submitFollowUp = (index: number) => {
     const question = visiblePromptSuggestions[index];

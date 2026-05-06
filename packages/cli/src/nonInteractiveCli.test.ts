@@ -646,6 +646,22 @@ test("auth status is non-interactive and respects explicit base url", async () =
   }
 });
 
+test("status human output is a readable summary instead of formatter tables", async () => {
+  const backend = await startBackend();
+  try {
+    const result = await runCli(["status", "--base-url", backend.baseUrl]);
+    assert.equal(result.exitCode, 0, result.stderr);
+    assert.match(result.stdout, /^CloudEval CLI Status$/m);
+    assert.match(result.stdout, /^Profile:\s+default$/m);
+    assert.match(result.stdout, new RegExp(`^Base URL:\\s+${backend.baseUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "m"));
+    assert.match(result.stdout, /^Auth:\s+(signed in|signed out)$/m);
+    assert.doesNotMatch(result.stdout, /^Field\s+Value$/m);
+    assert.doesNotMatch(result.stdout, /^-+\s+-+$/m);
+  } finally {
+    await backend.close();
+  }
+});
+
 test("auth-gated project commands clear backend-rejected stored auth", async () => {
   const backend = await startBackend({ authMeStatus: 401 });
   const home = await fs.mkdtemp(path.join(os.tmpdir(), "cloudeval-cli-rejected-auth-"));

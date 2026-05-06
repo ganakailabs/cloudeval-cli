@@ -105,6 +105,7 @@ import {
 } from "@cloudeval/shared";
 import { Onboarding } from "./components/Onboarding";
 import { getFirstNameForDisplay } from "./userDisplayName.js";
+import { shouldEnableTuiAnimations } from "./animationPolicy.js";
 
 export interface AppProps {
   baseUrl: string;
@@ -118,6 +119,7 @@ export interface AppProps {
   debug?: boolean;
   disableBanner?: boolean;
   disableAnim?: boolean;
+  forceAnim?: boolean;
   skipHealthCheck?: boolean;
 }
 
@@ -885,6 +887,7 @@ export const App: React.FC<AppProps> = ({
   debug = false,
   disableBanner = false,
   disableAnim = false,
+  forceAnim = false,
   skipHealthCheck = true, // Disable health check by default
 }) => {
   const { exit } = useApp();
@@ -2090,7 +2093,7 @@ export const App: React.FC<AppProps> = ({
     : false;
   const thinkingSummary = summarizeThinkingSteps(latestThinkingMessage);
   const bannerDisabledByConfig = disableBanner || Boolean(process.env.CLOUDEVAL_NO_BANNER);
-  const animationsEnabled = !disableAnim && !process.env.CLOUDEVAL_NO_ANIM;
+  const animationsEnabled = shouldEnableTuiAnimations({ disableAnim, forceAnim });
   const tuiLayout = getResponsiveTuiLayout(terminalSize, {
     disableBanner: bannerDisabledByConfig,
     hasQueue: queuedMessages.length > 0,

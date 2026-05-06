@@ -9,7 +9,7 @@ export interface LoaderProps {
 }
 
 const asciiFrames = ["[. ]", "[..]", "[--]", "[  ]"];
-export const LOADER_FRAME_INTERVAL_MS = 400;
+export const LOADER_FRAME_INTERVAL_MS = 1000;
 
 export const Loader: React.FC<LoaderProps> = ({
   step,

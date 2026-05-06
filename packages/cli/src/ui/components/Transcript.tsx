@@ -269,12 +269,12 @@ const ThinkingSteps: React.FC<{
   const isExpanded = expanded || forceExpanded || Boolean(message.pending);
 
   React.useEffect(() => {
-    if (!message.pending) {
+    if (!message.pending || !animate) {
       return;
     }
     const interval = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(interval);
-  }, [message.pending]);
+  }, [message.pending, animate]);
 
   if (!steps.length) {
     return null;
@@ -307,7 +307,7 @@ const ThinkingSteps: React.FC<{
           failed={failedCount}
           total={steps.length}
           active={message.pending || runningCount > 0}
-          pulseIndex={Math.floor(now / 1000)}
+          pulseIndex={animate ? Math.floor(now / 1000) : 0}
         />
         <Text dimColor>({summaryParts.join(", ")})</Text>
       </Box>

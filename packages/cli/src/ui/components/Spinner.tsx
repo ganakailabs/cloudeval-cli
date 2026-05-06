@@ -10,7 +10,7 @@ const dotFrames = ["·  ", "·· ", "···"];
 const lineFrames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 const pulseFrames = ["◐", "◓", "◑", "◒"];
 
-export const SPINNER_FRAME_INTERVAL_MS = 400;
+export const SPINNER_FRAME_INTERVAL_MS = 1000;
 
 export const shouldAnimateSpinner = (animate = true): boolean => animate;
 

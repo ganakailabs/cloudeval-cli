@@ -593,6 +593,7 @@ program
   .option("--debug", "Log raw chunks", false)
   .option("--health-check", "Enable health check (disabled by default)")
   .option("--no-banner", "Disable ASCII banner")
+  .option("--animate", "Enable TUI animations")
   .option("--no-anim", "Disable TUI animations")
   .option("-v, --verbose", "Enable verbose logging", false)
   .action(async (options, command) => {
@@ -629,6 +630,7 @@ program
         debug={options.debug}
         disableBanner={options.banner === false}
         disableAnim={options.anim === false}
+        forceAnim={options.animate === true}
         skipHealthCheck={!options.healthCheck}
       />
     );
@@ -656,6 +658,7 @@ program
   .option("--debug", "Log raw chunks", false)
   .option("--health-check", "Enable health check (disabled by default)")
   .option("--no-banner", "Disable ASCII banner")
+  .option("--animate", "Enable TUI animations")
   .option("--no-anim", "Disable TUI animations")
   .option("-v, --verbose", "Enable verbose logging", false)
   .action(async (options, command) => {
@@ -717,6 +720,7 @@ program
         debug={options.debug}
         disableBanner={options.banner === false}
         disableAnim={options.anim === false}
+        forceAnim={options.animate === true}
         skipHealthCheck={!options.healthCheck}
       />
     );

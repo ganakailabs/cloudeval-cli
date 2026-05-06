@@ -70,6 +70,12 @@ interface UpdateCommandOptions {
   output?: string;
 }
 
+type UpdateCommandAction = "current" | "available" | "skipped" | "updated";
+
+type UpdateCommandResult = UpdateStatus & {
+  action: UpdateCommandAction;
+};
+
 interface UpdateCommandDeps {
   fetchImpl?: FetchImpl;
   spawnImpl?: SpawnImpl;
@@ -357,10 +363,49 @@ const promptForUpdate = async ({
   }
 };
 
+export const formatUpdateStatusText = (result: UpdateCommandResult): string => {
+  const statusText = (() => {
+    if (result.action === "current") {
+      return "up to date";
+    }
+    if (result.action === "available") {
+      return "update available";
+    }
+    if (result.action === "updated") {
+      return "updated";
+    }
+    return "skipped";
+  })();
+
+  const lines = [
+    "CloudEval CLI Update",
+    `Status: ${statusText}`,
+    `Current version: ${result.currentVersion}`,
+    `Latest version: ${result.latestVersion}`,
+    `Latest tag: ${result.latestTag}`,
+  ];
+
+  if (result.releaseUrl) {
+    lines.push(`Release: ${result.releaseUrl}`);
+  }
+  if (result.publishedAt) {
+    lines.push(`Published: ${result.publishedAt}`);
+  }
+  lines.push(`Checked: ${result.checkedAt}`);
+
+  if (result.action === "available") {
+    lines.push("Next step: run `cloudeval update --yes` to install.");
+  } else if (result.action === "skipped") {
+    lines.push("Next step: run `cloudeval update --yes` when you are ready.");
+  }
+
+  return `${lines.join("\n")}\n`;
+};
+
 export const handleUpdateCommand = async (
   options: UpdateCommandOptions,
   deps: UpdateCommandDeps = {}
-) => {
+): Promise<UpdateCommandResult> => {
   const status = await getUpdateStatus({
     fetchImpl: deps.fetchImpl,
     now: deps.now,
@@ -496,6 +541,15 @@ export const registerUpdateCommand = (program: Command) => {
     .option("-o, --output <file>", "Output file")
     .action(async (options: UpdateCommandOptions) => {
       const result = await handleUpdateCommand(options);
+      if (options.format === "text" || !options.format) {
+        const text = formatUpdateStatusText(result);
+        if (options.output) {
+          await fs.writeFile(options.output, text, "utf8");
+          return;
+        }
+        process.stdout.write(text);
+        return;
+      }
       await writeFormattedOutput({
         command: "update",
         data: result,

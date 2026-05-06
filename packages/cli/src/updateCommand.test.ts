@@ -5,6 +5,7 @@ import type { ChildProcess } from "node:child_process";
 import { PassThrough, Writable } from "node:stream";
 import {
   compareVersionStrings,
+  formatUpdateStatusText,
   getUpdateStatus,
   runInstaller,
   shouldAttemptVersionNudge,
@@ -46,6 +47,25 @@ test("getUpdateStatus reports latest GitHub release availability", async () => {
   assert.equal(status.latestTag, "v0.12.0");
   assert.equal(status.updateAvailable, true);
   assert.equal(status.releaseUrl, "https://example.test/releases/v0.12.0");
+});
+
+test("formatUpdateStatusText renders human output without a field/value table", () => {
+  const text = formatUpdateStatusText({
+    currentVersion: "0.11.7",
+    latestVersion: "0.11.7",
+    latestTag: "v0.11.7",
+    updateAvailable: false,
+    checkedAt: "2026-05-06T22:52:26.910Z",
+    releaseUrl: "https://example.test/releases/v0.11.7",
+    publishedAt: "2026-05-06T22:43:27Z",
+    action: "current",
+  });
+
+  assert.match(text, /^CloudEval CLI Update\n/);
+  assert.match(text, /Status: up to date/);
+  assert.match(text, /Current version: 0.11.7/);
+  assert.doesNotMatch(text, /^Field\s+Value/m);
+  assert.doesNotMatch(text, /^-+\s+-+/m);
 });
 
 test("runInstaller pipes installer script to bash with the resolved release tag", async () => {

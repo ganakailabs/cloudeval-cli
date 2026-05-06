@@ -477,6 +477,29 @@ test("non-interactive discovery commands are machine-readable", async () => {
   assert.match(completion.stdout, /_cloudeval/);
 });
 
+test("update command text output is a human summary, not a field/value table", async () => {
+  const server = await startUpdateServer(CLI_VERSION);
+  const home = await fs.mkdtemp(path.join(os.tmpdir(), "cloudeval-cli-update-home-"));
+  try {
+    const result = await runCli(["update"], {
+      home,
+      env: {
+        CLOUDEVAL_UPDATE_CHECK_URL: `${server.baseUrl}/latest`,
+      },
+    });
+
+    assert.equal(result.exitCode, 0, result.stderr);
+    assert.match(result.stdout, /^CloudEval CLI Update\n/);
+    assert.match(result.stdout, /Status: up to date/);
+    assert.doesNotMatch(result.stdout, /^Field\s+Value/m);
+    assert.doesNotMatch(result.stdout, /^-+\s+-+/m);
+    assert.deepEqual(server.requests, ["/latest"]);
+  } finally {
+    await server.close();
+    await fs.rm(home, { recursive: true, force: true });
+  }
+});
+
 test("update command checks and installs latest release non-interactively", async () => {
   const latestVersion = bumpPatchVersion(CLI_VERSION);
   const server = await startUpdateServer(latestVersion);

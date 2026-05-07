@@ -224,7 +224,7 @@ const makeInputSchema = (
 
 export const mcpToolDefinitions: McpToolDefinition[] = [
   {
-    name: "capabilities.get",
+    name: "capabilities_get",
     title: "Get CloudEval Capabilities",
     description:
       "Return CloudEval CLI and MCP capability metadata for agent planning.",
@@ -233,7 +233,7 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
     annotations: { readOnlyHint: true, destructiveHint: false },
   },
   {
-    name: "projects.list",
+    name: "projects_list",
     title: "List Projects",
     description:
       "List CloudEval projects visible to the authenticated account.",
@@ -246,7 +246,7 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
     },
   },
   {
-    name: "projects.get",
+    name: "projects_get",
     title: "Get Project",
     description:
       "Fetch one CloudEval project by id from the authenticated account's project list.",
@@ -267,7 +267,7 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
     },
   },
   {
-    name: "projects.exportDiagram",
+    name: "projects_export_diagram",
     title: "Export Project Diagram",
     description:
       "Export a GraphEditor-rendered architecture or dependency diagram to a local PNG, JPEG, or SVG file for CLI and MCP agents.",
@@ -353,7 +353,7 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
     },
   },
   {
-    name: "reports.list",
+    name: "reports_list",
     title: "List Reports",
     description: "List cost and Well-Architected reports for a project.",
     inputSchema: makeInputSchema({
@@ -373,7 +373,7 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
     },
   },
   {
-    name: "reports.run",
+    name: "reports_run",
     title: "Run Reports",
     description:
       "Submit report generation jobs for a project. This can consume backend compute and credits.",
@@ -423,7 +423,7 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
     },
   },
   {
-    name: "reports.download",
+    name: "reports_download",
     title: "Download Reports",
     description:
       "Fetch raw, parsed, or formatted report payloads. Optionally write them to a local output path.",
@@ -457,7 +457,7 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
     },
   },
   {
-    name: "billing.summary",
+    name: "billing_summary",
     title: "Billing Summary",
     description:
       "Return CloudEval billing entitlement, credit status, and subscription status.",
@@ -470,7 +470,7 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
     },
   },
   {
-    name: "billing.usage",
+    name: "billing_usage",
     title: "Billing Usage",
     description:
       "Return CloudEval billing usage summary with date, granularity, and model filters.",
@@ -500,7 +500,7 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
     },
   },
   {
-    name: "billing.ledger",
+    name: "billing_ledger",
     title: "Billing Ledger",
     description: "Return paginated CloudEval billing ledger entries.",
     inputSchema: makeInputSchema({
@@ -526,7 +526,7 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
     },
   },
   {
-    name: "open.url",
+    name: "open_url",
     title: "Build Frontend URL",
     description:
       "Build a CloudEval frontend deep link. Optionally open it in the system browser.",
@@ -615,42 +615,53 @@ export const mcpToolNames = mcpToolDefinitions.map((tool) => tool.name);
 
 const toolByName = new Map(mcpToolDefinitions.map((tool) => [tool.name, tool]));
 const MCP_TOOL_ALIASES: Record<string, string> = {
-  "projects.diagramImage": "projects.exportDiagram",
+  "capabilities.get": "capabilities_get",
+  "projects.list": "projects_list",
+  "projects.get": "projects_get",
+  "projects.exportDiagram": "projects_export_diagram",
+  "projects.diagramImage": "projects_export_diagram",
+  "reports.list": "reports_list",
+  "reports.run": "reports_run",
+  "reports.download": "reports_download",
+  "billing.summary": "billing_summary",
+  "billing.usage": "billing_usage",
+  "billing.ledger": "billing_ledger",
+  "open.url": "open_url",
 };
 
 const MCP_TOOLSETS: Record<McpToolsetName, readonly string[]> = {
   all: mcpToolNames,
   readonly: [
-    "capabilities.get",
-    "projects.list",
-    "projects.get",
-    "reports.list",
-    "billing.summary",
-    "billing.usage",
-    "billing.ledger",
+    "capabilities_get",
+    "projects_list",
+    "projects_get",
+    "reports_list",
+    "billing_summary",
+    "billing_usage",
+    "billing_ledger",
   ],
   projects: [
-    "capabilities.get",
-    "projects.list",
-    "projects.get",
-    "projects.exportDiagram",
-    "open.url",
+    "capabilities_get",
+    "projects_list",
+    "projects_get",
+    "projects_export_diagram",
+    "open_url",
   ],
   reports: [
-    "capabilities.get",
-    "projects.list",
-    "projects.get",
-    "reports.list",
-    "reports.run",
-    "reports.download",
-    "open.url",
+    "capabilities_get",
+    "projects_list",
+    "projects_get",
+    "reports_list",
+    "reports_run",
+    "reports_download",
+    "open_url",
   ],
   billing: [
-    "capabilities.get",
-    "billing.summary",
-    "billing.usage",
-    "billing.ledger",
-    "open.url",
+    "capabilities_get",
+    "billing_summary",
+    "billing_usage",
+    "billing_ledger",
+    "open_url",
   ],
 };
 
@@ -738,17 +749,17 @@ const mcpPromptDefinitions: McpPromptDefinition[] = [
 ];
 
 const MCP_RESOURCE_TOOL_REQUIREMENTS: Record<string, readonly string[]> = {
-  "cloudeval://capabilities": ["capabilities.get"],
-  "cloudeval://projects": ["projects.list"],
-  "cloudeval://billing/summary": ["billing.summary"],
-  "cloudeval://reports/latest": ["reports.list"],
+  "cloudeval://capabilities": ["capabilities_get"],
+  "cloudeval://projects": ["projects_list"],
+  "cloudeval://billing/summary": ["billing_summary"],
+  "cloudeval://reports/latest": ["reports_list"],
 };
 
 const MCP_PROMPT_TOOL_REQUIREMENTS: Record<string, readonly string[]> = {
-  "cost-review": ["reports.list", "billing.usage"],
-  "waf-triage": ["reports.list"],
-  "architecture-review": ["reports.list"],
-  "billing-review": ["billing.summary", "billing.usage", "billing.ledger"],
+  "cost-review": ["reports_list", "billing_usage"],
+  "waf-triage": ["reports_list"],
+  "architecture-review": ["reports_list"],
+  "billing-review": ["billing_summary", "billing_usage", "billing_ledger"],
 };
 
 const hasRequiredTools = (
@@ -1307,7 +1318,7 @@ const buildToolHandlers = (
 ): Map<string, ToolHandler> => {
   const handlers = new Map<string, ToolHandler>();
 
-  handlers.set("capabilities.get", async (args) => {
+  handlers.set("capabilities_get", async (args) => {
     const config = await resolveInvocationConfig(serverOptions, args);
     const toolset = normalizeMcpToolset(serverOptions.toolset);
     return withEnvelope({
@@ -1336,7 +1347,7 @@ const buildToolHandlers = (
     });
   });
 
-  handlers.set("projects.list", async (args) => {
+  handlers.set("projects_list", async (args) => {
     const config = await resolveInvocationConfig(serverOptions, args);
     const auth = await resolveAuth(config, { requireUser: true });
     const projects = await auth.core.getProjects(
@@ -1355,7 +1366,7 @@ const buildToolHandlers = (
     });
   });
 
-  handlers.set("projects.get", async (args) => {
+  handlers.set("projects_get", async (args) => {
     const projectId = stringValue(args.projectId);
     if (!projectId) {
       throw new Error("projectId is required.");
@@ -1383,7 +1394,7 @@ const buildToolHandlers = (
     });
   });
 
-  handlers.set("projects.exportDiagram", async (args) => {
+  handlers.set("projects_export_diagram", async (args) => {
     const config = await resolveInvocationConfig(serverOptions, args);
     const projectId = stringValue(args.projectId) ?? config.defaultProjectId;
     if (!projectId) {
@@ -1540,7 +1551,7 @@ const buildToolHandlers = (
     });
   });
 
-  handlers.set("reports.list", async (args) => {
+  handlers.set("reports_list", async (args) => {
     const config = await resolveInvocationConfig(serverOptions, args);
     const auth = await resolveAuth(config, { requireUser: true });
     const projectId = await resolveReportProjectId({
@@ -1568,7 +1579,7 @@ const buildToolHandlers = (
     });
   });
 
-  handlers.set("reports.run", async (args) => {
+  handlers.set("reports_run", async (args) => {
     const config = await resolveInvocationConfig(serverOptions, args);
     const auth = await resolveAuth(config, { requireUser: true });
     const projectId = await resolveReportProjectId({
@@ -1623,13 +1634,13 @@ const buildToolHandlers = (
     });
   });
 
-  handlers.set("reports.download", async (args) => {
+  handlers.set("reports_download", async (args) => {
     const config = await resolveInvocationConfig(serverOptions, args);
     const auth = await resolveAuth(config, { requireUser: true });
     return downloadReports(config, args, auth);
   });
 
-  handlers.set("billing.summary", async (args) => {
+  handlers.set("billing_summary", async (args) => {
     const config = await resolveInvocationConfig(serverOptions, args);
     const auth = await resolveAuth(config, { requireUser: true });
     const [entitlement, subscriptionStatus] = await Promise.all([
@@ -1658,7 +1669,7 @@ const buildToolHandlers = (
     });
   });
 
-  handlers.set("billing.usage", async (args) => {
+  handlers.set("billing_usage", async (args) => {
     const config = await resolveInvocationConfig(serverOptions, args);
     const auth = await resolveAuth(config, { requireUser: true });
     const range = rangeToDates(stringValue(args.range) ?? "30d");
@@ -1689,7 +1700,7 @@ const buildToolHandlers = (
     });
   });
 
-  handlers.set("billing.ledger", async (args) => {
+  handlers.set("billing_ledger", async (args) => {
     const config = await resolveInvocationConfig(serverOptions, args);
     const auth = await resolveAuth(config, { requireUser: true });
     const range = rangeToDates(stringValue(args.range) ?? "30d");
@@ -1720,7 +1731,7 @@ const buildToolHandlers = (
     });
   });
 
-  handlers.set("open.url", async (args) => {
+  handlers.set("open_url", async (args) => {
     const target = stringValue(args.target) as FrontendTarget | undefined;
     if (!target) {
       throw new Error("target is required.");
@@ -1800,16 +1811,16 @@ const readMcpResource = async (
     throw new Error(`Resource ${uri} is not available in toolset ${toolset}.`);
   }
   if (uri === "cloudeval://capabilities") {
-    const envelope = await handlers.get("capabilities.get")?.({});
+    const envelope = await handlers.get("capabilities_get")?.({});
     return { contents: [resourceText(uri, envelope?.data ?? {})] };
   }
 
   const toolName =
     uri === "cloudeval://projects"
-      ? "projects.list"
+      ? "projects_list"
       : uri === "cloudeval://billing/summary"
-        ? "billing.summary"
-        : "reports.list";
+        ? "billing_summary"
+        : "reports_list";
   const handler = handlers.get(toolName);
   if (!handler) {
     return {
@@ -1975,6 +1986,33 @@ const findContentLengthHeader = (
 
 const startsWithContentLengthHeader = (buffer: Buffer): boolean =>
   /^Content-Length:/i.test(buffer.toString("ascii", 0, Math.min(buffer.length, 32)));
+
+const resolveMcpServeBaseUrl = async (
+  options: { baseUrl?: string },
+  command: Command,
+  defaultBaseUrl: string,
+): Promise<string> => {
+  const configuredBaseUrl = options.baseUrl ?? defaultBaseUrl;
+  const source =
+    typeof command.getOptionValueSource === "function"
+      ? command.getOptionValueSource("baseUrl")
+      : undefined;
+
+  if (source && source !== "default") {
+    return configuredBaseUrl;
+  }
+  if (process.env.CLOUDEVAL_BASE_URL) {
+    return configuredBaseUrl;
+  }
+
+  try {
+    const profile = normalizeConfigProfile(command.optsWithGlobals?.().profile);
+    const config = await loadCliConfig(profile);
+    return config.baseUrl ?? configuredBaseUrl;
+  } catch {
+    return configuredBaseUrl;
+  }
+};
 
 export const serveMcpServer = async (
   options: ServeMcpOptions,
@@ -2408,7 +2446,11 @@ export const registerMcpCommand = (
     )
     .option("-v, --verbose", "Write detailed MCP server diagnostics to stderr", false)
     .action(async (options, command) => {
-      const baseUrl = await deps.resolveBaseUrl(options, command);
+      const baseUrl = await resolveMcpServeBaseUrl(
+        options,
+        command,
+        deps.defaultBaseUrl,
+      );
       await serveMcpServer({
         baseUrl,
         frontendUrl: options.frontendUrl,
@@ -2418,5 +2460,6 @@ export const registerMcpCommand = (
         toolset: normalizeMcpToolset(options.toolset),
         verbose: Boolean(options.verbose),
       });
+      process.exit(0);
     });
 };

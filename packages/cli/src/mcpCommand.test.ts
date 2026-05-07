@@ -8,6 +8,8 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 const packageRoot = fileURLToPath(new URL("..", import.meta.url));
+const MCP_RESPONSE_TIMEOUT_MS = 15_000;
+const MCP_CLOSE_TIMEOUT_MS = 10_000;
 
 const user = {
   id: "user-1",
@@ -197,7 +199,7 @@ const startMcp = async (
     return await new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
         reject(new Error(`Timed out waiting for MCP response. stderr:\n${Buffer.concat(stderr).toString("utf8")}`));
-      }, 5000);
+      }, MCP_RESPONSE_TIMEOUT_MS);
       const exitHandler = (code: number | null, signal: NodeJS.Signals | null) => {
         clearTimeout(timeout);
         reject(
@@ -223,7 +225,7 @@ const startMcp = async (
       : await new Promise<number | null>((resolve) => {
           const timeout = setTimeout(() => {
             child.kill("SIGKILL");
-          }, 5000);
+          }, MCP_CLOSE_TIMEOUT_MS);
           child.on("exit", (code) => {
             clearTimeout(timeout);
             resolve(code);
@@ -270,19 +272,21 @@ test("mcp serve initializes, lists tools, and returns strict JSON-RPC stdout", a
     const listed = await mcp.read();
     assert.equal(listed.id, 2);
     const names = listed.result.tools.map((tool: any) => tool.name);
+    assert(names.every((name: string) => /^[A-Za-z0-9_]+$/.test(name)));
     assert(names.includes("ask"));
-    assert(names.includes("projects.list"));
-    assert(names.includes("projects.exportDiagram"));
+    assert(names.includes("projects_list"));
+    assert(names.includes("projects_export_diagram"));
+    assert(!names.includes("projects.exportDiagram"));
     assert(!names.includes("projects.diagramImage"));
-    assert(names.includes("reports.run"));
-    assert(names.includes("open.url"));
+    assert(names.includes("reports_run"));
+    assert(names.includes("open_url"));
 
     mcp.send({
       jsonrpc: "2.0",
       id: 3,
       method: "tools/call",
       params: {
-        name: "open.url",
+        name: "open_url",
         arguments: {
           target: "project",
           projectId: "project-main",
@@ -302,6 +306,38 @@ test("mcp serve initializes, lists tools, and returns strict JSON-RPC stdout", a
     const closed = await mcp.close();
     assert.equal(closed.exitCode, 0, closed.stderr);
     assert.match(closed.stderr, /CloudEval MCP server started/);
+  }
+});
+
+test("mcp serve accepts legacy dotted tool names as call aliases", async () => {
+  const mcp = await startMcp(["--frontend-url", "https://app.example.test"]);
+  try {
+    await initialize(mcp);
+
+    mcp.send({
+      jsonrpc: "2.0",
+      id: 2,
+      method: "tools/call",
+      params: {
+        name: "open.url",
+        arguments: {
+          target: "project",
+          projectId: "project-main",
+          view: "both",
+        },
+      },
+    });
+    const called = await mcp.read();
+    assert.equal(called.id, 2);
+    assert.equal(called.result.isError, false);
+    assert.equal(called.result.structuredContent.ok, true);
+    assert.match(
+      called.result.structuredContent.data.url,
+      /^https:\/\/app\.example\.test\/app\/projects\/project-main\?view=both/
+    );
+  } finally {
+    const closed = await mcp.close();
+    assert.equal(closed.exitCode, 0, closed.stderr);
   }
 });
 
@@ -329,20 +365,20 @@ test("mcp serve filters tools by safety toolset", async () => {
     const listed = await mcp.read();
     const names = listed.result.tools.map((tool: any) => tool.name);
     assert.deepEqual(names, [
-      "capabilities.get",
-      "projects.list",
-      "projects.get",
-      "reports.list",
-      "billing.summary",
-      "billing.usage",
-      "billing.ledger",
+      "capabilities_get",
+      "projects_list",
+      "projects_get",
+      "reports_list",
+      "billing_summary",
+      "billing_usage",
+      "billing_ledger",
     ]);
 
     mcp.send({
       jsonrpc: "2.0",
       id: 3,
       method: "tools/call",
-      params: { name: "reports.run", arguments: {} },
+      params: { name: "reports_run", arguments: {} },
     });
     const blocked = await mcp.read();
     assert.equal(blocked.id, 3);
@@ -427,8 +463,9 @@ test("mcp serve exposes CloudEval resources and prompts", async () => {
       await fs.readFile(path.join(packageRoot, "package.json"), "utf8")
     );
     assert.equal(capabilityPayload.cliVersion, packageJson.version);
-    assert(capabilityPayload.mcp.tools.includes("projects.list"));
-    assert(capabilityPayload.mcp.tools.includes("projects.exportDiagram"));
+    assert(capabilityPayload.mcp.tools.includes("projects_list"));
+    assert(capabilityPayload.mcp.tools.includes("projects_export_diagram"));
+    assert(!capabilityPayload.mcp.tools.includes("projects.exportDiagram"));
     assert(!capabilityPayload.mcp.tools.includes("projects.diagramImage"));
 
     mcp.send({ jsonrpc: "2.0", id: 4, method: "prompts/list" });
@@ -479,7 +516,7 @@ test("mcp tools can call authenticated CloudEval APIs without stdin credentials"
       id: 2,
       method: "tools/call",
       params: {
-        name: "projects.list",
+        name: "projects_list",
         arguments: {},
       },
     });
@@ -500,7 +537,7 @@ test("mcp tools can call authenticated CloudEval APIs without stdin credentials"
       id: 3,
       method: "tools/call",
       params: {
-        name: "projects.exportDiagram",
+        name: "projects_export_diagram",
         arguments: {
           projectId: "project-main",
           frontendUrl: new URL(backend.baseUrl).origin,

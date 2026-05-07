@@ -562,7 +562,7 @@ def decode_frames(payload):
 
 payload = b"".join(encode_frame(message) for message in messages)
 process = subprocess.Popen(
-    [cli, "mcp", "serve", "--base-url", base_url],
+    [cli, "mcp", "serve", "--toolset", "readonly", "--base-url", base_url],
     stdin=subprocess.PIPE,
     stdout=subprocess.PIPE,
     stderr=subprocess.PIPE,
@@ -583,16 +583,19 @@ for required_id in (1, 2, 3, 4):
 tools = by_id[2].get("result", {}).get("tools", [])
 if not tools:
     raise SystemExit(f"MCP tools/list returned no tools stderr={stderr_text}")
+invalid_tools = [tool.get("name") for tool in tools if not str(tool.get("name", "")).replace("_", "").isalnum()]
+if invalid_tools:
+    raise SystemExit(f"MCP tools/list returned invalid tool names: {invalid_tools} stderr={stderr_text}")
 print(f"tools={len(tools)} resources={len(by_id[3].get('result', {}).get('resources', []))} prompts={len(by_id[4].get('result', {}).get('prompts', []))}")
 PY
 )"
   local exit_code=$?
   set -e
   if [ "$exit_code" -ne 0 ]; then
-    fail_check "$name" "$summary" mcp serve --base-url "$BASE_URL"
+    fail_check "$name" "$summary" mcp serve --toolset readonly --base-url "$BASE_URL"
   fi
   pass "$name"
-  show_cli_command mcp serve --base-url "$BASE_URL"
+  show_cli_command mcp serve --toolset readonly --base-url "$BASE_URL"
   result "$summary"
 }
 

@@ -33,8 +33,11 @@ cloudeval update --check
 cloudeval update --yes
 ```
 
-Interactive text commands show a cached once-per-day update nudge when a newer
-release is available. Set `CLOUDEVAL_NO_UPDATE_CHECK=1` to suppress the nudge.
+`cloudeval update` prints a readable status summary by default, not a
+field/value table. Use `--format json`, `--format ndjson`, or
+`--format markdown` for machine-readable output. Interactive text commands show
+a cached once-per-day update nudge when a newer release is available. Set
+`CLOUDEVAL_NO_UPDATE_CHECK=1` to suppress the nudge.
 
 ### Build locally
 
@@ -95,6 +98,7 @@ Model Context Protocol:
 
 ```bash
 cloudeval mcp serve
+cloudeval mcp serve --toolset readonly
 ```
 
 Example MCP client configuration:
@@ -159,15 +163,21 @@ stdio command shape:
 }
 ```
 
-The server exposes `ask`, `projects.list`, `projects.get`,
-`projects.exportDiagram`, `reports.list`, `reports.run`, `reports.download`,
-`billing.summary`, `billing.usage`, `billing.ledger`, `open.url`, and
-`capabilities.get`. Authenticate with
+The server advertises Cursor-safe MCP tool names containing only letters,
+numbers, and underscores: `capabilities_get`, `projects_list`, `projects_get`,
+`projects_export_diagram`, `ask`, `reports_list`, `reports_run`,
+`reports_download`, `billing_summary`, `billing_usage`, `billing_ledger`, and
+`open_url`. Older dotted names such as `projects.list`,
+`projects.exportDiagram`, and `open.url` remain accepted as call aliases for
+backward compatibility, but MCP clients should use the underscore names because
+some clients filter out dotted tool names. Authenticate with
 `cloudeval login`, configure `CLOUDEVAL_API_KEY` in the MCP client environment,
 or pass `--machine` with service-principal credentials. `--api-key-stdin` is not
 available for `mcp serve` because stdin is reserved for MCP JSON-RPC messages.
-The server writes protocol messages only to stdout; diagnostics from
-`--verbose` go to stderr.
+The server starts without probing stored auth, writes protocol messages only to
+stdout, writes `[cloudeval-mcp]` lifecycle diagnostics to stderr, supports
+newline-delimited JSON-RPC over stdio for modern clients, and accepts legacy
+`Content-Length` stdio frames for older MCP clients.
 
 For help:
 

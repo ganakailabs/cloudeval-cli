@@ -209,10 +209,12 @@ Example:
     /Users/prateek/.local/bin/cloudeval \
       mcp \
       serve \
+      --toolset \
+      readonly \
       --base-url \
       https://cloudeval.ai/api/proxy/v1
   output:
-    tools=11 resources=4 prompts=4
+    tools=7 resources=4 prompts=4
 
 === Final summary ===
 [PASS] overall: passed

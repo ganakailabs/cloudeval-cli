@@ -60,18 +60,28 @@
       <p>Install the CloudEval CLI with checksum-verified GitHub Release binaries.</p>
       <pre><code>curl -fsSL https://cli.cloudeval.ai/install.sh | bash</code></pre>
       <p>After install, run <code>cloudeval login</code> and <code>cloudeval chat</code>.</p>
+      <h2>Update</h2>
+      <p>Check or install the latest published CLI release without reinstalling manually:</p>
+      <pre><code>cloudeval update --check
+cloudeval update --yes</code></pre>
+      <p>The default update output is a readable summary. Use <code>--format json</code>, <code>--format ndjson</code>, or <code>--format markdown</code> for automation.</p>
       <h2>MCP server for agents</h2>
       <p>Expose CloudEval to Codex, Claude Desktop, Cursor, and other MCP clients:</p>
-      <pre><code>cloudeval mcp serve</code></pre>
+      <pre><code>cloudeval mcp serve
+cloudeval mcp serve --toolset readonly</code></pre>
       <p>Codex CLI setup:</p>
       <pre><code>codex mcp add cloudeval -- cloudeval mcp serve
 codex mcp list</code></pre>
+      <p>Claude Desktop and Cursor setup helpers:</p>
+      <pre><code>cloudeval mcp setup claude --dry-run --toolset reports --format json
+cloudeval mcp setup cursor --dry-run --toolset billing --format json</code></pre>
       <p>Generic MCP clients and Ollama-powered agent hosts can use a standard stdio config:</p>
       <pre><code>cloudeval mcp setup generic --dry-run --toolset readonly --format json</code></pre>
       <ul>
-        <li>Tools: <code>ask</code>, <code>projects.list</code>, <code>projects.exportDiagram</code>, <code>reports.run</code>, <code>reports.download</code>, <code>billing.usage</code>, and <code>open.url</code>.</li>
+        <li>Tools: <code>capabilities_get</code>, <code>projects_list</code>, <code>projects_get</code>, <code>projects_export_diagram</code>, <code>ask</code>, <code>reports_list</code>, <code>reports_run</code>, <code>reports_download</code>, <code>billing_summary</code>, <code>billing_usage</code>, <code>billing_ledger</code>, and <code>open_url</code>.</li>
+        <li>Compatibility: legacy dotted tool calls still work as aliases, but MCP clients should use underscore names.</li>
         <li>Auth: use <code>cloudeval login</code>, <code>CLOUDEVAL_API_KEY</code>, or <code>--machine</code>.</li>
-        <li>Transport: stdio MCP JSON-RPC. Server diagnostics use stderr only.</li>
+        <li>Transport: newline-delimited stdio JSON-RPC for modern clients, with legacy <code>Content-Length</code> framing accepted. Protocol messages use stdout; server diagnostics use stderr.</li>
       </ul>
       <p><a href="https://github.com/ganakailabs/cloudeval-cli/releases/latest">Latest release</a></p>
       <h2>Release smoke tests</h2>

@@ -89,7 +89,13 @@ const cliInvocation = () => {
   };
 };
 
-const startMcp = async (args: string[] = []) => {
+type McpTestTransport = "newline" | "content-length";
+
+const startMcp = async (
+  args: string[] = [],
+  options: { transport?: McpTestTransport } = {},
+) => {
+  const transport = options.transport ?? "newline";
   const home = await fs.mkdtemp(path.join(os.tmpdir(), "cloudeval-mcp-test-home-"));
   const { command, prefix } = cliInvocation();
   const child = spawn(command, [...prefix, "mcp", "serve", ...args], {
@@ -115,7 +121,7 @@ const startMcp = async (args: string[] = []) => {
   const messages: unknown[] = [];
   const waiters: Array<(value: unknown) => void> = [];
 
-  const readFramedMessages = () => {
+  const readContentLengthMessages = () => {
     while (stdoutBuffer.length) {
       const headerEnd = stdoutBuffer.indexOf("\r\n\r\n");
       if (headerEnd === -1) {
@@ -141,14 +147,43 @@ const startMcp = async (args: string[] = []) => {
     }
   };
 
+  const readNewlineMessages = () => {
+    while (stdoutBuffer.length) {
+      const lineEnd = stdoutBuffer.indexOf("\n");
+      if (lineEnd === -1) {
+        return;
+      }
+      const line = stdoutBuffer.subarray(0, lineEnd).toString("utf8").trim();
+      stdoutBuffer = stdoutBuffer.subarray(lineEnd + 1);
+      if (!line) {
+        continue;
+      }
+      const parsed = JSON.parse(line);
+      const waiter = waiters.shift();
+      if (waiter) {
+        waiter(parsed);
+        continue;
+      }
+      messages.push(parsed);
+    }
+  };
+
   child.stdout.on("data", (chunk) => {
     stdoutBuffer = Buffer.concat([stdoutBuffer, Buffer.from(chunk)]);
-    readFramedMessages();
+    if (transport === "content-length") {
+      readContentLengthMessages();
+      return;
+    }
+    readNewlineMessages();
   });
 
   const send = (message: unknown) => {
     const body = JSON.stringify(message);
-    child.stdin.write(`Content-Length: ${Buffer.byteLength(body)}\r\n\r\n${body}`);
+    if (transport === "content-length") {
+      child.stdin.write(`Content-Length: ${Buffer.byteLength(body)}\r\n\r\n${body}`);
+      return;
+    }
+    child.stdin.write(`${body}\n`);
   };
   const read = async (): Promise<any> => {
     if (messages.length) {
@@ -263,6 +298,22 @@ test("mcp serve initializes, lists tools, and returns strict JSON-RPC stdout", a
       called.result.structuredContent.data.url,
       /^https:\/\/app\.example\.test\/app\/projects\/project-main\?view=both/
     );
+  } finally {
+    const closed = await mcp.close();
+    assert.equal(closed.exitCode, 0, closed.stderr);
+    assert.match(closed.stderr, /CloudEval MCP server started/);
+  }
+});
+
+test("mcp serve accepts legacy Content-Length framed clients", async () => {
+  const mcp = await startMcp([], { transport: "content-length" });
+  try {
+    await initialize(mcp);
+
+    mcp.send({ jsonrpc: "2.0", id: 2, method: "tools/list" });
+    const listed = await mcp.read();
+    assert.equal(listed.id, 2);
+    assert(listed.result.tools.length > 0);
   } finally {
     const closed = await mcp.close();
     assert.equal(closed.exitCode, 0, closed.stderr);

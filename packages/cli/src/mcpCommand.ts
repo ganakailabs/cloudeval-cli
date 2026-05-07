@@ -1934,13 +1934,19 @@ const protocolVersionFor = (requested: unknown): string =>
     ? requested
     : MCP_PROTOCOL_VERSION;
 
-const MCP_STDIO_SEPARATOR = "\r\n\r\n";
+const MCP_CONTENT_LENGTH_SEPARATOR = "\r\n\r\n";
+const MCP_LF_HEADER_SEPARATOR = "\n\n";
+type McpStdioTransport = "newline" | "content-length";
 
 const serializeJsonRpc = (
   message: JsonRpcResponse | JsonRpcNotification,
+  transport: McpStdioTransport,
 ): string => {
   const body = JSON.stringify(message);
-  return `Content-Length: ${Buffer.byteLength(body, "utf8")}${MCP_STDIO_SEPARATOR}${body}`;
+  if (transport === "content-length") {
+    return `Content-Length: ${Buffer.byteLength(body, "utf8")}${MCP_CONTENT_LENGTH_SEPARATOR}${body}`;
+  }
+  return `${body}\n`;
 };
 
 const parseContentLength = (header: string): number | undefined => {
@@ -1953,6 +1959,23 @@ const parseContentLength = (header: string): number | undefined => {
   return undefined;
 };
 
+const findContentLengthHeader = (
+  buffer: Buffer,
+): { end: number; separatorLength: number } | undefined => {
+  const crlfEnd = buffer.indexOf(MCP_CONTENT_LENGTH_SEPARATOR);
+  const lfEnd = buffer.indexOf(MCP_LF_HEADER_SEPARATOR);
+  if (crlfEnd === -1 && lfEnd === -1) {
+    return undefined;
+  }
+  if (crlfEnd !== -1 && (lfEnd === -1 || crlfEnd <= lfEnd)) {
+    return { end: crlfEnd, separatorLength: MCP_CONTENT_LENGTH_SEPARATOR.length };
+  }
+  return { end: lfEnd, separatorLength: MCP_LF_HEADER_SEPARATOR.length };
+};
+
+const startsWithContentLengthHeader = (buffer: Buffer): boolean =>
+  /^Content-Length:/i.test(buffer.toString("ascii", 0, Math.min(buffer.length, 32)));
+
 export const serveMcpServer = async (
   options: ServeMcpOptions,
 ): Promise<void> => {
@@ -1963,26 +1986,59 @@ export const serveMcpServer = async (
   const availableResources = resourcesForToolset(toolset);
   const availablePrompts = promptsForToolset(toolset);
   let initialized = false;
+  let outputTransport: McpStdioTransport = "newline";
   const log = (message: string, data?: unknown) => {
-    if (!options.verbose) {
-      return;
-    }
     process.stderr.write(
       `[cloudeval-mcp] ${message}${data === undefined ? "" : ` ${JSON.stringify(data)}`}\n`,
     );
   };
+  const debug = (message: string, data?: unknown) => {
+    if (options.verbose) {
+      log(message, data);
+    }
+  };
+  log("CloudEval MCP server started", {
+    version: CLI_VERSION,
+    protocolVersion: MCP_PROTOCOL_VERSION,
+    transport: "stdio",
+    wireFormat: "newline",
+    toolset,
+    profile: options.profile ?? "default",
+    baseUrl: options.baseUrl,
+    pid: process.pid,
+  });
   const send = (message: JsonRpcResponse | JsonRpcNotification) => {
-    process.stdout.write(serializeJsonRpc(message));
+    process.stdout.write(serializeJsonRpc(message, outputTransport));
+    debug("response sent", {
+      id: "id" in message ? message.id : undefined,
+      method: "method" in message ? message.method : undefined,
+      transport: outputTransport,
+    });
   };
   const handleRequest = async (
     request: JsonRpcRequest,
   ): Promise<JsonRpcResponse | undefined> => {
+    debug("request received", {
+      id: request.id,
+      method: request.method,
+      tool:
+        request.method === "tools/call"
+          ? stringValue(request.params?.name)
+          : undefined,
+    });
     try {
       if (request.method === "initialize") {
         const protocolVersion = protocolVersionFor(
           request.params?.protocolVersion,
         );
         initialized = true;
+        log("initialize request accepted", {
+          client: isObject(request.params?.clientInfo)
+            ? request.params?.clientInfo
+            : undefined,
+          requestedProtocolVersion: request.params?.protocolVersion,
+          negotiatedProtocolVersion: protocolVersion,
+        });
         return jsonRpcResult(request.id, {
           protocolVersion,
           capabilities: {
@@ -2016,6 +2072,10 @@ export const serveMcpServer = async (
         );
       }
       if (request.method === "tools/list") {
+        debug("listing tools", {
+          toolset,
+          count: availableTools.length,
+        });
         return jsonRpcResult(request.id, {
           tools: availableTools,
         });
@@ -2050,11 +2110,16 @@ export const serveMcpServer = async (
         }
         try {
           const envelope = await handler(args);
+          debug("tool call completed", { tool: name, ok: envelope.ok });
           return jsonRpcResult(
             request.id,
             toToolResult(envelope) as unknown as JsonRecord,
           );
         } catch (error) {
+          log("tool call failed", {
+            tool: name,
+            message: error instanceof Error ? error.message : String(error),
+          });
           return jsonRpcResult(
             request.id,
             toToolError(name, error) as unknown as JsonRecord,
@@ -2153,35 +2218,69 @@ export const serveMcpServer = async (
   };
 
   let stdinBuffer = Buffer.alloc(0);
-  const processFrames = async () => {
+  const processMessages = async () => {
     while (stdinBuffer.length) {
-      const headerEnd = stdinBuffer.indexOf(MCP_STDIO_SEPARATOR);
-      if (headerEnd === -1) {
+      while (stdinBuffer.length && /\s/.test(stdinBuffer.toString("utf8", 0, 1))) {
+        stdinBuffer = stdinBuffer.subarray(1);
+      }
+      if (!stdinBuffer.length) {
         return;
       }
-      const header = stdinBuffer.subarray(0, headerEnd).toString("ascii");
-      const contentLength = parseContentLength(header);
-      stdinBuffer = stdinBuffer.subarray(headerEnd + MCP_STDIO_SEPARATOR.length);
-      if (contentLength === undefined) {
-        send(
-          jsonRpcError(0, -32700, "Parse error", {
-            message: "Missing MCP Content-Length header.",
-          }),
-        );
+      if (startsWithContentLengthHeader(stdinBuffer)) {
+        const headerBoundary = findContentLengthHeader(stdinBuffer);
+        if (!headerBoundary) {
+          return;
+        }
+        const header = stdinBuffer.subarray(0, headerBoundary.end).toString("ascii");
+        const contentLength = parseContentLength(header);
+        stdinBuffer = stdinBuffer.subarray(headerBoundary.end + headerBoundary.separatorLength);
+        if (contentLength === undefined) {
+          log("parse error", { message: "Missing MCP Content-Length header." });
+          send(
+            jsonRpcError(0, -32700, "Parse error", {
+              message: "Missing MCP Content-Length header.",
+            }),
+          );
+          continue;
+        }
+        if (stdinBuffer.length < contentLength) {
+          stdinBuffer = Buffer.concat([
+            Buffer.from(`${header}${MCP_CONTENT_LENGTH_SEPARATOR}`, "ascii"),
+            stdinBuffer,
+          ]);
+          return;
+        }
+        outputTransport = "content-length";
+        debug("using legacy Content-Length MCP stdio framing");
+        const body = stdinBuffer.subarray(0, contentLength).toString("utf8");
+        stdinBuffer = stdinBuffer.subarray(contentLength);
+        try {
+          await handleMessage(JSON.parse(body) as JsonValue);
+        } catch (error: any) {
+          log("parse error", { message: error?.message ?? String(error) });
+          send(
+            jsonRpcError(0, -32700, "Parse error", {
+              message: error?.message ?? String(error),
+            }),
+          );
+        }
         continue;
       }
-      if (stdinBuffer.length < contentLength) {
-        stdinBuffer = Buffer.concat([
-          Buffer.from(`${header}${MCP_STDIO_SEPARATOR}`, "ascii"),
-          stdinBuffer,
-        ]);
+
+      const lineEnd = stdinBuffer.indexOf("\n");
+      if (lineEnd === -1) {
         return;
       }
-      const body = stdinBuffer.subarray(0, contentLength).toString("utf8");
-      stdinBuffer = stdinBuffer.subarray(contentLength);
+      const body = stdinBuffer.subarray(0, lineEnd).toString("utf8").trim();
+      stdinBuffer = stdinBuffer.subarray(lineEnd + 1);
+      if (!body) {
+        continue;
+      }
+      outputTransport = "newline";
       try {
         await handleMessage(JSON.parse(body) as JsonValue);
       } catch (error: any) {
+        log("parse error", { message: error?.message ?? String(error) });
         send(
           jsonRpcError(0, -32700, "Parse error", {
             message: error?.message ?? String(error),
@@ -2196,13 +2295,17 @@ export const serveMcpServer = async (
       stdinBuffer,
       Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk),
     ]);
-    await processFrames();
+    await processMessages();
   }
 
   if (stdinBuffer.toString("utf8").trim()) {
     try {
+      outputTransport = startsWithContentLengthHeader(stdinBuffer)
+        ? "content-length"
+        : "newline";
       await handleMessage(JSON.parse(stdinBuffer.toString("utf8")) as JsonValue);
     } catch (error: any) {
+      log("parse error", { message: error?.message ?? String(error) });
       send(
         jsonRpcError(0, -32700, "Parse error", {
           message: error?.message ?? String(error),
@@ -2210,6 +2313,7 @@ export const serveMcpServer = async (
       );
     }
   }
+  log("CloudEval MCP server stopped");
 };
 
 export const registerMcpCommand = (
@@ -2302,7 +2406,7 @@ export const registerMcpCommand = (
       `Expose a focused MCP toolset: ${MCP_TOOLSET_NAMES.join(", ")}`,
       "all"
     )
-    .option("-v, --verbose", "Write MCP server diagnostics to stderr", false)
+    .option("-v, --verbose", "Write detailed MCP server diagnostics to stderr", false)
     .action(async (options, command) => {
       const baseUrl = await deps.resolveBaseUrl(options, command);
       await serveMcpServer({

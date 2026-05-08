@@ -24,7 +24,6 @@ const authOptions = [
   "--base-url",
   "--api-key",
   "--api-key-stdin",
-  "--machine",
   "--non-interactive",
 ];
 
@@ -49,7 +48,6 @@ export const cliCommands: CliCommandMetadata[] = [
       "--frontend-url",
       "--api-key",
       "--api-key-stdin",
-      "--machine",
       "--model",
       "--debug",
       "--health-check",
@@ -70,7 +68,6 @@ export const cliCommands: CliCommandMetadata[] = [
       "--base-url",
       "--api-key",
       "--api-key-stdin",
-      "--machine",
       "--conversation",
       "--continue",
       "--resume",
@@ -332,7 +329,6 @@ export const cliCommands: CliCommandMetadata[] = [
       "--base-url",
       "--frontend-url",
       "--api-key",
-      "--machine",
       "--toolset",
       "--dry-run",
       "--command",

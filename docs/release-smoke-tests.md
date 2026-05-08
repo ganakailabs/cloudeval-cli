@@ -67,7 +67,7 @@ The smoke script verifies:
   healthy JSON or the expected protected-route JSON.
 
 Authenticated smoke coverage should use a stored `cloudeval login` session or
-`--machine` in environments with service-principal credentials.
+`CLOUDEVAL_API_KEY`/`--api-key` for automation.
 
 ## Environment Variables
 

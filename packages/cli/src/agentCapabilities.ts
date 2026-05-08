@@ -63,7 +63,6 @@ const capabilities = {
     setupClients: mcpStatus.setupClients,
     auth: {
       preferred: "stored cloudeval login credentials or MCP client env CLOUDEVAL_API_KEY",
-      machine: "Pass --machine and configure service-principal environment credentials.",
       stdin: "MCP uses stdin for JSON-RPC, so --api-key-stdin is intentionally unavailable for mcp serve.",
     },
     tools: mcpToolNames,

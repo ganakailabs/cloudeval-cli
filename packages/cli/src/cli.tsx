@@ -584,11 +584,10 @@ program
   .option("--frontend-url <url>", "Frontend base URL")
   .option(
     "--api-key <key>",
-    "API key (machine workflows only; deprecated for interactive human auth)",
+    "API key for automation (deprecated for interactive human auth)",
     process.env.CLOUDEVAL_API_KEY
   )
   .option("--api-key-stdin", "Read API key from stdin (recommended for automation)", false)
-  .option("--machine", "Allow machine credential fallback (service principal)", false)
   .option("--model <name>", "Model name")
   .option("--debug", "Log raw chunks", false)
   .option("--health-check", "Enable health check (disabled by default)")
@@ -621,7 +620,6 @@ program
       <App
         baseUrl={baseUrl}
         apiKey={apiKey}
-        allowMachineAuth={!!options.machine}
         conversationId={undefined}
         model={options.model ?? cliConfig.model}
         initialTab={options.tab}
@@ -646,11 +644,10 @@ program
   )
   .option(
     "--api-key <key>",
-    "API key (machine workflows only; deprecated for interactive human auth)",
+    "API key for automation (deprecated for interactive human auth)",
     process.env.CLOUDEVAL_API_KEY
   )
   .option("--api-key-stdin", "Read API key from stdin (recommended for automation)", false)
-  .option("--machine", "Allow machine credential fallback (service principal)", false)
   .option("--conversation <id>", "Conversation/thread id to resume")
   .option("--continue", "Resume the most recent local chat session", false)
   .option("--resume <id-or-title>", "Resume a local chat session by thread id or title")
@@ -688,7 +685,6 @@ program
       verboseLog("Options:", {
         baseUrl,
         hasApiKey: !!apiKey,
-        machineMode: options.machine,
         conversationId: options.conversation,
         model: options.model ?? cliConfig.model,
         debug: options.debug,
@@ -712,7 +708,6 @@ program
       <App
         baseUrl={baseUrl}
         apiKey={apiKey}
-        allowMachineAuth={!!options.machine}
         conversationId={conversationId}
         model={options.model ?? cliConfig.model}
         initialProjectId={cliConfig.defaultProjectId}
@@ -737,11 +732,10 @@ program
   )
   .option(
     "--api-key <key>",
-    "API key (machine workflows only; deprecated for interactive human auth)",
+    "API key for automation (deprecated for interactive human auth)",
     process.env.CLOUDEVAL_API_KEY
   )
   .option("--api-key-stdin", "Read API key from stdin (recommended for automation)", false)
-  .option("--machine", "Allow machine credential fallback (service principal)", false)
   .option("--project <id>", "Project ID to use")
   .option("--model <name>", "Model name")
   .option("--thread <id>", "Thread id to reuse for this ask")
@@ -791,7 +785,6 @@ program
       verboseLog("Options:", {
         baseUrl,
         hasApiKey: !!providedApiKey,
-        machineMode: options.machine,
         project: selectedProjectId,
         model: selectedModel,
         output: options.output,
@@ -842,7 +835,6 @@ program
           token = await getAuthToken({
             apiKey: providedApiKey,
             baseUrl,
-            allowMachineAuth: !!options.machine,
           });
           verboseLog("Token retrieved successfully", { hasToken: !!token });
         } catch (error: any) {
@@ -853,7 +845,6 @@ program
           // If no API key and no stored token, automatically trigger login
           if (
             !providedApiKey &&
-            !options.machine &&
             !options.nonInteractive &&
             process.stdin.isTTY &&
             process.stdout.isTTY &&

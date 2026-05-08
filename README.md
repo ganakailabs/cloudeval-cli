@@ -63,16 +63,16 @@ cloudeval models list [--base-url <url>] [--format text|json|ndjson|markdown]
 cloudeval models default get|set [--profile <name>]
 cloudeval sessions list|get|export|delete|prune [--format text|json|ndjson|markdown]
 cloudeval tui [--base-url <url>] [--project <id>] [--model <name>] [--profile <name>]
-cloudeval chat [--base-url <url>] [--machine] [--conversation <id>] [--model <name>] [--debug] [--profile <name>]
-cloudeval ask <question> [--project <id>] [--output <file>] [--json] [--base-url <url>] [--machine] [--model <name>] [--profile <name>]
-cloudeval projects export-diagram <id> --layout architecture|dependency --format png|jpeg|svg --labels all|viewport --output <file> [--headers-output <file>] [--public] [--frontend-url <url>] [--machine]
+cloudeval chat [--base-url <url>] [--conversation <id>] [--model <name>] [--debug] [--profile <name>]
+cloudeval ask <question> [--project <id>] [--output <file>] [--json] [--base-url <url>] [--model <name>] [--profile <name>]
+cloudeval projects export-diagram <id> --layout architecture|dependency --format png|jpeg|svg --labels all|viewport --output <file> [--headers-output <file>] [--public] [--frontend-url <url>]
 cloudeval credits [--format text|json|ndjson|markdown]
 cloudeval billing topups [--format text|json|ndjson|markdown]
 cloudeval billing topup <pack-id> [--currency <code>] [--country-code <code>] [--print-url|--open] [--format text|json|ndjson|markdown]
 cloudeval billing topups buy <pack-id> [--currency <code>] [--country-code <code>] [--print-url|--open] [--format text|json|ndjson|markdown]
 cloudeval mcp status [--format text|json|ndjson|markdown]
 cloudeval mcp setup codex|claude|cursor|generic [--dry-run] [--command <path>] [--toolset all|readonly|projects|reports|billing]
-cloudeval mcp serve [--toolset all|readonly|projects|reports|billing] [--base-url <url>] [--frontend-url <url>] [--machine] [--profile <name>]
+cloudeval mcp serve [--toolset all|readonly|projects|reports|billing] [--base-url <url>] [--frontend-url <url>] [--profile <name>]
 cloudeval login [--headless]
 cloudeval logout [--all-devices]
 cloudeval auth status
@@ -168,8 +168,8 @@ numbers, and underscores: `capabilities_get`, `projects_list`, `projects_get`,
 `projects.exportDiagram`, and `open.url` remain accepted as call aliases for
 backward compatibility, but MCP clients should use the underscore names because
 some clients filter out dotted tool names. Authenticate with `cloudeval login`,
-`cloudeval login --headless`, or `--machine` with service-principal
-credentials. Run login before starting `mcp serve`; stdin is reserved for MCP
+`cloudeval login --headless`, or `CLOUDEVAL_API_KEY`/`--api-key` for automation.
+Run login before starting `mcp serve`; stdin is reserved for MCP
 JSON-RPC messages.
 The server starts without probing stored auth, writes protocol messages only to
 stdout, writes `[cloudeval-mcp]` lifecycle diagnostics to stderr, supports

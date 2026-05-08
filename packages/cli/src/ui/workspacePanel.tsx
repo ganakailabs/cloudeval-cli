@@ -1583,8 +1583,8 @@ const HelpView: React.FC = () => {
           </Text>
         ))}
         <Text dimColor wrap="wrap">
-          Common flags: --base-url, --api-key, --api-key-stdin, --machine,
-          --frontend-url, --format, --json, --verbose, --help
+          Common flags: --base-url, --api-key, --api-key-stdin, --frontend-url,
+          --format, --json, --verbose, --help
         </Text>
       </SectionCard>
     </Box>

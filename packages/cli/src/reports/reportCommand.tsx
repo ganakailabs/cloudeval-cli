@@ -37,7 +37,6 @@ type CommonReportOptions = {
   baseUrl?: string;
   apiKey?: string;
   apiKeyStdin?: boolean;
-  machine?: boolean;
   project?: string;
   format?: ReportOutputFormat;
   raw?: boolean;
@@ -59,11 +58,10 @@ const addCommonOptions = <T extends Command>(command: T, defaultBaseUrl: string)
     .option("--base-url <url>", "Backend base URL", defaultBaseUrl)
     .option(
       "--api-key <key>",
-      "API key (machine workflows only; deprecated for interactive human auth)",
+      "API key for automation (deprecated for interactive human auth)",
       process.env.CLOUDEVAL_API_KEY
     )
     .option("--api-key-stdin", "Read API key from stdin (recommended for automation)", false)
-    .option("--machine", "Allow machine credential fallback (service principal)", false)
     .option("--project <id>", "Project ID to use")
     .option("--format <format>", `Output format: ${outputFormats.join(", ")}`)
     .option("--raw", "Show raw provider/backend payload", false)
@@ -111,12 +109,10 @@ const resolveToken = async (
     return await getAuthToken({
       apiKey: options.apiKey,
       baseUrl,
-      allowMachineAuth: !!options.machine,
     });
   } catch (error: any) {
     const canLogin =
       !options.nonInteractive &&
-      !options.machine &&
       process.stdin.isTTY &&
       process.stdout.isTTY &&
       !process.env.CI;

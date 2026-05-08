@@ -4,7 +4,6 @@ export interface AuthGuardOptions {
   baseUrl?: string;
   apiKey?: string;
   apiKeyStdin?: boolean;
-  machine?: boolean;
   nonInteractive?: boolean;
 }
 
@@ -54,10 +53,9 @@ export const resolveAuthContext = async (
       token = await core.getAuthToken({
         apiKey,
         baseUrl,
-        allowMachineAuth: !!options.machine,
       });
     } catch (error: any) {
-      if (!isInteractive(options) || options.machine) {
+      if (!isInteractive(options)) {
         throw error;
       }
       process.stderr.write("Authentication required. Starting login flow...\n");
@@ -72,7 +70,7 @@ export const resolveAuthContext = async (
   try {
     status = await core.checkUserStatus(baseUrl, token);
   } catch (error) {
-    if (!apiKey && !options.machine && core.isAuthLookupFailure(error)) {
+    if (!apiKey && core.isAuthLookupFailure(error)) {
       throw new Error(
         "Stored authentication was rejected by CloudEval. Run `cloudeval login` and retry."
       );
@@ -100,9 +98,8 @@ export const addAuthOptions = <T extends Command>(command: T, defaultBaseUrl: st
     .option("--base-url <url>", "Backend base URL", defaultBaseUrl)
     .option(
       "--api-key <key>",
-      "API key (machine workflows only; deprecated for interactive human auth)",
+      "API key for automation (deprecated for interactive human auth)",
       process.env.CLOUDEVAL_API_KEY
     )
     .option("--api-key-stdin", "Read API key from stdin (recommended for automation)", false)
-    .option("--machine", "Allow machine credential fallback (service principal)", false)
     .option("--non-interactive", "Disable prompts and browser login", false) as T;

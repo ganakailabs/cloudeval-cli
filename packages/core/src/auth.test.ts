@@ -128,22 +128,13 @@ test("device code flow uses the CLI client id for both requests", async () => {
   }
 });
 
-test("device code login falls back to Azure AD when backend bootstrap is protected", async () => {
+test("device code login fails instead of falling back when backend bootstrap is protected", async () => {
   const tempHome = await mkdtemp(path.join(os.tmpdir(), "cloudeval-auth-"));
-  const previousClientId = process.env.CLOUDEVAL_BACKEND_CLIENT_ID;
-  const previousTenantId = process.env.CLOUDEVAL_BACKEND_TENANT_ID;
-  process.env.CLOUDEVAL_BACKEND_CLIENT_ID = "backend-client-id";
-  process.env.CLOUDEVAL_BACKEND_TENANT_ID = "tenant-id";
-
   const { loginWithDeviceCode } = await importFreshAuthModule(tempHome);
   const originalFetch = global.fetch;
-  const originalSetTimeout = global.setTimeout;
-  const originalWarn = console.warn;
-  const originalLog = console.log;
-  const originalWrite = process.stdout.write.bind(process.stdout);
   const requests: string[] = [];
 
-  global.fetch = async (input, init) => {
+  global.fetch = async (input) => {
     const url = typeof input === "string" ? input : input.toString();
     requests.push(url);
 
@@ -151,68 +142,19 @@ test("device code login falls back to Azure AD when backend bootstrap is protect
       return jsonResponse({ message: "Authentication required" }, 401);
     }
 
-    if (url.includes("/oauth2/v2.0/devicecode")) {
-      const body = String(init?.body ?? "");
-      assert.match(body, /client_id=backend-client-id/);
-      assert.match(body, /scope=api%3A%2F%2Fbackend-client-id%2Faccess_as_user\+offline_access/);
-      return jsonResponse({
-        device_code: "azure-device-code",
-        user_code: "WXYZ-1234",
-        verification_uri: "https://microsoft.com/devicelogin",
-        expires_in: 60,
-        interval: 1,
-      });
-    }
-
-    if (url.includes("/oauth2/v2.0/token")) {
-      const body = String(init?.body ?? "");
-      assert.match(body, /grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Adevice_code/);
-      assert.match(body, /device_code=azure-device-code/);
-      return jsonResponse({
-        access_token: "azure-access-token",
-        refresh_token: "azure-refresh-token",
-        token_type: "Bearer",
-        expires_in: 3600,
-      });
-    }
-
     throw new Error(`Unexpected fetch: ${url}`);
   };
 
-  global.setTimeout = ((callback: (...args: unknown[]) => void) => {
-    queueMicrotask(() => callback());
-    return 0 as unknown as NodeJS.Timeout;
-  }) as typeof setTimeout;
-  console.warn = () => {};
-  console.log = () => {};
-  process.stdout.write = (() => true) as typeof process.stdout.write;
-
   try {
-    const token = await loginWithDeviceCode("https://cloudeval.ai");
-    assert.equal(token, "azure-access-token");
+    await assert.rejects(
+      () => loginWithDeviceCode("https://cloudeval.ai"),
+      /Failed to initiate login: 401/
+    );
     assert.deepEqual(requests, [
       "https://cloudeval.ai/api/v1/auth/device/code",
-      "https://login.microsoftonline.com/tenant-id/oauth2/v2.0/devicecode",
-      "https://login.microsoftonline.com/tenant-id/oauth2/v2.0/token",
     ]);
   } finally {
     global.fetch = originalFetch;
-    global.setTimeout = originalSetTimeout;
-    console.warn = originalWarn;
-    console.log = originalLog;
-    process.stdout.write = originalWrite;
-
-    if (previousClientId === undefined) {
-      delete process.env.CLOUDEVAL_BACKEND_CLIENT_ID;
-    } else {
-      process.env.CLOUDEVAL_BACKEND_CLIENT_ID = previousClientId;
-    }
-
-    if (previousTenantId === undefined) {
-      delete process.env.CLOUDEVAL_BACKEND_TENANT_ID;
-    } else {
-      process.env.CLOUDEVAL_BACKEND_TENANT_ID = previousTenantId;
-    }
   }
 });
 
@@ -356,7 +298,74 @@ test("validated auth status reports revoked refresh tokens as unauthenticated", 
   }
 });
 
-test("validated auth status clears refresh tokens rejected by Azure consent errors", async () => {
+test("stored refresh fails instead of falling back when the backend rejects refresh", async () => {
+  const tempHome = await mkdtemp(path.join(os.tmpdir(), "cloudeval-auth-"));
+  const previousOverride = process.env.CLOUDEVAL_ALLOW_INSECURE_FILE_STORAGE;
+  process.env.CLOUDEVAL_ALLOW_INSECURE_FILE_STORAGE = "1";
+
+  try {
+    const { getAuthToken } = await importFreshAuthModule(tempHome);
+    const configDir = path.join(tempHome, ".config", "cloudeval");
+    fs.mkdirSync(configDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(configDir, "config.json"),
+      JSON.stringify(
+        {
+          refreshTokenRef: "refresh-token",
+          baseUrl: "https://cloudeval.ai/api/proxy/v1",
+        },
+        null,
+        2
+      )
+    );
+    fs.writeFileSync(
+      path.join(configDir, "secrets.json"),
+      JSON.stringify(
+        {
+          "refresh-token": "backend-refresh-token",
+        },
+        null,
+        2
+      )
+    );
+
+    const originalFetch = global.fetch;
+    const requests: string[] = [];
+    global.fetch = async (input) => {
+      const url = typeof input === "string" ? input : input.toString();
+      requests.push(url);
+      assert.equal(url, "https://cloudeval.ai/api/v1/auth/refresh");
+      return jsonResponse(
+        {
+          error: "Authentication required for this endpoint",
+          code: "AUTH_REQUIRED_PUBLIC",
+        },
+        401
+      );
+    };
+
+    try {
+      await assert.rejects(
+        () =>
+          getAuthToken({
+            baseUrl: "https://cloudeval.ai/api/proxy/v1",
+          }),
+        /No authentication available|Stored refresh failed|Token refresh unavailable/
+      );
+      assert.deepEqual(requests, ["https://cloudeval.ai/api/v1/auth/refresh"]);
+    } finally {
+      global.fetch = originalFetch;
+    }
+  } finally {
+    if (previousOverride === undefined) {
+      delete process.env.CLOUDEVAL_ALLOW_INSECURE_FILE_STORAGE;
+    } else {
+      process.env.CLOUDEVAL_ALLOW_INSECURE_FILE_STORAGE = previousOverride;
+    }
+  }
+});
+
+test("validated auth status clears refresh tokens rejected by consent errors", async () => {
   const tempHome = await mkdtemp(path.join(os.tmpdir(), "cloudeval-auth-"));
   const previousOverride = process.env.CLOUDEVAL_ALLOW_INSECURE_FILE_STORAGE;
   process.env.CLOUDEVAL_ALLOW_INSECURE_FILE_STORAGE = "1";
@@ -392,16 +401,6 @@ test("validated auth status clears refresh tokens rejected by Azure consent erro
     global.fetch = async (input) => {
       const url = typeof input === "string" ? input : input.toString();
       seenUrls.push(url);
-      if (url.endsWith("/auth/refresh")) {
-        return jsonResponse(
-          {
-            error: "Authentication required for this endpoint",
-            code: "AUTH_REQUIRED_PUBLIC",
-          },
-          401
-        );
-      }
-      assert.match(url, /login\.microsoftonline\.com\/.+\/oauth2\/v2\.0\/token$/);
       return jsonResponse(
         {
           error: "consent_required",
@@ -418,7 +417,7 @@ test("validated auth status clears refresh tokens rejected by Azure consent erro
       assert.equal(status.authenticated, false);
       assert.equal(status.hasRefreshToken, false);
       assert.equal(status.validationAttempted, true);
-      assert.equal(seenUrls.length, 2);
+      assert.deepEqual(seenUrls, ["https://cloudeval.ai/api/v1/auth/refresh"]);
     } finally {
       global.fetch = originalFetch;
     }
@@ -875,7 +874,7 @@ test("getAuthToken removes a refresh lock owned by a dead process", async () => 
   }
 });
 
-test("login prefers browser-assisted device flow before PKCE", async () => {
+test("login uses browser-assisted device flow", async () => {
   const tempHome = await mkdtemp(path.join(os.tmpdir(), "cloudeval-auth-"));
   const previousOverride = process.env.CLOUDEVAL_ALLOW_INSECURE_FILE_STORAGE;
   process.env.CLOUDEVAL_ALLOW_INSECURE_FILE_STORAGE = "1";
@@ -947,6 +946,48 @@ test("login prefers browser-assisted device flow before PKCE", async () => {
       global.setTimeout = originalSetTimeout;
       console.log = originalLog;
       process.stdout.write = originalWrite;
+    }
+  } finally {
+    if (previousOverride === undefined) {
+      delete process.env.CLOUDEVAL_ALLOW_INSECURE_FILE_STORAGE;
+    } else {
+      process.env.CLOUDEVAL_ALLOW_INSECURE_FILE_STORAGE = previousOverride;
+    }
+  }
+});
+
+test("login fails instead of falling back when browser-assisted device flow is unavailable", async () => {
+  const tempHome = await mkdtemp(path.join(os.tmpdir(), "cloudeval-auth-"));
+  const previousOverride = process.env.CLOUDEVAL_ALLOW_INSECURE_FILE_STORAGE;
+  process.env.CLOUDEVAL_ALLOW_INSECURE_FILE_STORAGE = "1";
+
+  try {
+    const { login } = await importFreshAuthModule(tempHome);
+    const originalFetch = global.fetch;
+    const requests: string[] = [];
+
+    global.fetch = async (input) => {
+      const url = typeof input === "string" ? input : input.toString();
+      requests.push(url);
+
+      if (url.endsWith("/auth/device/code")) {
+        return jsonResponse({ message: "Authentication required" }, 401);
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    };
+
+    try {
+      await assert.rejects(
+        () =>
+          login("https://cloudeval.ai", {
+            browserOpener: () => true,
+          }),
+        /Failed to initiate login: 401/
+      );
+      assert.deepEqual(requests, ["https://cloudeval.ai/api/v1/auth/device/code"]);
+    } finally {
+      global.fetch = originalFetch;
     }
   } finally {
     if (previousOverride === undefined) {

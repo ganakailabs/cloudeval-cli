@@ -9,8 +9,6 @@ const config = {
   includePlayground: process.env.MOCK_INCLUDE_PLAYGROUND !== "0",
   healthy: process.env.MOCK_HEALTHY !== "0",
   devicePendingCount: Number(process.env.MOCK_DEVICE_PENDING_COUNT ?? "1"),
-  legacyDeviceOnly: process.env.MOCK_LEGACY_DEVICE_ONLY === "1",
-  pkceStartStatus: Number(process.env.MOCK_PKCE_START_STATUS ?? "200"),
   slowStreamDelayMs: Number(process.env.MOCK_SLOW_STREAM_DELAY_MS ?? "750"),
   logRequests: process.env.MOCK_LOG_REQUESTS === "1",
   acceptAnyBearer: process.env.MOCK_ACCEPT_ANY_BEARER !== "0",
@@ -21,7 +19,6 @@ const state = {
   usersByEmail: new Map(),
   accessTokens: new Map(),
   refreshTokens: new Map(),
-  authCodes: new Map(),
   deviceCodes: new Map(),
   logoutEvents: [],
   lastStreamRequest: null,
@@ -281,30 +278,6 @@ const server = http.createServer(async (req, res) => {
     console.error(`[mock] ${req.method} ${pathname}`);
   }
 
-  if (pathname === "/authorize" && req.method === "GET") {
-    const redirectUri = requestUrl.searchParams.get("redirect_uri");
-    const stateParam = requestUrl.searchParams.get("state") ?? "";
-    const email = requestUrl.searchParams.get("email") ?? "cli@example.com";
-
-    if (!redirectUri) {
-      return json(res, 400, { message: "Missing redirect_uri" });
-    }
-
-    const code = `code-${randomUUID()}`;
-    state.authCodes.set(code, {
-      state: stateParam,
-      email,
-    });
-
-    const redirectUrl = new URL(redirectUri);
-    redirectUrl.searchParams.set("code", code);
-    redirectUrl.searchParams.set("state", stateParam);
-    res.statusCode = 302;
-    res.setHeader("Location", redirectUrl.toString());
-    res.end();
-    return;
-  }
-
   if (pathname === "/api/v1/chat/health" && req.method === "GET") {
     return json(res, config.healthy ? 200 : 503, {
       status: config.healthy ? "healthy" : "unhealthy",
@@ -315,57 +288,7 @@ const server = http.createServer(async (req, res) => {
     return streamChat(req, res);
   }
 
-  if (pathname === "/api/v1/auth/cli/login/start" && req.method === "POST") {
-    if (config.pkceStartStatus !== 200) {
-      return json(res, config.pkceStartStatus, {
-        message: "PKCE login unavailable",
-      });
-    }
-
-    const body = await parseBody(req);
-    const redirectUri = body.redirect_uri;
-    const stateParam = body.state;
-
-    return json(res, 200, {
-      authorization_url: `http://${config.host}:${server.address().port}/authorize?redirect_uri=${encodeURIComponent(
-        redirectUri
-      )}&state=${encodeURIComponent(stateParam)}`,
-    });
-  }
-
-  if (pathname === "/api/v1/auth/token" && req.method === "POST") {
-    const body = await parseBody(req);
-    const codeRecord = state.authCodes.get(body.code);
-    if (!codeRecord || codeRecord.state !== body.state) {
-      return json(res, 400, { message: "Invalid auth code or state" });
-    }
-
-    const user = ensureUser(codeRecord.email);
-    state.authCodes.delete(body.code);
-    return json(res, 200, issueTokens(user));
-  }
-
   if (pathname === "/api/v1/auth/device/code" && req.method === "POST") {
-    if (config.legacyDeviceOnly) {
-      return json(res, 404, { message: "Use legacy device endpoint" });
-    }
-    const deviceCode = `device-${randomUUID()}`;
-    state.deviceCodes.set(deviceCode, {
-      email: "cli@example.com",
-      pollsRemaining: config.devicePendingCount,
-    });
-
-    return json(res, 200, {
-      device_code: deviceCode,
-      user_code: "ABCD-EFGH",
-      verification_uri: `http://${config.host}:${server.address().port}/device`,
-      verification_uri_complete: `http://${config.host}:${server.address().port}/device?code=${deviceCode}`,
-      expires_in: 300,
-      interval: 1,
-    });
-  }
-
-  if (pathname === "/api/v1/device/code" && req.method === "POST") {
     const deviceCode = `device-${randomUUID()}`;
     state.deviceCodes.set(deviceCode, {
       email: "cli@example.com",
@@ -383,27 +306,6 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (pathname === "/api/v1/auth/device/token" && req.method === "POST") {
-    if (config.legacyDeviceOnly) {
-      return json(res, 404, { message: "Use legacy device endpoint" });
-    }
-    const body = await parseBody(req);
-    const record = state.deviceCodes.get(body.device_code);
-
-    if (!record) {
-      return json(res, 400, { error: "invalid_device_code" });
-    }
-
-    if (record.pollsRemaining > 0) {
-      record.pollsRemaining -= 1;
-      return json(res, 200, { error: "authorization_pending" });
-    }
-
-    const user = ensureUser(record.email);
-    state.deviceCodes.delete(body.device_code);
-    return json(res, 200, issueTokens(user));
-  }
-
-  if (pathname === "/api/v1/device/token" && req.method === "POST") {
     const body = await parseBody(req);
     const record = state.deviceCodes.get(body.device_code);
 

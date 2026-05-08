@@ -24,7 +24,6 @@ interface ModelListOptions {
   baseUrl?: string;
   apiKey?: string;
   apiKeyStdin?: boolean;
-  machine?: boolean;
   nonInteractive?: boolean;
   format?: MachineOutputFormat;
   output?: string;
@@ -79,7 +78,6 @@ const resolveToken = async (options: ModelListOptions, deps: ModelsDeps, baseUrl
     const core = await import("@cloudeval/core");
     return await core.getAuthToken({
       baseUrl,
-      allowMachineAuth: !!options.machine,
     });
   } catch {
     return undefined;

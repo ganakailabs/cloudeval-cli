@@ -80,7 +80,7 @@ cloudeval mcp setup cursor --dry-run --toolset billing --format json</code></pre
       <ul>
         <li>Tools: <code>capabilities_get</code>, <code>projects_list</code>, <code>projects_get</code>, <code>projects_export_diagram</code>, <code>ask</code>, <code>reports_list</code>, <code>reports_run</code>, <code>reports_download</code>, <code>billing_summary</code>, <code>billing_usage</code>, <code>billing_ledger</code>, and <code>open_url</code>.</li>
         <li>Compatibility: legacy dotted tool calls still work as aliases, but MCP clients should use underscore names.</li>
-        <li>Auth: use <code>cloudeval login</code>, <code>cloudeval login --headless</code>, or <code>--machine</code>.</li>
+        <li>Auth: use <code>cloudeval login</code>, <code>cloudeval login --headless</code>, or <code>CLOUDEVAL_API_KEY</code>/<code>--api-key</code> for automation.</li>
         <li>Transport: newline-delimited stdio JSON-RPC for modern clients, with legacy <code>Content-Length</code> framing accepted. Protocol messages use stdout; server diagnostics use stderr.</li>
       </ul>
       <p><a href="https://github.com/ganakailabs/cloudeval-cli/releases/latest">Latest release</a></p>

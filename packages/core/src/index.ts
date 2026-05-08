@@ -10,7 +10,6 @@ export * from "@cloudeval/shared";
 export {
   getProjects,
   getCLIHeaders,
-  getBackendClientId,
   normalizeApiBase,
   type Project,
 } from "./auth";

@@ -124,7 +124,6 @@ interface ServeMcpOptions {
   frontendUrl?: string;
   profile?: string;
   apiKey?: string;
-  machine?: boolean;
   verbose?: boolean;
   toolset?: McpToolsetName;
 }
@@ -136,7 +135,6 @@ interface InvocationConfig {
   defaultProjectId?: string;
   model?: string;
   apiKey?: string;
-  machine: boolean;
 }
 
 type ReportRunType = "cost" | "waf" | "architecture" | "unit-tests" | "all";
@@ -195,11 +193,6 @@ const commonToolProperties = {
     type: "string",
     description:
       "Optional API key for this call. Prefer MCP client env configuration or stored `cloudeval login` credentials.",
-  },
-  machine: {
-    type: "boolean",
-    description:
-      "Allow service-principal machine authentication from environment credentials.",
   },
 };
 
@@ -992,7 +985,6 @@ const resolveInvocationConfig = async (
     defaultProjectId: config.defaultProjectId,
     model: stringValue(args.model) ?? config.model,
     apiKey: stringValue(args.apiKey) ?? serverOptions.apiKey,
-    machine: booleanValue(args.machine) ?? Boolean(serverOptions.machine),
   };
 };
 
@@ -1041,11 +1033,10 @@ const resolveAuth = async (
     token = await core.getAuthToken({
       apiKey: config.apiKey,
       baseUrl: config.baseUrl,
-      allowMachineAuth: config.machine,
     });
   } catch (error: any) {
     throw new Error(
-      `${error?.message ?? "Authentication failed"} MCP stdio cannot run browser or stdin login flows; run 'cloudeval login' first or configure CLOUDEVAL_API_KEY / --api-key / --machine.`,
+      `${error?.message ?? "Authentication failed"} MCP stdio cannot run browser or stdin login flows; run 'cloudeval login' first or configure CLOUDEVAL_API_KEY / --api-key.`,
     );
   }
   const status = await core.checkUserStatus(config.baseUrl, token);
@@ -2096,7 +2087,7 @@ export const serveMcpServer = async (
             version: CLI_VERSION,
           },
           instructions:
-            "Use CloudEval tools for project-aware cloud evaluation, reports, billing usage, one-shot asks, and frontend deep links. Authentication comes from stored `cloudeval login` credentials, CLOUDEVAL_API_KEY, --api-key, or --machine environment credentials.",
+            "Use CloudEval tools for project-aware cloud evaluation, reports, billing usage, one-shot asks, and frontend deep links. Authentication comes from stored `cloudeval login` credentials, CLOUDEVAL_API_KEY, or --api-key.",
         });
       }
       if (request.method === "ping") {
@@ -2438,7 +2429,6 @@ export const registerMcpCommand = (
       "API key (prefer MCP client env or stored login)",
       process.env.CLOUDEVAL_API_KEY,
     )
-    .option("--machine", "Allow machine credential fallback", false)
     .option(
       "--toolset <name>",
       `Expose a focused MCP toolset: ${MCP_TOOLSET_NAMES.join(", ")}`,
@@ -2456,7 +2446,6 @@ export const registerMcpCommand = (
         frontendUrl: options.frontendUrl,
         profile: normalizeConfigProfile(command.optsWithGlobals?.().profile),
         apiKey: stringValue(options.apiKey),
-        machine: Boolean(options.machine),
         toolset: normalizeMcpToolset(options.toolset),
         verbose: Boolean(options.verbose),
       });

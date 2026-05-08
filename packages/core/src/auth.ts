@@ -1,16 +1,8 @@
 import fs from "node:fs";
-import http from "node:http";
 import os from "node:os";
 import path from "node:path";
-import { createHash, randomBytes } from "node:crypto";
 import { execFileSync, spawn, spawnSync } from "node:child_process";
 
-const DEFAULT_BACKEND_CLIENT_ID = "REMOVED_AZURE_CLIENT_ID";
-const DEFAULT_BACKEND_TENANT_ID = "REMOVED_AZURE_TENANT_ID";
-const DEFAULT_BACKEND_SCOPE =
-  "api://REMOVED_AZURE_CLIENT_ID/access_as_user offline_access";
-const DEFAULT_BACKEND_DEFAULT_SCOPE =
-  "api://REMOVED_AZURE_CLIENT_ID/.default";
 const DEFAULT_BASE_URL = "https://cloudeval.ai/api/proxy/v1";
 const DEFAULT_FRONTEND_URL = "https://cloudeval.ai";
 const TOKEN_EXPIRY_SKEW_MS = 120_000;
@@ -24,56 +16,9 @@ const REFRESH_LOCK_STALE_MS = 30_000;
 const KEYCHAIN_SERVICE = "cloudeval-cli";
 const KEYCHAIN_LABEL = "Cloudeval CLI";
 
-export const getBackendClientId = () =>
-  process.env.CLOUDEVAL_BACKEND_CLIENT_ID ?? DEFAULT_BACKEND_CLIENT_ID;
-const getBackendTenantId = () =>
-  process.env.CLOUDEVAL_BACKEND_TENANT_ID ?? DEFAULT_BACKEND_TENANT_ID;
-
-const requireBackendAuthConfig = () => {
-  const clientId = getBackendClientId();
-  const tenantId = getBackendTenantId();
-  if (!clientId || !tenantId) {
-    throw new Error(
-      "Missing backend auth config. Set CLOUDEVAL_BACKEND_CLIENT_ID and CLOUDEVAL_BACKEND_TENANT_ID."
-    );
-  }
-  return { clientId, tenantId };
-};
-
-const defaultBackendScopeForClient = (clientId: string) =>
-  clientId === DEFAULT_BACKEND_CLIENT_ID
-    ? DEFAULT_BACKEND_SCOPE
-    : `api://${clientId}/access_as_user offline_access`;
-
-const defaultBackendDefaultScopeForClient = (clientId: string) =>
-  clientId === DEFAULT_BACKEND_CLIENT_ID
-    ? DEFAULT_BACKEND_DEFAULT_SCOPE
-    : `api://${clientId}/.default`;
-
-const getBackendScope = (clientId: string) =>
-  process.env.CLOUDEVAL_BACKEND_SCOPE ?? defaultBackendScopeForClient(clientId);
-
-const getBackendDefaultScope = (clientId: string) =>
-  process.env.CLOUDEVAL_BACKEND_DEFAULT_SCOPE ??
-  defaultBackendDefaultScopeForClient(clientId);
-
-const resolveDefaultScope = () => {
-  const clientId = getBackendClientId();
-  return clientId ? getBackendDefaultScope(clientId) : undefined;
-};
-
-interface AzureAuthConfig {
-  clientId?: string;
-  clientSecret?: string;
-  tenantId?: string;
-  scope?: string;
-}
-
 interface AuthOptions {
   apiKey?: string;
-  azure?: AzureAuthConfig;
   baseUrl?: string;
-  allowMachineAuth?: boolean;
 }
 
 interface LogoutOptions {
@@ -124,15 +69,8 @@ interface DeviceTokenResponse extends TokenResponse {
 }
 
 interface DeviceCodeLoginOptions {
-  allowDirectAzureFallback?: boolean;
   openInBrowser?: boolean;
   browserOpener?: (url: string) => boolean;
-}
-
-interface CliLoginStartResponse {
-  authorization_url?: string;
-  auth_url?: string;
-  url?: string;
 }
 
 interface UserStatus {
@@ -225,13 +163,6 @@ const configDir = path.join(os.homedir(), ".config", "cloudeval");
 const configPath = path.join(configDir, "config.json");
 const secretFilePath = path.join(configDir, "secrets.json");
 const refreshLockPath = path.join(configDir, "refresh.lock");
-
-const base64Url = (input: Buffer) =>
-  input
-    .toString("base64")
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/g, "");
 
 const commandExists = (cmd: string): boolean => {
   const whichCmd = process.platform === "win32" ? "where" : "which";
@@ -903,95 +834,6 @@ const openBrowser = (url: string): boolean => {
   }
 };
 
-const createPkceVerifier = (): string => base64Url(randomBytes(48));
-const createPkceChallenge = (verifier: string): string =>
-  base64Url(createHash("sha256").update(verifier).digest());
-
-const createOpaqueState = (): string => base64Url(randomBytes(24));
-
-const createLoopbackCallback = async (state: string) => {
-  const server = http.createServer();
-
-  const codePromise = new Promise<string>((resolve, reject) => {
-    const timeout = setTimeout(() => {
-      reject(new Error("Authentication timeout waiting for browser callback."));
-      try {
-        server.close();
-      } catch {
-        // no-op
-      }
-    }, 180_000);
-
-    server.on("request", (req, res) => {
-      const requestUrl = new URL(req.url || "/", "http://127.0.0.1");
-
-      if (requestUrl.pathname !== "/callback") {
-        res.statusCode = 404;
-        res.end("Not found");
-        return;
-      }
-
-      const receivedState = requestUrl.searchParams.get("state") || "";
-      const code = requestUrl.searchParams.get("code");
-      const error = requestUrl.searchParams.get("error");
-      const errorDescription =
-        requestUrl.searchParams.get("error_description") || "Authentication failed";
-
-      if (error) {
-        res.statusCode = 400;
-        res.end("Authentication failed. You can close this tab.");
-        clearTimeout(timeout);
-        reject(new Error(`${error}: ${errorDescription}`));
-        server.close();
-        return;
-      }
-
-      if (!code || receivedState !== state) {
-        res.statusCode = 400;
-        res.end("Invalid authentication response. You can close this tab.");
-        clearTimeout(timeout);
-        reject(new Error("State mismatch during browser authentication."));
-        server.close();
-        return;
-      }
-
-      res.statusCode = 200;
-      res.setHeader("Content-Type", "text/html; charset=utf-8");
-      res.end(
-        "<html><body><h3>Authentication complete.</h3><p>You can return to the CLI.</p></body></html>"
-      );
-      clearTimeout(timeout);
-      resolve(code);
-      server.close();
-    });
-  });
-
-  await new Promise<void>((resolve, reject) => {
-    server.once("error", reject);
-    server.listen(0, "127.0.0.1", () => resolve());
-  });
-
-  const address = server.address();
-  if (!address || typeof address === "string") {
-    throw new Error("Failed to start local callback server for authentication.");
-  }
-
-  const redirectUri = `http://127.0.0.1:${address.port}/callback`;
-
-  return {
-    redirectUri,
-    codePromise,
-    close: () =>
-      new Promise<void>((resolve) => {
-        try {
-          server.close(() => resolve());
-        } catch {
-          resolve();
-        }
-      }),
-  };
-};
-
 // Project interface matching frontend
 export interface Project {
   id: string;
@@ -1146,78 +988,6 @@ export const ensureDefaultProject = async (
     typeof user === "string" ? { id: user } : user
   );
 
-const azureEnvConfig = (): AzureAuthConfig => ({
-  clientId: process.env.AZURE_AD_CLIENT_ID ?? process.env.AZURE_CLIENT_ID,
-  clientSecret:
-    process.env.AZURE_AD_CLIENT_SECRET ?? process.env.AZURE_CLIENT_SECRET,
-  tenantId: process.env.AZURE_AD_TENANT_ID ?? process.env.AZURE_TENANT_ID,
-  scope:
-    process.env.AZURE_AD_SCOPE ??
-    process.env.AZURE_SCOPE ??
-    resolveDefaultScope(),
-});
-
-const isAzureConfigured = (cfg: AzureAuthConfig) =>
-  !!(cfg.clientId && cfg.clientSecret && cfg.tenantId);
-
-const fetchAzureToken = async (cfg: AzureAuthConfig): Promise<string> => {
-  const { clientId, clientSecret, tenantId, scope } = cfg;
-  if (!clientId || !clientSecret || !tenantId) {
-    throw new Error(
-      "Missing Azure AD config (AZURE_AD_CLIENT_ID/SECRET/TENANT_ID)"
-    );
-  }
-
-  const resolvedScope = scope ?? resolveDefaultScope();
-  if (!resolvedScope) {
-    throw new Error(
-      "Missing Azure AD scope. Set AZURE_AD_SCOPE/AZURE_SCOPE or CLOUDEVAL_BACKEND_CLIENT_ID/CLOUDEVAL_BACKEND_DEFAULT_SCOPE."
-    );
-  }
-
-  const tokenEndpoint = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`;
-  const body = new URLSearchParams({
-    grant_type: "client_credentials",
-    client_id: clientId,
-    client_secret: clientSecret,
-    scope: resolvedScope,
-  });
-
-  const res = await fetch(tokenEndpoint, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: body.toString(),
-  });
-
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Azure AD token request failed: ${res.status} ${text}`);
-  }
-
-  const json = (await res.json()) as { access_token: string; expires_in: number };
-  if (!json.access_token) {
-    throw new Error("Azure AD token response missing access_token");
-  }
-
-  setCachedToken(json.access_token, json.expires_in);
-  return json.access_token;
-};
-
-const getAzurePublicClientConfig = () => {
-  const { clientId, tenantId } = requireBackendAuthConfig();
-  return {
-    clientId,
-    tenantId,
-    scope: getBackendScope(clientId),
-  };
-};
-
-const getAzureTokenEndpoint = (tenantId: string) =>
-  `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`;
-
-const shouldUseDirectAzureFallback = (status?: number): boolean =>
-  status === 401 || status === 403 || status === 404 || status === 405;
-
 const readResponseDetail = async (response: Response): Promise<string | undefined> => {
   try {
     const raw = await response.text();
@@ -1245,267 +1015,6 @@ const readResponseDetail = async (response: Response): Promise<string | undefine
   }
 };
 
-const buildAzureAuthorizeUrl = (options: {
-  tenantId: string;
-  clientId: string;
-  scope: string;
-  redirectUri: string;
-  codeChallenge: string;
-  state: string;
-}) => {
-  const url = new URL(
-    `https://login.microsoftonline.com/${options.tenantId}/oauth2/v2.0/authorize`
-  );
-  url.searchParams.set("client_id", options.clientId);
-  url.searchParams.set("response_type", "code");
-  url.searchParams.set("redirect_uri", options.redirectUri);
-  url.searchParams.set("response_mode", "query");
-  url.searchParams.set("scope", options.scope);
-  url.searchParams.set("code_challenge", options.codeChallenge);
-  url.searchParams.set("code_challenge_method", "S256");
-  url.searchParams.set("state", options.state);
-  return url.toString();
-};
-
-const exchangeAzureAuthCode = async (options: {
-  tenantId: string;
-  clientId: string;
-  scope: string;
-  code: string;
-  redirectUri: string;
-  codeVerifier: string;
-}): Promise<TokenResponse> => {
-  const response = await fetch(getAzureTokenEndpoint(options.tenantId), {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      grant_type: "authorization_code",
-      client_id: options.clientId,
-      code: options.code,
-      redirect_uri: options.redirectUri,
-      code_verifier: options.codeVerifier,
-      scope: options.scope,
-    }).toString(),
-  });
-
-  if (!response.ok) {
-    const detail = await readResponseDetail(response);
-    throw new Error(
-      `Azure AD auth code exchange failed: ${response.status}${
-        detail ? ` - ${detail}` : ""
-      }`
-    );
-  }
-
-  return (await response.json()) as TokenResponse;
-};
-
-const loginWithDirectAzurePkceBrowser = async (baseUrl?: string): Promise<string> => {
-  const apiBase = normalizeApiBase(baseUrl);
-  const { clientId, tenantId, scope } = getAzurePublicClientConfig();
-  const state = createOpaqueState();
-  const codeVerifier = createPkceVerifier();
-  const codeChallenge = createPkceChallenge(codeVerifier);
-  const { redirectUri, codePromise, close } = await createLoopbackCallback(state);
-
-  try {
-    const authorizationUrl = buildAzureAuthorizeUrl({
-      tenantId,
-      clientId,
-      scope,
-      redirectUri,
-      codeChallenge,
-      state,
-    });
-
-    console.log("\nOpening browser for authentication...");
-    if (!openBrowser(authorizationUrl)) {
-      console.log("Could not open browser automatically. Open this URL manually:");
-      console.log(`  ${authorizationUrl}`);
-    }
-
-    const code = await codePromise;
-    const tokenData = await exchangeAzureAuthCode({
-      tenantId,
-      clientId,
-      scope,
-      code,
-      redirectUri,
-      codeVerifier,
-    });
-
-    if (!tokenData.access_token) {
-      throw new Error("Azure AD token response missing access_token");
-    }
-
-    return persistAuthTokens(tokenData, { baseUrl: apiBase });
-  } finally {
-    await close();
-  }
-};
-
-const requestAzureDeviceCode = async (): Promise<DeviceCodeResponse> => {
-  const { clientId, tenantId, scope } = getAzurePublicClientConfig();
-  const response = await fetch(
-    `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/devicecode`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        client_id: clientId,
-        scope,
-      }).toString(),
-    }
-  );
-
-  if (!response.ok) {
-    const detail = await readResponseDetail(response);
-    throw new Error(
-      `Azure AD device-code login failed: ${response.status}${
-        detail ? ` - ${detail}` : ""
-      }`
-    );
-  }
-
-  return (await response.json()) as DeviceCodeResponse;
-};
-
-const loginWithDirectAzureDeviceCode = async (baseUrl?: string): Promise<string> => {
-  const apiBase = normalizeApiBase(baseUrl);
-  const deviceCodeData = await requestAzureDeviceCode();
-  const { clientId, tenantId } = getAzurePublicClientConfig();
-
-  console.log("\nTo sign in, use a web browser to open:");
-  console.log(`  ${deviceCodeData.verification_uri}`);
-  console.log(`\nEnter code: ${deviceCodeData.user_code}\n`);
-  console.log("Waiting for authentication...");
-  process.stdout.write("  ");
-
-  const expiresAt = now() + deviceCodeData.expires_in * 1000;
-  let intervalMs = Math.max(1, deviceCodeData.interval || 5) * 1000;
-
-  while (now() < expiresAt) {
-    await new Promise((resolve) => setTimeout(resolve, intervalMs));
-
-    const response = await fetch(getAzureTokenEndpoint(tenantId), {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        grant_type: "urn:ietf:params:oauth:grant-type:device_code",
-        client_id: clientId,
-        device_code: deviceCodeData.device_code,
-      }).toString(),
-    });
-
-    const tokenData = (await response.json()) as DeviceTokenResponse;
-
-    if (response.ok && tokenData.access_token) {
-      const accessToken = persistAuthTokens(tokenData, { baseUrl: apiBase });
-      console.log("\nAuthentication successful. Session saved.\n");
-      return accessToken;
-    }
-
-    if (tokenData.error === "authorization_pending") {
-      process.stdout.write(".");
-      continue;
-    }
-
-    if (tokenData.error === "slow_down") {
-      intervalMs += 5000;
-      continue;
-    }
-
-    if (tokenData.error) {
-      throw new Error(tokenData.error);
-    }
-  }
-
-  throw new Error("Authentication timeout. Please try again.");
-};
-
-const loginWithPkceBrowser = async (
-  baseUrl?: string,
-  options: { browserOpener?: (url: string) => boolean } = {}
-): Promise<string> => {
-  const apiBase = normalizeApiBase(baseUrl);
-  const authBase = resolveAuthBootstrapBase(apiBase);
-  const clientId = getCLIClientId();
-  const state = createOpaqueState();
-  const codeVerifier = createPkceVerifier();
-  const codeChallenge = createPkceChallenge(codeVerifier);
-
-  const { redirectUri, codePromise, close } = await createLoopbackCallback(state);
-
-  try {
-    const startResponse = await fetch(`${authBase}/auth/cli/login/start`, {
-      method: "POST",
-      headers: getCLIHeaders(),
-      body: JSON.stringify({
-        client_id: clientId,
-        redirect_uri: redirectUri,
-        code_challenge: codeChallenge,
-        code_challenge_method: "S256",
-        state,
-      }),
-    });
-
-    if (!startResponse.ok) {
-      if (shouldUseDirectAzureFallback(startResponse.status)) {
-        throw new Error(
-          `Backend browser login bootstrap unavailable: ${startResponse.status} ${startResponse.statusText}`
-        );
-      }
-      throw new Error(
-        `Failed to initiate browser login: ${startResponse.status} ${startResponse.statusText}`
-      );
-    }
-
-    const startData = (await startResponse.json()) as CliLoginStartResponse;
-    const authorizationUrl =
-      startData.authorization_url || startData.auth_url || startData.url;
-
-    if (!authorizationUrl) {
-      throw new Error("Browser login start response did not include authorization URL.");
-    }
-
-    const browserOpener = options.browserOpener ?? openBrowser;
-    console.log("\nOpening browser for authentication...");
-    if (!browserOpener(authorizationUrl)) {
-      console.log("Could not open browser automatically. Open this URL manually:");
-      console.log(`  ${authorizationUrl}`);
-    }
-
-    const code = await codePromise;
-
-    const tokenResponse = await fetch(`${authBase}/auth/token`, {
-      method: "POST",
-      headers: getCLIHeaders(),
-      body: JSON.stringify({
-        grant_type: "authorization_code",
-        client_id: clientId,
-        code,
-        code_verifier: codeVerifier,
-        redirect_uri: redirectUri,
-        state,
-      }),
-    });
-
-    if (!tokenResponse.ok) {
-      const text = await tokenResponse.text();
-      throw new Error(`Failed to exchange auth code: ${tokenResponse.status} ${text}`);
-    }
-
-    const tokenData = (await tokenResponse.json()) as TokenResponse;
-    if (!tokenData.access_token) {
-      throw new Error("Token response missing access_token");
-    }
-
-    return persistAuthTokens(tokenData, { baseUrl: apiBase });
-  } finally {
-    await close();
-  }
-};
-
 // Device Code Flow for user authentication
 export const loginWithDeviceCode = async (
   baseUrl?: string,
@@ -1515,7 +1024,7 @@ export const loginWithDeviceCode = async (
   const authBase = resolveAuthBootstrapBase(apiBase);
   const clientId = getCLIClientId();
 
-  const requestBody = JSON.stringify({ client_id: getCLIClientId() });
+  const requestBody = JSON.stringify({ client_id: clientId });
 
   const deviceCodeResponse = await fetch(`${authBase}/auth/device/code`, {
     method: "POST",
@@ -1525,23 +1034,6 @@ export const loginWithDeviceCode = async (
 
   if (!deviceCodeResponse.ok) {
     const statusInfo = `${deviceCodeResponse.status} ${deviceCodeResponse.statusText}`;
-
-    if (deviceCodeResponse.status === 404) {
-      // Backward compatibility with existing endpoint path.
-      return loginWithLegacyDeviceEndpoints(authBase, clientId, requestBody, {
-        ...options,
-        persistBaseUrl: apiBase,
-      });
-    }
-
-    if (
-      options.allowDirectAzureFallback !== false &&
-      shouldUseDirectAzureFallback(deviceCodeResponse.status)
-    ) {
-      console.warn("Backend device-code login unavailable. Falling back to direct Azure AD device flow.");
-      return loginWithDirectAzureDeviceCode(baseUrl);
-    }
-
     let errorMessage = `Failed to initiate login: ${statusInfo}`;
     const detail = await readResponseDetail(deviceCodeResponse);
     if (detail) {
@@ -1557,37 +1049,11 @@ export const loginWithDeviceCode = async (
   });
 };
 
-const loginWithLegacyDeviceEndpoints = async (
-  apiBase: string,
-  clientId: string,
-  requestBody: string,
-  options: DeviceCodeLoginOptions & { persistBaseUrl?: string } = {}
-): Promise<string> => {
-  const deviceCodeResponse = await fetch(`${apiBase}/device/code`, {
-    method: "POST",
-    headers: getCLIHeaders(),
-    body: requestBody,
-  });
-
-  if (!deviceCodeResponse.ok) {
-    const statusInfo = `${deviceCodeResponse.status} ${deviceCodeResponse.statusText}`;
-    throw new Error(`Failed to initiate login: ${statusInfo}`);
-  }
-
-  return pollDeviceCodeAndPersist(apiBase, clientId, deviceCodeResponse, {
-    useLegacyEndpoints: true,
-    openInBrowser: options.openInBrowser,
-    browserOpener: options.browserOpener,
-    persistBaseUrl: options.persistBaseUrl,
-  });
-};
-
 const pollDeviceCodeAndPersist = async (
   apiBase: string,
   clientId: string,
   deviceCodeResponse: Response,
   options: {
-    useLegacyEndpoints?: boolean;
     openInBrowser?: boolean;
     browserOpener?: (url: string) => boolean;
     persistBaseUrl?: string;
@@ -1620,14 +1086,11 @@ const pollDeviceCodeAndPersist = async (
   const startTime = now();
   const expiresAt = startTime + deviceCodeData.expires_in * 1000;
   let intervalMs = Math.max(1, deviceCodeData.interval || 5) * 1000;
-  const tokenPath = options.useLegacyEndpoints
-    ? "/device/token"
-    : "/auth/device/token";
 
   while (now() < expiresAt) {
     await new Promise((resolve) => setTimeout(resolve, intervalMs));
 
-    const tokenResponse = await fetch(`${apiBase}${tokenPath}`, {
+    const tokenResponse = await fetch(`${apiBase}/auth/device/token`, {
       method: "POST",
       headers: getCLIHeaders(),
       body: JSON.stringify({
@@ -1668,58 +1131,10 @@ export const login = async (
   baseUrl?: string,
   options: LoginOptions = {}
 ): Promise<string> => {
-  if (options.headless) {
-    return loginWithDeviceCode(baseUrl, {
-      allowDirectAzureFallback: true,
-    });
-  }
-
-  try {
-    return await loginWithDeviceCode(baseUrl, {
-      allowDirectAzureFallback: false,
-      openInBrowser: true,
-      browserOpener: options.browserOpener,
-    });
-  } catch (error: any) {
-    const message = String(error?.message || "");
-    const shouldFallback =
-      message.includes("Failed to initiate login: 401") ||
-      message.includes("Failed to initiate login: 403") ||
-      message.includes("Failed to initiate login: 404") ||
-      message.includes("Failed to initiate login: 405") ||
-      message.includes("verification_uri");
-
-    if (!shouldFallback) {
-      throw error;
-    }
-
-    try {
-      console.warn(
-        "Browser-assisted device login unavailable. Falling back to backend PKCE login."
-      );
-      return await loginWithPkceBrowser(baseUrl, {
-        browserOpener: options.browserOpener,
-      });
-    } catch (pkceError: any) {
-      const pkceMessage = String(pkceError?.message || "");
-      const shouldFallbackToAzure =
-        pkceMessage.includes("Backend browser login bootstrap unavailable") ||
-        pkceMessage.includes("Failed to initiate browser login: 401") ||
-        pkceMessage.includes("Failed to initiate browser login: 403") ||
-        pkceMessage.includes("Failed to initiate browser login: 404") ||
-        pkceMessage.includes("Failed to initiate browser login: 405") ||
-        pkceMessage.includes("authorization URL");
-
-      if (!shouldFallbackToAzure) {
-        throw pkceError;
-      }
-
-      console.warn(
-        "Backend browser PKCE login unavailable. Falling back to direct Azure AD PKCE."
-      );
-      return loginWithDirectAzurePkceBrowser(baseUrl);
-    }
-  }
+  return loginWithDeviceCode(baseUrl, {
+    openInBrowser: !options.headless,
+    browserOpener: options.browserOpener,
+  });
 };
 
 const refreshViaBackend = async (
@@ -1756,30 +1171,6 @@ const refreshViaBackend = async (
   return (await response.json()) as TokenResponse;
 };
 
-const refreshViaAzure = async (refreshToken: string): Promise<TokenResponse> => {
-  const { clientId, tenantId } = requireBackendAuthConfig();
-  const backendScope = getBackendScope(clientId);
-  const tokenUrl = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`;
-
-  const response = await fetch(tokenUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      grant_type: "refresh_token",
-      client_id: clientId,
-      refresh_token: refreshToken,
-      scope: backendScope,
-    }).toString(),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(errorText || "Token refresh failed");
-  }
-
-  return (await response.json()) as TokenResponse;
-};
-
 const refreshAuthToken = async (
   refreshToken: string,
   baseUrl?: string
@@ -1789,7 +1180,9 @@ const refreshAuthToken = async (
   if (backendResponse) {
     return backendResponse;
   }
-  return refreshViaAzure(refreshToken);
+  throw new Error(
+    "Token refresh unavailable from CloudEval backend. Run 'cloudeval login' and retry."
+  );
 };
 
 const waitForConcurrentRefreshToken = async (
@@ -2227,15 +1620,8 @@ export const getAuthToken = async (options: AuthOptions = {}): Promise<string> =
     }
   }
 
-  if (options.allowMachineAuth) {
-    const azureCfg = { ...azureEnvConfig(), ...(options.azure ?? {}) };
-    if (isAzureConfigured(azureCfg)) {
-      return fetchAzureToken(azureCfg);
-    }
-  }
-
   const loginHint =
-    "No authentication available. Run 'cloudeval login' to authenticate. For machine auth, provide --machine with service credentials or use --api-key-stdin.";
+    "No authentication available. Run 'cloudeval login' to authenticate or use --api-key-stdin for automation.";
   if (refreshError) {
     throw new Error(`${loginHint} Stored refresh failed: ${errorMessage(refreshError)}`);
   }

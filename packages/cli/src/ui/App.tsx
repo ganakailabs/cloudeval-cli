@@ -110,7 +110,6 @@ import { shouldEnableTuiAnimations } from "./animationPolicy.js";
 export interface AppProps {
   baseUrl: string;
   apiKey?: string;
-  allowMachineAuth?: boolean;
   conversationId?: string;
   model?: string;
   initialTab?: string;
@@ -878,7 +877,6 @@ const HitlPanel: React.FC<{
 export const App: React.FC<AppProps> = ({
   baseUrl,
   apiKey,
-  allowMachineAuth = false,
   conversationId,
   model,
   initialTab,
@@ -1160,15 +1158,13 @@ export const App: React.FC<AppProps> = ({
       let token: string | undefined = authToken ?? apiKey;
       if (!token) {
         try {
-          token = await getAuthToken({ apiKey, baseUrl, allowMachineAuth });
+          token = await getAuthToken({ apiKey, baseUrl });
           if (cancelled) return;
           setAuthToken(token);
         } catch (error: any) {
           // If no API key and no stored token, automatically trigger login
           if (
-            !apiKey &&
-            !allowMachineAuth &&
-            error?.message?.includes("No authentication available")
+            !apiKey && error?.message?.includes("No authentication available")
           ) {
             setIsLoggingIn(true);
             setLoaderStep(1);
@@ -1200,7 +1196,7 @@ export const App: React.FC<AppProps> = ({
       }
 
       // Extract userName from token
-      if (token && !apiKey && !allowMachineAuth) {
+      if (token && !apiKey) {
         getUserNameFromToken(token).then(setUserName).catch(() => {
           // Fallback to default if extraction fails
           setUserName("You");
@@ -1209,7 +1205,7 @@ export const App: React.FC<AppProps> = ({
 
       // Step 1.5: Check onboarding status and fetch projects.
       // Dashboard-style tabs need a backend user id even when the token came
-      // from API-key or machine auth paths.
+      // from an API-key auth path.
       if (
         token &&
         shouldHydrateAuthenticatedWorkspace({
@@ -1225,7 +1221,7 @@ export const App: React.FC<AppProps> = ({
             setSelectedProject(defaultProject);
             setSelectingProject(false);
           }
-          if (!apiKey && !allowMachineAuth && !userStatus.onboardingCompleted) {
+          if (!apiKey && !userStatus.onboardingCompleted) {
             setNeedsOnboarding(true);
             setPhase("ready"); // Show onboarding UI
             setCheckingOnboarding(false);
@@ -1295,7 +1291,6 @@ export const App: React.FC<AppProps> = ({
     checkHealth,
     baseUrl,
     apiKey,
-    allowMachineAuth,
     skipHealthCheck,
     apiBase,
   ]);
@@ -1836,7 +1831,7 @@ export const App: React.FC<AppProps> = ({
     let token = authToken ?? apiKey;
     if (!token) {
       try {
-        token = await getAuthToken({ apiKey, baseUrl, allowMachineAuth });
+        token = await getAuthToken({ apiKey, baseUrl });
         setAuthToken(token);
       } catch (error: any) {
         setChatState((prev) => ({

@@ -7,13 +7,20 @@ BASE_URL="${CLOUDEVAL_SMOKE_BASE_URL:-https://cloudeval.ai/api/proxy/v1}"
 HEALTH_URL="${CLOUDEVAL_SMOKE_HEALTH_URL:-https://cloudeval.ai/api/proxy/v1/health}"
 INSTALLER_URL="${CLOUDEVAL_SMOKE_INSTALLER_URL:-https://cli.cloudeval.ai/install.sh}"
 KEEP_DIR="${CLOUDEVAL_SMOKE_KEEP_DIR:-0}"
+ARTIFACT_ROOT="${CLOUDEVAL_SMOKE_ARTIFACT_ROOT:-${TMPDIR:-/tmp}}"
+ARTIFACT_DIR="${CLOUDEVAL_SMOKE_ARTIFACT_DIR:-}"
 
-TMP_DIR="$(mktemp -d)"
+if [ -n "$ARTIFACT_DIR" ]; then
+  TMP_DIR="$ARTIFACT_DIR"
+  mkdir -p "$TMP_DIR"
+else
+  TMP_DIR="$(mktemp -d "${ARTIFACT_ROOT%/}/cloudeval-release-smoke.XXXXXX")"
+fi
 INSTALL_HOME="$TMP_DIR/home"
 CLI_BIN=""
 
 cleanup() {
-  if [ "$KEEP_DIR" != "1" ]; then
+  if [ "$KEEP_DIR" != "1" ] && [ -z "$ARTIFACT_DIR" ]; then
     rm -rf "$TMP_DIR"
   else
     echo "Keeping smoke directory: $TMP_DIR"

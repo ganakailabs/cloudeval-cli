@@ -28,6 +28,7 @@ const capabilities = {
     "--frontend-url",
     "--base-url",
     "--profile",
+    "--show-sensitive-ids",
   ],
   exitCodes: {
     success: 0,
@@ -62,7 +63,7 @@ const capabilities = {
     prompts: mcpStatus.prompts,
     setupClients: mcpStatus.setupClients,
     auth: {
-      preferred: "stored cloudeval login credentials or MCP client env CLOUDEVAL_API_KEY",
+      preferred: "stored cloudeval login credentials",
       stdin: "MCP uses stdin for JSON-RPC, so --api-key-stdin is intentionally unavailable for mcp serve.",
     },
     tools: mcpToolNames,
@@ -98,6 +99,9 @@ Preferred agent flags:
   --profile <name>
   --print-url --no-open
   --output <file>
+
+Sensitive identifiers:
+  Account, session, and tenant identifiers are redacted by default. Use --show-sensitive-ids only in trusted local workflows.
 
 Stable JSON envelope:
   { "ok": true, "command": "...", "data": ..., "frontendUrl": "..." }

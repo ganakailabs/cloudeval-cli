@@ -1,5 +1,11 @@
 # Agent Guidance
 
+- Never inspect or quote `.cloudeval-downloads/`, `~/.config/cloudeval`,
+  `.env*`, secrets, session databases, or smoke artifacts unless the user
+  explicitly asks for that exact local data.
+- Never paste full tokens, account IDs, session IDs, tenant IDs, customer
+  emails, project report JSON, or billing ledger data. Use redacted summaries
+  for security reviews and operational debugging by default.
 - Keep public docs in sync with CLI changes. When changing command names,
   options, output shape, install/update behavior, MCP tools, MCP setup, smoke
   tests, or any other user-facing behavior, update the relevant docs in the

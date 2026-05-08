@@ -1,6 +1,8 @@
 import type { Command } from "commander";
 import { getActiveConfigProfile, getCliConfigPath, loadCliConfig } from "./cliConfig.js";
 import {
+  redactSensitiveIdentifier,
+  shouldShowSensitiveIds,
   writeFormattedOutput,
   type MachineOutputFormat,
 } from "./outputFormatter.js";
@@ -19,6 +21,7 @@ interface DiagnosticsOptions {
   format?: MachineOutputFormat;
   deep?: boolean;
   mcp?: boolean;
+  showSensitiveIds?: boolean;
 }
 
 type CheckStatus = "pass" | "warn" | "fail";
@@ -33,7 +36,9 @@ interface DoctorCheck {
 const addDiagnosticsOptions = <T extends Command>(command: T, defaultBaseUrl: string): T =>
   command
     .option("--base-url <url>", "Backend base URL", defaultBaseUrl)
-    .option("--format <format>", "Output format: text, json, ndjson, markdown", "text") as T;
+    .option("--format <format>", "Output format: text, json, ndjson, markdown", "text")
+    .option("--show-sensitive-ids", "Show full account/session identifiers in command output", false)
+    .option("-v, --verbose", "Enable verbose logging and show full non-token identifiers", false) as T;
 
 const nodeMajor = (): number => Number(process.versions.node.split(".")[0] ?? 0);
 
@@ -67,6 +72,7 @@ const formatDiagnosticStatusText = ({
   config,
   auth,
   node,
+  showSensitiveIds = shouldShowSensitiveIds(),
 }: {
   profile: string;
   baseUrl: string;
@@ -74,6 +80,7 @@ const formatDiagnosticStatusText = ({
   config: Record<string, unknown>;
   auth: Record<string, any>;
   node: string;
+  showSensitiveIds?: boolean;
 }): string => {
   const accessTokenExpiresAt = auth.accessTokenExpiresAt
     ? new Date(auth.accessTokenExpiresAt).toISOString()
@@ -98,10 +105,10 @@ const formatDiagnosticStatusText = ({
     lines.push(`Access token expires: ${accessTokenExpiresAt}`);
   }
   if (auth.sessionId) {
-    lines.push(`Session ID: ${auth.sessionId}`);
+    lines.push(`Session ID: ${showSensitiveIds ? auth.sessionId : redactSensitiveIdentifier(auth.sessionId)}`);
   }
   if (auth.accountId) {
-    lines.push(`Account ID: ${auth.accountId}`);
+    lines.push(`Account ID: ${showSensitiveIds ? auth.accountId : redactSensitiveIdentifier(auth.accountId)}`);
   }
   if (auth.baseUrl && auth.baseUrl !== baseUrl) {
     lines.push(`Stored auth URL: ${auth.baseUrl}`);
@@ -131,6 +138,7 @@ export const registerDiagnosticsCommands = (
           config: config as Record<string, unknown>,
           auth: auth as Record<string, any>,
           node: process.versions.node,
+          showSensitiveIds: options.showSensitiveIds,
         })
       );
       return;

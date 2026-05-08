@@ -57,14 +57,24 @@
   <body>
     <main>
       <h1>CloudEval CLI</h1>
-      <p>Install the CloudEval CLI with checksum-verified GitHub Release binaries.</p>
+      <p>Agent-ready terminal and MCP tooling for CloudEval projects, reports, billing, chat, and one-shot asks.</p>
       <pre><code>curl -fsSL https://cli.cloudeval.ai/install.sh | bash</code></pre>
-      <p>After install, run <code>cloudeval login</code> and <code>cloudeval chat</code>.</p>
+      <p>After install, run <code>cloudeval login</code>, <code>cloudeval status</code>, and <code>cloudeval chat</code>.</p>
+      <h2>First commands</h2>
+      <pre><code>cloudeval ask "Summarize my cloud risk" --format json
+cloudeval projects list
+cloudeval reports list
+cloudeval capabilities --format json
+cloudeval help agents</code></pre>
       <h2>Update</h2>
       <p>Check or install the latest published CLI release without reinstalling manually:</p>
       <pre><code>cloudeval update --check
 cloudeval update --yes</code></pre>
       <p>The default update output is a readable summary. Use <code>--format json</code>, <code>--format ndjson</code>, or <code>--format markdown</code> for automation.</p>
+      <h2>Sensitive output</h2>
+      <p>The CLI redacts account IDs, session IDs, tenant IDs, and sensitive URL query parameters by default. Use <code>--show-sensitive-ids</code> only for trusted local workflows that require full identifiers.</p>
+      <pre><code>cloudeval auth status
+cloudeval auth status --show-sensitive-ids</code></pre>
       <h2>MCP server for agents</h2>
       <p>Expose CloudEval to Codex, Claude Desktop, Cursor, and other MCP clients:</p>
       <pre><code>cloudeval mcp serve
@@ -80,7 +90,7 @@ cloudeval mcp setup cursor --dry-run --toolset billing --format json</code></pre
       <ul>
         <li>Tools: <code>capabilities_get</code>, <code>projects_list</code>, <code>projects_get</code>, <code>projects_export_diagram</code>, <code>ask</code>, <code>reports_list</code>, <code>reports_run</code>, <code>reports_download</code>, <code>billing_summary</code>, <code>billing_usage</code>, <code>billing_ledger</code>, and <code>open_url</code>.</li>
         <li>Compatibility: legacy dotted tool calls still work as aliases, but MCP clients should use underscore names.</li>
-        <li>Auth: use <code>cloudeval login</code>, <code>cloudeval login --headless</code>, or <code>CLOUDEVAL_API_KEY</code>/<code>--api-key</code> for automation.</li>
+        <li>Auth: run <code>cloudeval login</code> or <code>cloudeval login --headless</code> before starting the MCP server. MCP clients reuse the stored CloudEval session.</li>
         <li>Transport: newline-delimited stdio JSON-RPC for modern clients, with legacy <code>Content-Length</code> framing accepted. Protocol messages use stdout; server diagnostics use stderr.</li>
       </ul>
       <p><a href="https://github.com/ganakailabs/cloudeval-cli/releases/latest">Latest release</a></p>
@@ -88,6 +98,8 @@ cloudeval mcp setup cursor --dry-run --toolset billing --format json</code></pre
       <p>Verify the public installer and installed binary against the real CloudEval FQDN:</p>
       <pre><code>bash scripts/smoke-release-real-backend.sh</code></pre>
       <p><a href="https://github.com/ganakailabs/cloudeval-cli/blob/main/docs/release-smoke-tests.md">Smoke test coverage and runbook</a></p>
+      <h2>Security</h2>
+      <p>Run <code>pnpm security:scan</code> before publishing security-sensitive changes. See <a href="https://github.com/ganakailabs/cloudeval-cli/blob/main/SECURITY.md">SECURITY.md</a> for disclosure and local artifact guidance.</p>
     </main>
   </body>
 </html>

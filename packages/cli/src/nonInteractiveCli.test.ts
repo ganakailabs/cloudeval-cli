@@ -669,6 +669,69 @@ test("auth status is non-interactive and respects explicit base url", async () =
   }
 });
 
+test("auth status redacts stored account and session ids unless explicitly requested", async () => {
+  const backend = await startBackend();
+  const home = await fs.mkdtemp(path.join(os.tmpdir(), "cloudeval-cli-auth-status-home-"));
+  const configDir = path.join(home, ".config", "cloudeval");
+  const sessionId = "63da1973-e92a-4d2e-8d01-4d8e131b3f21";
+  const accountId = "5ed935a4-0814-4099-8b10-f6ef9ea74ff4";
+
+  try {
+    await fs.mkdir(configDir, { recursive: true });
+    await fs.writeFile(
+      path.join(configDir, "config.json"),
+      JSON.stringify(
+        {
+          tokenRef: "access-token",
+          tokenExpiresAt: Date.now() + 3_600_000,
+          baseUrl: backend.baseUrl,
+          sessionId,
+          accountId,
+        },
+        null,
+        2
+      )
+    );
+    await fs.writeFile(
+      path.join(configDir, "secrets.json"),
+      JSON.stringify({ "access-token": "test-token" }, null, 2)
+    );
+
+    const textResult = await runCli(["auth", "status", "--base-url", backend.baseUrl], { home });
+    assert.equal(textResult.exitCode, 0, textResult.stderr);
+    assert.doesNotMatch(textResult.stdout, new RegExp(sessionId));
+    assert.doesNotMatch(textResult.stdout, new RegExp(accountId));
+    assert.match(textResult.stdout, /^Session ID\s+63da\.\.\.3f21$/m);
+    assert.match(textResult.stdout, /^Account ID\s+5ed9\.\.\.4ff4$/m);
+
+    const jsonResult = parseJson(await runCli([
+      "auth",
+      "status",
+      "--base-url",
+      backend.baseUrl,
+      "--format",
+      "json",
+    ], { home }));
+    assert.equal(jsonResult.data.sessionId, "63da...3f21");
+    assert.equal(jsonResult.data.accountId, "5ed9...4ff4");
+
+    const fullJsonResult = parseJson(await runCli([
+      "auth",
+      "status",
+      "--base-url",
+      backend.baseUrl,
+      "--format",
+      "json",
+      "--show-sensitive-ids",
+    ], { home }));
+    assert.equal(fullJsonResult.data.sessionId, sessionId);
+    assert.equal(fullJsonResult.data.accountId, accountId);
+  } finally {
+    await fs.rm(home, { recursive: true, force: true });
+    await backend.close();
+  }
+});
+
 test("status human output is a readable summary instead of formatter tables", async () => {
   const backend = await startBackend();
   try {
@@ -1121,9 +1184,29 @@ test("billing and credits commands are non-interactive and JSON-safe", async () 
     ]));
     assert.equal(checkout.command, "billing topup");
     assert.equal(checkout.data.packId, "starter");
-    assert.equal(checkout.data.session.session_id, "cs_topup_1");
+    assert.equal(checkout.data.session.session_id, "cs_t...up_1");
     assert.equal(
       checkout.data.checkoutUrl,
+      "https://app.example.test/app/subscription/checkout-launcher?session_id=cs_t...up_1"
+    );
+
+    const fullCheckout = parseJson(await runCli([
+      "--show-sensitive-ids",
+      "billing",
+      "topup",
+      "starter",
+      ...common,
+      "--currency",
+      "USD",
+      "--country-code",
+      "US",
+      "--frontend-url",
+      "https://app.example.test",
+      "--no-open",
+    ]));
+    assert.equal(fullCheckout.data.session.session_id, "cs_topup_1");
+    assert.equal(
+      fullCheckout.data.checkoutUrl,
       "https://app.example.test/app/subscription/checkout-launcher?session_id=cs_topup_1"
     );
 

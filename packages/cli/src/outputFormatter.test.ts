@@ -147,3 +147,44 @@ test("formatOutput renders nested objects as named text tables", () => {
     ].join("\n")
   );
 });
+
+test("formatOutput redacts sensitive account and session identifiers by default", () => {
+  const sessionId = "63da1973-e92a-4d2e-8d01-4d8e131b3f21";
+  const accountId = "5ed935a4-0814-4099-8b10-f6ef9ea74ff4";
+  const tenantId = "11111111-2222-3333-4444-555555556666";
+  const output = formatOutput({
+    format: "json",
+    command: "auth status",
+    data: {
+      sessionId,
+      account_id: accountId,
+      nested: {
+        "Tenant ID": tenantId,
+      },
+      checkoutUrl: `https://app.example.test/checkout?session_id=${sessionId}&ok=1`,
+    },
+  });
+
+  assert.doesNotMatch(output, new RegExp(sessionId));
+  assert.doesNotMatch(output, new RegExp(accountId));
+  assert.doesNotMatch(output, new RegExp(tenantId));
+  assert.match(output, /63da\.\.\.3f21/);
+  assert.match(output, /5ed9\.\.\.4ff4/);
+  assert.match(output, /1111\.\.\.6666/);
+  assert.match(output, /session_id=63da\.\.\.3f21/);
+});
+
+test("formatOutput can show sensitive identifiers when explicitly requested", () => {
+  const sessionId = "63da1973-e92a-4d2e-8d01-4d8e131b3f21";
+  const output = formatOutput({
+    format: "json",
+    command: "auth status",
+    showSensitiveIds: true,
+    data: {
+      sessionId,
+      checkoutUrl: `https://app.example.test/checkout?session_id=${sessionId}`,
+    },
+  });
+
+  assert.match(output, new RegExp(sessionId));
+});

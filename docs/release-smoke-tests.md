@@ -66,8 +66,7 @@ The smoke script verifies:
 - `https://cloudeval.ai/api/proxy/v1/health` is reachable and either returns
   healthy JSON or the expected protected-route JSON.
 
-Authenticated smoke coverage should use a stored `cloudeval login` session or
-`CLOUDEVAL_API_KEY`/`--api-key` for automation.
+Authenticated smoke coverage should use a stored `cloudeval login` session.
 
 ## Environment Variables
 
@@ -80,10 +79,16 @@ CLOUDEVAL_SMOKE_INSTALLER_URL=https://cli.cloudeval.ai/install.sh
 CLOUDEVAL_SMOKE_BASE_URL=https://cloudeval.ai/api/proxy/v1
 CLOUDEVAL_SMOKE_HEALTH_URL=https://cloudeval.ai/api/proxy/v1/health
 CLOUDEVAL_SMOKE_KEEP_DIR=1
+CLOUDEVAL_SMOKE_ARTIFACT_ROOT=/tmp
+CLOUDEVAL_SMOKE_ARTIFACT_DIR=/tmp/cloudeval-smoke-debug
 ```
 
 `CLOUDEVAL_SMOKE_KEEP_DIR=1` preserves the downloaded binary and JSON outputs
 for inspection. Without it, the temporary smoke directory is removed on exit.
+By default smoke artifacts are created under the OS temporary directory, not the
+repository. `CLOUDEVAL_SMOKE_ARTIFACT_ROOT` changes that temporary parent.
+`CLOUDEVAL_SMOKE_ARTIFACT_DIR` uses an explicit directory and preserves it; use
+a path outside the repository for real-backend runs.
 
 ## Expected Output
 
@@ -166,7 +171,8 @@ command output, and a final summary. Every completed check emits `[PASS] <name>`
 followed by a `cli:` block and an `output:` block. JSON commands show the
 command envelope and response shape or counts, text commands show a few
 non-empty output lines, frontend deeplinks show the generated URL, and the MCP
-check shows tool/resource/prompt counts.
+check shows tool/resource/prompt counts. Sensitive IDs in command output are
+redacted by default.
 
 Example:
 
@@ -250,7 +256,7 @@ CLOUDEVAL_SMOKE_COLOR=always
 ```
 
 By default, auth-gated checks are skipped when the shell has no usable stored
-auth or API-key auth. Set `CLOUDEVAL_SMOKE_REQUIRE_AUTH=1` to fail instead.
+auth. Set `CLOUDEVAL_SMOKE_REQUIRE_AUTH=1` to fail instead.
 Color defaults to `auto`; use `CLOUDEVAL_SMOKE_COLOR=always` for CI logs or
 `CLOUDEVAL_SMOKE_COLOR=never` for plain text.
 

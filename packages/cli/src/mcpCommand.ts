@@ -1036,7 +1036,7 @@ const resolveAuth = async (
     });
   } catch (error: any) {
     throw new Error(
-      `${error?.message ?? "Authentication failed"} MCP stdio cannot run browser or stdin login flows; run 'cloudeval login' first or configure CLOUDEVAL_API_KEY / --api-key.`,
+      `${error?.message ?? "Authentication failed"} MCP stdio cannot run browser or stdin login flows; run 'cloudeval login' first.`,
     );
   }
   const status = await core.checkUserStatus(config.baseUrl, token);
@@ -2087,7 +2087,7 @@ export const serveMcpServer = async (
             version: CLI_VERSION,
           },
           instructions:
-            "Use CloudEval tools for project-aware cloud evaluation, reports, billing usage, one-shot asks, and frontend deep links. Authentication comes from stored `cloudeval login` credentials, CLOUDEVAL_API_KEY, or --api-key.",
+            "Use CloudEval tools for project-aware cloud evaluation, reports, billing usage, one-shot asks, and frontend deep links. Authentication comes from stored `cloudeval login` credentials.",
         });
       }
       if (request.method === "ping") {

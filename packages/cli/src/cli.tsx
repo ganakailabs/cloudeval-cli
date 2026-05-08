@@ -23,6 +23,7 @@ import { registerMcpCommand } from "./mcpCommand.js";
 import { maybeShowUpdateNudge, registerUpdateCommand } from "./updateCommand.js";
 import { buildFrontendUrl, openExternalUrl, resolveFrontendBaseUrl } from "./frontendLinks.js";
 import {
+  setShowSensitiveIds,
   writeFormattedOutput,
   type MachineOutputFormat,
 } from "./outputFormatter.js";
@@ -356,11 +357,13 @@ Examples:
   )
   .option("--profile <name>", "Configuration profile", process.env.CLOUDEVAL_PROFILE)
   .option("-v, --verbose", "Enable verbose logging", false)
+  .option("--show-sensitive-ids", "Show full account/session identifiers in command output", false)
   .hook("preAction", async (thisCommand, actionCommand) => {
     const opts =
       typeof actionCommand.optsWithGlobals === "function"
         ? actionCommand.optsWithGlobals()
         : thisCommand.opts();
+    setShowSensitiveIds(Boolean(opts.showSensitiveIds || opts.verbose));
     if (opts.verbose) {
       setVerbose(true);
       verboseLog("Verbose logging enabled");
@@ -446,6 +449,8 @@ authCommand
     DEFAULT_BASE_URL
   )
   .option("--format <format>", "Output format: text, json, ndjson, markdown", "text")
+  .option("--show-sensitive-ids", "Show full account/session identifiers in command output", false)
+  .option("-v, --verbose", "Enable verbose logging and show full non-token identifiers", false)
   .action(async (options, command) => {
     try {
       const { assertSecureBaseUrl, getAuthStatus } = await import("@cloudeval/core");

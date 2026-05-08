@@ -47,6 +47,8 @@
 *.token.*
 secrets/
 .cloudeval-downloads/
+cloudeval-smoke-*/
+.smoke-artifacts/
 
 # Editor-local task files can carry environment values.
 .vscode/tasks.json

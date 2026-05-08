@@ -10,7 +10,15 @@ STRICT_REPORTS="${CLOUDEVAL_SMOKE_STRICT_REPORTS:-0}"
 SHOW_RESULTS="${CLOUDEVAL_SMOKE_SHOW_RESULTS:-1}"
 RESULT_LINES="${CLOUDEVAL_SMOKE_RESULT_LINES:-6}"
 COLOR_MODE="${CLOUDEVAL_SMOKE_COLOR:-auto}"
-TMP_DIR="$(mktemp -d)"
+ARTIFACT_ROOT="${CLOUDEVAL_SMOKE_ARTIFACT_ROOT:-${TMPDIR:-/tmp}}"
+ARTIFACT_DIR="${CLOUDEVAL_SMOKE_ARTIFACT_DIR:-}"
+KEEP_DIR="${CLOUDEVAL_SMOKE_KEEP_DIR:-0}"
+if [ -n "$ARTIFACT_DIR" ]; then
+  TMP_DIR="$ARTIFACT_DIR"
+  mkdir -p "$TMP_DIR"
+else
+  TMP_DIR="$(mktemp -d "${ARTIFACT_ROOT%/}/cloudeval-readonly-smoke.XXXXXX")"
+fi
 
 PASS_COUNT=0
 SKIP_COUNT=0
@@ -27,7 +35,11 @@ BOLD=""
 RESET=""
 
 cleanup() {
-  rm -rf "$TMP_DIR"
+  if [ "$KEEP_DIR" != "1" ] && [ -z "$ARTIFACT_DIR" ]; then
+    rm -rf "$TMP_DIR"
+  else
+    printf 'Keeping smoke directory: %s\n' "$TMP_DIR"
+  fi
 }
 trap cleanup EXIT
 
@@ -605,8 +617,8 @@ need python3
 CLI="$(resolve_cli_bin)"
 
 log "CloudEval read-only CLI smoke"
-printf 'binary=%s\nbase_url=%s\nfrontend_url=%s\nrun_ask=%s\nrequire_auth=%s\n' \
-  "$CLI" "$BASE_URL" "$FRONTEND_URL" "$RUN_ASK" "$REQUIRE_AUTH"
+printf 'binary=%s\nbase_url=%s\nfrontend_url=%s\nartifacts=%s\nrun_ask=%s\nrequire_auth=%s\n' \
+  "$CLI" "$BASE_URL" "$FRONTEND_URL" "$TMP_DIR" "$RUN_ASK" "$REQUIRE_AUTH"
 
 log "Public and local read-only commands"
 run_text_contains "version" "." --version

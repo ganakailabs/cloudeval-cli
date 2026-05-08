@@ -1,5 +1,77 @@
 export type MachineOutputFormat = "text" | "json" | "ndjson" | "markdown";
 
+let showSensitiveIdsByDefault = false;
+
+const SENSITIVE_IDENTIFIER_KEYS = new Set([
+  "accountid",
+  "sessionid",
+  "tenantid",
+]);
+
+const SENSITIVE_URL_PARAM_PATTERN =
+  /([?&](?:account_id|accountId|session_id|sessionId|tenant_id|tenantId)=)([^&#\s]+)/gi;
+
+export const setShowSensitiveIds = (enabled: boolean) => {
+  showSensitiveIdsByDefault = enabled;
+};
+
+export const shouldShowSensitiveIds = (): boolean => showSensitiveIdsByDefault;
+
+const normalizeSensitiveKey = (key: string): string =>
+  key.toLowerCase().replace(/[^a-z0-9]/g, "");
+
+const isSensitiveIdentifierKey = (key: string): boolean =>
+  SENSITIVE_IDENTIFIER_KEYS.has(normalizeSensitiveKey(key));
+
+export const redactSensitiveIdentifier = (value: unknown): string => {
+  const text = String(value ?? "");
+  if (!text) {
+    return "";
+  }
+  if (text.length <= 8) {
+    return "[redacted]";
+  }
+  return `${text.slice(0, 4)}...${text.slice(-4)}`;
+};
+
+const redactSensitiveUrlParams = (value: string): string =>
+  value.replace(
+    SENSITIVE_URL_PARAM_PATTERN,
+    (_match, prefix: string, rawValue: string) =>
+      `${prefix}${redactSensitiveIdentifier(rawValue)}`
+  );
+
+export const redactSensitiveIds = <T>(
+  value: T,
+  options: { showSensitiveIds?: boolean } = {}
+): T => {
+  const showSensitiveIds = options.showSensitiveIds ?? showSensitiveIdsByDefault;
+  if (showSensitiveIds) {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => redactSensitiveIds(item, options)) as T;
+  }
+  if (value && typeof value === "object") {
+    const redacted: Record<string, unknown> = {};
+    for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
+      if (isSensitiveIdentifierKey(key)) {
+        redacted[key] =
+          item === null || item === undefined
+            ? item
+            : redactSensitiveIdentifier(item);
+      } else {
+        redacted[key] = redactSensitiveIds(item, options);
+      }
+    }
+    return redacted as T;
+  }
+  if (typeof value === "string") {
+    return redactSensitiveUrlParams(value) as T;
+  }
+  return value;
+};
+
 export interface SuccessEnvelope<T = unknown> {
   ok: true;
   command: string;
@@ -257,13 +329,17 @@ export const formatOutput = <T>(input: {
   warnings?: string[];
   filesWritten?: string[];
   traceId?: string;
+  showSensitiveIds?: boolean;
 }): string => {
   const format = input.format ?? "text";
+  const data = redactSensitiveIds(input.data, {
+    showSensitiveIds: input.showSensitiveIds,
+  });
   if (format === "json") {
     return `${JSON.stringify(
       formatSuccessEnvelope({
         command: input.command,
-        data: input.data,
+        data,
         frontendUrl: input.frontendUrl,
         warnings: input.warnings,
         filesWritten: input.filesWritten,
@@ -274,15 +350,15 @@ export const formatOutput = <T>(input: {
     )}\n`;
   }
   if (format === "ndjson") {
-    if (Array.isArray(input.data)) {
-      return input.data.map((item) => JSON.stringify(item)).join("\n") + "\n";
+    if (Array.isArray(data)) {
+      return data.map((item) => JSON.stringify(item)).join("\n") + "\n";
     }
-    return `${JSON.stringify(input.data)}\n`;
+    return `${JSON.stringify(data)}\n`;
   }
   if (format === "markdown") {
-    return `# ${input.command}\n\n\`\`\`json\n${JSON.stringify(input.data, null, 2)}\n\`\`\`\n`;
+    return `# ${input.command}\n\n\`\`\`json\n${JSON.stringify(data, null, 2)}\n\`\`\`\n`;
   }
-  return formatTextRecord(input.data);
+  return formatTextRecord(data);
 };
 
 export const writeFormattedOutput = async <T>(input: {
@@ -294,6 +370,7 @@ export const writeFormattedOutput = async <T>(input: {
   warnings?: string[];
   filesWritten?: string[];
   traceId?: string;
+  showSensitiveIds?: boolean;
 }) => {
   const text = formatOutput(input);
   if (input.output) {

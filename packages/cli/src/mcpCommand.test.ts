@@ -531,7 +531,7 @@ test("mcp tools can call authenticated CloudEval APIs without stdin credentials"
     );
 
     const absoluteOutputPath = path.join(outputDir, "dependency.svg");
-    const outputPath = path.relative(process.cwd(), absoluteOutputPath);
+    const outputPath = path.relative(packageRoot, absoluteOutputPath);
     mcp.send({
       jsonrpc: "2.0",
       id: 3,

@@ -345,7 +345,7 @@ export const cliCommands: CliCommandMetadata[] = [
     name: "login",
     description: "Authenticate with CloudEval",
     domain: "config",
-    options: ["--base-url", "--headless", "--verbose", "--profile", "--help"],
+    options: ["--base-url", "--headless", "--verbose", "--profile", "--show-sensitive-ids", "--help"],
     workflows: ["login"],
   },
   {
@@ -359,7 +359,7 @@ export const cliCommands: CliCommandMetadata[] = [
     name: "auth",
     description: "Authentication utilities",
     domain: "config",
-    options: ["status", "--base-url", "--profile", "--help"],
+    options: ["status", "--base-url", "--format", "--profile", "--show-sensitive-ids", "--verbose", "--help"],
     workflows: ["auth status"],
   },
   {
@@ -447,14 +447,14 @@ export const cliCommands: CliCommandMetadata[] = [
     name: "doctor",
     description: "Diagnose local CLI configuration and environment",
     domain: "diagnostics",
-    options: ["--base-url", "--format", "--deep", "--profile", "--help"],
+    options: ["--base-url", "--format", "--deep", "--profile", "--show-sensitive-ids", "--verbose", "--help"],
     workflows: ["doctor"],
   },
   {
     name: "status",
     description: "Show CloudEval CLI status",
     domain: "diagnostics",
-    options: ["--base-url", "--format", "--profile", "--help"],
+    options: ["--base-url", "--format", "--profile", "--show-sensitive-ids", "--verbose", "--help"],
     workflows: ["status"],
   },
   {

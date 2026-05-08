@@ -66,8 +66,8 @@ The smoke script verifies:
 - `https://cloudeval.ai/api/proxy/v1/health` is reachable and either returns
   healthy JSON or the expected protected-route JSON.
 
-If `CLOUDEVAL_SMOKE_API_KEY` is set, the script also runs an authenticated
-`credits --api-key-stdin --format json` check against the real backend.
+Authenticated smoke coverage should use a stored `cloudeval login` session or
+`--machine` in environments with service-principal credentials.
 
 ## Environment Variables
 
@@ -79,7 +79,6 @@ CLOUDEVAL_SMOKE_REPO=ganakailabs/cloudeval-cli
 CLOUDEVAL_SMOKE_INSTALLER_URL=https://cli.cloudeval.ai/install.sh
 CLOUDEVAL_SMOKE_BASE_URL=https://cloudeval.ai/api/proxy/v1
 CLOUDEVAL_SMOKE_HEALTH_URL=https://cloudeval.ai/api/proxy/v1/health
-CLOUDEVAL_SMOKE_API_KEY=<machine-api-key>
 CLOUDEVAL_SMOKE_KEEP_DIR=1
 ```
 

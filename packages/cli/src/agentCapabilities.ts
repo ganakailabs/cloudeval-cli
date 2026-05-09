@@ -100,6 +100,10 @@ Preferred agent flags:
   --print-url --no-open
   --output <file>
 
+Mode-specific commands:
+  cloudeval ask <question...>     Direct one-shot answer mode
+  cloudeval agent <task...>       Agent/planner mode for deeper execution
+
 Sensitive identifiers:
   Account, session, and tenant identifiers are redacted by default. Use --show-sensitive-ids only in trusted local workflows.
 

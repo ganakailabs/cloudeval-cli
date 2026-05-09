@@ -240,6 +240,8 @@ The read-only script covers:
   connections, reports, credits, and billing.
 - The basic non-interactive `ask` command when `CLOUDEVAL_SMOKE_RUN_ASK=1` is
   set. It is opt-in so the default read-only run does not consume model tokens.
+- The basic non-interactive `agent` command when `CLOUDEVAL_SMOKE_RUN_AGENT=1`
+  is set. It is opt-in for the same token-usage reason as `ask`.
 
 Useful controls:
 
@@ -248,6 +250,7 @@ CLOUDEVAL_SMOKE_CLI_BIN=/path/to/cloudeval
 CLOUDEVAL_SMOKE_BASE_URL=https://cloudeval.ai/api/proxy/v1
 CLOUDEVAL_SMOKE_FRONTEND_URL=https://cloudeval.ai
 CLOUDEVAL_SMOKE_RUN_ASK=1
+CLOUDEVAL_SMOKE_RUN_AGENT=1
 CLOUDEVAL_SMOKE_REQUIRE_AUTH=1
 CLOUDEVAL_SMOKE_STRICT_REPORTS=1
 CLOUDEVAL_SMOKE_SHOW_RESULTS=0

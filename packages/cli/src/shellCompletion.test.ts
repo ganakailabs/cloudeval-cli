@@ -18,7 +18,7 @@ test("buildCompletionScript emits command and option completions", () => {
   assert.match(bash, /complete -F _cloudeval_completion cloudeval eva/);
   assert.match(
     bash,
-    /tui chat ask reports projects connections billing credits open capabilities mcp login logout auth update banner completion help/
+    /tui chat ask agent reports projects connections billing credits open capabilities mcp login logout auth update banner completion help/
   );
   assert.match(bash, /update\) opts="[^"]*--check[^"]*-c[^"]*--yes[^"]*-y/);
   assert.match(bash, /--template-url/);

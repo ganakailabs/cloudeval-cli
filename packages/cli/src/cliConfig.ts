@@ -4,11 +4,14 @@ import path from "node:path";
 import type { Command } from "commander";
 import type { MachineOutputFormat } from "./outputFormatter.js";
 
+export type CliMode = "ask" | "agent";
+
 export interface CliConfig {
   baseUrl?: string;
   frontendUrl?: string;
   defaultProjectId?: string;
   model?: string;
+  mode?: CliMode;
   outputFormat?: MachineOutputFormat;
 }
 
@@ -101,10 +104,24 @@ const keyAliases: Record<string, keyof CliConfig> = {
   defaultProject: "defaultProjectId",
   defaultProjectId: "defaultProjectId",
   model: "model",
+  mode: "mode",
+  chatMode: "mode",
+  defaultMode: "mode",
   baseUrl: "baseUrl",
   frontendUrl: "frontendUrl",
   outputFormat: "outputFormat",
   format: "outputFormat",
+};
+
+export const normalizeCliMode = (value?: string): CliMode | undefined => {
+  const normalized = value?.trim().toLowerCase();
+  if (!normalized) {
+    return undefined;
+  }
+  if (normalized === "ask" || normalized === "agent") {
+    return normalized;
+  }
+  throw new Error("mode must be one of: ask, agent");
 };
 
 export const normalizeConfigKey = (key: string): keyof CliConfig => {
@@ -112,7 +129,7 @@ export const normalizeConfigKey = (key: string): keyof CliConfig => {
   const mapped = keyAliases[normalized];
   if (!mapped) {
     throw new Error(
-      `Unsupported config key '${key}'. Supported keys: baseUrl, frontendUrl, defaultProjectId, model, outputFormat.`
+      `Unsupported config key '${key}'. Supported keys: baseUrl, frontendUrl, defaultProjectId, model, mode, outputFormat.`
     );
   }
   return mapped;
@@ -133,9 +150,11 @@ export const writeCliConfigValue = (
   value: string
 ): CliConfig => {
   const normalized = normalizeConfigKey(key);
+  const normalizedValue =
+    normalized === "mode" ? normalizeCliMode(value) : value;
   return {
     ...config,
-    [normalized]: value,
+    [normalized]: normalizedValue,
   };
 };
 

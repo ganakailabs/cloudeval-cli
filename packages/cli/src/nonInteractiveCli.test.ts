@@ -466,7 +466,7 @@ test("non-interactive discovery commands are machine-readable", async () => {
   const capabilities = parseJson(await runCli(["capabilities", "--format", "json"]));
   assert.equal(capabilities.ok, true);
   assert.deepEqual(
-    ["ask", "reports download", "projects create", "mcp serve"].every((command) =>
+    ["ask", "agent", "reports download", "projects create", "mcp serve"].every((command) =>
       JSON.stringify(capabilities.data.domains).includes(command)
     ),
     true
@@ -545,6 +545,8 @@ test("phase one and two local commands are agent-safe and profile-aware", async 
       "project-main",
       "--model",
       "gpt-5-mini",
+      "--mode",
+      "agent",
       "--profile",
       "agent",
       "--format",
@@ -553,11 +555,16 @@ test("phase one and two local commands are agent-safe and profile-aware", async 
     assert.equal(setup.command, "setup");
     assert.equal(setup.data.config.baseUrl, backend.baseUrl);
     assert.equal(setup.data.config.defaultProjectId, "project-main");
+    assert.equal(setup.data.config.mode, "agent");
 
     const config = parseJson(await runCli(["config", "show", "--profile", "agent", "--format", "json"], { home }));
     assert.equal(config.command, "config show");
     assert.equal(config.data.baseUrl, backend.baseUrl);
     assert.equal(config.data.model, "gpt-5-mini");
+    assert.equal(config.data.mode, "agent");
+
+    const modeDefault = parseJson(await runCli(["config", "get", "mode", "--profile", "agent", "--format", "json"], { home }));
+    assert.equal(modeDefault.data.value, "agent");
 
     const configPath = await runCli(["config", "path", "--profile", "agent"], { home });
     assert.equal(configPath.exitCode, 0, configPath.stderr);
@@ -1331,6 +1338,48 @@ test("ask streams a single answer non-interactively with selected project and mo
     assert.equal(payload.thread_id, "thread-reuse");
     assert.equal(payload.project.id, "project-main");
     assert.equal(payload.settings.model, "gpt-5-mini");
+    assert.equal(payload.settings.mode, "ask");
+    assert.equal(streamRequest.authorization, "Bearer test-token");
+  } finally {
+    await fs.rm(home, { recursive: true, force: true });
+    await backend.close();
+  }
+});
+
+test("agent streams a task non-interactively with agent mode settings", async () => {
+  const backend = await startBackend();
+  const home = await fs.mkdtemp(path.join(os.tmpdir(), "cloudeval-cli-agent-home-"));
+  try {
+    const answer = parseJson(await runCli([
+      "agent",
+      "review",
+      "cloud",
+      "risks",
+      "--base-url",
+      backend.baseUrl,
+      "--api-key",
+      "test-token",
+      "--project",
+      "project-main",
+      "--model",
+      "gpt-5-mini",
+      "--format",
+      "json",
+      "--non-interactive",
+      "--progress",
+      "none",
+    ], { home }));
+
+    assert.equal(answer.command, "agent");
+    assert.equal(answer.data.response, "Mock answer from Cloudeval AI.");
+    assert.equal(answer.data.project.id, "project-main");
+
+    const streamRequest = backend.requests.find((request) => request.path === "/api/v1/chat/stream");
+    assert(streamRequest);
+    const payload = JSON.parse(streamRequest.body);
+    assert.equal(payload.message, "review cloud risks");
+    assert.equal(payload.settings.model, "gpt-5-mini");
+    assert.equal(payload.settings.mode, "agent");
     assert.equal(streamRequest.authorization, "Bearer test-token");
   } finally {
     await fs.rm(home, { recursive: true, force: true });

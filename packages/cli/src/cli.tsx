@@ -29,7 +29,7 @@ import {
 } from "./outputFormatter.js";
 import { CLI_VERSION } from "./version.js";
 import { getDefaultBaseUrl, shouldUseStoredBaseUrl } from "./baseUrl.js";
-import { getActiveConfigProfile, loadCliConfig } from "./cliConfig.js";
+import { getActiveConfigProfile, loadCliConfig, normalizeCliMode } from "./cliConfig.js";
 import { listSessions, recordSessionTurn, resolveSessionReference } from "./sessionsStore.js";
 
 const DEFAULT_BASE_URL = getDefaultBaseUrl();
@@ -42,6 +42,7 @@ const STREAM_OUTPUT_NODES = new Set([
 ]);
 const ASK_PROGRESS_MODES = new Set(["auto", "stderr", "ndjson", "none"]);
 type AskProgressMode = "auto" | "stderr" | "ndjson" | "none";
+type CliChatMode = "ask" | "agent";
 
 // Verbose logging utility
 let verboseEnabled = false;
@@ -354,6 +355,8 @@ Examples:
   cloudeval
   cloudeval tui --tab billing
   cloudeval ask "Summarize project risk" --format json
+  cloudeval agent "Find cost and architecture risks" --format json
+  cloudeval setup --mode agent --non-interactive
   cloudeval projects create --template-url https://example.com/template.json --format json
   cloudeval projects export-diagram <id> --layout architecture --format png --labels all --output architecture.png
   cloudeval reports download --project <id> --type all --output ./reports
@@ -594,6 +597,7 @@ program
   .option("--tab <tab>", "Initial tab: chat, overview, reports, projects, connections, billing, options, help", "chat")
   .option("--project <id>", "Initial project id")
   .option("--frontend-url <url>", "Frontend base URL")
+  .option("--mode <mode>", "Initial chat mode: ask, agent")
   .option(
     "--api-key <key>",
     "API key for automation (deprecated for interactive human auth)",
@@ -616,6 +620,7 @@ program
     const baseUrl = await resolveBaseUrl(options, command);
     assertSecureBaseUrl(baseUrl);
     const cliConfig = await resolveCliConfig(command);
+    const initialMode = normalizeCliMode(options.mode ?? cliConfig.mode) ?? "ask";
 
     let apiKey: string | undefined = options.apiKey;
     if (options.apiKeyStdin) {
@@ -634,6 +639,7 @@ program
         apiKey={apiKey}
         conversationId={undefined}
         model={options.model ?? cliConfig.model}
+        initialMode={initialMode}
         initialTab={options.tab}
         initialProjectId={options.project ?? cliConfig.defaultProjectId}
         frontendUrl={options.frontendUrl ?? cliConfig.frontendUrl}
@@ -664,6 +670,7 @@ program
   .option("--continue", "Resume the most recent local chat session", false)
   .option("--resume <id-or-title>", "Resume a local chat session by thread id or title")
   .option("--model <name>", "Model name")
+  .option("--mode <mode>", "Initial chat mode: ask, agent")
   .option("--debug", "Log raw chunks", false)
   .option("--health-check", "Enable health check (disabled by default)")
   .option("--no-banner", "Disable ASCII banner")
@@ -680,6 +687,7 @@ program
     assertSecureBaseUrl(baseUrl);
     const selectedProfile = getActiveConfigProfile(command);
     const cliConfig = await resolveCliConfig(command);
+    const initialMode = normalizeCliMode(options.mode ?? cliConfig.mode) ?? "ask";
 
     let apiKey: string | undefined = options.apiKey;
     if (options.apiKeyStdin) {
@@ -722,6 +730,7 @@ program
         apiKey={apiKey}
         conversationId={conversationId}
         model={options.model ?? cliConfig.model}
+        initialMode={initialMode}
         initialProjectId={cliConfig.defaultProjectId}
         frontendUrl={cliConfig.frontendUrl}
         debug={options.debug}
@@ -735,7 +744,8 @@ program
 
 program
   .command("ask")
-  .description("Ask a single question (non-interactive)")
+  .alias("agent")
+  .description("Ask a single question or run an agent task (non-interactive)")
   .argument("<question...>", "The question to ask")
   .option(
     "--base-url <url>",
@@ -750,7 +760,7 @@ program
   .option("--api-key-stdin", "Read API key from stdin (recommended for automation)", false)
   .option("--project <id>", "Project ID to use")
   .option("--model <name>", "Model name")
-  .option("--thread <id>", "Thread id to reuse for this ask")
+  .option("--thread <id>", "Thread id to reuse")
   .option("--output <file>", "Output file (default: stdout)")
   .option("--format <format>", "Output format: text, json, ndjson, markdown", "text")
   .option("--json", "Output as JSON")
@@ -766,6 +776,8 @@ program
   .option("-v, --verbose", "Enable verbose logging", false)
   .action(async (questionParts, options, command) => {
     const question = Array.isArray(questionParts) ? questionParts.join(" ") : String(questionParts);
+    const commandName = command.parent?.args?.[0] === "agent" ? "agent" : "ask";
+    const selectedMode: CliChatMode = commandName === "agent" ? "agent" : "ask";
     const { assertSecureBaseUrl } = await import("@cloudeval/core");
     const baseUrl = await resolveBaseUrl(options, command);
     assertSecureBaseUrl(baseUrl);
@@ -792,13 +804,14 @@ program
 
     if (options.verbose) {
       setVerbose(true);
-      verboseLog("Ask command started");
+      verboseLog(`${commandName} command started`);
       verboseLog("Question:", question);
       verboseLog("Options:", {
         baseUrl,
         hasApiKey: !!providedApiKey,
         project: selectedProjectId,
         model: selectedModel,
+        mode: selectedMode,
         output: options.output,
         json: options.json,
         format: options.format,
@@ -1004,9 +1017,9 @@ program
       let ndjsonOutputStream: WriteStream | null = null;
 
       if (options.debug) {
-        console.error(`[ask] Question: ${question}`);
-        console.error(`[ask] Project: ${project.id} (${project.name})`);
-        console.error(`[ask] Thread ID: ${threadId}`);
+        console.error(`[${commandName}] Question: ${question}`);
+        console.error(`[${commandName}] Project: ${project.id} (${project.name})`);
+        console.error(`[${commandName}] Thread ID: ${threadId}`);
       }
 
       // Set up output stream
@@ -1042,6 +1055,10 @@ program
       };
 
       const streamUrl = `${normalizeApiBase(baseUrl)}/chat/stream`;
+      const streamSettings = {
+        ...(selectedModel ? { model: selectedModel } : {}),
+        mode: selectedMode,
+      };
       verboseLog("Initiating streamChat", {
         baseUrl,
         streamUrl,
@@ -1051,7 +1068,7 @@ program
         userName,
         projectId: project.id,
         projectName: project.name,
-        settings: selectedModel ? { model: selectedModel } : undefined,
+        settings: streamSettings,
       });
 
       const logHeaders: Record<string, string> = {
@@ -1084,7 +1101,7 @@ program
           threadId,
           user: { id: project.user_id ?? authenticatedUserId ?? "cli-user", name: userName },
           project,
-          settings: selectedModel ? { model: selectedModel } : undefined,
+          settings: streamSettings,
           debug: options.debug,
           completeAfterResponse: true,
           responseCompletionGraceMs: 5000,
@@ -1223,7 +1240,7 @@ program
       if (jsonOutput) {
         const output = {
           ok: true,
-          command: "ask",
+          command: commandName,
           question,
           data: {
             response: finalResponse,
@@ -1254,7 +1271,7 @@ program
         writeAskDataEvent({
           type: "result",
           ok: true,
-          command: "ask",
+          command: commandName,
           data: {
             response: finalResponse,
             threadId: chatState.threadId,

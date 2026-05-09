@@ -62,10 +62,18 @@
       <p>After install, run <code>cloudeval login</code>, <code>cloudeval status</code>, and <code>cloudeval chat</code>.</p>
       <h2>First commands</h2>
       <pre><code>cloudeval ask "Summarize my cloud risk" --format json
+cloudeval agent "Find cost and architecture risks" --format json
 cloudeval projects list
 cloudeval reports list
 cloudeval capabilities --format json
 cloudeval help agents</code></pre>
+      <h2>Ask and Agent modes</h2>
+      <p><code>ask</code> is optimized for direct one-shot answers. <code>agent</code> uses CloudEval Agent mode for deeper non-interactive planner/tool execution.</p>
+      <pre><code>cloudeval ask Summarize this project --project &lt;id&gt; --format json
+cloudeval agent Find cost and WAF risks --project &lt;id&gt; --format json
+cloudeval chat --mode agent
+cloudeval setup --mode agent --non-interactive</code></pre>
+      <p>Quotes are optional for simple multi-word prompts; use them when the shell would otherwise interpret punctuation, leading dashes, newlines, or spacing.</p>
       <h2>Update</h2>
       <p>Check or install the latest published CLI release without reinstalling manually:</p>
       <pre><code>cloudeval update --check
@@ -100,6 +108,7 @@ cloudeval mcp setup cursor --dry-run --toolset billing --format json</code></pre
       <p><a href="https://github.com/ganakailabs/cloudeval-cli/blob/main/docs/release-smoke-tests.md">Smoke test coverage and runbook</a></p>
       <h2>Security</h2>
       <p>Run <code>pnpm security:scan</code> before publishing security-sensitive changes. See <a href="https://github.com/ganakailabs/cloudeval-cli/blob/main/SECURITY.md">SECURITY.md</a> for disclosure and local artifact guidance.</p>
+      <p><a href="/llms.txt">llms.txt</a></p>
     </main>
   </body>
 </html>

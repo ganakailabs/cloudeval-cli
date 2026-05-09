@@ -3,6 +3,7 @@ import type { Command } from "commander";
 import {
   getActiveConfigProfile,
   loadCliConfig,
+  normalizeCliMode,
   saveCliConfig,
   type CliConfig,
 } from "./cliConfig.js";
@@ -18,6 +19,7 @@ interface SetupOptions {
   frontendUrl?: string;
   project?: string;
   model?: string;
+  mode?: string;
   profile?: string;
   format?: MachineOutputFormat;
   output?: string;
@@ -39,6 +41,7 @@ const buildConfig = (current: CliConfig, options: SetupOptions): CliConfig => ({
   ...(options.frontendUrl ? { frontendUrl: options.frontendUrl } : {}),
   ...(options.project ? { defaultProjectId: options.project } : {}),
   ...(options.model ? { model: options.model } : {}),
+  ...(options.mode ? { mode: normalizeCliMode(options.mode) } : {}),
 });
 
 export const registerSetupCommand = (program: Command, defaultBaseUrl = CLOUD_BASE_URL) => {
@@ -50,6 +53,7 @@ export const registerSetupCommand = (program: Command, defaultBaseUrl = CLOUD_BA
     .option("--frontend-url <url>", "Default frontend URL")
     .option("--project <id>", "Default project id")
     .option("--model <name>", "Default model")
+    .option("--mode <mode>", "Default chat mode: ask, agent")
     .option("--profile <name>", "Configuration profile")
     .option("--format <format>", "Output format: text, json, ndjson, markdown", "text")
     .option("--output <file>", "Output file")
@@ -73,6 +77,7 @@ export const registerSetupCommand = (program: Command, defaultBaseUrl = CLOUD_BA
             frontendUrl: await prompt(rl, "Frontend URL", next.frontendUrl),
             defaultProjectId: await prompt(rl, "Default project id", next.defaultProjectId),
             model: await prompt(rl, "Default model", next.model),
+            mode: normalizeCliMode(await prompt(rl, "Default chat mode", next.mode ?? "ask")),
           };
         } finally {
           rl.close();

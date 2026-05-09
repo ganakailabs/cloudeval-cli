@@ -112,6 +112,7 @@ export interface AppProps {
   apiKey?: string;
   conversationId?: string;
   model?: string;
+  initialMode?: ChatMode;
   initialTab?: string;
   initialProjectId?: string;
   frontendUrl?: string;
@@ -879,6 +880,7 @@ export const App: React.FC<AppProps> = ({
   apiKey,
   conversationId,
   model,
+  initialMode = "ask",
   initialTab,
   initialProjectId,
   frontendUrl,
@@ -904,7 +906,7 @@ export const App: React.FC<AppProps> = ({
   const [projects, setProjects] = useState<ProjectInfo[]>([]);
   const [selectedProject, setSelectedProject] = useState<ProjectInfo | null>(null);
   const [selectedModel, setSelectedModel] = useState(model ?? "");
-  const [selectedMode, setSelectedMode] = useState<ChatMode>("ask");
+  const [selectedMode, setSelectedMode] = useState<ChatMode>(initialMode);
   const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<WorkspaceTab>(() =>
     normalizeWorkspaceTab(initialTab)
   );

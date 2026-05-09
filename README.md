@@ -9,7 +9,8 @@ Protocol.
 The CLI is designed for both interactive use and pipeable automation:
 
 - Terminal UI and chat for long-running cloud review sessions.
-- One-shot `ask` for scripts, CI jobs, and agent tool calls.
+- One-shot `ask` for direct answers and `agent` for deeper non-interactive
+  planner/tool execution.
 - Project creation from local template files or GitHub-hosted templates.
 - Cost and Well-Architected Framework report commands.
 - Local SQLite session history with search, resume, export, prune, and delete.
@@ -48,6 +49,8 @@ cloudeval chat
 
 `cloudeval login` uses CloudEval device login through `cloudeval.ai`; no local
 Azure client ID, tenant ID, or app registration is needed for normal CLI use.
+Run `cloudeval setup --mode agent --non-interactive` if you want `cloudeval`
+and `cloudeval chat` to open the TUI in Agent mode by default.
 
 ## First Commands
 
@@ -55,6 +58,7 @@ Azure client ID, tenant ID, or app registration is needed for normal CLI use.
 cloudeval                         # open the Terminal UI
 cloudeval chat                    # start an interactive chat session
 cloudeval ask "Summarize my cloud risk" --format json
+cloudeval agent "Find cost and architecture risks" --format json
 cloudeval models list
 cloudeval projects list
 cloudeval reports list
@@ -73,7 +77,10 @@ to stderr.
 | --- | --- |
 | Open the full terminal experience | `cloudeval` or `cloudeval tui` |
 | Ask one non-interactive question | `cloudeval ask "What changed?" --format json` |
+| Run a non-interactive agent task | `cloudeval agent "Find cost and WAF risks" --format json` |
 | Continue an interactive thread | `cloudeval chat --conversation <id>` |
+| Start TUI in Agent mode | `cloudeval chat --mode agent` |
+| Save Agent mode as default | `cloudeval setup --mode agent --non-interactive` |
 | Create a project from a template | `cloudeval projects create --template-file ./template.json --name "Review"` |
 | List and inspect projects | `cloudeval projects list`, `cloudeval projects get <id>` |
 | Run reports | `cloudeval reports run --project <id> --type all` |
@@ -221,19 +228,53 @@ authorization headers remain redacted.
 Local conversation history is stored in SQLite under the CloudEval config
 directory. Legacy JSON session files are migrated into SQLite automatically.
 
+## Ask And Agent Modes
+
+`ask` and `agent` share the same pipeable output contract, but send different
+runtime modes to CloudEval:
+
+```bash
+cloudeval ask Summarize this project --project <id> --format json
+cloudeval agent Find cost and architecture risks --project <id> --format json
+```
+
+Quotes are optional for simple multi-word prompts because the CLI joins the
+remaining words. Use quotes when the question contains shell metacharacters,
+leading dashes, newlines, or spacing you need to preserve.
+
+The TUI also has Ask and Agent modes. Choose per launch:
+
+```bash
+cloudeval chat --mode ask
+cloudeval chat --mode agent
+cloudeval tui --mode agent
+```
+
+Save a default mode in the active profile:
+
+```bash
+cloudeval setup --mode agent --non-interactive
+cloudeval config set mode agent
+cloudeval config get mode
+```
+
+After saving the default, `cloudeval`, `cloudeval tui`, and `cloudeval chat`
+open with that mode selected so you can start typing immediately.
+
 ## Command Reference
 
 ```bash
-cloudeval setup [--non-interactive] [--base-url <url>] [--frontend-url <url>] [--project <id>] [--model <name>] [--profile <name>]
+cloudeval setup [--non-interactive] [--base-url <url>] [--frontend-url <url>] [--project <id>] [--model <name>] [--mode ask|agent] [--profile <name>]
 cloudeval config show|get|set|unset|path|profiles [--profile <name>] [--format text|json|ndjson|markdown]
 cloudeval doctor [--deep] [--format text|json|ndjson|markdown]
 cloudeval status [--format text|json|ndjson|markdown] [--show-sensitive-ids]
 cloudeval models list [--base-url <url>] [--format text|json|ndjson|markdown]
 cloudeval models default get|set [--profile <name>]
 cloudeval sessions list|get|search|rename|export|delete|prune [--format text|json|ndjson|markdown]
-cloudeval tui [--base-url <url>] [--project <id>] [--model <name>] [--profile <name>]
-cloudeval chat [--base-url <url>] [--conversation <id>] [--model <name>] [--debug] [--profile <name>]
+cloudeval tui [--base-url <url>] [--project <id>] [--model <name>] [--mode ask|agent] [--profile <name>]
+cloudeval chat [--base-url <url>] [--conversation <id>] [--model <name>] [--mode ask|agent] [--debug] [--profile <name>]
 cloudeval ask <question> [--project <id>] [--output <file>] [--format text|json|ndjson|markdown] [--base-url <url>] [--model <name>] [--profile <name>]
+cloudeval agent <task> [--project <id>] [--output <file>] [--format text|json|ndjson|markdown] [--base-url <url>] [--model <name>] [--profile <name>]
 cloudeval projects create --template-file <path>|--template-url <url> [--parameters-file <path>|--parameters-url <url>] [--format text|json|ndjson|markdown]
 cloudeval projects list|get|open [--format text|json|ndjson|markdown]
 cloudeval projects export-diagram <id> --layout architecture|dependency --format png|jpeg|svg --labels all|viewport --output <file> [--headers-output <file>] [--public] [--frontend-url <url>]
@@ -321,6 +362,7 @@ Broad read-only real backend smoke:
 ```bash
 pnpm smoke:readonly:real
 CLOUDEVAL_SMOKE_RUN_ASK=1 pnpm smoke:readonly:real
+CLOUDEVAL_SMOKE_RUN_AGENT=1 pnpm smoke:readonly:real
 CLOUDEVAL_SMOKE_REQUIRE_AUTH=1 pnpm smoke:readonly:real
 ```
 
@@ -348,6 +390,7 @@ handling, leaked credential response, and real-backend smoke artifact guidance.
 
 - [Release smoke tests](docs/release-smoke-tests.md)
 - [Security policy](SECURITY.md)
+- [LLM guide](llms.txt)
 - [Latest release](https://github.com/ganakailabs/cloudeval-cli/releases/latest)
 - [CloudEval docs site](https://cloudeval.ai)
 

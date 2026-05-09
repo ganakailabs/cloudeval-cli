@@ -74,7 +74,7 @@ cloudeval agent Find cost and WAF risks --project &lt;id&gt; --format json
 cloudeval chat --mode agent
 cloudeval setup --mode agent --non-interactive</code></pre>
       <p>Quotes are optional for simple multi-word prompts; use them when the shell would otherwise interpret punctuation, leading dashes, newlines, or spacing.</p>
-      <p>For text, JSON, and markdown output, ask/agent progress stays on stderr so stdout remains pipeable. Interactive terminals show one live status line for the current step; captured logs fall back to append-only stderr events. Use <code>--progress none</code> or <code>--quiet</code> to suppress progress, or <code>--format ndjson --progress ndjson</code> to stream progress and answer events on stdout.</p>
+      <p>For text, JSON, and markdown output, ask/agent progress stays on stderr so stdout remains pipeable. Interactive terminals show one live status line with a loader, reasoning progress bar, completed/total step count, and current thinking step; captured logs fall back to append-only stderr events. Use <code>--progress none</code> or <code>--quiet</code> to suppress progress, or <code>--format ndjson --progress ndjson</code> to stream progress and answer events on stdout.</p>
       <p>If CloudEval asks for human approval, interactive ask/agent prompts on stderr and then resumes the same thread. With <code>--non-interactive</code>, the command exits with code <code>6</code> and returns <code>HITL_REQUIRED</code> in JSON/NDJSON output. If CloudEval completes without final answer content, the command exits non-zero with a clear error instead of returning an empty result.</p>
       <h2>Update</h2>
       <p>Check or install the latest published CLI release without reinstalling manually:</p>

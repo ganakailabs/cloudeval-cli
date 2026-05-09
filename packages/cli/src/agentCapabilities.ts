@@ -107,7 +107,7 @@ Mode-specific commands:
   cloudeval agent <task...>       Agent/planner mode for deeper execution
 
 Progress:
-  ask/agent keep live terminal progress on stderr by default, then write the final answer to stdout. In non-TTY logs this falls back to append-only stderr events. Use --progress none or --quiet to suppress progress, or --format ndjson --progress ndjson to stream progress on stdout.
+  ask/agent show a live stderr loader and reasoning progress bar in interactive terminals, then write the final answer to stdout. In non-TTY logs this falls back to append-only stderr events. Use --progress none or --quiet to suppress progress, or --format ndjson --progress ndjson to stream progress on stdout.
 
 Human input:
   Interactive terminals prompt on stderr for CloudEval approval requests and then resume the same thread. With --non-interactive, the command exits 6 and returns HITL_REQUIRED in JSON/NDJSON output.

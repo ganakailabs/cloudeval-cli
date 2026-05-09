@@ -18,6 +18,14 @@ export type AskProgressWriter = {
 };
 
 const CLEAR_LINE = "\r\u001B[2K";
+const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+const BAR_WIDTH = 18;
+
+type ReasoningStep = {
+  key: string;
+  message: string;
+  status?: string;
+};
 
 const eventMessage = (event: Record<string, unknown>): string => {
   if (typeof event.message === "string") {
@@ -27,6 +35,41 @@ const eventMessage = (event: Record<string, unknown>): string => {
     return event.step;
   }
   return String(event.type ?? "progress");
+};
+
+const eventStepKey = (event: Record<string, unknown>): string | undefined => {
+  if (typeof event.step === "string" && event.step.trim()) {
+    return event.step;
+  }
+  if (typeof event.node === "string" && event.node.trim()) {
+    return event.node;
+  }
+  return undefined;
+};
+
+const eventStatus = (event: Record<string, unknown>): string | undefined =>
+  typeof event.status === "string" ? event.status : undefined;
+
+const isTerminalStatus = (status?: string): boolean =>
+  status === "completed" ||
+  status === "error" ||
+  status === "aborted" ||
+  status === "cancelled";
+
+const renderBar = (completed: number, failed: number, total: number): string => {
+  const safeTotal = Math.max(1, total);
+  const completedWidth = Math.min(
+    BAR_WIDTH,
+    Math.round((completed / safeTotal) * BAR_WIDTH)
+  );
+  const failedWidth = failed ? Math.max(1, Math.min(BAR_WIDTH - completedWidth, failed)) : 0;
+  const openWidth = Math.max(0, BAR_WIDTH - completedWidth - failedWidth);
+  return `[${"━".repeat(completedWidth)}${"✕".repeat(failedWidth)}${"─".repeat(openWidth)}]`;
+};
+
+const truncateLine = (value: string, maxLength = 120): string => {
+  const compact = value.replace(/\s+/g, " ").trim();
+  return compact.length > maxLength ? `${compact.slice(0, maxLength - 3)}...` : compact;
 };
 
 export const normalizeAskProgressMode = (value?: string): AskProgressMode => {
@@ -53,6 +96,8 @@ export const createAskProgressWriter = (
     resolvedMode === "stderr" &&
     Boolean(stream.isTTY);
   let liveLineActive = false;
+  let spinnerIndex = 0;
+  const reasoningSteps = new Map<string, ReasoningStep>();
 
   const clear = () => {
     if (!liveLineActive) {
@@ -60,6 +105,51 @@ export const createAskProgressWriter = (
     }
     stream.write(CLEAR_LINE);
     liveLineActive = false;
+  };
+
+  const nextSpinner = () => {
+    const frame = SPINNER_FRAMES[spinnerIndex % SPINNER_FRAMES.length]!;
+    spinnerIndex += 1;
+    return frame;
+  };
+
+  const renderLiveLine = (event: Record<string, unknown>) => {
+    const message = eventMessage(event);
+    if (event.type === "thinking") {
+      const explicitKey = eventStepKey(event);
+      const key = explicitKey ?? message;
+      if (explicitKey && !reasoningSteps.has(explicitKey)) {
+        const previousMessageKey = Array.from(reasoningSteps.values()).find(
+          (step) => step.key === step.message && step.message === message
+        )?.key;
+        if (previousMessageKey) {
+          reasoningSteps.delete(previousMessageKey);
+        }
+      }
+      reasoningSteps.set(key, {
+        key,
+        message,
+        status: eventStatus(event),
+      });
+    }
+
+    if (!reasoningSteps.size) {
+      return `${nextSpinner()} ${truncateLine(message)}`;
+    }
+
+    const steps = Array.from(reasoningSteps.values());
+    const completed = steps.filter((step) => step.status === "completed").length;
+    const failed = steps.filter((step) =>
+      step.status === "error" ||
+      step.status === "aborted" ||
+      step.status === "cancelled"
+    ).length;
+    const running =
+      [...steps].reverse().find((step) => !isTerminalStatus(step.status)) ??
+      steps[steps.length - 1];
+    const currentMessage = running?.message ?? message;
+    const bar = renderBar(completed, failed, steps.length);
+    return `${nextSpinner()} Reasoning ${bar} ${completed}/${steps.length} | ${truncateLine(currentMessage)}`;
   };
 
   return {
@@ -75,7 +165,7 @@ export const createAskProgressWriter = (
 
       const line = `[${event.type ?? "progress"}] ${eventMessage(event)}`;
       if (live) {
-        stream.write(`${CLEAR_LINE}${line}`);
+        stream.write(`${CLEAR_LINE}${renderLiveLine(event)}`);
         liveLineActive = true;
         return;
       }

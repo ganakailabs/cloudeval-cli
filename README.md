@@ -250,10 +250,11 @@ leading dashes, newlines, or spacing you need to preserve.
 
 For text, JSON, and markdown output, terminal progress stays on stderr so stdout
 remains pipeable. In an interactive terminal the CLI keeps one live status line
-for the current step; in captured logs it falls back to append-only stderr
-events. Use `--progress none` or `--quiet` to suppress progress, or
-`--format ndjson --progress ndjson` to stream progress and answer chunks as
-newline-delimited JSON.
+with a loader, reasoning progress bar, completed/total step count, and current
+thinking step; in captured logs it falls back to append-only stderr events. Use
+`--progress none` or `--quiet` to suppress progress, or `--format ndjson
+--progress ndjson` to stream progress and answer chunks as newline-delimited
+JSON.
 
 If CloudEval asks for human approval, interactive `ask`/`agent` prompts on
 stderr and then resumes the same thread. With `--non-interactive`, the command

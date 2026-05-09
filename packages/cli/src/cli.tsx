@@ -492,11 +492,39 @@ program
     }
 
     try {
-      const { assertSecureBaseUrl, login } = await import("@cloudeval/core");
+      const {
+        assertSecureBaseUrl,
+        checkUserStatus,
+        ensurePlaygroundProject,
+        login,
+      } = await import("@cloudeval/core");
       assertSecureBaseUrl(options.baseUrl);
-      await login(options.baseUrl, {
+      const token = await login(options.baseUrl, {
         headless: options.headless || isHeadlessEnvironment(),
       });
+      const userStatus = await checkUserStatus(options.baseUrl, token);
+      if (userStatus.user?.id && userStatus.user.email) {
+        const shouldRunQuickOnboard = !userStatus.onboardingCompleted;
+        if (shouldRunQuickOnboard) {
+          console.log("Setting up your Playground project...");
+        }
+        await ensurePlaygroundProject(
+          options.baseUrl,
+          token,
+          {
+            id: userStatus.user.id,
+            email: userStatus.user.email,
+            full_name: userStatus.user.full_name,
+            name: userStatus.user.name,
+          },
+          { forceQuickOnboard: shouldRunQuickOnboard }
+        );
+        if (shouldRunQuickOnboard) {
+          console.log("✅ Playground project ready.");
+        }
+      } else {
+        verboseLog("Skipping Playground setup because authenticated user details were unavailable");
+      }
       console.log("✅ Login successful.");
       process.exit(0);
     } catch (error: any) {

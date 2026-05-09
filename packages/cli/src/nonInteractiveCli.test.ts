@@ -111,10 +111,13 @@ const startBackend = async (
   options: {
     models?: Array<Record<string, unknown>>;
     authMeStatus?: number;
+    authUser?: typeof user;
+    projects?: typeof project[];
   } = {}
 ) => {
   const requests: RecordedRequest[] = [];
   const createdProjects: any[] = [];
+  const authUser = options.authUser ?? user;
 
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url ?? "/", "http://127.0.0.1");
@@ -128,11 +131,30 @@ const startBackend = async (
     };
     requests.push(record);
 
+    if (url.pathname === "/api/v1/auth/device/code" && req.method === "POST") {
+      return json(res, {
+        device_code: "device-code",
+        user_code: "ABCD-EFGH",
+        verification_uri: "https://cloudeval.ai/device/login",
+        verification_uri_complete:
+          "https://cloudeval.ai/device/login?user_code=ABCD-EFGH",
+        expires_in: 60,
+        interval: 1,
+      });
+    }
+    if (url.pathname === "/api/v1/auth/device/token" && req.method === "POST") {
+      return json(res, {
+        access_token: "test-token",
+        refresh_token: "refresh-token",
+        token_type: "Bearer",
+        expires_in: 3600,
+      });
+    }
     if (url.pathname === "/api/v1/auth/me") {
       if (options.authMeStatus && options.authMeStatus >= 400) {
         return json(res, { detail: "Invalid token" }, options.authMeStatus);
       }
-      return json(res, user);
+      return json(res, authUser);
     }
     if (url.pathname === "/api/v1/models") {
       return json(res, {
@@ -142,8 +164,33 @@ const startBackend = async (
         ],
       });
     }
-    if (url.pathname === `/api/v1/projects/user/${user.id}`) {
-      return json(res, [project, ...createdProjects]);
+    if (url.pathname === `/api/v1/projects/user/${authUser.id}`) {
+      return json(res, [...(options.projects ?? [project]), ...createdProjects]);
+    }
+    if (url.pathname === "/api/v1/onboard/quick" && req.method === "POST") {
+      const payload = JSON.parse(body || "{}");
+      assert.equal(payload.email, authUser.email);
+      return json(res, {
+        user: {
+          ...authUser,
+          preferences: {
+            ...(authUser.preferences ?? {}),
+            onboarding: {
+              ...((authUser.preferences ?? {}).onboarding ?? {}),
+              completedAt: "2026-05-09T00:00:00.000Z",
+            },
+          },
+        },
+        playground_project: project,
+        default_connection: connection,
+        onboarding_completed_at: "2026-05-09T00:00:00.000Z",
+        setup_jobs: [
+          { operation: "connection_template_sync", status: "background" },
+          { operation: "project_template_blob_sync", status: "background" },
+          { operation: "project_reports_autogen", status: "background" },
+        ],
+        next_steps: [],
+      }, 201);
     }
     if (url.pathname === `/api/projects/${project.id}/diagram-image`) {
       const format = url.searchParams.get("format") || "png";
@@ -811,6 +858,45 @@ test("auth-gated project commands clear backend-rejected stored auth", async () 
     assert.match(result.stderr, /Stored authentication was rejected by CloudEval/);
     await assert.rejects(fs.stat(configPath), { code: "ENOENT" });
     assert.deepEqual(JSON.parse(await fs.readFile(secretsPath, "utf8")), {});
+  } finally {
+    await backend.close();
+    await fs.rm(home, { recursive: true, force: true });
+  }
+});
+
+test("login runs quick Playground onboarding for device-created users", async () => {
+  const incompleteUser = {
+    ...user,
+    preferences: {},
+  } as typeof user;
+  const backend = await startBackend({
+    authUser: incompleteUser,
+    projects: [],
+  });
+  const home = await fs.mkdtemp(path.join(os.tmpdir(), "cloudeval-cli-login-home-"));
+
+  try {
+    const result = await runCli([
+      "login",
+      "--base-url",
+      backend.baseUrl,
+      "--headless",
+    ], { home, timeoutMs: 15_000 });
+
+    assert.equal(result.exitCode, 0, result.stderr);
+    assert.match(result.stdout, /Authentication successful\. Session saved\./);
+    assert.match(result.stdout, /Setting up your Playground project/);
+    assert.match(result.stdout, /Playground project ready/);
+    assert.match(result.stdout, /Login successful/);
+
+    const quickRequest = backend.requests.find(
+      (request) => request.path === "/api/v1/onboard/quick"
+    );
+    assert.ok(quickRequest, "login should call /onboard/quick after device auth");
+    assert.equal(quickRequest.authorization, "Bearer test-token");
+    const body = JSON.parse(quickRequest.body || "{}");
+    assert.equal(body.email, user.email);
+    assert.equal(body.full_name, user.full_name);
   } finally {
     await backend.close();
     await fs.rm(home, { recursive: true, force: true });

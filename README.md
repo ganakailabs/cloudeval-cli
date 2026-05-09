@@ -48,7 +48,9 @@ cloudeval chat
 ```
 
 `cloudeval login` uses CloudEval device login through `cloudeval.ai`; no local
-Azure client ID, tenant ID, or app registration is needed for normal CLI use.
+Azure client ID, tenant ID, or app registration is needed for normal CLI use. It
+also verifies the default Playground project and runs the fast setup path for
+new, incomplete, or deleted-and-recreated accounts.
 Run `cloudeval setup --mode agent --non-interactive` if you want `cloudeval`
 and `cloudeval chat` to open the TUI in Agent mode by default.
 
@@ -209,7 +211,11 @@ cloudeval auth status
 Verbose login enables redacted CLI debug logs for auth, onboarding, and
 Playground repair requests. Normal CLI login uses CloudEval's device-code
 backend and opens a `cloudeval.ai/device/login?...` approval URL; it does not
-fall back to Microsoft Entra tenant auth for Google or GitHub users.
+fall back to Microsoft Entra tenant auth for Google or GitHub users. After
+authentication, login checks the CloudEval user record and calls `/onboard/quick`
+when onboarding is incomplete so the Playground project is ready before the next
+CLI command. Template sync and report generation may continue asynchronously in
+the backend.
 
 Sensitive identifiers are redacted by default in text and machine-readable
 output. This includes account IDs, session IDs, tenant IDs, checkout session

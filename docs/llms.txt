@@ -13,6 +13,10 @@ curl -fsSL https://cli.cloudeval.ai/install.sh | bash
 cloudeval login
 ```
 
+`cloudeval login` opens the CloudEval device approval page on `cloudeval.ai`,
+stores the CLI session locally, and runs fast Playground setup through
+`/onboard/quick` for new, incomplete, or deleted-and-recreated accounts.
+
 ## Agent-Safe Commands
 
 Use JSON output for automation:

@@ -1074,15 +1074,17 @@ const quickOnboardPlayground = async (
 export const ensurePlaygroundProject = async (
   baseUrl: string,
   token: string,
-  user: PlaygroundUser
+  user: PlaygroundUser,
+  options: { forceQuickOnboard?: boolean } = {}
 ): Promise<Project> => {
   cliDebug("ensurePlaygroundProject start", {
     userId: user.id,
     email: user.email,
+    forceQuickOnboard: !!options.forceQuickOnboard,
   });
   const existingProjects = await getProjects(baseUrl, token, user.id);
   const existingPlayground = getPlaygroundProject(existingProjects);
-  if (existingPlayground) {
+  if (existingPlayground && !options.forceQuickOnboard) {
     cliDebug("ensurePlaygroundProject existing Playground found", {
       projectId: existingPlayground.id,
     });

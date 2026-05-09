@@ -66,7 +66,11 @@ The smoke script verifies:
 - `https://cloudeval.ai/api/proxy/v1/health` is reachable and either returns
   healthy JSON or the expected protected-route JSON.
 
-Authenticated smoke coverage should use a stored `cloudeval login` session.
+Authenticated smoke coverage should use a stored `cloudeval login` session. For
+new, incomplete, or deleted-and-recreated accounts, `cloudeval login --verbose`
+should authenticate through `cloudeval.ai/device/login`, run quick Playground
+setup, and leave `cloudeval projects list --format json` able to resolve the
+default Playground without a follow-up repair from `cloudeval ask`.
 
 ## Environment Variables
 

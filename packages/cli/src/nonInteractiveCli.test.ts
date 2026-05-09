@@ -883,7 +883,7 @@ test("auth-gated project commands clear backend-rejected stored auth", async () 
   }
 });
 
-test("login runs quick Playground onboarding for device-created users", async () => {
+test("headless login runs quick Playground onboarding for device-created users", async () => {
   const incompleteUser = {
     ...user,
     preferences: {},

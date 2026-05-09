@@ -68,9 +68,11 @@ The smoke script verifies:
 
 Authenticated smoke coverage should use a stored `cloudeval login` session. For
 new, incomplete, or deleted-and-recreated accounts, `cloudeval login --verbose`
-should authenticate through `cloudeval.ai/device/login`, run quick Playground
-setup, and leave `cloudeval projects list --format json` able to resolve the
-default Playground without a follow-up repair from `cloudeval ask`.
+should authenticate through `cloudeval.ai/device/login` and show the CLI
+onboarding steps in an interactive terminal. `cloudeval login --headless
+--verbose` should run quick Playground setup and leave `cloudeval projects list
+--format json` able to resolve the default Playground without a follow-up repair
+from `cloudeval ask`.
 
 ## Environment Variables
 

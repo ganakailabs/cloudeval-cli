@@ -40,6 +40,7 @@ import {
   promptForHitlResponses,
   summarizeHitlRequest,
 } from "./hitlPrompt.js";
+import { resolveLoginOnboardingMode } from "./loginOnboardingMode.js";
 
 const DEFAULT_BASE_URL = getDefaultBaseUrl();
 const ASK_STREAM_IDLE_TIMEOUT_MS = 90_000;
@@ -76,6 +77,30 @@ const redactSensitive = (value: unknown): unknown => {
 
 const isHeadlessEnvironment = (): boolean =>
   Boolean(process.env.SSH_TTY || process.env.CI || process.env.CLOUDEVAL_HEADLESS_LOGIN);
+
+const runInteractiveLoginOnboarding = async (
+  baseUrl: string,
+  token: string
+): Promise<void> => {
+  const [{ render }, { Onboarding }] = await Promise.all([
+    import("ink"),
+    import("./ui/components/Onboarding.js"),
+  ]);
+
+  await new Promise<void>((resolve) => {
+    let app: { unmount: () => void } | undefined;
+    app = render(
+      <Onboarding
+        baseUrl={baseUrl}
+        token={token}
+        onComplete={() => {
+          app?.unmount();
+          resolve();
+        }}
+      />
+    );
+  });
+};
 
 const readStdinValue = async (): Promise<string> => {
   if (process.stdin.isTTY) {
@@ -464,28 +489,51 @@ program
         login,
       } = await import("@cloudeval/core");
       assertSecureBaseUrl(options.baseUrl);
+      const headlessEnvironment = isHeadlessEnvironment();
+      const headlessLogin = options.headless || headlessEnvironment;
       const token = await login(options.baseUrl, {
-        headless: options.headless || isHeadlessEnvironment(),
+        headless: headlessLogin,
       });
       const userStatus = await checkUserStatus(options.baseUrl, token);
       if (userStatus.user?.id && userStatus.user.email) {
         const shouldRunQuickOnboard = !userStatus.onboardingCompleted;
         if (shouldRunQuickOnboard) {
-          console.log("Setting up your Playground project...");
-        }
-        await ensurePlaygroundProject(
-          options.baseUrl,
-          token,
-          {
-            id: userStatus.user.id,
-            email: userStatus.user.email,
-            full_name: userStatus.user.full_name,
-            name: userStatus.user.name,
-          },
-          { forceQuickOnboard: shouldRunQuickOnboard }
-        );
-        if (shouldRunQuickOnboard) {
-          console.log("✅ Playground project ready.");
+          const onboardingMode = resolveLoginOnboardingMode({
+            headlessRequested: Boolean(options.headless),
+            headlessEnvironment,
+            stdinIsTTY: process.stdin.isTTY,
+            stdoutIsTTY: process.stdout.isTTY,
+          });
+          if (onboardingMode === "interactive_steps") {
+            console.log("Complete CLI onboarding to set up your Playground project.");
+            await runInteractiveLoginOnboarding(options.baseUrl, token);
+            console.log("✅ Onboarding complete. Playground project ready.");
+          } else {
+            console.log("Setting up your Playground project...");
+            await ensurePlaygroundProject(
+              options.baseUrl,
+              token,
+              {
+                id: userStatus.user.id,
+                email: userStatus.user.email,
+                full_name: userStatus.user.full_name,
+                name: userStatus.user.name,
+              },
+              { forceQuickOnboard: true }
+            );
+            console.log("✅ Playground project ready.");
+          }
+        } else {
+          await ensurePlaygroundProject(
+            options.baseUrl,
+            token,
+            {
+              id: userStatus.user.id,
+              email: userStatus.user.email,
+              full_name: userStatus.user.full_name,
+              name: userStatus.user.name,
+            }
+          );
         }
       } else {
         verboseLog("Skipping Playground setup because authenticated user details were unavailable");

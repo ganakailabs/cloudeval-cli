@@ -38,6 +38,7 @@ const capabilities = {
     authRequired: 3,
     backendUnavailable: 4,
     notFound: 5,
+    humanInputRequired: 6,
   },
   commands: cliCommands.map(({ name, description, domain, workflows }) => ({
     name,
@@ -106,7 +107,10 @@ Mode-specific commands:
   cloudeval agent <task...>       Agent/planner mode for deeper execution
 
 Progress:
-  ask/agent write progress events to stderr by default. Use --progress none or --quiet to suppress them, or --format ndjson --progress ndjson to stream progress on stdout.
+  ask/agent keep live terminal progress on stderr by default, then write the final answer to stdout. In non-TTY logs this falls back to append-only stderr events. Use --progress none or --quiet to suppress progress, or --format ndjson --progress ndjson to stream progress on stdout.
+
+Human input:
+  Interactive terminals prompt on stderr for CloudEval approval requests and then resume the same thread. With --non-interactive, the command exits 6 and returns HITL_REQUIRED in JSON/NDJSON output.
 
 Sensitive identifiers:
   Account, session, and tenant identifiers are redacted by default. Use --show-sensitive-ids only in trusted local workflows.

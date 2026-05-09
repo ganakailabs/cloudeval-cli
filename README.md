@@ -248,12 +248,19 @@ Quotes are optional for simple multi-word prompts because the CLI joins the
 remaining words. Use quotes when the question contains shell metacharacters,
 leading dashes, newlines, or spacing you need to preserve.
 
-For text, JSON, and markdown output, progress events are written to stderr so
-stdout stays pipeable. Use `--progress none` or `--quiet` to suppress progress,
-or `--format ndjson --progress ndjson` to stream progress and answer chunks as
-newline-delimited JSON. If the backend completes without final answer content,
-`ask` and `agent` exit non-zero with a clear "No final response returned"
-message instead of returning an empty result.
+For text, JSON, and markdown output, terminal progress stays on stderr so stdout
+remains pipeable. In an interactive terminal the CLI keeps one live status line
+for the current step; in captured logs it falls back to append-only stderr
+events. Use `--progress none` or `--quiet` to suppress progress, or
+`--format ndjson --progress ndjson` to stream progress and answer chunks as
+newline-delimited JSON.
+
+If CloudEval asks for human approval, interactive `ask`/`agent` prompts on
+stderr and then resumes the same thread. With `--non-interactive`, the command
+exits with code `6` and returns `HITL_REQUIRED` in JSON/NDJSON output. If the
+backend completes without final answer content, `ask` and `agent` exit non-zero
+with a clear "No final response returned" message instead of returning an empty
+result.
 
 The TUI also has Ask and Agent modes. Choose per launch:
 

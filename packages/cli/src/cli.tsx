@@ -31,6 +31,15 @@ import { CLI_VERSION } from "./version.js";
 import { getDefaultBaseUrl, shouldUseStoredBaseUrl } from "./baseUrl.js";
 import { getActiveConfigProfile, loadCliConfig, normalizeCliMode } from "./cliConfig.js";
 import { listSessions, recordSessionTurn, resolveSessionReference } from "./sessionsStore.js";
+import {
+  createAskProgressWriter,
+  normalizeAskProgressMode,
+} from "./askProgress.js";
+import {
+  HITL_REQUIRED_EXIT_CODE,
+  promptForHitlResponses,
+  summarizeHitlRequest,
+} from "./hitlPrompt.js";
 
 const DEFAULT_BASE_URL = getDefaultBaseUrl();
 const ASK_STREAM_IDLE_TIMEOUT_MS = 90_000;
@@ -40,8 +49,6 @@ const STREAM_OUTPUT_NODES = new Set([
   "handle_social_interaction",
   "response_compose",
 ]);
-const ASK_PROGRESS_MODES = new Set(["auto", "stderr", "ndjson", "none"]);
-type AskProgressMode = "auto" | "stderr" | "ndjson" | "none";
 type CliChatMode = "ask" | "agent";
 
 // Verbose logging utility
@@ -84,48 +91,6 @@ const readStdinValue = async (): Promise<string> => {
     throw new Error("Received empty stdin input for --api-key-stdin.");
   }
   return value;
-};
-
-const normalizeAskProgressMode = (value?: string): AskProgressMode => {
-  const normalized = (value ?? "auto").toLowerCase();
-  if (ASK_PROGRESS_MODES.has(normalized)) {
-    return normalized as AskProgressMode;
-  }
-  throw new Error("--progress must be one of: auto, stderr, ndjson, none");
-};
-
-const writeAskEvent = (
-  options: {
-    mode: AskProgressMode;
-    format: string;
-    quiet?: boolean;
-    output?: string;
-  },
-  event: Record<string, unknown>
-) => {
-  if (options.quiet || options.mode === "none") {
-    return;
-  }
-
-  const resolvedMode =
-    options.mode === "auto"
-      ? options.format === "ndjson" && !options.output
-        ? "ndjson"
-        : "stderr"
-      : options.mode;
-
-  if (resolvedMode === "ndjson" && options.format === "ndjson" && !options.output) {
-    process.stdout.write(`${JSON.stringify(event)}\n`);
-    return;
-  }
-
-  const message =
-    typeof event.message === "string"
-      ? event.message
-      : typeof event.step === "string"
-        ? event.step
-        : String(event.type ?? "progress");
-  process.stderr.write(`[${event.type ?? "progress"}] ${message}\n`);
 };
 
 const truncateProgressText = (value: string, maxLength = 180): string => {
@@ -953,16 +918,17 @@ program
       // Import types - use any to avoid type conflicts for now
       type Project = any;
       type ChatState = any;
-      const progressOptions = {
+      const progressWriter = createAskProgressWriter({
         mode: progressMode,
         format: outputFormat,
         quiet: Boolean(options.quiet),
         output: options.output,
-      };
+        live: !options.verbose && !options.debug,
+      });
 
       // Get auth token
       verboseLog("Attempting to get authentication token");
-      writeAskEvent(progressOptions, {
+      progressWriter.write({
         type: "auth",
         step: "auth",
         message: "Resolving authentication",
@@ -992,6 +958,7 @@ program
           ) {
               verboseLog("No authentication available, initiating login flow");
             if (!options.quiet) {
+              progressWriter.clear();
               console.error("Authentication required. Starting login process...\n");
             }
             try {
@@ -1002,6 +969,7 @@ program
               });
               verboseLog("Login successful, proceeding with question");
               if (!options.quiet) {
+                progressWriter.clear();
                 console.error("\nAuthentication successful. Proceeding with your question...\n");
               }
             } catch (loginError: any) {
@@ -1009,6 +977,7 @@ program
                 message: loginError.message,
                 stack: loginError.stack,
               });
+              progressWriter.clear();
               console.error(`Login failed: ${loginError.message}`);
               process.exit(1);
             }
@@ -1017,6 +986,7 @@ program
               message: error.message,
               hasApiKey: !!providedApiKey,
             });
+            progressWriter.clear();
             console.error(`Authentication failed: ${error.message}`);
             process.exit(1);
           }
@@ -1034,7 +1004,7 @@ program
 
       // Get project
       verboseLog("Determining project to use");
-      writeAskEvent(progressOptions, {
+      progressWriter.write({
         type: "request",
         step: "project",
         message: selectedProjectId ? `Using project ${selectedProjectId}` : "Resolving project",
@@ -1183,7 +1153,7 @@ program
           return;
         }
         emittedProgressKeys.add(key);
-        writeAskEvent(progressOptions, event);
+        progressWriter.write(event);
       };
 
       const streamUrl = `${normalizeApiBase(baseUrl)}/chat/stream`;
@@ -1217,112 +1187,219 @@ program
         hasBody: true,
       } as any);
 
+      const frontendUrl = buildFrontendUrl({
+        baseUrl: resolveFrontendBaseUrl({
+          frontendUrl: selectedFrontendUrl,
+          apiBaseUrl: baseUrl,
+        }),
+        target: "chat",
+        threadId: chatState.threadId,
+      });
+
       try {
-        let chunkCount = 0;
-        writeAskEvent(progressOptions, {
-          type: "request",
-          step: "stream",
-          message: "Sending chat request",
-          threadId,
-          projectId: project.id,
-        });
-        for await (const chunk of streamChat({
-          baseUrl,
-          authToken: token,
-          message: question,
-          threadId,
-          user: { id: project.user_id ?? authenticatedUserId ?? "cli-user", name: userName },
-          project,
-          settings: streamSettings,
-          debug: options.debug,
-          completeAfterResponse: true,
-          responseCompletionGraceMs: 5000,
-          streamIdleTimeoutMs: ASK_STREAM_IDLE_TIMEOUT_MS,
-        })) {
-          chunkCount++;
-          if (options.verbose && chunkCount % 10 === 0) {
-            verboseLog(`Received ${chunkCount} chunks`);
-          }
-          if (options.debug || options.verbose) {
-            verboseLog("Chunk received:", {
-              type: chunk.type,
-              node: (chunk as any).node,
-              hasContent: !!(chunk as any).content,
-              contentLength: (chunk as any).content?.length || 0,
-            });
-          }
-          chatState = reduceChunk(chatState, chunk);
-          writeChunkProgressEvent(progressEventFromChunk(chunk, { verbose: options.verbose }));
+        let totalChunkCount = 0;
+        let hitlResume: any | undefined;
+        while (true) {
+          let pendingHitlRequest: any | undefined;
+          progressWriter.write({
+            type: "request",
+            step: hitlResume ? "hitl_resume" : "stream",
+            message: hitlResume ? "Resuming with human input" : "Sending chat request",
+            threadId,
+            projectId: project.id,
+          });
+          for await (const chunk of streamChat({
+            baseUrl,
+            authToken: token,
+            message: hitlResume ? "" : question,
+            threadId,
+            user: { id: project.user_id ?? authenticatedUserId ?? "cli-user", name: userName },
+            project,
+            settings: streamSettings,
+            debug: options.debug,
+            completeAfterResponse: true,
+            responseCompletionGraceMs: 5000,
+            streamIdleTimeoutMs: ASK_STREAM_IDLE_TIMEOUT_MS,
+            hitlResume,
+          })) {
+            totalChunkCount++;
+            if (options.verbose && totalChunkCount % 10 === 0) {
+              verboseLog(`Received ${totalChunkCount} chunks`);
+            }
+            if (options.debug || options.verbose) {
+              verboseLog("Chunk received:", {
+                type: chunk.type,
+                node: (chunk as any).node,
+                hasContent: !!(chunk as any).content,
+                contentLength: (chunk as any).content?.length || 0,
+              });
+            }
+            chatState = reduceChunk(chatState, chunk);
+            writeChunkProgressEvent(progressEventFromChunk(chunk, { verbose: options.verbose }));
 
-          // Get the latest assistant message
-          const latestMessage = [...chatState.messages]
-            .reverse()
-            .find((m) => m.role === "assistant");
+            if (chunk.type === "hitl_request") {
+              pendingHitlRequest = chunk;
+              if (ndjsonOutput) {
+                writeAskDataEvent({
+                  type: "hitl_request",
+                  threadId,
+                  checkpointId: (chunk as any).checkpoint_id,
+                  pendingIntentId: (chunk as any).pending_intent_id,
+                  questions: (chunk as any).questions ?? [],
+                  frontendUrl,
+                });
+              }
+              break;
+            }
 
-          if (
-            ndjsonOutput &&
-            chunk.type === "responding" &&
-            chunk.content &&
-            (!chunk.node || STREAM_OUTPUT_NODES.has(chunk.node))
-          ) {
-            writeAskDataEvent({
-              type: "chunk",
-              content: chunk.content,
-              node: chunk.node,
-              threadId,
-            });
-          }
+            // Get the latest assistant message
+            const latestMessage = [...chatState.messages]
+              .reverse()
+              .find((m) => m.role === "assistant");
 
-          // Stream responding text in real-time. Some backends send incremental
-          // content and others send cumulative assistant content, so derive the
-          // emitted delta from reducer state to avoid duplicate stdout.
-          if (
-            streamTextOutput &&
-            chunk.type === "responding" &&
-            chunk.content &&
-            (!chunk.node || STREAM_OUTPUT_NODES.has(chunk.node))
-          ) {
-            if (latestMessage?.content) {
-              responseText = latestMessage.content;
-              const delta = responseText.slice(emittedTextLength);
-              if (delta) {
-                if (!responseText.slice(0, emittedTextLength).endsWith(delta)) {
-                  outputStream.write(delta);
+            if (
+              ndjsonOutput &&
+              chunk.type === "responding" &&
+              chunk.content &&
+              (!chunk.node || STREAM_OUTPUT_NODES.has(chunk.node))
+            ) {
+              writeAskDataEvent({
+                type: "chunk",
+                content: chunk.content,
+                node: chunk.node,
+                threadId,
+              });
+            }
+
+            // Stream responding text in real-time. Some backends send incremental
+            // content and others send cumulative assistant content, so derive the
+            // emitted delta from reducer state to avoid duplicate stdout.
+            if (
+              streamTextOutput &&
+              chunk.type === "responding" &&
+              chunk.content &&
+              (!chunk.node || STREAM_OUTPUT_NODES.has(chunk.node))
+            ) {
+              if (latestMessage?.content) {
+                responseText = latestMessage.content;
+                const delta = responseText.slice(emittedTextLength);
+                if (delta) {
+                  progressWriter.clear();
+                  if (!responseText.slice(0, emittedTextLength).endsWith(delta)) {
+                    outputStream.write(delta);
+                  }
+                  emittedTextLength = responseText.length;
                 }
-                emittedTextLength = responseText.length;
               }
             }
+
+            // Handle errors
+            if (chunk.type === "error") {
+              const errorMsg = chunk.message || chunk.description || "Unknown error";
+              verboseLog("Error chunk received:", {
+                message: errorMsg,
+                node: (chunk as any).node,
+                status: (chunk as any).status,
+                stack: (chunk as any).stacktrace,
+              });
+              progressWriter.clear();
+              if (jsonOutput) {
+                // For JSON mode, we'll include error in final output
+                responseText = `Error: ${errorMsg}`;
+              } else if (ndjsonOutput) {
+                writeAskDataEvent({ type: "error", error: { message: errorMsg }, threadId });
+              } else {
+                // For streaming mode, output error immediately
+                outputStream.write(`\nError: ${errorMsg}\n`);
+              }
+              break;
+            }
           }
 
-          // Handle errors
-          if (chunk.type === "error") {
-            const errorMsg = chunk.message || chunk.description || "Unknown error";
-            verboseLog("Error chunk received:", {
-              message: errorMsg,
-              node: (chunk as any).node,
-              status: (chunk as any).status,
-              stack: (chunk as any).stacktrace,
-            });
-            if (jsonOutput) {
-              // For JSON mode, we'll include error in final output
-              responseText = `Error: ${errorMsg}`;
-            } else if (ndjsonOutput) {
-              writeAskDataEvent({ type: "error", error: { message: errorMsg }, threadId });
-            } else {
-              // For streaming mode, output error immediately
-              outputStream.write(`\nError: ${errorMsg}\n`);
-            }
+          if (!pendingHitlRequest) {
             break;
           }
+
+          progressWriter.clear();
+          const questions = pendingHitlRequest.questions ?? [];
+          const checkpointId = pendingHitlRequest.checkpoint_id ?? chatState.threadId;
+          const canPromptForHitl =
+            !options.nonInteractive &&
+            Boolean(process.stdin.isTTY) &&
+            Boolean(process.stderr.isTTY) &&
+            questions.length > 0 &&
+            Boolean(checkpointId);
+
+          if (!canPromptForHitl) {
+            const hitl = {
+              checkpointId,
+              pendingIntentId: pendingHitlRequest.pending_intent_id,
+              runId: pendingHitlRequest.run_id,
+              langsmithTraceId: pendingHitlRequest.langsmith_trace_id,
+              questions,
+            };
+            const message = "Human input required by CloudEval.";
+            const summary = summarizeHitlRequest({ questions, checkpointId, frontendUrl });
+            if (jsonOutput) {
+              const output = {
+                ok: false,
+                command: commandName,
+                question,
+                error: { code: "HITL_REQUIRED", message },
+                data: {
+                  threadId: chatState.threadId,
+                  project: {
+                    id: project.id,
+                    name: project.name,
+                  },
+                  hitl,
+                },
+                frontendUrl,
+              };
+              const outputText = JSON.stringify(output, null, 2) + "\n";
+              if (options.output) {
+                await fsPromises.writeFile(options.output, outputText, "utf-8");
+              } else {
+                process.stdout.write(outputText);
+              }
+            } else if (ndjsonOutput) {
+              writeAskDataEvent({
+                type: "hitl_required",
+                ok: false,
+                command: commandName,
+                error: { code: "HITL_REQUIRED", message },
+                data: { threadId: chatState.threadId, project: { id: project.id, name: project.name }, hitl },
+                frontendUrl,
+              });
+              await closeOutputStream();
+            } else {
+              await closeOutputStream();
+              process.stderr.write(summary);
+            }
+            process.exit(HITL_REQUIRED_EXIT_CODE);
+          }
+
+          const responses = await promptForHitlResponses(questions);
+          if (responses.length === 0) {
+            throw new Error("No HITL response was provided.");
+          }
+          hitlResume = {
+            checkpointId,
+            responses,
+            runId: pendingHitlRequest.run_id,
+            langsmithTraceId: pendingHitlRequest.langsmith_trace_id,
+          };
         }
 
-        verboseLog("Stream completed", { totalChunks: chunkCount });
+        verboseLog("Stream completed", { totalChunks: totalChunkCount });
 
         if (streamTextOutput && emittedTextLength > 0) {
+          progressWriter.clear();
           outputStream.write("\n");
         }
       } catch (error: any) {
         const errorMsg = error.message || "Streaming failed";
+        progressWriter.clear();
         if (jsonOutput) {
           responseText = `Error: ${errorMsg}`;
         } else if (ndjsonOutput) {
@@ -1338,17 +1415,10 @@ program
         .reverse()
         .find((m) => m.role === "assistant");
       const finalResponse = collapseRepeatedAssistantText(finalMessage?.content || responseText || "");
-      const frontendUrl = buildFrontendUrl({
-        baseUrl: resolveFrontendBaseUrl({
-          frontendUrl: selectedFrontendUrl,
-          apiBaseUrl: baseUrl,
-        }),
-        target: "chat",
-        threadId: chatState.threadId,
-      });
 
       if (!finalResponse.trim()) {
         const noResponseMessage = `No final response returned by CloudEval (last stream status: ${chatState.status ?? "unknown"}). Retry with --verbose or --format ndjson to inspect stream progress.`;
+        progressWriter.clear();
         if (jsonOutput) {
           const output = {
             ok: false,

@@ -389,6 +389,25 @@ const startBackend = async (
         res.write(`data: ${JSON.stringify({ type: "thinking", node: "load_reports", status: "streaming", description: "Loading cost reports" })}\n\n`);
         res.write(`data: ${JSON.stringify({ type: "thinking", node: "load_reports", status: "completed", description: "Loaded cost reports" })}\n\n`);
         res.write(`data: ${JSON.stringify({ type: "responding", node: "response_compose", content: "Report summary ready.", status: "completed" })}\n\n`);
+      } else if (message.includes("hitl approval")) {
+        res.write(`data: ${JSON.stringify({ type: "thinking", node: "prepare_response", status: "streaming", description: "Prepare response" })}\n\n`);
+        res.write(`data: ${JSON.stringify({
+          type: "hitl_request",
+          questions: [{
+            id: "approval_0",
+            text: "Should I proceed with running Regenerate cost report?",
+            options: [
+              { id: "approve", label: "Approve", recommended: true },
+              { id: "reject", label: "Reject" },
+            ],
+            recommended_option_id: "approve",
+          }],
+          checkpoint_id: "ckpt-cost-1",
+          pending_intent_id: "approval_0",
+          run_id: "run-cost-1",
+          langsmith_trace_id: "trace-cost-1",
+        })}\n\n`);
+        res.write(`data: ${JSON.stringify({ type: "thinking", node: "end", status: "completed", description: "Waiting for approval" })}\n\n`);
       } else if (message.includes("duplicate chunks")) {
         res.write(`data: ${JSON.stringify({ type: "responding", node: "generate_response", content: "Mock duplicate answer." })}\n\n`);
         res.write(`data: ${JSON.stringify({ type: "responding", node: "generate_response", content: "Mock duplicate answer." })}\n\n`);
@@ -1528,6 +1547,62 @@ test("agent prints thinking progress and fails clearly when no final answer is r
     assert.match(empty.stderr, /\[thinking\] Loading cost reports/);
     assert.match(empty.stderr, /No final response returned by CloudEval/);
     assert.match(empty.stderr, /last stream status: complete/);
+  } finally {
+    await backend.close();
+  }
+});
+
+test("agent reports HITL approval requests instead of an empty final response", async () => {
+  const backend = await startBackend();
+  try {
+    const json = await runCli([
+      "agent",
+      "hitl",
+      "approval",
+      "--base-url",
+      backend.baseUrl,
+      "--api-key-stdin",
+      "--project",
+      "project-main",
+      "--format",
+      "json",
+      "--progress",
+      "none",
+      "--non-interactive",
+    ], { input: "test-token" });
+
+    assert.equal(json.exitCode, 6);
+    assert.equal(json.stderr, "");
+    const body = JSON.parse(json.stdout);
+    assert.equal(body.ok, false);
+    assert.equal(body.command, "agent");
+    assert.equal(body.error.code, "HITL_REQUIRED");
+    assert.match(body.error.message, /Human input required/);
+    assert.equal(body.data.hitl.checkpointId, "ckpt-cost-1");
+    assert.equal(body.data.hitl.questions[0].id, "approval_0");
+    assert.equal(body.data.hitl.questions[0].options[0].id, "approve");
+
+    const text = await runCli([
+      "agent",
+      "hitl",
+      "approval",
+      "--base-url",
+      backend.baseUrl,
+      "--api-key-stdin",
+      "--project",
+      "project-main",
+      "--format",
+      "text",
+      "--progress",
+      "stderr",
+      "--non-interactive",
+    ], { input: "test-token" });
+
+    assert.equal(text.exitCode, 6);
+    assert.equal(text.stdout, "");
+    assert.match(text.stderr, /Human input required/);
+    assert.match(text.stderr, /Regenerate cost report/);
+    assert.doesNotMatch(text.stderr, /No final response returned/);
   } finally {
     await backend.close();
   }

@@ -49,11 +49,17 @@ Quotes are optional for simple multi-word prompts because the CLI joins
 remaining words. Use quotes when a prompt contains shell metacharacters, leading
 dashes, newlines, or spacing that must be preserved.
 
-For text, JSON, and markdown output, ask/agent progress events are written to
-stderr. Use `--progress none` or `--quiet` to suppress progress. Use
-`--format ndjson --progress ndjson` when an agent needs progress and answer
-events on stdout. If the backend completes without final answer content, the
-command exits non-zero with a clear no-final-response error.
+For text, JSON, and markdown output, ask/agent progress stays on stderr. In a
+TTY the CLI keeps one live status line for the current step; in captured logs it
+falls back to append-only stderr events. Use `--progress none` or `--quiet` to
+suppress progress. Use `--format ndjson --progress ndjson` when an agent needs
+progress and answer events on stdout.
+
+If CloudEval asks for human approval, interactive ask/agent prompts on stderr
+and then resumes the same thread. With `--non-interactive`, the command
+exits with code `6` and returns `HITL_REQUIRED` in JSON/NDJSON output. If the
+backend completes without final answer content, the command exits non-zero with
+a clear no-final-response error.
 
 ## Default Mode
 

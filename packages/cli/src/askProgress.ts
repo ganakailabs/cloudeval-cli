@@ -19,6 +19,7 @@ export type AskProgressWriter = {
 
 const CLEAR_LINE = "\r\u001B[2K";
 const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+const ANIMATION_INTERVAL_MS = 80;
 const BAR_WIDTH = 18;
 
 type ReasoningStep = {
@@ -97,14 +98,16 @@ export const createAskProgressWriter = (
     Boolean(stream.isTTY);
   let liveLineActive = false;
   let spinnerIndex = 0;
+  let lastLiveEvent: Record<string, unknown> | undefined;
+  let animationTimer: ReturnType<typeof setInterval> | undefined;
   const reasoningSteps = new Map<string, ReasoningStep>();
 
-  const clear = () => {
-    if (!liveLineActive) {
+  const stopAnimation = () => {
+    if (!animationTimer) {
       return;
     }
-    stream.write(CLEAR_LINE);
-    liveLineActive = false;
+    clearInterval(animationTimer);
+    animationTimer = undefined;
   };
 
   const nextSpinner = () => {
@@ -152,6 +155,32 @@ export const createAskProgressWriter = (
     return `${nextSpinner()} Reasoning ${bar} ${completed}/${steps.length} | ${truncateLine(currentMessage)}`;
   };
 
+  const redrawLiveLine = () => {
+    if (!lastLiveEvent) {
+      return;
+    }
+    stream.write(`${CLEAR_LINE}${renderLiveLine(lastLiveEvent)}`);
+    liveLineActive = true;
+  };
+
+  const startAnimation = () => {
+    if (!live || animationTimer) {
+      return;
+    }
+    animationTimer = setInterval(redrawLiveLine, ANIMATION_INTERVAL_MS);
+    animationTimer.unref?.();
+  };
+
+  const clear = () => {
+    stopAnimation();
+    lastLiveEvent = undefined;
+    if (!liveLineActive) {
+      return;
+    }
+    stream.write(CLEAR_LINE);
+    liveLineActive = false;
+  };
+
   return {
     write(event) {
       if (options.quiet || resolvedMode === "none") {
@@ -165,8 +194,9 @@ export const createAskProgressWriter = (
 
       const line = `[${event.type ?? "progress"}] ${eventMessage(event)}`;
       if (live) {
-        stream.write(`${CLEAR_LINE}${renderLiveLine(event)}`);
-        liveLineActive = true;
+        lastLiveEvent = event;
+        redrawLiveLine();
+        startAnimation();
         return;
       }
       stream.write(`${line}\n`);

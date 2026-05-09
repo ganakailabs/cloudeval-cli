@@ -92,7 +92,6 @@ cloudeval credentials create --template ci --name github-actions-prod --project 
 cloudeval identity --format json
 cloudeval capabilities --live --format json</code></pre>
       <p>Use <code>--access-key</code>, <code>--access-key-stdin</code>, or <code>CLOUDEVAL_ACCESS_KEY</code> for non-interactive automation. The beta <code>--api-key</code> names now fail with a migration error.</p>
-      <p>Backend and frontend implementation details live in <a href="credentials-api-contract.md">the credentials API contract</a>.</p>
       <h2>MCP server for agents</h2>
       <p>Expose CloudEval to Codex, Claude Desktop, Cursor, and other MCP clients:</p>
       <pre><code>cloudeval mcp serve
@@ -111,13 +110,7 @@ cloudeval mcp setup cursor --dry-run --toolset billing --format json</code></pre
         <li>Auth: run <code>cloudeval login</code> or <code>cloudeval login --headless</code> before starting the MCP server, or provide <code>CLOUDEVAL_ACCESS_KEY</code> / <code>--access-key</code> from a scoped credential. Stdin is reserved for JSON-RPC messages.</li>
         <li>Transport: newline-delimited stdio JSON-RPC for modern clients, with legacy <code>Content-Length</code> framing accepted. Protocol messages use stdout; server diagnostics use stderr.</li>
       </ul>
-      <p><a href="https://github.com/ganakailabs/cloudeval-cli/releases/latest">Latest release</a></p>
-      <h2>Release smoke tests</h2>
-      <p>Verify the public installer and installed binary against the real CloudEval FQDN:</p>
-      <pre><code>bash scripts/smoke-release-real-backend.sh</code></pre>
-      <p><a href="https://github.com/ganakailabs/cloudeval-cli/blob/main/docs/release-smoke-tests.md">Smoke test coverage and runbook</a></p>
-      <h2>Security</h2>
-      <p>Run <code>pnpm security:scan</code> before publishing security-sensitive changes. See <a href="https://github.com/ganakailabs/cloudeval-cli/blob/main/SECURITY.md">SECURITY.md</a> for disclosure and local artifact guidance.</p>
+      <p><a href="https://github.com/ganakailabs/cloudeval-cli/releases/latest">Latest release</a> · <a href="https://docs.cloudeval.ai/quickstart/use-the-cli.md">Documentation</a></p>
     </main>
   </body>
 </html>

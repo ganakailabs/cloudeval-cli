@@ -46,6 +46,10 @@ type AskProgressMode = "auto" | "stderr" | "ndjson" | "none";
 // Verbose logging utility
 let verboseEnabled = false;
 
+const enableCliDebugLogging = () => {
+  process.env.CLOUDEVAL_CLI_DEBUG = "1";
+};
+
 const redactSensitive = (value: unknown): unknown => {
   if (Array.isArray(value)) {
     return value.map((item) => redactSensitive(item));
@@ -212,6 +216,9 @@ const assertModelAvailable = async (input: {
 
 export const setVerbose = (enabled: boolean) => {
   verboseEnabled = enabled;
+  if (enabled) {
+    enableCliDebugLogging();
+  }
 };
 
 export const isVerbose = () => verboseEnabled;

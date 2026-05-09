@@ -12,9 +12,68 @@ const INSECURE_FILE_FALLBACK_ENV = "CLOUDEVAL_ALLOW_INSECURE_FILE_STORAGE";
 const CONCURRENT_REFRESH_WAIT_STEPS_MS = [50, 100, 150, 250];
 const REFRESH_LOCK_WAIT_STEP_MS = 100;
 const REFRESH_LOCK_STALE_MS = 30_000;
+const CLI_DEBUG_ENV = "CLOUDEVAL_CLI_DEBUG";
+const SENSITIVE_DEBUG_KEY_PATTERN =
+  /token|authorization|cookie|secret|password|api[_-]?key|client_secret|refresh|device[_-]?code|user[_-]?code/i;
+const SENSITIVE_DEBUG_QUERY_PARAM_PATTERN =
+  /token|authorization|cookie|secret|password|api[_-]?key|client_secret|refresh|device[_-]?code|user[_-]?code|code/i;
 
 const KEYCHAIN_SERVICE = "cloudeval-cli";
 const KEYCHAIN_LABEL = "Cloudeval CLI";
+
+const isCliDebugEnabled = () => {
+  const value = process.env[CLI_DEBUG_ENV];
+  return value === "1" || value?.toLowerCase() === "true";
+};
+
+const redactDebugValue = (value: unknown): unknown => {
+  if (Array.isArray(value)) {
+    return value.map((item) => redactDebugValue(item));
+  }
+  if (typeof value === "string") {
+    try {
+      const url = new URL(value);
+      let changed = false;
+      for (const key of Array.from(url.searchParams.keys())) {
+        if (SENSITIVE_DEBUG_QUERY_PARAM_PATTERN.test(key)) {
+          url.searchParams.set(key, "[REDACTED]");
+          changed = true;
+        }
+      }
+      return changed ? url.toString() : value;
+    } catch {
+      return value;
+    }
+  }
+  if (value && typeof value === "object") {
+    const redacted: Record<string, unknown> = {};
+    for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
+      redacted[key] = SENSITIVE_DEBUG_KEY_PATTERN.test(key)
+        ? "[REDACTED]"
+        : redactDebugValue(item);
+    }
+    return redacted;
+  }
+  return value;
+};
+
+const cliDebug = (message: string, data?: Record<string, unknown>) => {
+  if (!isCliDebugEnabled()) {
+    return;
+  }
+  const prefix = `[${new Date().toISOString()}] [CLI DEBUG]`;
+  if (data === undefined) {
+    console.error(`${prefix} ${message}`);
+    return;
+  }
+  try {
+    console.error(
+      `${prefix} ${message}\n${JSON.stringify(redactDebugValue(data), null, 2)}`
+    );
+  } catch {
+    console.error(`${prefix} ${message}`, redactDebugValue(data));
+  }
+};
 
 interface AuthOptions {
   apiKey?: string;
@@ -792,7 +851,18 @@ const resolveDeviceVerificationUrl = (deviceCodeData: DeviceCodeResponse): strin
       );
     }
   }
-  const backendUrl = deviceCodeData.verification_uri_complete || deviceCodeData.verification_uri;
+  const backendUrl =
+    deviceCodeData.verification_uri_complete ||
+    (() => {
+      try {
+        return buildDeviceVerificationUrl(
+          deviceCodeData.verification_uri,
+          deviceCodeData.user_code
+        );
+      } catch {
+        return deviceCodeData.verification_uri;
+      }
+    })();
   if (isLocalDeviceVerificationUrl(backendUrl)) {
     return buildDeviceVerificationUrl(DEFAULT_FRONTEND_URL, deviceCodeData.user_code);
   }
@@ -859,12 +929,23 @@ interface QuickOnboardResponse {
   user?: {
     id?: string;
     email?: string;
+    preferences?: {
+      onboarding?: {
+        completedAt?: string | number;
+      };
+    };
   };
   playground_project?: Project;
   default_connection?: {
     id?: string;
     name?: string;
   };
+  onboarding_completed_at?: string;
+  setup_jobs?: Array<{
+    operation?: string;
+    status?: string;
+    job_id?: string;
+  }>;
 }
 
 const PLAYGROUND_PROJECT_NAME = "Playground";
@@ -890,9 +971,17 @@ export const getProjects = async (
 ): Promise<Project[]> => {
   try {
     const apiBase = normalizeApiBase(baseUrl);
+    cliDebug("getProjects request", {
+      url: `${apiBase}/projects/user/${userId}`,
+      userId,
+    });
     const response = await fetch(`${apiBase}/projects/user/${userId}`, {
       method: "GET",
       headers: getCLIHeaders(token),
+    });
+    cliDebug("getProjects response", {
+      status: response.status,
+      ok: response.ok,
     });
 
     if (!response.ok) {
@@ -903,8 +992,16 @@ export const getProjects = async (
     }
 
     const projects = await response.json();
-    return Array.isArray(projects) ? projects : [];
+    const parsedProjects = Array.isArray(projects) ? projects : [];
+    cliDebug("getProjects parsed", {
+      count: parsedProjects.length,
+      names: parsedProjects.map((project) => project?.name),
+    });
+    return parsedProjects;
   } catch (error: any) {
+    cliDebug("getProjects failed", {
+      message: error?.message,
+    });
     console.warn("Failed to fetch projects:", error.message);
     return [];
   }
@@ -919,7 +1016,8 @@ const getUserDisplayName = (user: PlaygroundUser): string | undefined =>
 const quickOnboardPlayground = async (
   baseUrl: string,
   token: string,
-  user: PlaygroundUser
+  user: PlaygroundUser,
+  extraPayload: Record<string, unknown> = {}
 ): Promise<QuickOnboardResponse> => {
   if (!user.email) {
     throw new Error(
@@ -929,17 +1027,33 @@ const quickOnboardPlayground = async (
 
   const apiBase = normalizeApiBase(baseUrl);
   const fullName = getUserDisplayName(user);
+  const body = {
+    email: user.email,
+    ...(fullName ? { full_name: fullName } : {}),
+    ...extraPayload,
+  };
+  cliDebug("quickOnboardPlayground request", {
+    url: `${apiBase}/onboard/quick`,
+    email: user.email,
+    hasFullName: !!fullName,
+    payloadKeys: Object.keys(body),
+  });
   const response = await fetch(`${apiBase}/onboard/quick`, {
     method: "POST",
     headers: getCLIHeaders(token),
-    body: JSON.stringify({
-      email: user.email,
-      ...(fullName ? { full_name: fullName } : {}),
-    }),
+    body: JSON.stringify(body),
+  });
+  cliDebug("quickOnboardPlayground response", {
+    status: response.status,
+    ok: response.ok,
   });
 
   if (!response.ok) {
     const detail = await readResponseDetail(response);
+    cliDebug("quickOnboardPlayground failed", {
+      status: response.status,
+      detail,
+    });
     throw new Error(
       `Failed to run shared Playground onboarding: ${response.status} ${response.statusText}${
         detail ? ` - ${detail}` : ""
@@ -947,7 +1061,14 @@ const quickOnboardPlayground = async (
     );
   }
 
-  return (await response.json()) as QuickOnboardResponse;
+  const data = (await response.json()) as QuickOnboardResponse;
+  cliDebug("quickOnboardPlayground parsed", {
+    userId: data.user?.id,
+    hasPlaygroundProject: !!data.playground_project?.id,
+    hasDefaultConnection: !!data.default_connection?.id,
+    setupJobs: data.setup_jobs?.map((job) => job.operation),
+  });
+  return data;
 };
 
 export const ensurePlaygroundProject = async (
@@ -955,21 +1076,34 @@ export const ensurePlaygroundProject = async (
   token: string,
   user: PlaygroundUser
 ): Promise<Project> => {
+  cliDebug("ensurePlaygroundProject start", {
+    userId: user.id,
+    email: user.email,
+  });
   const existingProjects = await getProjects(baseUrl, token, user.id);
   const existingPlayground = getPlaygroundProject(existingProjects);
   if (existingPlayground) {
+    cliDebug("ensurePlaygroundProject existing Playground found", {
+      projectId: existingPlayground.id,
+    });
     return existingPlayground;
   }
 
   const onboardResponse = await quickOnboardPlayground(baseUrl, token, user);
+  if (onboardResponse.playground_project?.id) {
+    cliDebug("ensurePlaygroundProject repaired from quick response", {
+      projectId: onboardResponse.playground_project.id,
+    });
+    return onboardResponse.playground_project;
+  }
+
   const refreshedProjects = await getProjects(baseUrl, token, user.id);
   const refreshedPlayground = getPlaygroundProject(refreshedProjects);
   if (refreshedPlayground) {
+    cliDebug("ensurePlaygroundProject repaired after project refetch", {
+      projectId: refreshedPlayground.id,
+    });
     return refreshedPlayground;
-  }
-
-  if (onboardResponse.playground_project?.id) {
-    return onboardResponse.playground_project;
   }
 
   throw new Error(
@@ -1026,16 +1160,31 @@ export const loginWithDeviceCode = async (
 
   const requestBody = JSON.stringify({ client_id: clientId });
 
+  cliDebug("backend device-code request", {
+    url: `${authBase}/auth/device/code`,
+    clientId,
+  });
   const deviceCodeResponse = await fetch(`${authBase}/auth/device/code`, {
     method: "POST",
     headers: getCLIHeaders(),
     body: requestBody,
   });
+  cliDebug("backend device-code response", {
+    status: deviceCodeResponse.status,
+    ok: deviceCodeResponse.ok,
+  });
 
   if (!deviceCodeResponse.ok) {
     const statusInfo = `${deviceCodeResponse.status} ${deviceCodeResponse.statusText}`;
-    let errorMessage = `Failed to initiate login: ${statusInfo}`;
     const detail = await readResponseDetail(deviceCodeResponse);
+    if (deviceCodeResponse.status === 401 || deviceCodeResponse.status === 403) {
+      throw new Error(
+        `CloudEval backend device-code login is blocked by an authentication layer (${statusInfo}${
+          detail ? ` - ${detail}` : ""
+        }). The CLI needs /api/v1/auth/device/code to stay public so it can show the CloudEval approval URL.`
+      );
+    }
+    let errorMessage = `Failed to initiate login: ${statusInfo}`;
     if (detail) {
       errorMessage = `Failed to initiate login: ${statusInfo} - ${detail}`;
     }
@@ -1063,6 +1212,13 @@ const pollDeviceCodeAndPersist = async (
   const verificationUrl = resolveDeviceVerificationUrl(deviceCodeData);
   const browserOpener = options.browserOpener ?? openBrowser;
   let openedInBrowser = false;
+  cliDebug("backend device-code parsed", {
+    hasVerificationUriComplete: !!deviceCodeData.verification_uri_complete,
+    verificationUrl,
+    userCode: deviceCodeData.user_code,
+    expiresIn: deviceCodeData.expires_in,
+    interval: deviceCodeData.interval,
+  });
 
   if (options.openInBrowser && verificationUrl) {
     console.log("\nOpening browser for authentication...");
@@ -1098,12 +1254,32 @@ const pollDeviceCodeAndPersist = async (
         client_id: clientId,
       }),
     });
+    cliDebug("backend device-token response", {
+      status: tokenResponse.status,
+      ok: tokenResponse.ok,
+    });
 
-    const tokenData = (await tokenResponse.json()) as DeviceTokenResponse;
+    const tokenResponseForDetail = tokenResponse.clone();
+    let tokenData: DeviceTokenResponse;
+    try {
+      tokenData = (await tokenResponse.json()) as DeviceTokenResponse;
+    } catch {
+      const detail = await readResponseDetail(tokenResponseForDetail);
+      throw new Error(
+        `Device token exchange failed: ${tokenResponse.status} ${tokenResponse.statusText}${
+          detail ? ` - ${detail}` : ""
+        }`
+      );
+    }
 
     if (tokenResponse.ok && tokenData.access_token) {
       const accessToken = persistAuthTokens(tokenData, {
         baseUrl: options.persistBaseUrl ?? apiBase,
+      });
+      cliDebug("backend device-token completed", {
+        hasRefreshToken: !!tokenData.refresh_token,
+        sessionId: tokenData.session_id,
+        accountId: tokenData.account_id,
       });
       console.log("\nAuthentication successful. Session saved.\n");
       return accessToken;
@@ -1430,9 +1606,18 @@ const fetchCurrentUserFromServer = async (
   token: string
 ): Promise<UserStatus["user"] | null> => {
   try {
+    const startedAt = Date.now();
+    cliDebug("fetchCurrentUserFromServer request", {
+      url: `${apiBase}/auth/me`,
+    });
     const response = await fetch(`${apiBase}/auth/me`, {
       method: "GET",
       headers: getCLIHeaders(token),
+    });
+    cliDebug("fetchCurrentUserFromServer response", {
+      status: response.status,
+      ok: response.ok,
+      durationMs: Date.now() - startedAt,
     });
 
     if (response.status === 401 || response.status === 403) {
@@ -1448,12 +1633,20 @@ const fetchCurrentUserFromServer = async (
       return null;
     }
 
+    cliDebug("fetchCurrentUserFromServer parsed", {
+      userId: user.id,
+      email: user.email,
+      onboardingCompleted: !!user.preferences?.onboarding?.completedAt,
+    });
     return user;
   } catch (error) {
     if (isAuthLookupError(error)) {
       clearStoredAuthIfTokenMatches(token);
       throw error;
     }
+    cliDebug("fetchCurrentUserFromServer failed", {
+      message: errorMessage(error),
+    });
     return null;
   }
 };
@@ -1465,9 +1658,15 @@ export const checkUserStatus = async (
 ): Promise<UserStatus> => {
   try {
     const apiBase = normalizeApiBase(baseUrl);
+    cliDebug("checkUserStatus start", { apiBase });
 
     const currentUser = await fetchCurrentUserFromServer(apiBase, token);
     if (currentUser) {
+      cliDebug("checkUserStatus resolved from /auth/me", {
+        userId: currentUser.id,
+        email: currentUser.email,
+        onboardingCompleted: !!currentUser.preferences?.onboarding?.completedAt,
+      });
       return {
         exists: true,
         onboardingCompleted: !!currentUser.preferences?.onboarding?.completedAt,
@@ -1478,13 +1677,24 @@ export const checkUserStatus = async (
     // Legacy fallback: derive email locally only if server endpoint is unavailable.
     const email = extractEmailFromToken(token);
     if (!email) {
+      cliDebug("checkUserStatus no email claim; assuming existing completed user");
       return { exists: true, onboardingCompleted: true };
     }
 
+    const startedAt = Date.now();
+    cliDebug("checkUserStatus /user/email request", {
+      url: `${apiBase}/user/email`,
+      email,
+    });
     const response = await fetch(`${apiBase}/user/email`, {
       method: "POST",
       headers: getCLIHeaders(token),
       body: JSON.stringify({ email }),
+    });
+    cliDebug("checkUserStatus /user/email response", {
+      status: response.status,
+      ok: response.ok,
+      durationMs: Date.now() - startedAt,
     });
 
     if (response.status === 401 || response.status === 403) {
@@ -1493,6 +1703,11 @@ export const checkUserStatus = async (
 
     if (response.ok) {
       const user = await response.json();
+      cliDebug("checkUserStatus /user/email parsed", {
+        userId: user?.id,
+        email: user?.email,
+        onboardingCompleted: !!user.preferences?.onboarding?.completedAt,
+      });
       return {
         exists: true,
         onboardingCompleted: !!user.preferences?.onboarding?.completedAt,
@@ -1500,15 +1715,22 @@ export const checkUserStatus = async (
       };
     }
     if (response.status === 404) {
+      cliDebug("checkUserStatus user missing");
       return { exists: false, onboardingCompleted: false };
     }
 
+    cliDebug("checkUserStatus non-404 fallback", {
+      status: response.status,
+    });
     return { exists: true, onboardingCompleted: true };
   } catch (error) {
     if (isAuthLookupError(error)) {
       clearStoredAuthIfTokenMatches(token);
       throw error;
     }
+    cliDebug("checkUserStatus failed; assuming completed for compatibility", {
+      message: errorMessage(error),
+    });
     return { exists: true, onboardingCompleted: true };
   }
 };
@@ -1527,6 +1749,14 @@ export const completeOnboarding = async (
 ): Promise<void> => {
   try {
     const apiBase = normalizeApiBase(baseUrl);
+    cliDebug("completeOnboarding start", {
+      apiBase,
+      name: data.name,
+      role: data.role,
+      teamSize: data.teamSize,
+      goals: data.goals,
+      cloudProvider: data.cloudProvider,
+    });
 
     const serverUser = await fetchCurrentUserFromServer(apiBase, token);
     const fallbackEmail = extractEmailFromToken(token);
@@ -1538,12 +1768,32 @@ export const completeOnboarding = async (
 
     const userStatus = await checkUserStatus(apiBase, token);
     const knownUserId = userStatus.user?.id || serverUser?.id;
-
-    const onboardData = await quickOnboardPlayground(apiBase, token, {
-      id: knownUserId || "pending",
+    cliDebug("completeOnboarding identity resolved", {
       email,
-      fullName: data.name,
+      serverUserId: serverUser?.id,
+      knownUserId,
+      statusExists: userStatus.exists,
+      statusOnboardingCompleted: userStatus.onboardingCompleted,
     });
+    const onboarding = {
+      role: data.role,
+      teamSize: data.teamSize,
+      primaryGoals: data.goals,
+      cloudProvider: data.cloudProvider,
+    };
+
+    const onboardData = await quickOnboardPlayground(
+      apiBase,
+      token,
+      {
+        id: knownUserId || "pending",
+        email,
+        fullName: data.name,
+      },
+      {
+        onboarding,
+      }
+    );
 
     const userId = onboardData.user?.id || knownUserId;
 
@@ -1551,35 +1801,61 @@ export const completeOnboarding = async (
       throw new Error("Onboarding completed but no user ID returned");
     }
 
-    const preferences = {
-      onboarding: {
-        role: data.role,
-        teamSize: data.teamSize,
-        primaryGoals: data.goals,
-        cloudProvider: data.cloudProvider,
-        completedAt: new Date().toISOString(),
-      },
-    };
-
-    const response = await fetch(`${apiBase}/users/${userId}`, {
-      method: "PATCH",
-      headers: getCLIHeaders(token),
-      body: JSON.stringify({ preferences }),
+    const persistedOnboarding = onboardData.user?.preferences?.onboarding;
+    const hasPersistedCompletion =
+      !!persistedOnboarding?.completedAt || !!onboardData.onboarding_completed_at;
+    cliDebug("completeOnboarding quick result", {
+      userId,
+      hasPersistedCompletion,
+      hasPlaygroundProject: !!onboardData.playground_project?.id,
+      setupJobs: onboardData.setup_jobs?.map((job) => job.operation),
     });
 
-    if (!response.ok) {
-      const error = await response
-        .json()
-        .catch(() => ({ message: "Failed to complete onboarding" }));
-      throw new Error(error.message || "Failed to complete onboarding");
+    if (!hasPersistedCompletion) {
+      const preferences = {
+        onboarding: {
+          ...onboarding,
+          completedAt: new Date().toISOString(),
+        },
+      };
+
+      cliDebug("completeOnboarding fallback PATCH request", {
+        url: `${apiBase}/users/${userId}`,
+      });
+      const response = await fetch(`${apiBase}/users/${userId}`, {
+        method: "PATCH",
+        headers: getCLIHeaders(token),
+        body: JSON.stringify({ preferences }),
+      });
+      cliDebug("completeOnboarding fallback PATCH response", {
+        status: response.status,
+        ok: response.ok,
+      });
+
+      if (!response.ok) {
+        const error = await response
+          .json()
+          .catch(() => ({ message: "Failed to complete onboarding" }));
+        throw new Error(error.message || "Failed to complete onboarding");
+      }
     }
 
-    await ensurePlaygroundProject(apiBase, token, {
-      id: userId,
+    if (!onboardData.playground_project?.id) {
+      cliDebug("completeOnboarding quick response missing Playground; repairing");
+      await ensurePlaygroundProject(apiBase, token, {
+        id: userId,
+        email,
+        fullName: data.name,
+      });
+    }
+    cliDebug("completeOnboarding finished", {
+      userId,
       email,
-      fullName: data.name,
     });
   } catch (error: any) {
+    cliDebug("completeOnboarding failed", {
+      message: error?.message,
+    });
     if (error?.message) {
       throw error;
     }

@@ -195,8 +195,14 @@ agent commands reuse that stored session.
 ```bash
 cloudeval login
 cloudeval login --headless
+cloudeval login --headless --verbose
 cloudeval auth status
 ```
+
+Verbose login enables redacted CLI debug logs for auth, onboarding, and
+Playground repair requests. Normal CLI login uses CloudEval's device-code
+backend and opens a `cloudeval.ai/device/login?...` approval URL; it does not
+fall back to Microsoft Entra tenant auth for Google or GitHub users.
 
 Sensitive identifiers are redacted by default in text and machine-readable
 output. This includes account IDs, session IDs, tenant IDs, checkout session

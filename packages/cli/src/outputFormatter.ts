@@ -88,6 +88,9 @@ export interface ErrorEnvelope {
   error: {
     message: string;
     code?: string;
+    requestId?: string;
+    requiredCapabilities?: string[];
+    docsUrl?: string;
   };
 }
 
@@ -123,14 +126,27 @@ export const formatErrorEnvelope = (
   command: string,
   error: unknown,
   code?: string
-): ErrorEnvelope => ({
-  ok: false,
-  command,
-  error: {
-    message: error instanceof Error ? error.message : String(error),
-    ...(code ? { code } : {}),
-  },
-});
+): ErrorEnvelope => {
+  const record =
+    error && typeof error === "object" ? (error as Record<string, any>) : {};
+  return {
+    ok: false,
+    command,
+    error: {
+      message: error instanceof Error ? error.message : String(error),
+      ...(code || typeof record.code === "string" ? { code: code ?? record.code } : {}),
+      ...(typeof record.requestId === "string" ? { requestId: record.requestId } : {}),
+      ...(Array.isArray(record.requiredCapabilities)
+        ? {
+            requiredCapabilities: record.requiredCapabilities.filter(
+              (item) => typeof item === "string"
+            ),
+          }
+        : {}),
+      ...(typeof record.docsUrl === "string" ? { docsUrl: record.docsUrl } : {}),
+    },
+  };
+};
 
 export interface TextTableColumn<T = Record<string, unknown>> {
   key?: string;

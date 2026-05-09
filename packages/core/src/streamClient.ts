@@ -14,6 +14,7 @@ import {
   ThinkingChunk,
 } from "@cloudeval/shared";
 import { normalizeApiBase } from "./auth";
+import { withIdempotencyHeader } from "./idempotency";
 
 export interface StreamChatOptions {
   baseUrl: string;
@@ -354,12 +355,12 @@ export async function* streamChat(
       ? options.streamIdleTimeoutMs
       : undefined;
 
-  const headers: Record<string, string> = {
+  const headers: Record<string, string> = withIdempotencyHeader({
     "Content-Type": "application/json",
     Accept: "text/event-stream",
     "X-Client-Type": "cloudeval-cli",
     "X-Client-Version": "0.1.0",
-  };
+  });
 
   if (options.authToken) {
     headers.Authorization = `Bearer ${options.authToken}`;

@@ -76,7 +76,7 @@ const cliDebug = (message: string, data?: Record<string, unknown>) => {
 };
 
 interface AuthOptions {
-  apiKey?: string;
+  accessKey?: string;
   baseUrl?: string;
 }
 
@@ -1866,8 +1866,8 @@ export const completeOnboarding = async (
 };
 
 export const getAuthToken = async (options: AuthOptions = {}): Promise<string> => {
-  if (options.apiKey) {
-    return options.apiKey;
+  if (options.accessKey) {
+    return options.accessKey;
   }
 
   const minValidUntil = now() + TOKEN_EXPIRY_SKEW_MS;
@@ -1899,7 +1899,7 @@ export const getAuthToken = async (options: AuthOptions = {}): Promise<string> =
   }
 
   const loginHint =
-    "No authentication available. Run 'cloudeval login' to authenticate or use --api-key-stdin for automation.";
+    "No authentication available. Run 'cloudeval login' to authenticate or use --access-key-stdin for automation.";
   if (refreshError) {
     throw new Error(`${loginHint} Stored refresh failed: ${errorMessage(refreshError)}`);
   }

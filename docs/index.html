@@ -85,6 +85,14 @@ cloudeval update --yes</code></pre>
       <p>The CLI redacts account IDs, session IDs, tenant IDs, and sensitive URL query parameters by default. Use <code>--show-sensitive-ids</code> only for trusted local workflows that require full identifiers.</p>
       <pre><code>cloudeval auth status
 cloudeval auth status --show-sensitive-ids</code></pre>
+      <h2>Access keys for automation</h2>
+      <p>Create project-scoped credentials for CI, MCP, and agent workflows. The one-time access key is returned only from the create command, and access keys cannot receive <code>credentials:manage</code>.</p>
+      <pre><code>cloudeval credentials templates --format json
+cloudeval credentials create --template ci --name github-actions-prod --project &lt;id&gt; --expires 90d --format github-actions
+cloudeval identity --format json
+cloudeval capabilities --live --format json</code></pre>
+      <p>Use <code>--access-key</code>, <code>--access-key-stdin</code>, or <code>CLOUDEVAL_ACCESS_KEY</code> for non-interactive automation. The beta <code>--api-key</code> names now fail with a migration error.</p>
+      <p>Backend and frontend implementation details live in <a href="credentials-api-contract.md">the credentials API contract</a>.</p>
       <h2>MCP server for agents</h2>
       <p>Expose CloudEval to Codex, Claude Desktop, Cursor, and other MCP clients:</p>
       <pre><code>cloudeval mcp serve
@@ -100,7 +108,7 @@ cloudeval mcp setup cursor --dry-run --toolset billing --format json</code></pre
       <ul>
         <li>Tools: <code>capabilities_get</code>, <code>projects_list</code>, <code>projects_get</code>, <code>projects_export_diagram</code>, <code>ask</code>, <code>reports_list</code>, <code>reports_run</code>, <code>reports_download</code>, <code>billing_summary</code>, <code>billing_usage</code>, <code>billing_ledger</code>, and <code>open_url</code>.</li>
         <li>Compatibility: legacy dotted tool calls still work as aliases, but MCP clients should use underscore names.</li>
-        <li>Auth: run <code>cloudeval login</code> or <code>cloudeval login --headless</code> before starting the MCP server. Login stores the CloudEval session; interactive login completes CLI onboarding steps when needed, while headless login repairs or creates the default Playground through quick onboarding.</li>
+        <li>Auth: run <code>cloudeval login</code> or <code>cloudeval login --headless</code> before starting the MCP server, or provide <code>CLOUDEVAL_ACCESS_KEY</code> / <code>--access-key</code> from a scoped credential. Stdin is reserved for JSON-RPC messages.</li>
         <li>Transport: newline-delimited stdio JSON-RPC for modern clients, with legacy <code>Content-Length</code> framing accepted. Protocol messages use stdout; server diagnostics use stderr.</li>
       </ul>
       <p><a href="https://github.com/ganakailabs/cloudeval-cli/releases/latest">Latest release</a></p>

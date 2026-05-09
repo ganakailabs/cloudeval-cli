@@ -39,6 +39,27 @@ const connection = {
   type: "template",
 };
 
+const credentialTemplate = {
+  id: "ci",
+  name: "GitHub Actions CI",
+  description: "Run reports and read project findings from CI.",
+  capabilities: ["projects:read", "reports:run", "reports:read"],
+  default_expires_days: 90,
+};
+
+const credential = {
+  id: "cred-main",
+  type: "access_key",
+  name: "github-actions-prod",
+  status: "active",
+  key_prefix: "cev_test_ak_01JTEST",
+  key_suffix: "abcd",
+  project_ids: [project.id],
+  capabilities: ["projects:read", "reports:run", "reports:read"],
+  expires_at: "2026-08-08T00:00:00.000Z",
+  last_used_at: "2026-05-08T00:00:00.000Z",
+};
+
 const costReport = {
   id: "cost-current",
   kind: "cost",
@@ -155,6 +176,76 @@ const startBackend = async (
         return json(res, { detail: "Invalid token" }, options.authMeStatus);
       }
       return json(res, authUser);
+    }
+    if (url.pathname === "/api/v1/identity") {
+      return json(res, {
+        identity: {
+          type: "user",
+          id: authUser.id,
+          email: authUser.email,
+        },
+        capabilities: ["projects:read", "reports:run", "credentials:manage"],
+        limits: { credits_remaining_today: 850, max_parallel_jobs: 3 },
+      });
+    }
+    if (url.pathname === "/api/v1/capabilities") {
+      return json(res, {
+        product: "CloudEval",
+        auth: { supports: ["oauth_device_flow", "access_key", "mcp_stdio"] },
+        current_identity: { type: "user", id: authUser.id, email: authUser.email },
+        allowed_tools: [
+          {
+            name: "reports.run",
+            risk: "low",
+            required_capabilities: ["reports:run"],
+            supports_dry_run: false,
+          },
+        ],
+        limits: { credits_remaining_today: 850, max_parallel_jobs: 3 },
+      });
+    }
+    if (url.pathname === "/api/v1/credential-templates") {
+      return json(res, { templates: [credentialTemplate] });
+    }
+    if (url.pathname === "/api/v1/credentials" && req.method === "GET") {
+      assert.equal(url.searchParams.get("project_id"), project.id);
+      return json(res, { credentials: [credential] });
+    }
+    if (url.pathname === "/api/v1/credentials" && req.method === "POST") {
+      assert.equal(req.headers["idempotency-key"], "idem-create-1");
+      const payload = JSON.parse(body || "{}");
+      assert.equal(payload.template, "ci");
+      assert.equal(payload.name, "github-actions-prod");
+      assert.equal(payload.project_id, project.id);
+      return json(res, {
+        credential: {
+          ...credential,
+          id: "cred-created",
+          name: payload.name,
+          expires_at: "2026-08-07T00:00:00.000Z",
+        },
+        access_key: "cev_test_ak_01JTEST_createdsecret",
+        project_id: payload.project_id,
+      }, 201);
+    }
+    if (url.pathname === "/api/v1/credentials/cred-main") {
+      return json(res, {
+        credential,
+        audit_events: [{ id: "aud-1", event_type: "credential.used" }],
+      });
+    }
+    if (url.pathname === "/api/v1/credentials/cred-main/revoke" && req.method === "POST") {
+      assert.equal(req.headers["idempotency-key"], "idem-revoke-1");
+      const payload = JSON.parse(body || "{}");
+      assert.equal(payload.reason, "rotated");
+      return json(res, {
+        credential: {
+          ...credential,
+          status: "revoked",
+          revoked_at: "2026-05-09T00:00:00.000Z",
+          revoke_reason: "rotated",
+        },
+      });
     }
     if (url.pathname === "/api/v1/models") {
       return json(res, {
@@ -456,6 +547,7 @@ const runCli = async (
       CI: "true",
       CLOUDEVAL_ALLOW_INSECURE_FILE_STORAGE: "1",
       CLOUDEVAL_HEADLESS_LOGIN: "1",
+      CLOUDEVAL_ACCESS_KEY: "",
       CLOUDEVAL_API_KEY: "",
       ...options.env,
     },
@@ -541,7 +633,7 @@ test("non-interactive discovery commands are machine-readable", async () => {
   const capabilities = parseJson(await runCli(["capabilities", "--format", "json"]));
   assert.equal(capabilities.ok, true);
   assert.deepEqual(
-    ["ask", "agent", "reports download", "projects create", "mcp serve"].every((command) =>
+    ["ask", "agent", "reports download", "projects create", "credentials create", "mcp serve"].every((command) =>
       JSON.stringify(capabilities.data.domains).includes(command)
     ),
     true
@@ -550,6 +642,132 @@ test("non-interactive discovery commands are machine-readable", async () => {
   const completion = await runCli(["completion", "zsh"]);
   assert.equal(completion.exitCode, 0, completion.stderr);
   assert.match(completion.stdout, /_cloudeval/);
+
+  const powershellCompletion = await runCli(["completion", "powershell"]);
+  assert.equal(powershellCompletion.exitCode, 0, powershellCompletion.stderr);
+  assert.match(powershellCompletion.stdout, /Register-ArgumentCompleter/);
+
+  const dynamicCompletion = await runCli(["__complete", "compl"]);
+  assert.equal(dynamicCompletion.exitCode, 0, dynamicCompletion.stderr);
+  assert.match(dynamicCompletion.stdout, /^completion\tcommand\t/m);
+});
+
+test("credentials, identity, and live capabilities commands call credential APIs", async () => {
+  const backend = await startBackend();
+  try {
+    const common = ["--base-url", backend.baseUrl, "--access-key", "test-token", "--format", "json", "--non-interactive"];
+
+    const templates = parseJson(await runCli(["credentials", "templates", ...common]));
+    assert.equal(templates.command, "credentials templates");
+    assert.equal(templates.data.templates[0].id, "ci");
+
+    const created = await runCli([
+      "credentials",
+      "create",
+      "--base-url",
+      backend.baseUrl,
+      "--access-key",
+      "test-token",
+      "--template",
+      "ci",
+      "--name",
+      "github-actions-prod",
+      "--project",
+      "project-main",
+      "--expires",
+      "90d",
+      "--idempotency-key",
+      "idem-create-1",
+      "--format",
+      "github-actions",
+      "--non-interactive",
+    ]);
+    assert.equal(created.exitCode, 0, created.stderr);
+    assert.match(created.stdout, /^CLOUDEVAL_ACCESS_KEY: cev_test_ak_01JTEST_createdsecret/m);
+    assert.match(created.stdout, /^CLOUDEVAL_PROJECT_ID: project-main/m);
+
+    const list = parseJson(await runCli(["credentials", "list", ...common, "--project", "project-main"]));
+    assert.equal(list.command, "credentials list");
+    assert.equal(list.data.credentials[0].key_prefix, "cev_test_ak_01JTEST");
+    assert.equal(JSON.stringify(list.data), JSON.stringify(list.data).replace("createdsecret", ""));
+
+    const inspected = parseJson(await runCli(["credentials", "inspect", "cred-main", ...common]));
+    assert.equal(inspected.data.credential.id, "cred-main");
+    assert.equal(inspected.data.audit_events[0].event_type, "credential.used");
+
+    const revoked = parseJson(await runCli([
+      "credentials",
+      "revoke",
+      "cred-main",
+      "--base-url",
+      backend.baseUrl,
+      "--access-key",
+      "test-token",
+      "--reason",
+      "rotated",
+      "--idempotency-key",
+      "idem-revoke-1",
+      "--format",
+      "json",
+      "--non-interactive",
+    ]));
+    assert.equal(revoked.data.credential.status, "revoked");
+
+    const identity = parseJson(await runCli(["identity", ...common]));
+    assert.equal(identity.command, "identity");
+    assert.equal(identity.data.identity.email, user.email);
+    assert.equal(identity.data.capabilities.includes("credentials:manage"), true);
+
+    const liveCapabilities = parseJson(await runCli(["capabilities", "--live", ...common]));
+    assert.equal(liveCapabilities.command, "capabilities");
+    assert.equal(liveCapabilities.data.live.current_identity.email, user.email);
+    assert.equal(liveCapabilities.data.live.allowed_tools[0].name, "reports.run");
+  } finally {
+    await backend.close();
+  }
+});
+
+test("legacy API key flags and environment variables fail with beta migration message", async () => {
+  const flag = await runCli(["projects", "list", "--api-key", "old-token", "--non-interactive"]);
+  assert.notEqual(flag.exitCode, 0);
+  assert.match(flag.stderr, /API key auth was renamed in beta\. Use --access-key or CLOUDEVAL_ACCESS_KEY\./);
+
+  const stdinFlag = await runCli(["projects", "list", "--api-key-stdin", "--non-interactive"], {
+    input: "old-token\n",
+  });
+  assert.notEqual(stdinFlag.exitCode, 0);
+  assert.match(stdinFlag.stderr, /API key auth was renamed in beta\. Use --access-key or CLOUDEVAL_ACCESS_KEY\./);
+
+  const envResult = await runCli(["status", "--format", "json"], {
+    env: { CLOUDEVAL_API_KEY: "old-token" },
+  });
+  assert.notEqual(envResult.exitCode, 0);
+  assert.match(envResult.stderr, /API key auth was renamed in beta\. Use --access-key or CLOUDEVAL_ACCESS_KEY\./);
+});
+
+test("completion install and uninstall manages shell script path", async () => {
+  const home = await fs.mkdtemp(path.join(os.tmpdir(), "cloudeval-cli-completion-home-"));
+  try {
+    const install = await runCli(["completion", "install", "--shell", "bash"], { home });
+    assert.equal(install.exitCode, 0, install.stderr);
+    assert.match(install.stdout, /Installed bash completion/);
+    const installedPath = path.join(
+      home,
+      ".local",
+      "share",
+      "bash-completion",
+      "completions",
+      "cloudeval"
+    );
+    assert.match(await fs.readFile(installedPath, "utf8"), /_cloudeval_completion/);
+
+    const uninstall = await runCli(["completion", "uninstall", "--shell", "bash"], { home });
+    assert.equal(uninstall.exitCode, 0, uninstall.stderr);
+    assert.match(uninstall.stdout, /Removed bash completion/);
+    await assert.rejects(fs.readFile(installedPath, "utf8"), /ENOENT/);
+  } finally {
+    await fs.rm(home, { recursive: true, force: true });
+  }
 });
 
 test("update command text output is a human summary, not a field/value table", async () => {
@@ -651,7 +869,7 @@ test("phase one and two local commands are agent-safe and profile-aware", async 
     const models = parseJson(await runCli([
       "models",
       "list",
-      "--api-key",
+      "--access-key",
       "test-token",
       "--profile",
       "agent",
@@ -922,7 +1140,7 @@ test("headless login runs quick Playground onboarding for device-created users",
   }
 });
 
-test("project creation, project reads, output files, and stdin API key work non-interactively", async () => {
+test("project creation, project reads, output files, and stdin access key work non-interactively", async () => {
   const backend = await startBackend();
   const outputDir = await fs.mkdtemp(path.join(os.tmpdir(), "cloudeval-project-output-"));
   try {
@@ -931,7 +1149,7 @@ test("project creation, project reads, output files, and stdin API key work non-
       "create",
       "--base-url",
       backend.baseUrl,
-      "--api-key",
+      "--access-key",
       "test-token",
       "--template-url",
       "https://github.com/Azure/azure-quickstart-templates/blob/main/quickstarts/microsoft.compute/vm-simple-linux/azuredeploy.json",
@@ -957,7 +1175,7 @@ test("project creation, project reads, output files, and stdin API key work non-
       "list",
       "--base-url",
       backend.baseUrl,
-      "--api-key-stdin",
+      "--access-key-stdin",
       "--format",
       "ndjson",
       "--non-interactive",
@@ -970,7 +1188,7 @@ test("project creation, project reads, output files, and stdin API key work non-
       "list",
       "--base-url",
       backend.baseUrl,
-      "--api-key",
+      "--access-key",
       "test-token",
       "--format",
       "text",
@@ -989,7 +1207,7 @@ test("project creation, project reads, output files, and stdin API key work non-
       "project-main",
       "--base-url",
       backend.baseUrl,
-      "--api-key",
+      "--access-key",
       "test-token",
       "--format",
       "json",
@@ -1015,7 +1233,7 @@ test("project creation, project reads, output files, and stdin API key work non-
       backend.baseUrl,
       "--frontend-url",
       frontendUrl,
-      "--api-key",
+      "--access-key",
       "test-token",
       "--layout",
       "architecture",
@@ -1061,7 +1279,7 @@ test("project creation, project reads, output files, and stdin API key work non-
       backend.baseUrl,
       "--frontend-url",
       frontendUrl,
-      "--api-key",
+      "--access-key",
       "test-token",
       "--layout",
       "architecture",
@@ -1164,7 +1382,7 @@ test("connections and frontend deeplinks run without opening browsers", async ()
       "list",
       "--base-url",
       backend.baseUrl,
-      "--api-key",
+      "--access-key",
       "test-token",
       "--format",
       "json",
@@ -1202,7 +1420,7 @@ test("report list, show, cost, waf, rules, and download commands return report d
   const backend = await startBackend();
   const outputDir = await fs.mkdtemp(path.join(os.tmpdir(), "cloudeval-report-output-"));
   try {
-    const common = ["--base-url", backend.baseUrl, "--api-key", "test-token", "--project", "project-main", "--non-interactive"];
+    const common = ["--base-url", backend.baseUrl, "--access-key", "test-token", "--project", "project-main", "--non-interactive"];
 
     const list = await runCli(["reports", "list", ...common, "--kind", "all", "--format", "json"]);
     assert.equal(list.exitCode, 0, list.stderr);
@@ -1270,7 +1488,7 @@ test("report list, show, cost, waf, rules, and download commands return report d
 test("billing and credits commands are non-interactive and JSON-safe", async () => {
   const backend = await startBackend();
   try {
-    const common = ["--base-url", backend.baseUrl, "--api-key", "test-token", "--format", "json", "--non-interactive"];
+    const common = ["--base-url", backend.baseUrl, "--access-key", "test-token", "--format", "json", "--non-interactive"];
     const credits = parseJson(await runCli(["credits", ...common]));
     assert.equal(credits.command, "credits");
     assert.equal(credits.data.entitlement.plan.id, "free");
@@ -1350,7 +1568,7 @@ test("billing and credits commands are non-interactive and JSON-safe", async () 
 test("default human output uses tables for list-style authenticated commands", async () => {
   const backend = await startBackend();
   try {
-    const common = ["--base-url", backend.baseUrl, "--api-key", "test-token", "--non-interactive"];
+    const common = ["--base-url", backend.baseUrl, "--access-key", "test-token", "--non-interactive"];
 
     const reports = await runCli(["reports", "list", ...common]);
     assert.equal(reports.exitCode, 0, reports.stderr);
@@ -1402,7 +1620,7 @@ test("ask streams a single answer non-interactively with selected project and mo
       "What can you do?",
       "--base-url",
       backend.baseUrl,
-      "--api-key",
+      "--access-key",
       "test-token",
       "--project",
       "project-main",
@@ -1471,7 +1689,7 @@ test("agent streams a task non-interactively with agent mode settings", async ()
       "risks",
       "--base-url",
       backend.baseUrl,
-      "--api-key",
+      "--access-key",
       "test-token",
       "--project",
       "project-main",
@@ -1510,7 +1728,7 @@ test("agent prints thinking progress and fails clearly when no final answer is r
       "progress",
       "--base-url",
       backend.baseUrl,
-      "--api-key",
+      "--access-key",
       "test-token",
       "--project",
       "project-main",
@@ -1532,7 +1750,7 @@ test("agent prints thinking progress and fails clearly when no final answer is r
       "result",
       "--base-url",
       backend.baseUrl,
-      "--api-key",
+      "--access-key",
       "test-token",
       "--project",
       "project-main",
@@ -1561,7 +1779,7 @@ test("agent reports HITL approval requests instead of an empty final response", 
       "approval",
       "--base-url",
       backend.baseUrl,
-      "--api-key-stdin",
+      "--access-key-stdin",
       "--project",
       "project-main",
       "--format",
@@ -1588,7 +1806,7 @@ test("agent reports HITL approval requests instead of an empty final response", 
       "approval",
       "--base-url",
       backend.baseUrl,
-      "--api-key-stdin",
+      "--access-key-stdin",
       "--project",
       "project-main",
       "--format",
@@ -1617,7 +1835,7 @@ test("agent routes progress, data, errors, and verbose logs to the correct strea
       "progress",
       "--base-url",
       backend.baseUrl,
-      "--api-key-stdin",
+      "--access-key-stdin",
       "--project",
       "project-main",
       "--format",
@@ -1639,7 +1857,7 @@ test("agent routes progress, data, errors, and verbose logs to the correct strea
       "progress",
       "--base-url",
       backend.baseUrl,
-      "--api-key-stdin",
+      "--access-key-stdin",
       "--project",
       "project-main",
       "--format",
@@ -1670,7 +1888,7 @@ test("agent routes progress, data, errors, and verbose logs to the correct strea
       "result",
       "--base-url",
       backend.baseUrl,
-      "--api-key-stdin",
+      "--access-key-stdin",
       "--project",
       "project-main",
       "--format",
@@ -1692,7 +1910,7 @@ test("agent routes progress, data, errors, and verbose logs to the correct strea
       "progress",
       "--base-url",
       backend.baseUrl,
-      "--api-key-stdin",
+      "--access-key-stdin",
       "--project",
       "project-main",
       "--format",
@@ -1723,7 +1941,7 @@ test("ask rejects unavailable backend models before opening a chat stream", asyn
       "What can you do?",
       "--base-url",
       backend.baseUrl,
-      "--api-key",
+      "--access-key",
       "test-token",
       "--project",
       "project-main",
@@ -1755,7 +1973,7 @@ test("ask accepts unquoted multi-word text and keeps progress separate from pipe
       "chunks",
       "--base-url",
       backend.baseUrl,
-      "--api-key",
+      "--access-key",
       "test-token",
       "--project",
       "project-main",
@@ -1781,7 +1999,7 @@ test("ask accepts unquoted multi-word text and keeps progress separate from pipe
       "What can you do?",
       "--base-url",
       backend.baseUrl,
-      "--api-key",
+      "--access-key",
       "test-token",
       "--project",
       "project-main",

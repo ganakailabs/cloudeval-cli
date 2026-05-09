@@ -35,8 +35,8 @@ export interface RegisterReportsCommandOptions {
 
 type CommonReportOptions = {
   baseUrl?: string;
-  apiKey?: string;
-  apiKeyStdin?: boolean;
+  accessKey?: string;
+  accessKeyStdin?: boolean;
   project?: string;
   format?: ReportOutputFormat;
   raw?: boolean;
@@ -57,11 +57,11 @@ const addCommonOptions = <T extends Command>(command: T, defaultBaseUrl: string)
   command
     .option("--base-url <url>", "Backend base URL", defaultBaseUrl)
     .option(
-      "--api-key <key>",
-      "API key for automation (deprecated for interactive human auth)",
-      process.env.CLOUDEVAL_API_KEY
+      "--access-key <key>",
+      "Access key for automation",
+      process.env.CLOUDEVAL_ACCESS_KEY
     )
-    .option("--api-key-stdin", "Read API key from stdin (recommended for automation)", false)
+    .option("--access-key-stdin", "Read access key from stdin (recommended for automation)", false)
     .option("--project <id>", "Project ID to use")
     .option("--format <format>", `Output format: ${outputFormats.join(", ")}`)
     .option("--raw", "Show raw provider/backend payload", false)
@@ -98,16 +98,16 @@ const resolveToken = async (
   baseUrl: string,
   deps: RegisterReportsCommandOptions
 ): Promise<string | undefined> => {
-  if (options.apiKeyStdin) {
+  if (options.accessKeyStdin) {
     return deps.readStdinValue();
   }
-  if (options.apiKey) {
-    return options.apiKey;
+  if (options.accessKey) {
+    return options.accessKey;
   }
   const { getAuthToken } = await import("@cloudeval/core");
   try {
     return await getAuthToken({
-      apiKey: options.apiKey,
+      accessKey: options.accessKey,
       baseUrl,
     });
   } catch (error: any) {

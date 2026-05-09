@@ -252,10 +252,10 @@ if [ -n "$HEALTH_URL" ]; then
   fi
 fi
 
-if [ -n "${CLOUDEVAL_SMOKE_API_KEY:-}" ]; then
+if [ -n "${CLOUDEVAL_SMOKE_ACCESS_KEY:-}" ]; then
   log "Running optional authenticated smoke checks"
-  printf '%s' "$CLOUDEVAL_SMOKE_API_KEY" \
-    | "$CLI_BIN" credits --base-url "$BASE_URL" --api-key-stdin --non-interactive --format json \
+  printf '%s' "$CLOUDEVAL_SMOKE_ACCESS_KEY" \
+    | "$CLI_BIN" credits --base-url "$BASE_URL" --access-key-stdin --non-interactive --format json \
     >"$TMP_DIR/credits-authenticated.json"
   python3 -m json.tool "$TMP_DIR/credits-authenticated.json" >/dev/null
   assert_json_value "$TMP_DIR/credits-authenticated.json" "ok" "true"

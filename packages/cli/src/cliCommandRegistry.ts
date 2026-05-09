@@ -3,6 +3,7 @@ export type CliDomain =
   | "reports"
   | "projects"
   | "connections"
+  | "credentials"
   | "billing"
   | "frontend"
   | "config"
@@ -22,8 +23,8 @@ export interface CliCommandMetadata {
 
 const authOptions = [
   "--base-url",
-  "--api-key",
-  "--api-key-stdin",
+  "--access-key",
+  "--access-key-stdin",
   "--non-interactive",
 ];
 
@@ -47,8 +48,8 @@ export const cliCommands: CliCommandMetadata[] = [
       "--project",
       "--frontend-url",
       "--mode",
-      "--api-key",
-      "--api-key-stdin",
+      "--access-key",
+      "--access-key-stdin",
       "--model",
       "--debug",
       "--health-check",
@@ -67,8 +68,8 @@ export const cliCommands: CliCommandMetadata[] = [
     domain: "chat",
     options: [
       "--base-url",
-      "--api-key",
-      "--api-key-stdin",
+      "--access-key",
+      "--access-key-stdin",
       "--conversation",
       "--continue",
       "--resume",
@@ -223,6 +224,37 @@ export const cliCommands: CliCommandMetadata[] = [
     ],
   },
   {
+    name: "credentials",
+    description: "Manage CloudEval access-key credentials",
+    domain: "credentials",
+    options: [
+      "templates",
+      "create",
+      "list",
+      "inspect",
+      "revoke",
+      "--template",
+      "--name",
+      "--project",
+      "--expires",
+      "--capabilities",
+      "--reason",
+      "--idempotency-key",
+      "--format",
+      "--output",
+      ...authOptions,
+      "--profile",
+      "--help",
+    ],
+    workflows: [
+      "credentials templates",
+      "credentials create",
+      "credentials list",
+      "credentials inspect",
+      "credentials revoke",
+    ],
+  },
+  {
     name: "connections",
     description: "Connection utilities",
     domain: "connections",
@@ -343,8 +375,15 @@ export const cliCommands: CliCommandMetadata[] = [
     name: "capabilities",
     description: "Show machine-readable CloudEval CLI capabilities",
     domain: "diagnostics",
-    options: ["--format", "--profile", "--help"],
+    options: ["--format", "--live", ...authOptions, "--profile", "--help"],
     workflows: ["capabilities"],
+  },
+  {
+    name: "identity",
+    description: "Show the current CloudEval identity",
+    domain: "config",
+    options: ["--format", "--output", ...authOptions, "--profile", "--help"],
+    workflows: ["identity"],
   },
   {
     name: "mcp",
@@ -356,7 +395,7 @@ export const cliCommands: CliCommandMetadata[] = [
       "serve",
       "--base-url",
       "--frontend-url",
-      "--api-key",
+      "--access-key",
       "--toolset",
       "--dry-run",
       "--command",
@@ -419,7 +458,18 @@ export const cliCommands: CliCommandMetadata[] = [
     name: "completion",
     description: "Print shell completion script",
     domain: "diagnostics",
-    options: ["bash", "zsh", "fish", "--bin", "--profile", "--help"],
+    options: [
+      "bash",
+      "zsh",
+      "fish",
+      "powershell",
+      "install",
+      "uninstall",
+      "--shell",
+      "--bin",
+      "--profile",
+      "--help",
+    ],
     workflows: ["completion"],
   },
   {

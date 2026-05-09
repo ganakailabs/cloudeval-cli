@@ -166,10 +166,10 @@ test("kind-specific report helpers call cost and waf endpoints", async () => {
 });
 
 test("runReports posts direct regeneration requests and polls jobs", async () => {
-  const calls: Array<{ url: string; method?: string }> = [];
+  const calls: Array<{ url: string; method?: string; headers?: Record<string, string> }> = [];
   await withFetch(
     (url, init) => {
-      calls.push({ url, method: init?.method });
+      calls.push({ url, method: init?.method, headers: init?.headers as Record<string, string> });
       if (url.includes("/jobs/job-cost-1")) {
         return jsonResponse({ job_id: "job-cost-1", status: "completed", progress: 100 });
       }
@@ -198,6 +198,9 @@ test("runReports posts direct regeneration requests and polls jobs", async () =>
 
       assert.equal(submitted.length, 3);
       assert.equal(calls[0].method, "POST");
+      assert.match(calls[0].headers?.["Idempotency-Key"] ?? "", /^[0-9a-f-]{36}$/);
+      assert.match(calls[1].headers?.["Idempotency-Key"] ?? "", /^[0-9a-f-]{36}$/);
+      assert.match(calls[2].headers?.["Idempotency-Key"] ?? "", /^[0-9a-f-]{36}$/);
       assert.equal(
         calls[0].url,
         "https://example.com/api/v1/cost-reports/project-1/regenerate?user_id=user-1"

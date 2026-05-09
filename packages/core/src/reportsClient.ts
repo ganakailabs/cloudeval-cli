@@ -6,6 +6,7 @@ import {
   type ReportFormatMode,
 } from "@cloudeval/shared";
 import { getCLIHeaders, normalizeApiBase } from "./auth";
+import { withIdempotencyHeader } from "./idempotency";
 
 export interface ReportClientOptions {
   baseUrl: string;
@@ -332,10 +333,10 @@ const postJson = async (
   const url = appendQuery(new URL(`${apiBase}${path}`), query);
   const response = await fetch(url, {
     method: "POST",
-    headers: {
+    headers: withIdempotencyHeader({
       ...getCLIHeaders(options.authToken),
       "content-type": "application/json",
-    },
+    }),
     body: body === undefined ? undefined : JSON.stringify(body),
   });
 

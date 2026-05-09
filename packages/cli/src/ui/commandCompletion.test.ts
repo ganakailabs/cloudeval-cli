@@ -22,17 +22,27 @@ const context = {
   ],
 };
 
+test("completePromptInput does not pick a command for lone slash", () => {
+  assert.equal(completePromptInput("/", context), null);
+});
+
 test("completePromptInput cycles ambiguous slash commands", () => {
   const first = completePromptInput("/mo", context);
   assert.equal(first?.value, "/model");
-  assert.deepEqual(first?.candidates, ["/model", "/mode"]);
+  assert.deepEqual(first?.candidates, ["/model", "/models", "/mode"]);
+  assert.equal(first?.ghostSuffix, "del");
 
   const cycleState: CompletionCycleState = {
     source: first!.source,
     index: first!.index,
   };
   const second = completePromptInput("/mo", context, cycleState);
-  assert.equal(second?.value, "/mode");
+  assert.equal(second?.value, "/models");
+  const third = completePromptInput("/mo", context, {
+    source: second!.source,
+    index: second!.index,
+  });
+  assert.equal(third?.value, "/mode");
 });
 
 test("completePromptInput completes model values", () => {
@@ -40,6 +50,7 @@ test("completePromptInput completes model values", () => {
 
   assert.equal(completion?.value, "/model gpt-5-mini");
   assert.deepEqual(completion?.candidates, ["gpt-5-mini"]);
+  assert.equal(completion?.ghostSuffix, "ini");
 });
 
 test("resolvePromptCommand keeps bare /mode as selector command", () => {

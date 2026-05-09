@@ -1552,7 +1552,7 @@ const HelpView: React.FC = () => {
     "cloudeval open <target> - open frontend deep links",
     "cloudeval capabilities - print agent and frontend capability details",
     "cloudeval login|logout|auth status - manage authentication",
-    "cloudeval completion <shell> - install shell completion",
+    "cloudeval completion <shell> | completion install --shell <shell>",
     "cloudeval banner - print the ASCII banner",
   ];
   return (
@@ -1583,7 +1583,7 @@ const HelpView: React.FC = () => {
           </Text>
         ))}
         <Text dimColor wrap="wrap">
-          Common flags: --base-url, --api-key, --api-key-stdin, --frontend-url,
+          Common flags: --base-url, --access-key, --access-key-stdin, --frontend-url,
           --format, --json, --verbose, --help
         </Text>
       </SectionCard>

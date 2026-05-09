@@ -107,6 +107,7 @@ const startMcp = async (
       HOME: home,
       CI: "true",
       CLOUDEVAL_ALLOW_INSECURE_FILE_STORAGE: "1",
+      CLOUDEVAL_ACCESS_KEY: "",
       CLOUDEVAL_API_KEY: "",
     },
     stdio: ["pipe", "pipe", "pipe"],
@@ -506,7 +507,7 @@ test("mcp tools can call authenticated CloudEval APIs without stdin credentials"
     backend.baseUrl,
     "--frontend-url",
     "https://app.example.test",
-    "--api-key",
+    "--access-key",
     "test-token",
   ]);
   try {

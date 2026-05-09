@@ -68,13 +68,14 @@ test("buildQuickProjectPayload accepts generic template URLs without GitHub-spec
 });
 
 test("createQuickProject creates connection then project", async () => {
-  const calls: Array<{ url: string; method: string; body?: string }> = [];
+  const calls: Array<{ url: string; method: string; body?: string; headers?: Record<string, string> }> = [];
   const previousFetch = globalThis.fetch;
   globalThis.fetch = (async (url: string, init?: RequestInit) => {
     calls.push({
       url,
       method: init?.method ?? "GET",
       body: typeof init?.body === "string" ? init.body : undefined,
+      headers: init?.headers as Record<string, string>,
     });
     if (String(url).endsWith("/connection/")) {
       return new Response(
@@ -106,6 +107,8 @@ test("createQuickProject creates connection then project", async () => {
     assert.equal(result.project.id, "project-1");
     assert.equal(calls[0].url, "https://api.example.test/api/v1/connection/");
     assert.equal(calls[1].url, "https://api.example.test/api/v1/projects/");
+    assert.match(calls[0].headers?.["Idempotency-Key"] ?? "", /^[0-9a-f-]{36}$/);
+    assert.match(calls[1].headers?.["Idempotency-Key"] ?? "", /^[0-9a-f-]{36}$/);
     assert.match(calls[1].body ?? "", /"connection_ids":\["conn-1"\]/);
   } finally {
     globalThis.fetch = previousFetch;

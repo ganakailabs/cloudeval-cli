@@ -109,7 +109,7 @@ import { shouldEnableTuiAnimations } from "./animationPolicy.js";
 
 export interface AppProps {
   baseUrl: string;
-  apiKey?: string;
+  accessKey?: string;
   conversationId?: string;
   model?: string;
   initialMode?: ChatMode;
@@ -877,7 +877,7 @@ const HitlPanel: React.FC<{
 
 export const App: React.FC<AppProps> = ({
   baseUrl,
-  apiKey,
+  accessKey,
   conversationId,
   model,
   initialMode = "ask",
@@ -896,7 +896,7 @@ export const App: React.FC<AppProps> = ({
   const [bootError, setBootError] = useState<string | undefined>();
   const [input, setInput] = useState("");
   const [promptInputScrollOffset, setPromptInputScrollOffset] = useState(0);
-  const [authToken, setAuthToken] = useState<string | undefined>(apiKey);
+  const [authToken, setAuthToken] = useState<string | undefined>(accessKey);
   const [chatState, setChatState] = useState<ChatState>({
     ...initialChatState,
     status: "booting",
@@ -1157,16 +1157,16 @@ export const App: React.FC<AppProps> = ({
 
       // Step 1: validate auth / fetch token
       setLoaderStep(1);
-      let token: string | undefined = authToken ?? apiKey;
+      let token: string | undefined = authToken ?? accessKey;
       if (!token) {
         try {
-          token = await getAuthToken({ apiKey, baseUrl });
+          token = await getAuthToken({ accessKey, baseUrl });
           if (cancelled) return;
           setAuthToken(token);
         } catch (error: any) {
-          // If no API key and no stored token, automatically trigger login
+          // If no access key and no stored token, automatically trigger login
           if (
-            !apiKey && error?.message?.includes("No authentication available")
+            !accessKey && error?.message?.includes("No authentication available")
           ) {
             setIsLoggingIn(true);
             setLoaderStep(1);
@@ -1198,7 +1198,7 @@ export const App: React.FC<AppProps> = ({
       }
 
       // Extract userName from token
-      if (token && !apiKey) {
+      if (token && !accessKey) {
         getUserNameFromToken(token).then(setUserName).catch(() => {
           // Fallback to default if extraction fails
           setUserName("You");
@@ -1223,7 +1223,7 @@ export const App: React.FC<AppProps> = ({
             setSelectedProject(defaultProject);
             setSelectingProject(false);
           }
-          if (!apiKey && !userStatus.onboardingCompleted) {
+          if (!accessKey && !userStatus.onboardingCompleted) {
             setNeedsOnboarding(true);
             setPhase("ready"); // Show onboarding UI
             setCheckingOnboarding(false);
@@ -1292,7 +1292,7 @@ export const App: React.FC<AppProps> = ({
   }, [
     checkHealth,
     baseUrl,
-    apiKey,
+    accessKey,
     skipHealthCheck,
     apiBase,
   ]);
@@ -1830,10 +1830,10 @@ export const App: React.FC<AppProps> = ({
     const trimmed = text.trim();
     if (!trimmed && !options.hitlResume) return;
 
-    let token = authToken ?? apiKey;
+    let token = authToken ?? accessKey;
     if (!token) {
       try {
-        token = await getAuthToken({ apiKey, baseUrl });
+        token = await getAuthToken({ accessKey, baseUrl });
         setAuthToken(token);
       } catch (error: any) {
         setChatState((prev) => ({
@@ -2066,6 +2066,21 @@ export const App: React.FC<AppProps> = ({
     0,
     terminalSize.columns < 110 ? 3 : 4
   );
+  const promptGhostSuffix = useMemo((): string | undefined => {
+    const trimmedStart = input.trimStart();
+    if (trimmedStart.startsWith("/")) {
+      return completePromptInput(input, promptCompletionContext)?.ghostSuffix;
+    }
+    for (const suggestion of visiblePromptSuggestions) {
+      if (suggestion.length > input.length && suggestion.startsWith(input)) {
+        return suggestion.slice(input.length);
+      }
+    }
+    if (input === "" && visiblePromptSuggestions[0]) {
+      return visiblePromptSuggestions[0];
+    }
+    return undefined;
+  }, [input, promptCompletionContext, visiblePromptSuggestions]);
   const promptInputWidth = Math.max(20, terminalSize.columns - 14);
   const promptInputRowBudget = getPromptInputRowBudget(terminalSize);
   const promptInputViewport = getInputViewport({
@@ -2532,6 +2547,21 @@ export const App: React.FC<AppProps> = ({
          }
          return;
        }
+
+      if (key.rightArrow && !key.ctrl && !key.meta && promptGhostSuffix) {
+        const nextValue = `${input}${promptGhostSuffix}`;
+        setInput(nextValue);
+        setPromptInputScrollOffset(
+          getInputViewport({
+            value: nextValue,
+            width: promptInputWidth,
+            minRows: promptInputRowBudget,
+            maxRows: promptInputRowBudget,
+          }).maxScrollOffset
+        );
+        completionCycleRef.current = undefined;
+        return;
+      }
 
        if (chatState.status === "hitl_waiting" && chatState.hitl?.waiting) {
          const hitl = chatState.hitl;
@@ -3009,6 +3039,7 @@ export const App: React.FC<AppProps> = ({
             value={input}
             onChange={handlePromptChange}
             onSubmit={handlePromptSubmit}
+            ghostText={promptGhostSuffix}
             disabled={Boolean(activeSelector)}
             onTabShortcut={(tab) => {
               setActiveWorkspaceTab(tab);

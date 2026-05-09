@@ -2,8 +2,8 @@ import type { Command } from "commander";
 
 export interface AuthGuardOptions {
   baseUrl?: string;
-  apiKey?: string;
-  apiKeyStdin?: boolean;
+  accessKey?: string;
+  accessKeyStdin?: boolean;
   nonInteractive?: boolean;
 }
 
@@ -33,6 +33,9 @@ const isInteractive = (options: AuthGuardOptions): boolean =>
   process.stdout.isTTY === true &&
   !process.env.CI;
 
+const isCloudEvalAccessKey = (value?: string): value is string =>
+  /^cev_[a-z0-9]+_ak_[A-Za-z0-9]+_.+$/i.test(String(value ?? "").trim());
+
 export const resolveAuthContext = async (
   options: AuthGuardOptions,
   command: Command | undefined,
@@ -42,16 +45,16 @@ export const resolveAuthContext = async (
   const core = await import("@cloudeval/core");
   core.assertSecureBaseUrl(baseUrl);
 
-  let apiKey = options.apiKey;
-  if (options.apiKeyStdin) {
-    apiKey = await deps.readStdinValue();
+  let accessKey = options.accessKey;
+  if (options.accessKeyStdin) {
+    accessKey = await deps.readStdinValue();
   }
 
-  let token = apiKey;
+  let token = accessKey;
   if (!token) {
     try {
       token = await core.getAuthToken({
-        apiKey,
+        accessKey,
         baseUrl,
       });
     } catch (error: any) {
@@ -66,11 +69,15 @@ export const resolveAuthContext = async (
     }
   }
 
+  if (isCloudEvalAccessKey(accessKey)) {
+    return { baseUrl, token: accessKey };
+  }
+
   let status;
   try {
     status = await core.checkUserStatus(baseUrl, token);
   } catch (error) {
-    if (!apiKey && core.isAuthLookupFailure(error)) {
+    if (!accessKey && core.isAuthLookupFailure(error)) {
       throw new Error(
         "Stored authentication was rejected by CloudEval. Run `cloudeval login` and retry."
       );
@@ -97,9 +104,9 @@ export const addAuthOptions = <T extends Command>(command: T, defaultBaseUrl: st
   command
     .option("--base-url <url>", "Backend base URL", defaultBaseUrl)
     .option(
-      "--api-key <key>",
-      "API key for automation (deprecated for interactive human auth)",
-      process.env.CLOUDEVAL_API_KEY
+      "--access-key <key>",
+      "Access key for automation",
+      process.env.CLOUDEVAL_ACCESS_KEY
     )
-    .option("--api-key-stdin", "Read API key from stdin (recommended for automation)", false)
+    .option("--access-key-stdin", "Read access key from stdin (recommended for automation)", false)
     .option("--non-interactive", "Disable prompts and browser login", false) as T;

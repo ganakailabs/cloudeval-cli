@@ -3,10 +3,14 @@ import "./runtime/prepareInk.js";
 import React from "react";
 import { Command } from "commander";
 import type { WriteStream } from "node:fs";
+import { promises as fs } from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import {
   buildCompletionScript,
   normalizeCompletionShell,
 } from "./shellCompletion.js";
+import { completeCliWords } from "./completionEngine.js";
 import { registerReportsCommand } from "./reports/reportCommand.js";
 import { getFirstNameForDisplay } from "./ui/userDisplayName.js";
 import { registerOpenCommand } from "./openCommand.js";
@@ -14,6 +18,7 @@ import { registerProjectsCommand } from "./projectsCommand.js";
 import { registerConnectionsCommand } from "./connectionsCommand.js";
 import { registerBillingCommands } from "./billingCommand.js";
 import { registerCapabilitiesCommand } from "./agentCapabilities.js";
+import { registerCredentialsCommand, registerIdentityCommand } from "./credentialsCommand.js";
 import { registerConfigCommand } from "./configCommand.js";
 import { registerDiagnosticsCommands } from "./diagnosticsCommand.js";
 import { registerModelsCommand } from "./modelsCommand.js";
@@ -44,6 +49,8 @@ import { resolveLoginOnboardingMode } from "./loginOnboardingMode.js";
 
 const DEFAULT_BASE_URL = getDefaultBaseUrl();
 const ASK_STREAM_IDLE_TIMEOUT_MS = 90_000;
+const LEGACY_API_KEY_MESSAGE =
+  "API key auth was renamed in beta. Use --access-key or CLOUDEVAL_ACCESS_KEY.";
 const SENSITIVE_KEY_PATTERN = /token|authorization|cookie|secret|password|api[_-]?key/i;
 const STREAM_OUTPUT_NODES = new Set([
   "generate_response",
@@ -78,6 +85,70 @@ const redactSensitive = (value: unknown): unknown => {
 const isHeadlessEnvironment = (): boolean =>
   Boolean(process.env.SSH_TTY || process.env.CI || process.env.CLOUDEVAL_HEADLESS_LOGIN);
 
+const assertNoLegacyApiKeyUsage = () => {
+  const legacyArg = process.argv
+    .slice(2)
+    .some((arg) => arg === "--api-key" || arg === "--api-key-stdin" || arg.startsWith("--api-key="));
+  if (legacyArg || process.env.CLOUDEVAL_API_KEY) {
+    process.stderr.write(`${LEGACY_API_KEY_MESSAGE}\n`);
+    process.exit(1);
+  }
+};
+
+assertNoLegacyApiKeyUsage();
+
+const completionScriptPath = (shell: "bash" | "zsh" | "fish" | "powershell"): string => {
+  const home = os.homedir();
+  switch (shell) {
+    case "bash":
+      return path.join(home, ".local", "share", "bash-completion", "completions", "cloudeval");
+    case "zsh":
+      return path.join(home, ".zsh", "completions", "_cloudeval");
+    case "fish":
+      return path.join(home, ".config", "fish", "completions", "cloudeval.fish");
+    case "powershell":
+      return path.join(home, ".config", "powershell", "cloudeval-completion.ps1");
+  }
+};
+
+const ZSH_FPATH_MARKER = "CloudEval CLI completions";
+
+const ensureZshCompletionFpath = async (): Promise<void> => {
+  const zshrc = path.join(os.homedir(), ".zshrc");
+  let existing = "";
+  try {
+    existing = await fs.readFile(zshrc, "utf8");
+  } catch {
+    existing = "";
+  }
+  if (existing.includes(ZSH_FPATH_MARKER)) {
+    return;
+  }
+  const snippet = `\n# ${ZSH_FPATH_MARKER}\nfpath=("$HOME/.zsh/completions" $fpath)\n`;
+  await fs.appendFile(zshrc, snippet, "utf8");
+};
+
+const installCompletionScript = async (
+  shell: "bash" | "zsh" | "fish" | "powershell",
+  binaryName: string
+): Promise<string> => {
+  const scriptPath = completionScriptPath(shell);
+  await fs.mkdir(path.dirname(scriptPath), { recursive: true });
+  await fs.writeFile(scriptPath, buildCompletionScript(shell, binaryName), "utf8");
+  if (shell === "zsh") {
+    await ensureZshCompletionFpath();
+  }
+  return scriptPath;
+};
+
+const uninstallCompletionScript = async (
+  shell: "bash" | "zsh" | "fish" | "powershell"
+): Promise<string> => {
+  const scriptPath = completionScriptPath(shell);
+  await fs.rm(scriptPath, { force: true });
+  return scriptPath;
+};
+
 const runInteractiveLoginOnboarding = async (
   baseUrl: string,
   token: string
@@ -104,7 +175,7 @@ const runInteractiveLoginOnboarding = async (
 
 const readStdinValue = async (): Promise<string> => {
   if (process.stdin.isTTY) {
-    throw new Error("No stdin available. Pipe a value into --api-key-stdin.");
+    throw new Error("No stdin available. Pipe a value into --access-key-stdin.");
   }
 
   const chunks: Buffer[] = [];
@@ -113,7 +184,7 @@ const readStdinValue = async (): Promise<string> => {
   }
   const value = Buffer.concat(chunks).toString("utf8").trim();
   if (!value) {
-    throw new Error("Received empty stdin input for --api-key-stdin.");
+    throw new Error("Received empty stdin input for --access-key-stdin.");
   }
   return value;
 };
@@ -686,7 +757,25 @@ registerModelsCommand(program, {
 
 registerSessionsCommand(program);
 
-registerCapabilitiesCommand(program);
+registerCredentialsCommand(program, {
+  defaultBaseUrl: DEFAULT_BASE_URL,
+  resolveBaseUrl,
+  readStdinValue,
+  isHeadlessEnvironment,
+});
+
+registerIdentityCommand(program, {
+  defaultBaseUrl: DEFAULT_BASE_URL,
+  resolveBaseUrl,
+  readStdinValue,
+  isHeadlessEnvironment,
+});
+
+registerCapabilitiesCommand(program, {
+  defaultBaseUrl: DEFAULT_BASE_URL,
+  resolveBaseUrl,
+  readStdinValue,
+});
 
 registerMcpCommand(program, {
   defaultBaseUrl: DEFAULT_BASE_URL,
@@ -696,21 +785,68 @@ registerMcpCommand(program, {
 registerUpdateCommand(program);
 
 program
+  .command("__complete")
+  .description("Internal completion endpoint")
+  .argument("[words...]", "Completion words")
+  .action((words: string[] = []) => {
+    const candidates = completeCliWords(words);
+    for (const candidate of candidates) {
+      process.stdout.write(
+        `${candidate.value}\t${candidate.kind}\t${candidate.description ?? ""}\n`
+      );
+    }
+  });
+
+const completionCommand = program
   .command("completion")
-  .description("Print a shell completion script for bash, zsh, or fish")
-  .argument("[shell]", "Shell to generate completions for: bash, zsh, fish")
+  .description("Print or install shell completion scripts")
+  .argument("[shell]", "Shell to generate completions for: bash, zsh, fish, powershell")
   .option("--bin <name>", "Primary binary name", "cloudeval")
   .action((shellName, options) => {
     const detectedShell = process.env.SHELL?.split("/").pop();
     const shell = normalizeCompletionShell(shellName || detectedShell);
     if (!shell) {
       console.error(
-        "Unsupported shell. Usage: cloudeval completion <bash|zsh|fish>"
+        "Unsupported shell. Usage: cloudeval completion <bash|zsh|fish|powershell>"
       );
       process.exit(1);
     }
-
     process.stdout.write(buildCompletionScript(shell, options.bin));
+  });
+
+completionCommand
+  .command("install")
+  .description("Install shell completion script to a standard user path")
+  .option("--shell <shell>", "Shell: bash|zsh|fish|powershell")
+  .option("--bin <name>", "Primary binary name", "cloudeval")
+  .action(async (options) => {
+    const detectedShell = process.env.SHELL?.split("/").pop();
+    const shell = normalizeCompletionShell(options.shell || detectedShell);
+    if (!shell) {
+      console.error(
+        "Unsupported shell. Usage: cloudeval completion install --shell <bash|zsh|fish|powershell>"
+      );
+      process.exit(1);
+    }
+    const scriptPath = await installCompletionScript(shell, options.bin);
+    process.stdout.write(`Installed ${shell} completion at ${scriptPath}\n`);
+  });
+
+completionCommand
+  .command("uninstall")
+  .description("Remove installed shell completion script")
+  .option("--shell <shell>", "Shell: bash|zsh|fish|powershell")
+  .action(async (options) => {
+    const detectedShell = process.env.SHELL?.split("/").pop();
+    const shell = normalizeCompletionShell(options.shell || detectedShell);
+    if (!shell) {
+      console.error(
+        "Unsupported shell. Usage: cloudeval completion uninstall --shell <bash|zsh|fish|powershell>"
+      );
+      process.exit(1);
+    }
+    const scriptPath = await uninstallCompletionScript(shell);
+    process.stdout.write(`Removed ${shell} completion at ${scriptPath}\n`);
   });
 
 program
@@ -726,11 +862,11 @@ program
   .option("--frontend-url <url>", "Frontend base URL")
   .option("--mode <mode>", "Initial chat mode: ask, agent")
   .option(
-    "--api-key <key>",
-    "API key for automation (deprecated for interactive human auth)",
-    process.env.CLOUDEVAL_API_KEY
+    "--access-key <key>",
+    "Access key for automation",
+    process.env.CLOUDEVAL_ACCESS_KEY
   )
-  .option("--api-key-stdin", "Read API key from stdin (recommended for automation)", false)
+  .option("--access-key-stdin", "Read access key from stdin (recommended for automation)", false)
   .option("--model <name>", "Model name")
   .option("--debug", "Log raw chunks", false)
   .option("--health-check", "Enable health check (disabled by default)")
@@ -749,9 +885,9 @@ program
     const cliConfig = await resolveCliConfig(command);
     const initialMode = normalizeCliMode(options.mode ?? cliConfig.mode) ?? "ask";
 
-    let apiKey: string | undefined = options.apiKey;
-    if (options.apiKeyStdin) {
-      apiKey = await readStdinValue();
+    let accessKey: string | undefined = options.accessKey;
+    if (options.accessKeyStdin) {
+      accessKey = await readStdinValue();
     }
 
     if (options.tab && options.tab !== "chat") {
@@ -763,7 +899,7 @@ program
     render(
       <App
         baseUrl={baseUrl}
-        apiKey={apiKey}
+        accessKey={accessKey}
         conversationId={undefined}
         model={options.model ?? cliConfig.model}
         initialMode={initialMode}
@@ -788,11 +924,11 @@ program
     DEFAULT_BASE_URL
   )
   .option(
-    "--api-key <key>",
-    "API key for automation (deprecated for interactive human auth)",
-    process.env.CLOUDEVAL_API_KEY
+    "--access-key <key>",
+    "Access key for automation",
+    process.env.CLOUDEVAL_ACCESS_KEY
   )
-  .option("--api-key-stdin", "Read API key from stdin (recommended for automation)", false)
+  .option("--access-key-stdin", "Read access key from stdin (recommended for automation)", false)
   .option("--conversation <id>", "Conversation/thread id to resume")
   .option("--continue", "Resume the most recent local chat session", false)
   .option("--resume <id-or-title>", "Resume a local chat session by thread id or title")
@@ -816,13 +952,13 @@ program
     const cliConfig = await resolveCliConfig(command);
     const initialMode = normalizeCliMode(options.mode ?? cliConfig.mode) ?? "ask";
 
-    let apiKey: string | undefined = options.apiKey;
-    if (options.apiKeyStdin) {
-      apiKey = await readStdinValue();
+    let accessKey: string | undefined = options.accessKey;
+    if (options.accessKeyStdin) {
+      accessKey = await readStdinValue();
     }
-    if (options.apiKey) {
+    if (options.accessKey) {
       console.warn(
-        "Warning: --api-key can leak via shell history/process listing. Prefer --api-key-stdin."
+        "Warning: --access-key can leak via shell history/process listing. Prefer --access-key-stdin."
       );
     }
 
@@ -831,7 +967,7 @@ program
       verboseLog("Chat command started");
       verboseLog("Options:", {
         baseUrl,
-        hasApiKey: !!apiKey,
+        hasAccessKey: !!accessKey,
         conversationId: options.conversation,
         model: options.model ?? cliConfig.model,
         debug: options.debug,
@@ -854,7 +990,7 @@ program
     render(
       <App
         baseUrl={baseUrl}
-        apiKey={apiKey}
+        accessKey={accessKey}
         conversationId={conversationId}
         model={options.model ?? cliConfig.model}
         initialMode={initialMode}
@@ -880,11 +1016,11 @@ program
     DEFAULT_BASE_URL
   )
   .option(
-    "--api-key <key>",
-    "API key for automation (deprecated for interactive human auth)",
-    process.env.CLOUDEVAL_API_KEY
+    "--access-key <key>",
+    "Access key for automation",
+    process.env.CLOUDEVAL_ACCESS_KEY
   )
-  .option("--api-key-stdin", "Read API key from stdin (recommended for automation)", false)
+  .option("--access-key-stdin", "Read access key from stdin (recommended for automation)", false)
   .option("--project <id>", "Project ID to use")
   .option("--model <name>", "Model name")
   .option("--thread <id>", "Thread id to reuse")
@@ -919,13 +1055,13 @@ program
     const ndjsonOutput = outputFormat === "ndjson";
     const streamTextOutput = outputFormat === "text";
 
-    let providedApiKey: string | undefined = options.apiKey;
-    if (options.apiKeyStdin) {
-      providedApiKey = await readStdinValue();
+    let providedAccessKey: string | undefined = options.accessKey;
+    if (options.accessKeyStdin) {
+      providedAccessKey = await readStdinValue();
     }
-    if (options.apiKey && !options.quiet) {
+    if (options.accessKey && !options.quiet) {
       console.warn(
-        "Warning: --api-key can leak via shell history/process listing. Prefer --api-key-stdin."
+        "Warning: --access-key can leak via shell history/process listing. Prefer --access-key-stdin."
       );
     }
 
@@ -935,7 +1071,7 @@ program
       verboseLog("Question:", question);
       verboseLog("Options:", {
         baseUrl,
-        hasApiKey: !!providedApiKey,
+        hasAccessKey: !!providedAccessKey,
         project: selectedProjectId,
         model: selectedModel,
         mode: selectedMode,
@@ -981,12 +1117,12 @@ program
         step: "auth",
         message: "Resolving authentication",
       });
-      let token = providedApiKey;
+      let token = providedAccessKey;
       if (!token) {
         try {
-          verboseLog("No API key provided, fetching stored token");
+          verboseLog("No access key provided, fetching stored token");
           token = await getAuthToken({
-            apiKey: providedApiKey,
+            accessKey: providedAccessKey,
             baseUrl,
           });
           verboseLog("Token retrieved successfully", { hasToken: !!token });
@@ -995,9 +1131,9 @@ program
             message: error.message,
             stack: error.stack,
           });
-          // If no API key and no stored token, automatically trigger login
+          // If no access key and no stored token, automatically trigger login
           if (
-            !providedApiKey &&
+            !providedAccessKey &&
             !options.nonInteractive &&
             process.stdin.isTTY &&
             process.stdout.isTTY &&
@@ -1032,7 +1168,7 @@ program
           } else {
             verboseLog("Authentication error (not recoverable):", {
               message: error.message,
-              hasApiKey: !!providedApiKey,
+              hasAccessKey: !!providedAccessKey,
             });
             progressWriter.clear();
             console.error(`Authentication failed: ${error.message}`);
@@ -1040,7 +1176,7 @@ program
           }
         }
       } else {
-        verboseLog("Using provided API key for authentication");
+        verboseLog("Using provided access key for authentication");
       }
 
       await assertModelAvailable({

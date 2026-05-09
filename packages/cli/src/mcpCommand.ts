@@ -123,7 +123,7 @@ interface ServeMcpOptions {
   baseUrl: string;
   frontendUrl?: string;
   profile?: string;
-  apiKey?: string;
+  accessKey?: string;
   verbose?: boolean;
   toolset?: McpToolsetName;
 }
@@ -134,7 +134,7 @@ interface InvocationConfig {
   profile: string;
   defaultProjectId?: string;
   model?: string;
-  apiKey?: string;
+  accessKey?: string;
 }
 
 type ReportRunType = "cost" | "waf" | "architecture" | "unit-tests" | "all";
@@ -189,10 +189,10 @@ const commonToolProperties = {
     description:
       "CloudEval CLI config profile to read defaults from. Defaults to the server --profile or CLOUDEVAL_PROFILE.",
   },
-  apiKey: {
+  accessKey: {
     type: "string",
     description:
-      "Optional API key for this call. Prefer MCP client env configuration or stored `cloudeval login` credentials.",
+      "Optional access key for this call. Prefer MCP client env configuration or stored `cloudeval login` credentials.",
   },
 };
 
@@ -984,7 +984,7 @@ const resolveInvocationConfig = async (
     profile,
     defaultProjectId: config.defaultProjectId,
     model: stringValue(args.model) ?? config.model,
-    apiKey: stringValue(args.apiKey) ?? serverOptions.apiKey,
+    accessKey: stringValue(args.accessKey) ?? serverOptions.accessKey,
   };
 };
 
@@ -1031,12 +1031,12 @@ const resolveAuth = async (
   let token: string;
   try {
     token = await core.getAuthToken({
-      apiKey: config.apiKey,
+      accessKey: config.accessKey,
       baseUrl: config.baseUrl,
     });
   } catch (error: any) {
     throw new Error(
-      `${error?.message ?? "Authentication failed"} MCP stdio cannot run browser or stdin login flows; run 'cloudeval login' first.`,
+      `${error?.message ?? "Authentication failed"} MCP stdio cannot run browser or stdin login flows; run 'cloudeval login' first or provide CLOUDEVAL_ACCESS_KEY / --access-key.`,
     );
   }
   const status = await core.checkUserStatus(config.baseUrl, token);
@@ -1312,6 +1312,16 @@ const buildToolHandlers = (
   handlers.set("capabilities_get", async (args) => {
     const config = await resolveInvocationConfig(serverOptions, args);
     const toolset = normalizeMcpToolset(serverOptions.toolset);
+    let live: unknown;
+    try {
+      const auth = await resolveAuth(config);
+      live = await auth.core.getCapabilities({
+        baseUrl: config.baseUrl,
+        authToken: auth.token,
+      });
+    } catch {
+      live = undefined;
+    }
     return withEnvelope({
       command: "capabilities",
       data: {
@@ -1334,6 +1344,7 @@ const buildToolHandlers = (
           defaultProjectId: config.defaultProjectId,
           model: config.model,
         },
+        ...(live ? { live } : {}),
       },
     });
   });
@@ -2087,7 +2098,7 @@ export const serveMcpServer = async (
             version: CLI_VERSION,
           },
           instructions:
-            "Use CloudEval tools for project-aware cloud evaluation, reports, billing usage, one-shot asks, and frontend deep links. Authentication comes from stored `cloudeval login` credentials.",
+            "Use CloudEval tools for project-aware cloud evaluation, reports, billing usage, one-shot asks, and frontend deep links. Authentication comes from stored `cloudeval login` credentials or a scoped `CLOUDEVAL_ACCESS_KEY` / --access-key.",
         });
       }
       if (request.method === "ping") {
@@ -2425,9 +2436,9 @@ export const registerMcpCommand = (
     .option("--base-url <url>", "Backend base URL", deps.defaultBaseUrl)
     .option("--frontend-url <url>", "Frontend base URL")
     .option(
-      "--api-key <key>",
-      "API key (prefer MCP client env or stored login)",
-      process.env.CLOUDEVAL_API_KEY,
+      "--access-key <key>",
+      "access key (prefer MCP client env or stored login)",
+      process.env.CLOUDEVAL_ACCESS_KEY,
     )
     .option(
       "--toolset <name>",
@@ -2445,7 +2456,7 @@ export const registerMcpCommand = (
         baseUrl,
         frontendUrl: options.frontendUrl,
         profile: normalizeConfigProfile(command.optsWithGlobals?.().profile),
-        apiKey: stringValue(options.apiKey),
+        accessKey: stringValue(options.accessKey),
         toolset: normalizeMcpToolset(options.toolset),
         verbose: Boolean(options.verbose),
       });

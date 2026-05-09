@@ -31,7 +31,9 @@ curl -fsSL https://cli.cloudeval.ai/install.sh | bash
 The installer downloads release assets from GitHub Releases, verifies the
 matching `.sha256` checksum, installs `cloudeval`, installs the `eva` alias on
 non-Windows platforms, and adds `~/.local/bin` to your shell profile when
-needed.
+needed. On macOS and Linux it also offers to run `cloudeval completion install`
+for your login shell (`$SHELL`: bash, zsh, or fish). Set
+`CLOUDEVAL_INSTALL_COMPLETION=0` to skip that prompt.
 
 Fallback installer URL:
 
@@ -194,8 +196,10 @@ writes `[cloudeval-mcp]` lifecycle diagnostics to stderr, supports
 newline-delimited JSON-RPC over stdio, and accepts legacy `Content-Length`
 stdio frames.
 
-Run `cloudeval login` before starting `mcp serve`; stdin is reserved for MCP
-JSON-RPC messages.
+Run `cloudeval login` before starting `mcp serve`, or provide
+`CLOUDEVAL_ACCESS_KEY` / `--access-key` from a scoped credential. Stdin is
+reserved for MCP JSON-RPC messages, so `--access-key-stdin` is intentionally not
+available for `mcp serve`.
 
 ## Authentication And Privacy
 
@@ -303,6 +307,11 @@ cloudeval projects list|get|open [--format text|json|ndjson|markdown]
 cloudeval projects export-diagram <id> --layout architecture|dependency --format png|jpeg|svg --labels all|viewport --output <file> [--headers-output <file>] [--public] [--frontend-url <url>]
 cloudeval connections list|get|open [--format text|json|ndjson|markdown]
 cloudeval reports list|show|cost|waf|rules|run|download [--project <id>] [--format text|json|ndjson|markdown]
+cloudeval credentials templates [--format text|json|ndjson|markdown]
+cloudeval credentials create --template <id> --name <name> --project <id> [--expires 90d] [--idempotency-key <key>] [--format text|json|ndjson|markdown|github-actions]
+cloudeval credentials list [--project <id>] [--format text|json|ndjson|markdown]
+cloudeval credentials inspect <credential-id> [--format text|json|ndjson|markdown]
+cloudeval credentials revoke <credential-id> [--reason <text>] [--idempotency-key <key>] [--format text|json|ndjson|markdown]
 cloudeval credits [--format text|json|ndjson|markdown]
 cloudeval billing summary|usage|ledger|invoices|plans|notifications|topups [--format text|json|ndjson|markdown]
 cloudeval billing topup <pack-id> [--currency <code>] [--country-code <code>] [--print-url|--open] [--format text|json|ndjson|markdown]
@@ -310,18 +319,58 @@ cloudeval billing topups buy <pack-id> [--currency <code>] [--country-code <code
 cloudeval open overview|chat|projects|project|connections|connection|reports|billing [--print-url] [--no-open]
 cloudeval mcp status [--format text|json|ndjson|markdown]
 cloudeval mcp setup codex|claude|cursor|generic [--dry-run] [--command <path>] [--toolset all|readonly|projects|reports|billing]
-cloudeval mcp serve [--toolset all|readonly|projects|reports|billing] [--base-url <url>] [--frontend-url <url>] [--profile <name>]
+cloudeval mcp serve [--toolset all|readonly|projects|reports|billing] [--base-url <url>] [--frontend-url <url>] [--access-key <key>] [--profile <name>]
 cloudeval login [--headless]
 cloudeval logout [--all-devices]
 cloudeval auth status [--show-sensitive-ids]
+cloudeval identity [--format text|json|ndjson|markdown]
 cloudeval update [--check|-c] [--yes|-y] [--format|-f text|json|ndjson|markdown] [--output|-o <file>]
-cloudeval capabilities --format json
+cloudeval capabilities [--live] --format json
 cloudeval help agents
-cloudeval completion bash|zsh|fish
+cloudeval completion bash|zsh|fish|powershell
+cloudeval completion install --shell bash|zsh|fish|powershell
+cloudeval completion uninstall --shell bash|zsh|fish|powershell
 cloudeval banner
 ```
 
 Run `<command> --help` for exact options.
+
+Shell completion scripts are generated from the same internal completion engine used by the CLI. Use `cloudeval completion <shell>` to print a script or `cloudeval completion install --shell <shell>` to install it in a standard per-user path.
+
+## Access Keys and Credentials
+
+CloudEval uses **credentials** as the CLI/API resource name and **Access Keys**
+as the v1 secret type for CI, MCP, and other automation. Create scoped keys with
+explicit project scope, expiry, and backend-enforced capabilities:
+
+```bash
+cloudeval credentials templates --format json
+cloudeval credentials create \
+  --template ci \
+  --name github-actions-prod \
+  --project <project-id> \
+  --expires 90d \
+  --idempotency-key "$(uuidgen)" \
+  --format github-actions
+```
+
+`--format github-actions` prints only the one-time secret handoff:
+
+```yaml
+CLOUDEVAL_ACCESS_KEY: cev_test_ak_...
+CLOUDEVAL_PROJECT_ID: project-main
+```
+
+Use `--access-key` or `--access-key-stdin` for non-interactive commands. The
+beta `--api-key`, `--api-key-stdin`, and `CLOUDEVAL_API_KEY` names now fail
+with a migration error instead of silently falling back.
+
+Access keys require project scope and cannot be granted `credentials:manage`.
+
+Backend and frontend implementers should use
+[`docs/credentials-api-contract.md`](docs/credentials-api-contract.md) for the
+Key Vault storage model, RBAC rules, canonical endpoints, and Auth Keys UI
+requirements.
 
 ## Local Development
 

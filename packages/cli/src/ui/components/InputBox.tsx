@@ -38,6 +38,7 @@ export interface InputBoxProps {
   scrollOffset?: number;
   onTabShortcut?: (tab: WorkspaceTab) => void;
   blinkCursor?: boolean;
+  ghostText?: string;
 }
 
 export const shouldAnimateInputCursor = ({
@@ -95,6 +96,7 @@ export const InputBox: React.FC<InputBoxProps> = ({
   scrollOffset,
   onTabShortcut,
   blinkCursor = false,
+  ghostText,
 }) => {
   const [cursorVisible, setCursorVisible] = useState(true);
   const keyBindings = getTuiKeyBindings();
@@ -259,9 +261,18 @@ export const InputBox: React.FC<InputBoxProps> = ({
                 <Text key={`${startRow}-${index}`} wrap="truncate">
                   {line}
                   {isLastValueRow ? (
-                    <Text color={cursorVisible ? terminalTheme.brand : undefined}>
-                      {cursorVisible ? "▌" : " "}
-                    </Text>
+                    <>
+                      <Text
+                        dimColor
+                        italic
+                        color={terminalTheme.inputGhost}
+                      >
+                        {ghostText ?? ""}
+                      </Text>
+                      <Text color={cursorVisible ? terminalTheme.brand : undefined}>
+                        {cursorVisible ? "▌" : " "}
+                      </Text>
+                    </>
                   ) : null}
                 </Text>
               );

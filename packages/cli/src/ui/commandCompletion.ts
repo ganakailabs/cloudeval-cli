@@ -27,6 +27,7 @@ export type PromptCompletion = {
   candidates: string[];
   source: string;
   index: number;
+  ghostSuffix?: string;
 };
 
 type SlashCommand = {
@@ -85,7 +86,7 @@ const firstTokenAndRest = (input: string): { command: string; rest: string } => 
 };
 
 const allCommandNames = (): string[] =>
-  slashCommands.map((command) => command.name);
+  slashCommands.flatMap((command) => [command.name, ...command.aliases]);
 
 const completeFromCandidates = (
   input: string,
@@ -108,6 +109,13 @@ const completeFromCandidates = (
   };
 };
 
+const toGhostSuffix = (input: string, suggestion: string): string | undefined => {
+  if (!suggestion.startsWith(input) || suggestion === input) {
+    return undefined;
+  }
+  return suggestion.slice(input.length);
+};
+
 const modelValue = (item: SelectPanelItem<string>): string =>
   item.value || "auto";
 
@@ -127,10 +135,18 @@ export const completePromptInput = <ProjectLike extends { id: string; name: stri
   const hasTrailingSpace = /\s$/.test(trimmed);
   const { command, rest } = firstTokenAndRest(trimmed);
 
+  // A lone "/" matches every slash command via startsWith("/"); don't guess one.
+  if (command === "/" && !hasTrailingSpace && !rest) {
+    return null;
+  }
+
   if (!hasTrailingSpace && !rest) {
     const commandMatches = allCommandNames()
       .filter((name) => name.startsWith(command));
-    return completeFromCandidates(trimmed, commandMatches, previous);
+    const completion = completeFromCandidates(trimmed, commandMatches, previous);
+    return completion
+      ? { ...completion, ghostSuffix: toGhostSuffix(trimmed, completion.value) }
+      : null;
   }
 
   if (command === "/model" || command === "/models") {
@@ -140,7 +156,11 @@ export const completePromptInput = <ProjectLike extends { id: string; name: stri
       .filter((value) => value.startsWith(query));
     const completion = completeFromCandidates(trimmed, modelMatches, previous);
     return completion
-      ? { ...completion, value: `/model ${completion.value}` }
+      ? {
+          ...completion,
+          value: `/model ${completion.value}`,
+          ghostSuffix: toGhostSuffix(trimmed, `/model ${completion.candidates[0] ?? ""}`),
+        }
       : null;
   }
 
@@ -151,7 +171,11 @@ export const completePromptInput = <ProjectLike extends { id: string; name: stri
       .filter((value) => value.startsWith(query));
     const completion = completeFromCandidates(trimmed, modeMatches, previous);
     return completion
-      ? { ...completion, value: `/mode ${completion.value}` }
+      ? {
+          ...completion,
+          value: `/mode ${completion.value}`,
+          ghostSuffix: toGhostSuffix(trimmed, `/mode ${completion.candidates[0] ?? ""}`),
+        }
       : null;
   }
 
@@ -162,7 +186,11 @@ export const completePromptInput = <ProjectLike extends { id: string; name: stri
       .filter((value) => normalize(value).startsWith(query));
     const completion = completeFromCandidates(trimmed, projectMatches, previous);
     return completion
-      ? { ...completion, value: `/project ${completion.value}` }
+      ? {
+          ...completion,
+          value: `/project ${completion.value}`,
+          ghostSuffix: toGhostSuffix(trimmed, `/project ${completion.candidates[0] ?? ""}`),
+        }
       : null;
   }
 

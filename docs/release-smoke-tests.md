@@ -59,6 +59,10 @@ The smoke script verifies:
 - `cloudeval --help` renders command help.
 - `cloudeval status --format json` returns parseable success JSON.
 - `cloudeval capabilities --format json` returns parseable success JSON.
+- `cloudeval credentials templates --format json` and
+  `cloudeval capabilities --live --format json` are covered by the
+  non-interactive mock-backend suite because they require authenticated backend
+  credential APIs.
 - `cloudeval models list --format json` reaches the real backend and returns at
   least one model.
 - `cloudeval billing plans --format json --non-interactive` returns a parseable
@@ -244,6 +248,8 @@ The read-only script covers:
   reports, and billing with `--print-url --no-open`.
 - Authenticated read-only commands when usable auth exists: projects,
   connections, reports, credits, and billing.
+- Optional access-key smoke when `CLOUDEVAL_SMOKE_ACCESS_KEY` is set: pipes the
+  value through `--access-key-stdin` and verifies authenticated credits JSON.
 - The basic non-interactive `ask` command when `CLOUDEVAL_SMOKE_RUN_ASK=1` is
   set. It is opt-in so the default read-only run does not consume model tokens.
 - The basic non-interactive `agent` command when `CLOUDEVAL_SMOKE_RUN_AGENT=1`
@@ -257,6 +263,7 @@ CLOUDEVAL_SMOKE_BASE_URL=https://cloudeval.ai/api/proxy/v1
 CLOUDEVAL_SMOKE_FRONTEND_URL=https://cloudeval.ai
 CLOUDEVAL_SMOKE_RUN_ASK=1
 CLOUDEVAL_SMOKE_RUN_AGENT=1
+CLOUDEVAL_SMOKE_ACCESS_KEY=cev_live_ak_...
 CLOUDEVAL_SMOKE_REQUIRE_AUTH=1
 CLOUDEVAL_SMOKE_STRICT_REPORTS=1
 CLOUDEVAL_SMOKE_SHOW_RESULTS=0

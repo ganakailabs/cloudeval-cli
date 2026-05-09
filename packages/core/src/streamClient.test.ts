@@ -14,10 +14,12 @@ test("streamChat normalizes the API base URL", async () => {
   const originalFetch = global.fetch;
   let requestedUrl = "";
   let requestBody = "";
+  let requestHeaders: Record<string, string> = {};
 
   global.fetch = async (input, init) => {
     requestedUrl = typeof input === "string" ? input : input.toString();
     requestBody = typeof init?.body === "string" ? init.body : "";
+    requestHeaders = init?.headers as Record<string, string>;
     return responseFromText(
       '{"type":"metadata","thread_id":"thread-1"}\n' +
         '{"type":"responding","node":"generate_response","content":"hi","status":"completed"}\n'
@@ -37,6 +39,7 @@ test("streamChat normalizes the API base URL", async () => {
     }
 
     assert.equal(requestedUrl, "http://127.0.0.1:8787/api/v1/chat/stream");
+    assert.match(requestHeaders["Idempotency-Key"], /^[0-9a-f-]{36}$/);
     assert.match(requestBody, /"input":\{/);
     assert.match(requestBody, /"messages":\[\{"role":"user","content":"hello"\}\]/);
     assert.equal(chunks.length, 2);

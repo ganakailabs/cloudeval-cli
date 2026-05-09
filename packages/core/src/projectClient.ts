@@ -1,4 +1,5 @@
 import { getCLIHeaders, normalizeApiBase, type Project } from "./auth";
+import { withIdempotencyHeader } from "./idempotency";
 
 export type CloudProvider = "azure" | "aws" | "gcp";
 
@@ -276,7 +277,7 @@ export const createQuickProject = async (
   const connection = await responseJson<Record<string, unknown>>(
     await fetch(`${apiBase}/connection/`, {
       method: "POST",
-      headers: headersForBody(input.authToken, connectionBody),
+      headers: withIdempotencyHeader(headersForBody(input.authToken, connectionBody)),
       body: connectionBody,
     }),
     "Connection creation"
@@ -293,7 +294,7 @@ export const createQuickProject = async (
   const project = await responseJson<Project>(
     await fetch(`${apiBase}/projects/`, {
       method: "POST",
-      headers: getCLIHeaders(input.authToken),
+      headers: withIdempotencyHeader(getCLIHeaders(input.authToken)),
       body: JSON.stringify(projectPayload),
     }),
     "Project creation"

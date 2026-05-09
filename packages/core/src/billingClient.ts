@@ -1,4 +1,5 @@
 import { getCLIHeaders, normalizeApiBase } from "./auth";
+import { withIdempotencyHeader } from "./idempotency";
 
 export type CreditTone = "normal" | "warning" | "low" | "exhausted";
 export type BillingUsageGranularity = "hour" | "day" | "month";
@@ -106,7 +107,10 @@ const fetchBillingJson = async <T>(
       url.searchParams.set(key, String(value));
     }
   }
-  const headers = getCLIHeaders(options.authToken);
+  const headers =
+    request.method === "POST"
+      ? withIdempotencyHeader(getCLIHeaders(options.authToken))
+      : getCLIHeaders(options.authToken);
   if (request.body) {
     headers["content-type"] = "application/json";
   }

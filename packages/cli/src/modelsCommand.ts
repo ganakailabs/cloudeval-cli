@@ -22,8 +22,8 @@ interface ModelsDeps {
 
 interface ModelListOptions {
   baseUrl?: string;
-  apiKey?: string;
-  apiKeyStdin?: boolean;
+  accessKey?: string;
+  accessKeyStdin?: boolean;
   nonInteractive?: boolean;
   format?: MachineOutputFormat;
   output?: string;
@@ -68,11 +68,11 @@ const normalizeModelsPayload = (payload: unknown): Array<Record<string, unknown>
 };
 
 const resolveToken = async (options: ModelListOptions, deps: ModelsDeps, baseUrl: string) => {
-  if (options.apiKeyStdin) {
+  if (options.accessKeyStdin) {
     return deps.readStdinValue();
   }
-  if (options.apiKey) {
-    return options.apiKey;
+  if (options.accessKey) {
+    return options.accessKey;
   }
   try {
     const core = await import("@cloudeval/core");

@@ -5,6 +5,18 @@ import {
 } from "./outputFormatter.js";
 import { buildDomains, cliCommands } from "./cliCommandRegistry.js";
 import { getMcpStatusData, mcpToolNames } from "./mcpCommand.js";
+import { addAuthOptions } from "./authGuard.js";
+
+type ResolveBaseUrl = (
+  options: { baseUrl?: string },
+  command?: Command
+) => Promise<string>;
+
+interface CapabilitiesDeps {
+  defaultBaseUrl: string;
+  resolveBaseUrl: ResolveBaseUrl;
+  readStdinValue: () => Promise<string>;
+}
 
 const mcpStatus = getMcpStatusData();
 
@@ -65,22 +77,49 @@ const capabilities = {
     prompts: mcpStatus.prompts,
     setupClients: mcpStatus.setupClients,
     auth: {
-      preferred: "stored cloudeval login credentials",
-      stdin: "MCP uses stdin for JSON-RPC, so --api-key-stdin is intentionally unavailable for mcp serve.",
+      preferred: "stored cloudeval login credentials or scoped CLOUDEVAL_ACCESS_KEY",
+      stdin: "MCP uses stdin for JSON-RPC, so --access-key-stdin is intentionally unavailable for mcp serve.",
     },
     tools: mcpToolNames,
   },
 };
 
-export const registerCapabilitiesCommand = (program: Command) => {
-  program
-    .command("capabilities")
-    .description("Show machine-readable CloudEval CLI capabilities")
+export const registerCapabilitiesCommand = (
+  program: Command,
+  deps: CapabilitiesDeps
+) => {
+  addAuthOptions(
+    program
+      .command("capabilities")
+      .description("Show machine-readable CloudEval CLI capabilities"),
+    deps.defaultBaseUrl
+  )
     .option("--format <format>", "Output format: text, json, markdown", "json")
-    .action(async (options: { format?: MachineOutputFormat }) => {
+    .option("--live", "Fetch authenticated backend capability metadata", false)
+    .action(async (
+      options: {
+        format?: MachineOutputFormat;
+        live?: boolean;
+        baseUrl?: string;
+        accessKey?: string;
+        accessKeyStdin?: boolean;
+      },
+      command
+    ) => {
+      let data: Record<string, unknown> = capabilities;
+      if (options.live) {
+        const core = await import("@cloudeval/core");
+        const baseUrl = await deps.resolveBaseUrl(options, command);
+        const accessKey = options.accessKeyStdin
+          ? await deps.readStdinValue()
+          : options.accessKey;
+        const token = await core.getAuthToken({ accessKey, baseUrl });
+        const live = await core.getCapabilities({ baseUrl, authToken: token });
+        data = { ...capabilities, live };
+      }
       await writeFormattedOutput({
         command: "capabilities",
-        data: capabilities,
+        data,
         format: options.format ?? "json",
       });
     });

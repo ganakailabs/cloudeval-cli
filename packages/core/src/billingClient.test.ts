@@ -110,6 +110,10 @@ test("createTopUpCheckoutSession posts pack and checkout preferences", async () 
       (calls[0].init?.headers as Record<string, string>).Authorization,
       "Bearer token"
     );
+    assert.match(
+      (calls[0].init?.headers as Record<string, string>)["Idempotency-Key"],
+      /^[0-9a-f-]{36}$/
+    );
     assert.deepEqual(JSON.parse(String(calls[0].init?.body)), {
       pack_id: "starter",
       preferred_currency: "USD",

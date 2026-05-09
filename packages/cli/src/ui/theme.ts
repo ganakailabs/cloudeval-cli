@@ -31,6 +31,8 @@ export const terminalTheme = {
   accent: color("yellow", "blue"),
   success: color("green", "green"),
   muted: color("gray", "gray"),
+  /** Inline ghost / autosuggest — distinct from user text and from gray-muted UI chrome */
+  inputGhost: color("magenta", "blue"),
   warning: color("yellow", "magenta"),
   danger: color("red", "red"),
   cursor: color("cyan", "blue"),

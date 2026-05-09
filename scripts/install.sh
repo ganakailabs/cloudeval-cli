@@ -370,3 +370,24 @@ if [ "$OS" != "win" ] && [ -L "${DEST_DIR}/eva" ]; then
   echo -e "${GREEN}Or use the alias: eva --help${NC}"
 fi
 echo ""
+
+if [ "${CLOUDEVAL_INSTALL_COMPLETION:-1}" != "0" ] && [ "$OS" != "win" ]; then
+  shell_name="$(basename "$SHELL" 2>/dev/null || echo bash)"
+  echo -e "${BLUE}Shell tab completions${NC}"
+  if ask_yes_no "Install tab completions for ${shell_name} (detected from \$SHELL)?" "y"; then
+    case "$shell_name" in
+      zsh|bash|fish)
+        if "$DEST" completion install --shell "$shell_name"; then
+          echo -e "${GREEN}✓ Installed ${shell_name} completions. Open a new terminal or reload your shell.${NC}"
+        else
+          echo -e "${YELLOW}⚠ Could not install completions automatically. Run: ${BIN_NAME} completion install --shell ${shell_name}${NC}"
+        fi
+        ;;
+      *)
+        echo -e "${YELLOW}⚠ Automatic install supports bash, zsh, and fish. Run:${NC}"
+        echo -e "  ${BLUE}${BIN_NAME} completion install --shell powershell${NC} ${YELLOW}(PowerShell)${NC}"
+        ;;
+    esac
+  fi
+  echo ""
+fi

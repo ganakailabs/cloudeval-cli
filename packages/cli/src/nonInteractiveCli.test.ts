@@ -204,7 +204,10 @@ const startBackend = async (
         limits: { credits_remaining_today: 850, max_parallel_jobs: 3 },
       });
     }
-    if (url.pathname === "/api/v1/projects" && req.method === "GET") {
+    if (
+      (url.pathname === "/api/v1/projects" || url.pathname === "/api/v1/projects/") &&
+      req.method === "GET"
+    ) {
       return json(res, [...(options.projects ?? [project]), ...createdProjects]);
     }
     if (url.pathname === "/api/v1/credential-templates") {
@@ -1219,7 +1222,7 @@ test("project creation, project reads, output files, and stdin access key work n
     assert.ok(
       backend.requests.some(
         (request) =>
-          request.path === "/api/v1/projects" &&
+          request.path === "/api/v1/projects/" &&
           request.authorization === "Bearer cev_test_ak_01JSERVICE_secret"
       ),
       "service-account access keys should list projects through the scoped collection endpoint"

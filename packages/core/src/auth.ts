@@ -1015,9 +1015,9 @@ export const getAccessibleProjects = async (
 ): Promise<Project[]> => {
   const apiBase = normalizeApiBase(baseUrl);
   cliDebug("getAccessibleProjects request", {
-    url: `${apiBase}/projects`,
+    url: `${apiBase}/projects/`,
   });
-  const response = await fetch(`${apiBase}/projects`, {
+  const response = await fetch(`${apiBase}/projects/`, {
     method: "GET",
     headers: getCLIHeaders(token),
   });

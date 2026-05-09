@@ -93,7 +93,7 @@ test("getAccessibleProjects fetches the identity-scoped project collection", asy
     assert.deepEqual(projects, [{ id: "project-main", name: "Playground" }]);
     assert.deepEqual(requests, [
       {
-        url: "https://api.example.test/api/v1/projects",
+        url: "https://api.example.test/api/v1/projects/",
         authorization: "Bearer cev_test_ak_01JSERVICE_secret",
       },
     ]);

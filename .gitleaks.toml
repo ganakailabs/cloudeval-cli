@@ -1,0 +1,6 @@
+[allowlist]
+description = "Allow CloudEval fake access-key prefixes in public docs and tests."
+regexTarget = "match"
+regexes = [
+  '''key_prefix["']?\s*[:,]\s*["']cev_(live|test)_ak_[A-Z0-9]+["']''',
+]

@@ -105,6 +105,11 @@ const isResponseOutputChunk = (chunk: Chunk): chunk is RespondingChunk =>
 const isResponseCompletionChunk = (chunk: Chunk): boolean =>
   isResponseOutputChunk(chunk) && chunk.status === "completed";
 
+const isTerminalEndChunk = (chunk: Chunk): boolean =>
+  (chunk.type === "thinking" || chunk.type === "responding") &&
+  chunk.status === "completed" &&
+  chunk.node === "end";
+
 const normalizeHitlOption = (raw: unknown, index: number): HitlOption => {
   if (!isObject(raw)) {
     const label = String(raw ?? `Option ${index + 1}`);
@@ -522,7 +527,16 @@ export async function* streamChat(
   };
 
   const markResponseComplete = (chunk: Chunk) => {
-    if (!options.completeAfterResponse || !isResponseOutputChunk(chunk)) {
+    if (!options.completeAfterResponse) {
+      return;
+    }
+
+    if (isTerminalEndChunk(chunk)) {
+      responseCompleteDeadline ??= Date.now() + responseCompletionGraceMs;
+      return;
+    }
+
+    if (!isResponseOutputChunk(chunk)) {
       return;
     }
 

@@ -333,7 +333,16 @@ const startBackend = async (
         "Cache-Control": "no-cache",
       });
       res.write(`data: ${JSON.stringify({ type: "metadata", thread_id: "thread-test", trace_id: "trace-test" })}\n\n`);
-      if (String(payload.message ?? "").includes("duplicate chunks")) {
+      const message = String(payload.message ?? "");
+      if (message.includes("empty agent result")) {
+        res.write(`data: ${JSON.stringify({ type: "thinking", node: "load_reports", status: "streaming", description: "Loading cost reports" })}\n\n`);
+        res.write(`data: ${JSON.stringify({ type: "thinking", node: "load_reports", status: "completed", description: "Loaded cost reports" })}\n\n`);
+        res.write(`data: ${JSON.stringify({ type: "thinking", node: "end", status: "completed", description: "Finished without answer content" })}\n\n`);
+      } else if (message.includes("thinking progress")) {
+        res.write(`data: ${JSON.stringify({ type: "thinking", node: "load_reports", status: "streaming", description: "Loading cost reports" })}\n\n`);
+        res.write(`data: ${JSON.stringify({ type: "thinking", node: "load_reports", status: "completed", description: "Loaded cost reports" })}\n\n`);
+        res.write(`data: ${JSON.stringify({ type: "responding", node: "response_compose", content: "Report summary ready.", status: "completed" })}\n\n`);
+      } else if (message.includes("duplicate chunks")) {
         res.write(`data: ${JSON.stringify({ type: "responding", node: "generate_response", content: "Mock duplicate answer." })}\n\n`);
         res.write(`data: ${JSON.stringify({ type: "responding", node: "generate_response", content: "Mock duplicate answer." })}\n\n`);
       } else {
@@ -1383,6 +1392,162 @@ test("agent streams a task non-interactively with agent mode settings", async ()
     assert.equal(streamRequest.authorization, "Bearer test-token");
   } finally {
     await fs.rm(home, { recursive: true, force: true });
+    await backend.close();
+  }
+});
+
+test("agent prints thinking progress and fails clearly when no final answer is returned", async () => {
+  const backend = await startBackend();
+  try {
+    const progress = await runCli([
+      "agent",
+      "thinking",
+      "progress",
+      "--base-url",
+      backend.baseUrl,
+      "--api-key",
+      "test-token",
+      "--project",
+      "project-main",
+      "--format",
+      "text",
+      "--progress",
+      "stderr",
+      "--non-interactive",
+    ]);
+    assert.equal(progress.exitCode, 0, progress.stderr);
+    assert.equal(progress.stdout, "Report summary ready.\n");
+    assert.match(progress.stderr, /\[thinking\] Loading cost reports/);
+    assert.match(progress.stderr, /\[thinking\] Loaded cost reports/);
+
+    const empty = await runCli([
+      "agent",
+      "empty",
+      "agent",
+      "result",
+      "--base-url",
+      backend.baseUrl,
+      "--api-key",
+      "test-token",
+      "--project",
+      "project-main",
+      "--format",
+      "text",
+      "--progress",
+      "stderr",
+      "--non-interactive",
+    ]);
+    assert.equal(empty.exitCode, 1);
+    assert.equal(empty.stdout, "");
+    assert.match(empty.stderr, /\[thinking\] Loading cost reports/);
+    assert.match(empty.stderr, /No final response returned by CloudEval/);
+    assert.match(empty.stderr, /last stream status: complete/);
+  } finally {
+    await backend.close();
+  }
+});
+
+test("agent routes progress, data, errors, and verbose logs to the correct streams", async () => {
+  const backend = await startBackend();
+  try {
+    const text = await runCli([
+      "agent",
+      "thinking",
+      "progress",
+      "--base-url",
+      backend.baseUrl,
+      "--api-key-stdin",
+      "--project",
+      "project-main",
+      "--format",
+      "text",
+      "--progress",
+      "stderr",
+      "--non-interactive",
+    ], { input: "test-token" });
+    assert.equal(text.exitCode, 0, text.stderr);
+    assert.equal(text.stdout, "Report summary ready.\n");
+    assert.match(text.stderr, /\[auth\] Resolving authentication/);
+    assert.match(text.stderr, /\[thinking\] Loading cost reports/);
+    assert.doesNotMatch(text.stdout, /\[thinking\]|\[request\]|\[auth\]/);
+    assert.doesNotMatch(text.stderr, /Report summary ready\./);
+
+    const ndjson = await runCli([
+      "agent",
+      "thinking",
+      "progress",
+      "--base-url",
+      backend.baseUrl,
+      "--api-key-stdin",
+      "--project",
+      "project-main",
+      "--format",
+      "ndjson",
+      "--progress",
+      "ndjson",
+      "--non-interactive",
+    ], { input: "test-token" });
+    assert.equal(ndjson.exitCode, 0, ndjson.stderr);
+    assert.equal(ndjson.stderr, "");
+    const events = ndjson.stdout.trim().split("\n").map((line) => JSON.parse(line));
+    assert.deepEqual(events.map((event) => event.type), [
+      "auth",
+      "request",
+      "request",
+      "thinking",
+      "thinking",
+      "chunk",
+      "result",
+    ]);
+    assert.equal(events.find((event) => event.type === "chunk")?.content, "Report summary ready.");
+    assert.equal(events.at(-1).data.response, "Report summary ready.");
+
+    const jsonError = await runCli([
+      "agent",
+      "empty",
+      "agent",
+      "result",
+      "--base-url",
+      backend.baseUrl,
+      "--api-key-stdin",
+      "--project",
+      "project-main",
+      "--format",
+      "json",
+      "--progress",
+      "none",
+      "--non-interactive",
+    ], { input: "test-token" });
+    assert.equal(jsonError.exitCode, 1);
+    assert.equal(jsonError.stderr, "");
+    const jsonErrorBody = JSON.parse(jsonError.stdout);
+    assert.equal(jsonErrorBody.ok, false);
+    assert.equal(jsonErrorBody.command, "agent");
+    assert.match(jsonErrorBody.error.message, /No final response returned by CloudEval/);
+
+    const verbose = await runCli([
+      "agent",
+      "thinking",
+      "progress",
+      "--base-url",
+      backend.baseUrl,
+      "--api-key-stdin",
+      "--project",
+      "project-main",
+      "--format",
+      "json",
+      "--progress",
+      "none",
+      "--non-interactive",
+      "--verbose",
+    ], { input: "test-token" });
+    assert.equal(verbose.exitCode, 0, verbose.stderr);
+    const verboseBody = JSON.parse(verbose.stdout);
+    assert.equal(verboseBody.ok, true);
+    assert.equal(verboseBody.data.response, "Report summary ready.");
+    assert.match(verbose.stderr, /\[VERBOSE\]/);
+    assert.doesNotMatch(verbose.stderr, /test-token/);
+  } finally {
     await backend.close();
   }
 });

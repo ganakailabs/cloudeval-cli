@@ -74,6 +74,7 @@ cloudeval agent Find cost and WAF risks --project &lt;id&gt; --format json
 cloudeval chat --mode agent
 cloudeval setup --mode agent --non-interactive</code></pre>
       <p>Quotes are optional for simple multi-word prompts; use them when the shell would otherwise interpret punctuation, leading dashes, newlines, or spacing.</p>
+      <p>For text, JSON, and markdown output, ask/agent progress is written to stderr. Use <code>--progress none</code> or <code>--quiet</code> to suppress it, or <code>--format ndjson --progress ndjson</code> to stream progress and answer events on stdout. If CloudEval completes without final answer content, the command exits non-zero with a clear error instead of returning an empty result.</p>
       <h2>Update</h2>
       <p>Check or install the latest published CLI release without reinstalling manually:</p>
       <pre><code>cloudeval update --check

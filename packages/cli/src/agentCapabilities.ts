@@ -19,6 +19,7 @@ const capabilities = {
   commonOptions: [
     "--format",
     "--output",
+    "--progress",
     "--quiet",
     "--no-color",
     "--non-interactive",
@@ -103,6 +104,9 @@ Preferred agent flags:
 Mode-specific commands:
   cloudeval ask <question...>     Direct one-shot answer mode
   cloudeval agent <task...>       Agent/planner mode for deeper execution
+
+Progress:
+  ask/agent write progress events to stderr by default. Use --progress none or --quiet to suppress them, or --format ndjson --progress ndjson to stream progress on stdout.
 
 Sensitive identifiers:
   Account, session, and tenant identifiers are redacted by default. Use --show-sensitive-ids only in trusted local workflows.

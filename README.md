@@ -242,6 +242,13 @@ Quotes are optional for simple multi-word prompts because the CLI joins the
 remaining words. Use quotes when the question contains shell metacharacters,
 leading dashes, newlines, or spacing you need to preserve.
 
+For text, JSON, and markdown output, progress events are written to stderr so
+stdout stays pipeable. Use `--progress none` or `--quiet` to suppress progress,
+or `--format ndjson --progress ndjson` to stream progress and answer chunks as
+newline-delimited JSON. If the backend completes without final answer content,
+`ask` and `agent` exit non-zero with a clear "No final response returned"
+message instead of returning an empty result.
+
 The TUI also has Ask and Agent modes. Choose per launch:
 
 ```bash

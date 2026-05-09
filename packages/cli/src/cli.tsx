@@ -128,6 +128,92 @@ const writeAskEvent = (
   process.stderr.write(`[${event.type ?? "progress"}] ${message}\n`);
 };
 
+const truncateProgressText = (value: string, maxLength = 180): string => {
+  const compact = value.replace(/\s+/g, " ").trim();
+  return compact.length > maxLength ? `${compact.slice(0, maxLength - 3)}...` : compact;
+};
+
+const humanizeStreamNode = (node?: string): string | undefined => {
+  if (!node) {
+    return undefined;
+  }
+  return node
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (match) => match.toUpperCase());
+};
+
+const isOutputRespondingChunk = (chunk: any): boolean =>
+  chunk?.type === "responding" &&
+  Boolean(chunk.content) &&
+  (!chunk.node || STREAM_OUTPUT_NODES.has(chunk.node));
+
+const progressEventFromChunk = (
+  chunk: any,
+  options: { verbose?: boolean }
+): Record<string, unknown> | null => {
+  if (!chunk || typeof chunk !== "object") {
+    return null;
+  }
+
+  if (chunk.type === "thinking") {
+    const label =
+      chunk.description ||
+      chunk.message ||
+      (options.verbose ? chunk.content : undefined) ||
+      humanizeStreamNode(chunk.node) ||
+      "Working";
+    const message =
+      options.verbose && chunk.node
+        ? `${humanizeStreamNode(chunk.node)}: ${label}`
+        : label;
+    return {
+      type: "thinking",
+      step: chunk.node,
+      node: chunk.node,
+      status: chunk.status,
+      message: truncateProgressText(String(message)),
+    };
+  }
+
+  if (chunk.type === "responding" && !isOutputRespondingChunk(chunk)) {
+    const label =
+      chunk.description ||
+      chunk.message ||
+      (options.verbose ? chunk.content : undefined) ||
+      humanizeStreamNode(chunk.node) ||
+      "Processing response";
+    return {
+      type: "progress",
+      step: chunk.node,
+      node: chunk.node,
+      status: chunk.status,
+      message: truncateProgressText(String(label)),
+    };
+  }
+
+  if (chunk.type === "hitl_request") {
+    const firstQuestion = Array.isArray(chunk.questions) ? chunk.questions[0] : undefined;
+    return {
+      type: "action",
+      step: "hitl",
+      message: truncateProgressText(firstQuestion?.text || "Human input required"),
+    };
+  }
+
+  if (chunk.type === "hitl_resume") {
+    return {
+      type: "action",
+      step: "hitl_resume",
+      status: chunk.status,
+      message: truncateProgressText(chunk.message || "Resuming with supplied input"),
+    };
+  }
+
+  return null;
+};
+
 const collapseRepeatedAssistantText = (value: string): string => {
   const trimmed = value.trim();
   if (!trimmed || trimmed.length % 2 !== 0) {
@@ -1015,6 +1101,7 @@ program
       let outputStream: NodeJS.WritableStream = process.stdout;
       let fileOutputStream: WriteStream | null = null;
       let ndjsonOutputStream: WriteStream | null = null;
+      const emittedProgressKeys = new Set<string>();
 
       if (options.debug) {
         console.error(`[${commandName}] Question: ${question}`);
@@ -1052,6 +1139,23 @@ program
             stream.end(resolve);
           });
         }
+      };
+
+      const writeChunkProgressEvent = (event: Record<string, unknown> | null) => {
+        if (!event) {
+          return;
+        }
+        const key = [
+          event.type,
+          event.step,
+          event.status,
+          event.message,
+        ].join(":");
+        if (emittedProgressKeys.has(key)) {
+          return;
+        }
+        emittedProgressKeys.add(key);
+        writeAskEvent(progressOptions, event);
       };
 
       const streamUrl = `${normalizeApiBase(baseUrl)}/chat/stream`;
@@ -1120,6 +1224,7 @@ program
             });
           }
           chatState = reduceChunk(chatState, chunk);
+          writeChunkProgressEvent(progressEventFromChunk(chunk, { verbose: options.verbose }));
 
           // Get the latest assistant message
           const latestMessage = [...chatState.messages]
@@ -1185,13 +1290,8 @@ program
 
         verboseLog("Stream completed", { totalChunks: chunkCount });
 
-        // Cleanup (no thinking steps for ask command)
-
-        // Ensure we output everything (in case we missed some content)
-        if (streamTextOutput) {
-          // Add newline at the end for non-JSON output
+        if (streamTextOutput && emittedTextLength > 0) {
           outputStream.write("\n");
-          await closeOutputStream();
         }
       } catch (error: any) {
         const errorMsg = error.message || "Streaming failed";
@@ -1218,6 +1318,51 @@ program
         target: "chat",
         threadId: chatState.threadId,
       });
+
+      if (!finalResponse.trim()) {
+        const noResponseMessage = `No final response returned by CloudEval (last stream status: ${chatState.status ?? "unknown"}). Retry with --verbose or --format ndjson to inspect stream progress.`;
+        if (jsonOutput) {
+          const output = {
+            ok: false,
+            command: commandName,
+            question,
+            error: { message: noResponseMessage },
+            data: {
+              threadId: chatState.threadId,
+              project: {
+                id: project.id,
+                name: project.name,
+              },
+            },
+            frontendUrl,
+          };
+          const outputText = JSON.stringify(output, null, 2) + "\n";
+          if (options.output) {
+            await fsPromises.writeFile(options.output, outputText, "utf-8");
+          } else {
+            process.stdout.write(outputText);
+          }
+        } else if (ndjsonOutput) {
+          writeAskDataEvent({
+            type: "error",
+            error: { message: noResponseMessage },
+            threadId: chatState.threadId,
+            frontendUrl,
+          });
+          await closeOutputStream();
+        } else {
+          await closeOutputStream();
+          process.stderr.write(`Error: ${noResponseMessage}\n`);
+        }
+        process.exit(1);
+      }
+
+      if (streamTextOutput) {
+        if (emittedTextLength === 0) {
+          outputStream.write(`${finalResponse}\n`);
+        }
+        await closeOutputStream();
+      }
 
       try {
         await recordSessionTurn({

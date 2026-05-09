@@ -231,6 +231,63 @@ test("streamChat treats response content idleness as completion", async () => {
   }
 });
 
+test("streamChat can finish shortly after a terminal end chunk without response content", async () => {
+  const originalFetch = global.fetch;
+
+  global.fetch = async () =>
+    new Response(
+      new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(
+            new TextEncoder().encode(
+              [
+                'data: {"type":"thinking","node":"load_reports","description":"Loading reports","status":"streaming"}',
+                "",
+                'data: {"type":"thinking","node":"end","description":"Finished","status":"completed"}',
+                "",
+                "",
+              ].join("\n")
+            )
+          );
+        },
+      }),
+      {
+        status: 200,
+        headers: {
+          "Content-Type": "text/event-stream",
+        },
+      }
+    );
+
+  try {
+    const chunks: unknown[] = [];
+    await Promise.race([
+      (async () => {
+        for await (const chunk of streamChat({
+          baseUrl: "http://127.0.0.1:8787/api/v1",
+          authToken: "token",
+          message: "hello",
+          threadId: "thread-terminal-end",
+          user: { id: "user-1", name: "User" },
+          completeAfterResponse: true,
+          responseCompletionGraceMs: 25,
+        })) {
+          chunks.push(chunk);
+        }
+      })(),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("stream did not stop after terminal end")), 500)
+      ),
+    ]);
+
+    assert.equal(chunks.length, 2);
+    assert.equal((chunks[0] as any)?.node, "load_reports");
+    assert.equal((chunks[1] as any)?.node, "end");
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
 test("streamChat fails when no stream response arrives before the idle timeout", async () => {
   const originalFetch = global.fetch;
 

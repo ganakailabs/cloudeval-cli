@@ -45,6 +45,12 @@ Quotes are optional for simple multi-word prompts because the CLI joins
 remaining words. Use quotes when a prompt contains shell metacharacters, leading
 dashes, newlines, or spacing that must be preserved.
 
+For text, JSON, and markdown output, ask/agent progress events are written to
+stderr. Use `--progress none` or `--quiet` to suppress progress. Use
+`--format ndjson --progress ndjson` when an agent needs progress and answer
+events on stdout. If the backend completes without final answer content, the
+command exits non-zero with a clear no-final-response error.
+
 ## Default Mode
 
 The terminal UI supports Ask and Agent modes. Set the active profile default:

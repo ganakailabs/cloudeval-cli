@@ -1,3 +1,0 @@
-# CloudEval CLI LLM Guide
-
-The canonical LLM-readable guide is `llms.txt`.

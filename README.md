@@ -390,7 +390,7 @@ handling, leaked credential response, and real-backend smoke artifact guidance.
 
 - [Release smoke tests](docs/release-smoke-tests.md)
 - [Security policy](SECURITY.md)
-- [LLM guide](llms.txt)
+- [LLM guide](docs/llms.txt)
 - [Latest release](https://github.com/ganakailabs/cloudeval-cli/releases/latest)
 - [CloudEval docs site](https://cloudeval.ai)
 

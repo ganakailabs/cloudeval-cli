@@ -206,6 +206,16 @@ const writeDiagramImageHeaders = async (
   await fs.writeFile(outputPath, `${text}\n`, "utf8");
 };
 
+const listProjectsForContext = async (
+  core: typeof import("@cloudeval/core"),
+  context: { baseUrl: string; token: string; user?: { id: string } }
+) => {
+  if (context.user?.id) {
+    return core.getProjects(context.baseUrl, context.token, context.user.id);
+  }
+  return core.getAccessibleProjects(context.baseUrl, context.token);
+};
+
 const configureDiagramExportCommand = (
   command: Command,
   deps: RegisterProjectsCommandOptions
@@ -327,9 +337,9 @@ export const registerProjectsCommand = (
   addCommon(addAuthOptions(projects.command("list").description("List projects"), deps.defaultBaseUrl))
     .action(async (options: CommonOptions, command) => {
       try {
-        const context = requireAuthUser(await resolveAuthContext(options, command, deps));
+        const context = await resolveAuthContext(options, command, deps);
         const core = await import("@cloudeval/core");
-        const data = await core.getProjects(context.baseUrl, context.token, context.user.id);
+        const data = await listProjectsForContext(core, context);
         const url = buildFrontendUrl({ baseUrl: frontendBase(context, options), target: "projects" });
         await writeProjectListOutput({ data, options, frontendUrl: url });
         await maybeOpen(url, options);
@@ -346,9 +356,9 @@ export const registerProjectsCommand = (
     )
   ).action(async (id: string, options: CommonOptions, command) => {
     try {
-      const context = requireAuthUser(await resolveAuthContext(options, command, deps));
+      const context = await resolveAuthContext(options, command, deps);
       const core = await import("@cloudeval/core");
-      const list = await core.getProjects(context.baseUrl, context.token, context.user.id);
+      const list = await listProjectsForContext(core, context);
       const data = list.find((project: any) => project.id === id);
       if (!data) {
         throw new Error(`Project ${id} was not found.`);

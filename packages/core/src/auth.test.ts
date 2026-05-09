@@ -69,6 +69,39 @@ test("assertSecureBaseUrl rejects insecure non-localhost URLs", async () => {
   );
 });
 
+test("getAccessibleProjects fetches the identity-scoped project collection", async () => {
+  const tempHome = await mkdtemp(path.join(os.tmpdir(), "cloudeval-auth-"));
+  const { getAccessibleProjects } = await importFreshAuthModule(tempHome);
+  const originalFetch = global.fetch;
+  const requests: Array<{ url: string; authorization?: string }> = [];
+
+  global.fetch = async (input, init) => {
+    const url = typeof input === "string" ? input : input.toString();
+    requests.push({
+      url,
+      authorization: (init?.headers as Record<string, string> | undefined)?.Authorization,
+    });
+    return jsonResponse([{ id: "project-main", name: "Playground" }]);
+  };
+
+  try {
+    const projects = await getAccessibleProjects(
+      "https://api.example.test/api/v1",
+      "cev_test_ak_01JSERVICE_secret"
+    );
+
+    assert.deepEqual(projects, [{ id: "project-main", name: "Playground" }]);
+    assert.deepEqual(requests, [
+      {
+        url: "https://api.example.test/api/v1/projects",
+        authorization: "Bearer cev_test_ak_01JSERVICE_secret",
+      },
+    ]);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
 test("device code flow uses the CLI client id for both requests", async () => {
   const tempHome = await mkdtemp(path.join(os.tmpdir(), "cloudeval-auth-"));
   const { loginWithDeviceCode } = await importFreshAuthModule(tempHome);

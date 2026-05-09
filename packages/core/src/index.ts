@@ -9,6 +9,7 @@ export * from "@cloudeval/shared";
 
 // Explicitly export project-related functions and types
 export {
+  getAccessibleProjects,
   getProjects,
   getCLIHeaders,
   normalizeApiBase,

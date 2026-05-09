@@ -1007,6 +1007,36 @@ export const getProjects = async (
   }
 };
 
+// Fetch projects visible to the current identity. For service-account access keys,
+// the backend returns only the credential's scoped projects.
+export const getAccessibleProjects = async (
+  baseUrl: string,
+  token: string
+): Promise<Project[]> => {
+  const apiBase = normalizeApiBase(baseUrl);
+  cliDebug("getAccessibleProjects request", {
+    url: `${apiBase}/projects`,
+  });
+  const response = await fetch(`${apiBase}/projects`, {
+    method: "GET",
+    headers: getCLIHeaders(token),
+  });
+  cliDebug("getAccessibleProjects response", {
+    status: response.status,
+    ok: response.ok,
+  });
+
+  if (!response.ok) {
+    if (response.status === 404) {
+      return [];
+    }
+    throw new Error(`Failed to fetch projects: ${response.status}`);
+  }
+
+  const projects = await response.json();
+  return Array.isArray(projects) ? projects : [];
+};
+
 const getPlaygroundProject = (projects: Project[]): Project | undefined =>
   projects.find((project) => project.name === PLAYGROUND_PROJECT_NAME);
 

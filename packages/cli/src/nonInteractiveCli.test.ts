@@ -204,6 +204,9 @@ const startBackend = async (
         limits: { credits_remaining_today: 850, max_parallel_jobs: 3 },
       });
     }
+    if (url.pathname === "/api/v1/projects" && req.method === "GET") {
+      return json(res, [...(options.projects ?? [project]), ...createdProjects]);
+    }
     if (url.pathname === "/api/v1/credential-templates") {
       return json(res, { templates: [credentialTemplate] });
     }
@@ -1200,6 +1203,28 @@ test("project creation, project reads, output files, and stdin access key work n
     assert.doesNotMatch(textList.stdout, /dashboard:/);
     assert.doesNotMatch(textList.stdout, /reports:/);
 
+    const serviceList = parseJson(await runCli([
+      "projects",
+      "list",
+      "--base-url",
+      backend.baseUrl,
+      "--access-key",
+      "cev_test_ak_01JSERVICE_secret",
+      "--format",
+      "json",
+      "--non-interactive",
+    ]));
+    assert.equal(serviceList.command, "projects list");
+    assert.equal(serviceList.data[0].id, "project-main");
+    assert.ok(
+      backend.requests.some(
+        (request) =>
+          request.path === "/api/v1/projects" &&
+          request.authorization === "Bearer cev_test_ak_01JSERVICE_secret"
+      ),
+      "service-account access keys should list projects through the scoped collection endpoint"
+    );
+
     const output = path.join(outputDir, "project.json");
     const get = await runCli([
       "projects",
@@ -1219,6 +1244,21 @@ test("project creation, project reads, output files, and stdin access key work n
     assert.equal(get.stdout, "");
     const saved = JSON.parse(await fs.readFile(output, "utf8"));
     assert.equal(saved.data.id, "project-main");
+
+    const serviceGet = parseJson(await runCli([
+      "projects",
+      "get",
+      "project-main",
+      "--base-url",
+      backend.baseUrl,
+      "--access-key",
+      "cev_test_ak_01JSERVICE_secret",
+      "--format",
+      "json",
+      "--non-interactive",
+    ]));
+    assert.equal(serviceGet.command, "projects get");
+    assert.equal(serviceGet.data.id, "project-main");
 
     const frontendUrl = new URL(backend.baseUrl).origin;
     const imageOutput = path.join(outputDir, "architecture.png");

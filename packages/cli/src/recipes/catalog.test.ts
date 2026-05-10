@@ -77,7 +77,7 @@ test("public skill files include Azure-style operational sections", async () => 
   ];
   for (const skill of requiredSkills) {
     const text = await fs.readFile(path.join(repoRoot, "skills", skill, "SKILL.md"), "utf8");
-    assert.match(text, /^---\nname: /);
+    assert.match(text, /^---\r?\nname: /);
     for (const section of [
       "## WHEN",
       "## DO NOT USE FOR",

@@ -57,6 +57,9 @@ The smoke script verifies:
 - The installer creates the `eva` alias on non-Windows platforms.
 - The installer prints optional agent setup guidance without running login or
   writing MCP client config in CI.
+- Interactive update/install flows can offer optional MCP onboarding for
+  detected, all, or selected clients; unattended `--yes`/CI flows skip the
+  prompt unless explicitly configured.
 - The installed CLI resolves from `PATH`.
 - Release binary version matches the resolved release tag.
 - `cloudeval --help` renders command help.
@@ -95,6 +98,8 @@ CLOUDEVAL_SMOKE_KEEP_DIR=1
 CLOUDEVAL_SMOKE_ARTIFACT_ROOT=/tmp
 CLOUDEVAL_SMOKE_ARTIFACT_DIR=/tmp/cloudeval-smoke-debug
 CLOUDEVAL_INSTALL_AGENT_SETUP=0
+CLOUDEVAL_INSTALL_MCP_CLIENTS=codex,cursor
+CLOUDEVAL_INSTALL_AGENT_SETUP_PROMPT=1
 CLOUDEVAL_DOWNLOAD_PROGRESS=0
 CLOUDEVAL_CURL_MAX_TIME=900
 CLOUDEVAL_CURL_SPEED_TIME=30
@@ -111,6 +116,12 @@ a path outside the repository for real-backend runs.
 The installer shows curl progress in interactive terminals. CI smoke runs keep
 downloads quiet by default, but still inherit the same connect, max-time, and
 stall detection checks.
+
+`CLOUDEVAL_INSTALL_AGENT_SETUP=0` disables installer onboarding. When enabled,
+`CLOUDEVAL_INSTALL_MCP_CLIENTS` can preselect `detected`, `all`, or a
+comma-separated group such as `codex,cursor`. `CLOUDEVAL_INSTALL_AGENT_SETUP_PROMPT=1`
+is used by interactive update flows so the installer can skip install
+confirmation prompts while still asking about optional MCP onboarding.
 
 ## Expected Output
 

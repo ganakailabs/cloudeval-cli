@@ -38,6 +38,39 @@ ask_yes_no() {
   esac
 }
 
+can_prompt_on_tty() {
+  [ "${CI:-}" != "true" ] && [ -r /dev/tty ]
+}
+
+ask_agent_setup_yes_no() {
+  local prompt="$1"
+  local default="${2:-n}"
+  local response
+
+  if ! can_prompt_on_tty; then
+    [ "$default" = "y" ]
+    return $?
+  fi
+
+  if [ "${CLOUDEVAL_ASSUME_YES:-}" = "1" ] && [ "${CLOUDEVAL_INSTALL_AGENT_SETUP_PROMPT:-0}" != "1" ]; then
+    [ "$default" = "y" ]
+    return $?
+  fi
+
+  if [ "$default" = "y" ]; then
+    read -r -p "$(echo -e "${BLUE}${prompt} [Y/n]: ${NC}")" response < /dev/tty || response=""
+    response="${response:-y}"
+  else
+    read -r -p "$(echo -e "${BLUE}${prompt} [y/N]: ${NC}")" response < /dev/tty || response=""
+    response="${response:-n}"
+  fi
+
+  case "$response" in
+    [yY]|[yY][eE][sS]) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 # Detect shell and profile file
 detect_shell_profile() {
   local shell_name
@@ -355,6 +388,43 @@ detect_mcp_clients() {
   printf '%s\n' "$clients"
 }
 
+supported_mcp_clients() {
+  printf '%s\n' "codex claude cursor vscode"
+}
+
+normalize_mcp_client_selection() {
+  local selected="$1"
+  local detected="$2"
+  local normalized=""
+  local token
+
+  selected="$(printf '%s\n' "$selected" | tr '[:upper:]' '[:lower:]' | tr ',;' '  ')"
+
+  for token in $selected; do
+    case "$token" in
+      skip|none|no)
+        normalized=""
+        ;;
+      detected|default)
+        normalized="$detected"
+        ;;
+      all)
+        normalized="$(supported_mcp_clients)"
+        ;;
+      codex|claude|cursor|vscode)
+        normalized="$(append_unique_client "$normalized" "$token")"
+        ;;
+      "")
+        ;;
+      *)
+        normalized="$(append_unique_client "$normalized" "$token")"
+        ;;
+    esac
+  done
+
+  printf '%s\n' "$normalized"
+}
+
 print_agent_setup_next_steps() {
   echo -e "${BLUE}Agent and IDE setup${NC}"
   echo -e "  ${GREEN}${BIN_NAME} login${NC}"
@@ -423,17 +493,17 @@ run_optional_agent_setup() {
     echo -e "  Detected clients: ${YELLOW}none${NC}"
   fi
 
-  if [ "${CI:-}" = "true" ] || [ ! -r /dev/tty ]; then
+  if ! can_prompt_on_tty; then
     print_agent_setup_next_steps
     return 0
   fi
 
-  if ! ask_yes_no "Run optional login and agent setup prompts now?" "n"; then
+  if [ -z "${CLOUDEVAL_INSTALL_MCP_CLIENTS:-}" ] && ! ask_agent_setup_yes_no "Set up CloudEval MCP for agents and IDEs now?" "n"; then
     print_agent_setup_next_steps
     return 0
   fi
 
-  if ask_yes_no "Run ${BIN_NAME} login now?" "n"; then
+  if ask_agent_setup_yes_no "Run ${BIN_NAME} login now first?" "n"; then
     if "$DEST" login; then
       echo -e "${GREEN}✓ Login completed${NC}"
     else
@@ -444,26 +514,20 @@ run_optional_agent_setup() {
   local selected="${CLOUDEVAL_INSTALL_MCP_CLIENTS:-}"
   if [ -z "$selected" ]; then
     if [ -n "$detected" ]; then
-      read -r -p "$(echo -e "${BLUE}Set up MCP for which clients? Use comma-separated names, 'detected', or 'skip' [detected]: ${NC}")" selected < /dev/tty || selected=""
+      read -r -p "$(echo -e "${BLUE}Set up MCP for which clients? Use 'detected', 'all', comma-separated names, or 'skip' [detected]: ${NC}")" selected < /dev/tty || selected=""
       selected="${selected:-detected}"
     else
-      read -r -p "$(echo -e "${BLUE}Set up MCP for which clients? Use codex,claude,cursor,vscode or 'skip' [skip]: ${NC}")" selected < /dev/tty || selected=""
+      read -r -p "$(echo -e "${BLUE}Set up MCP for which clients? Use 'all', codex,claude,cursor,vscode, or 'skip' [skip]: ${NC}")" selected < /dev/tty || selected=""
       selected="${selected:-skip}"
     fi
   fi
 
-  case "$selected" in
-    skip|none|no)
-      echo -e "${YELLOW}Skipped MCP setup.${NC}"
-      selected=""
-      ;;
-    detected|all)
-      selected="$detected"
-      ;;
-  esac
-
   local normalized
-  normalized="$(printf '%s\n' "$selected" | tr ',;' '  ')"
+  normalized="$(normalize_mcp_client_selection "$selected" "$detected")"
+  if [ -z "$normalized" ]; then
+    echo -e "${YELLOW}Skipped MCP setup.${NC}"
+  fi
+
   local client
   for client in $normalized; do
     echo ""
@@ -488,6 +552,11 @@ BIN_NAME="cloudeval"
 
 if [ "${1:-}" = "--self-test-agent-detection" ]; then
   detect_mcp_clients
+  exit 0
+fi
+
+if [ "${1:-}" = "--self-test-agent-selection" ]; then
+  normalize_mcp_client_selection "${2:-}" "${3:-}"
   exit 0
 fi
 

@@ -87,7 +87,7 @@ cloudeval recipes run cost-review --project &lt;id&gt; --format json --non-inter
       <p>Check or install the latest published CLI release without reinstalling manually:</p>
       <pre><code>cloudeval update --check
 cloudeval update --yes</code></pre>
-      <p>The default update output is a readable summary. Use <code>--format json</code>, <code>--format ndjson</code>, or <code>--format markdown</code> for automation.</p>
+      <p>The default update output is a readable summary. In an interactive terminal, <code>cloudeval update</code> can also offer optional MCP onboarding for detected, all, or selected agent clients after the binary update. Use <code>--yes</code> for unattended updates and <code>--format json</code>, <code>--format ndjson</code>, or <code>--format markdown</code> for automation.</p>
       <h2>Sensitive output</h2>
       <p>The CLI redacts account IDs, session IDs, tenant IDs, and sensitive URL query parameters by default. Use <code>--show-sensitive-ids</code> only for trusted local workflows that require full identifiers.</p>
       <pre><code>cloudeval auth status

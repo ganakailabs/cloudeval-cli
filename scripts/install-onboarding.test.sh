@@ -35,6 +35,49 @@ done
 
 echo "ok - installer detects agent clients"
 
+selection_detected="$(
+  bash "$ROOT_DIR/scripts/install.sh" --self-test-agent-selection detected "codex cursor"
+)"
+if [ "$selection_detected" != "codex cursor" ]; then
+  echo "detected selection should reuse detected clients" >&2
+  echo "selection: $selection_detected" >&2
+  exit 1
+fi
+
+selection_group="$(
+  bash "$ROOT_DIR/scripts/install.sh" --self-test-agent-selection codex,cursor "claude vscode"
+)"
+if [ "$selection_group" != "codex cursor" ]; then
+  echo "comma-separated client selection should normalize to a space-separated group" >&2
+  echo "selection: $selection_group" >&2
+  exit 1
+fi
+
+selection_all="$(
+  bash "$ROOT_DIR/scripts/install.sh" --self-test-agent-selection all "codex cursor"
+)"
+for expected in codex claude cursor vscode; do
+  case " $selection_all " in
+    *" $expected "*) ;;
+    *)
+      echo "all selection should include supported client: $expected" >&2
+      echo "selection: $selection_all" >&2
+      exit 1
+      ;;
+  esac
+done
+
+selection_skip="$(
+  bash "$ROOT_DIR/scripts/install.sh" --self-test-agent-selection skip "codex cursor"
+)"
+if [ -n "$selection_skip" ]; then
+  echo "skip selection should not select clients" >&2
+  echo "selection: $selection_skip" >&2
+  exit 1
+fi
+
+echo "ok - installer normalizes agent setup selections"
+
 download_options="$(
   bash "$ROOT_DIR/scripts/install.sh" --self-test-download-options
 )"

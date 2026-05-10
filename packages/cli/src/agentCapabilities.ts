@@ -161,6 +161,9 @@ Recipes and skills:
   Recipes only cover implemented CloudEval capabilities: projects, reports, billing, credentials, connections, diagrams, ask/agent, diagnostics, and MCP.
   Public SKILL.md files live under skills/ for agent hosts that support portable skill instructions. MCP remains the preferred execution path.
 
+Installer onboarding:
+  Interactive install/update flows can detect Codex, Claude, Cursor, and VS Code, then offer optional MCP setup for detected, all, or selected clients. Use --yes for unattended updates.
+
 Stable JSON envelope:
   { "ok": true, "command": "...", "data": ..., "frontendUrl": "..." }
   { "ok": false, "command": "...", "error": { "message": "..." } }

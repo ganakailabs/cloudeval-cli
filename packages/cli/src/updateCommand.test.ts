@@ -105,6 +105,7 @@ test("runInstaller pipes installer script to bash with the resolved release tag"
       assert.equal(command, "bash");
       assert.deepEqual(args, ["-s", "--", "v0.12.0"]);
       assert.equal(options.env?.CLOUDEVAL_ASSUME_YES, "1");
+      assert.equal(options.env?.CLOUDEVAL_INSTALL_AGENT_SETUP_PROMPT, undefined);
       queueMicrotask(() => {
         stdout.end("installer stdout\n");
         stderr.end("installer stderr\n");
@@ -118,6 +119,46 @@ test("runInstaller pipes installer script to bash with the resolved release tag"
   await run;
   assert.match(Buffer.concat(stderrChunks).toString("utf8"), /installer stdout/);
   assert.match(Buffer.concat(stderrChunks).toString("utf8"), /installer stderr/);
+});
+
+test("runInstaller can allow agent setup prompts while keeping install prompts skipped", async () => {
+  const stdin = new PassThrough();
+  const stdout = new PassThrough();
+  const stderr = new PassThrough();
+  const child = Object.assign(new EventEmitter(), {
+    stdin,
+    stdout,
+    stderr,
+  }) as unknown as ChildProcess;
+
+  const run = runInstaller({
+    installerUrl: "https://example.test/install.sh",
+    targetTag: "v0.14.3",
+    platform: "linux",
+    env: { PATH: "/tmp/test-bin" },
+    promptAgentSetup: true,
+    fetchImpl: async () => ({
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      text: async () => "echo installing \"$1\"\n",
+    }) as Response,
+    spawnImpl: (command, args, options) => {
+      assert.equal(command, "bash");
+      assert.deepEqual(args, ["-s", "--", "v0.14.3"]);
+      assert.equal(options.env?.PATH, "/tmp/test-bin");
+      assert.equal(options.env?.CLOUDEVAL_ASSUME_YES, "1");
+      assert.equal(options.env?.CLOUDEVAL_INSTALL_AGENT_SETUP_PROMPT, "1");
+      queueMicrotask(() => {
+        stdout.end();
+        stderr.end();
+        child.emit("close", 0);
+      });
+      return child;
+    },
+  });
+
+  await run;
 });
 
 test("runInstaller reports a helpful error on Windows", async () => {

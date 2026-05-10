@@ -61,6 +61,8 @@ interface RunInstallerOptions {
   spawnImpl?: SpawnImpl;
   output?: Writable;
   platform?: NodeJS.Platform;
+  env?: NodeJS.ProcessEnv;
+  promptAgentSetup?: boolean;
 }
 
 interface UpdateCommandOptions {
@@ -232,6 +234,8 @@ export const runInstaller = async ({
   spawnImpl = spawn,
   output = process.stderr,
   platform = process.platform,
+  env = process.env,
+  promptAgentSetup = false,
 }: RunInstallerOptions): Promise<void> => {
   if (platform === "win32") {
     throw new Error(
@@ -253,8 +257,9 @@ export const runInstaller = async ({
   const installerScript = await response.text();
   const child = spawnImpl("bash", ["-s", "--", targetTag], {
     env: {
-      ...process.env,
+      ...env,
       CLOUDEVAL_ASSUME_YES: "1",
+      ...(promptAgentSetup ? { CLOUDEVAL_INSTALL_AGENT_SETUP_PROMPT: "1" } : {}),
     },
     stdio: ["pipe", "pipe", "pipe"],
   });
@@ -418,9 +423,10 @@ export const handleUpdateCommand = async (
     return { ...status, action: "available" as const };
   }
 
+  const canPromptForUpdate = canPrompt(deps.input);
   const confirmed = options.yes
     ? true
-    : canPrompt(deps.input)
+    : canPromptForUpdate
       ? await promptForUpdate({
           input: deps.input,
           output: deps.output,
@@ -429,7 +435,7 @@ export const handleUpdateCommand = async (
       : false;
 
   if (!confirmed) {
-    if (!canPrompt(deps.input)) {
+    if (!canPromptForUpdate) {
       throw new Error(
         `CloudEval CLI ${status.latestVersion} is available. Re-run with --yes to update non-interactively.`
       );
@@ -442,6 +448,8 @@ export const handleUpdateCommand = async (
     fetchImpl: deps.fetchImpl,
     spawnImpl: deps.spawnImpl,
     output: deps.output,
+    env: deps.env,
+    promptAgentSetup: !options.yes && canPromptForUpdate,
   });
 
   return { ...status, action: "updated" as const };
@@ -521,6 +529,8 @@ export const maybeShowUpdateNudge = async (
       fetchImpl: deps.fetchImpl,
       spawnImpl: deps.spawnImpl,
       output: deps.output,
+      env: deps.env,
+      promptAgentSetup: true,
     });
   } catch {
     // The nudge must never block the user's requested command.

@@ -55,9 +55,9 @@
 
       <h2>Install and Onboard</h2>
       <pre><code>curl -fsSL https://cli.cloudeval.ai/install.sh | bash</code></pre>
-      <p>The installer detects common agent clients and IDEs such as Codex, Claude Desktop, Cursor, and VS Code. Optional setup prompts can run login, configure MCP for selected clients, and print access-key commands for automation. Release downloads prefer compressed assets, show progress in interactive terminals, and use timeout/stall checks so slow CDN transfers fail clearly. Nothing is written to agent or IDE config unless you approve it.</p>
-      <pre><code>CLOUDEVAL_INSTALL_AGENT_SETUP=0 curl -fsSL https://cli.cloudeval.ai/install.sh | bash
-CLOUDEVAL_INSTALL_MCP_CLIENTS=codex,cursor curl -fsSL https://cli.cloudeval.ai/install.sh | bash</code></pre>
+      <p>The installer detects common agent clients and IDEs such as Codex, Claude Desktop, Cursor, and VS Code. Optional setup prompts can run login, configure MCP for <code>detected</code>, <code>all</code>, or selected comma-separated clients, and print access-key commands for automation. Interactive <code>cloudeval update</code> uses the same installer and can ask whether to onboard MCP after updating the binary; <code>cloudeval update --yes</code> stays unattended. Release downloads prefer compressed assets, show progress in interactive terminals, and use timeout/stall checks so slow CDN transfers fail clearly. Nothing is written to agent or IDE config unless you approve it.</p>
+      <pre><code>curl -fsSL https://cli.cloudeval.ai/install.sh | CLOUDEVAL_INSTALL_AGENT_SETUP=0 bash
+curl -fsSL https://cli.cloudeval.ai/install.sh | CLOUDEVAL_INSTALL_MCP_CLIENTS=codex,cursor bash</code></pre>
 
       <h2>Skills</h2>
       <p>Public skill files live in the repository under <code>skills/</code>. They are open-source agent guidance only and do not contain proprietary backend internals, secrets, tenant IDs, account IDs, customer payloads, or private business logic.</p>

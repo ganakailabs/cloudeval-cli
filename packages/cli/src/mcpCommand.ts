@@ -29,6 +29,7 @@ import { resolveReportProjectId } from "./reports/reportProject.js";
 import {
   MCP_SETUP_CLIENTS,
   buildMcpClientSetup,
+  formatMcpClientSetupText,
   normalizeMcpSetupClient,
   normalizeMcpSetupToolset,
   writeMcpClientConfig,
@@ -2947,19 +2948,34 @@ export const registerMcpCommand = (
       const writtenPath = options.dryRun
         ? undefined
         : await writeMcpClientConfig(setup);
-      await writeFormattedOutput({
-        command: "mcp setup",
-        data: {
-          ...setup,
+      const note =
+        setup.client === "codex" && !writtenPath
+          ? "Run the printed Codex command to register this MCP server."
+          : setup.client === "generic" && !writtenPath
+            ? "Copy the printed MCP server config into your MCP client."
+            : undefined;
+      const data = {
+        ...setup,
+        dryRun: Boolean(options.dryRun),
+        writtenPath,
+        note,
+      };
+      if (!options.format || options.format === "text") {
+        const text = formatMcpClientSetupText(setup, {
           dryRun: Boolean(options.dryRun),
           writtenPath,
-          note:
-            setup.client === "codex" && !writtenPath
-              ? "Run the printed Codex command to register this MCP server."
-              : setup.client === "generic" && !writtenPath
-                ? "Copy the printed MCP server config into your MCP client."
-              : undefined,
-        },
+          note,
+        });
+        if (options.output) {
+          await fs.writeFile(options.output, text, "utf8");
+        } else {
+          process.stdout.write(text);
+        }
+        return;
+      }
+      await writeFormattedOutput({
+        command: "mcp setup",
+        data,
         format: options.format,
         output: options.output,
       });

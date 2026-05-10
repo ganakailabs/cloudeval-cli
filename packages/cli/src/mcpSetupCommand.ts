@@ -26,6 +26,12 @@ export interface BuildMcpClientSetupOptions {
   configPath?: string;
 }
 
+export interface FormatMcpClientSetupTextOptions {
+  dryRun?: boolean;
+  writtenPath?: string;
+  note?: string;
+}
+
 export const MCP_SETUP_CLIENTS: McpSetupClient[] = ["codex", "claude", "cursor", "vscode", "generic"];
 
 const CLIENTS = new Set<McpSetupClient>(MCP_SETUP_CLIENTS);
@@ -83,6 +89,12 @@ const buildServer = (command: string, toolset: McpSetupToolset): McpServerConfig
 
 const shellQuote = (value: string): string =>
   /^[A-Za-z0-9_./:-]+$/.test(value) ? value : `'${value.replace(/'/g, "'\\''")}'`;
+
+const titleizeClient = (client: McpSetupClient): string =>
+  client === "vscode" ? "VS Code" : client.charAt(0).toUpperCase() + client.slice(1);
+
+const commandLine = (server: McpServerConfig): string =>
+  [server.command, ...server.args].map(shellQuote).join(" ");
 
 export const buildMcpClientSetup = ({
   client,
@@ -142,6 +154,51 @@ export const buildMcpClientSetup = ({
     `Merge the shown mcpServers.cloudeval entry into ${setup.configPath}. Restart ${normalizedClient === "claude" ? "Claude Desktop" : "Cursor"} after updating the file.`
   );
   return setup;
+};
+
+export const formatMcpClientSetupText = (
+  setup: McpClientSetup,
+  options: FormatMcpClientSetupTextOptions = {}
+): string => {
+  const lines = [
+    "CloudEval MCP setup",
+    `Client: ${titleizeClient(setup.client)}`,
+    `Transport: ${setup.transport}`,
+    `Command: ${commandLine(setup.server)}`,
+  ];
+
+  if (setup.configPath) {
+    lines.push(`Config: ${setup.configPath}`);
+  }
+
+  if (options.dryRun) {
+    lines.push("Status: dry run, no files changed");
+  } else if (options.writtenPath) {
+    lines.push(`Status: wrote config`);
+    lines.push(`Wrote: ${options.writtenPath}`);
+  } else {
+    lines.push("Status: manual step required");
+  }
+
+  if (options.note) {
+    lines.push(`Note: ${options.note}`);
+  }
+
+  if (setup.instructions.length) {
+    lines.push("");
+    lines.push("Next steps:");
+    for (const instruction of setup.instructions) {
+      lines.push(`- ${instruction}`);
+    }
+  }
+
+  if (options.dryRun && setup.config) {
+    lines.push("");
+    lines.push("Config to add:");
+    lines.push(JSON.stringify(setup.config, null, 2));
+  }
+
+  return `${lines.join("\n")}\n`;
 };
 
 const readJsonObject = async (filePath: string): Promise<Record<string, unknown>> => {

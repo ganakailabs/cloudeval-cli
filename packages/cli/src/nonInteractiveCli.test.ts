@@ -1049,6 +1049,30 @@ test("mcp status and setup helpers are machine-readable", async () => {
   }
 });
 
+test("mcp setup human output is readable and avoids generic field tables", async () => {
+  const home = await fs.mkdtemp(path.join(os.tmpdir(), "cloudeval-cli-mcp-human-home-"));
+  try {
+    const result = await runCli([
+      "mcp",
+      "setup",
+      "claude",
+      "--command",
+      "/usr/local/bin/cloudeval",
+      "--toolset",
+      "readonly",
+    ], { home });
+
+    assert.equal(result.exitCode, 0, result.stderr);
+    assert.match(result.stdout, /^CloudEval MCP setup\n/);
+    assert.match(result.stdout, /Client: Claude/);
+    assert.match(result.stdout, /Status: wrote config/);
+    assert.match(result.stdout, /Command: \/usr\/local\/bin\/cloudeval mcp serve --toolset readonly/);
+    assert.doesNotMatch(result.stdout, /^Field\s+Value/m);
+  } finally {
+    await fs.rm(home, { recursive: true, force: true });
+  }
+});
+
 test("auth status is non-interactive and respects explicit base url", async () => {
   const backend = await startBackend();
   try {

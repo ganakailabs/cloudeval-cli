@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildMcpClientSetup } from "./mcpSetupCommand.js";
+import {
+  buildMcpClientSetup,
+  formatMcpClientSetupText,
+} from "./mcpSetupCommand.js";
 
 test("buildMcpClientSetup creates Codex registration command", () => {
   const setup = buildMcpClientSetup({
@@ -67,4 +70,43 @@ test("buildMcpClientSetup creates generic mcpServers config for other MCP client
     },
   });
   assert.match(setup.instructions[0], /Copy the shown mcpServers\.cloudeval entry/);
+});
+
+test("formatMcpClientSetupText renders a concise human summary for written config", () => {
+  const setup = buildMcpClientSetup({
+    client: "claude",
+    command: "/usr/local/bin/cloudeval",
+    toolset: "readonly",
+    configPath: "/tmp/claude_desktop_config.json",
+  });
+
+  const text = formatMcpClientSetupText(setup, {
+    dryRun: false,
+    writtenPath: "/tmp/claude_desktop_config.json",
+  });
+
+  assert.match(text, /^CloudEval MCP setup\n/);
+  assert.match(text, /Client: Claude/);
+  assert.match(text, /Status: wrote config/);
+  assert.match(text, /Config: \/tmp\/claude_desktop_config\.json/);
+  assert.match(text, /Command: \/usr\/local\/bin\/cloudeval mcp serve --toolset readonly/);
+  assert.doesNotMatch(text, /^Field\s+Value/m);
+});
+
+test("formatMcpClientSetupText renders dry-run config without field tables", () => {
+  const setup = buildMcpClientSetup({
+    client: "vscode",
+    command: "/usr/local/bin/cloudeval",
+    toolset: "readonly",
+    configPath: "/tmp/.vscode/mcp.json",
+  });
+
+  const text = formatMcpClientSetupText(setup, {
+    dryRun: true,
+  });
+
+  assert.match(text, /Status: dry run, no files changed/);
+  assert.match(text, /Config to add:/);
+  assert.match(text, /"servers"/);
+  assert.doesNotMatch(text, /^Field\s+Value/m);
 });

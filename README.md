@@ -235,6 +235,8 @@ cloudeval mcp setup cursor --dry-run --toolset reports --format json
 cloudeval mcp setup vscode --dry-run --toolset readonly --format json
 ```
 
+`cloudeval mcp setup <client>` prints a concise human summary by default and keeps machine-readable envelopes with `--format json|ndjson|markdown`.
+
 Underscore tool names (`projects_list`, `ask`, `recipes_list`, `billing_summary`, and similar); dotted names remain aliases. MCP exposes recipe discovery (`cloudeval://recipes`), recipe prompts, read-only parity tools such as `connections_list`, `models_list`, `auth_status`, `status`, and `doctor`, plus non-read-only tools for report runs, diagram exports, recipe runs, browser links, and other explicit actions. **Stdout** is JSON-RPC only; **`[cloudeval-mcp]`** diagnostics go to stderr. Authenticate with `cloudeval login` or `CLOUDEVAL_ACCESS_KEY` / `--access-key`. **`mcp serve`** does not support `--access-key-stdin` (stdin is the protocol stream). Developer setup details are published at [cli.cloudeval.ai/developer/](https://cli.cloudeval.ai/developer/).
 
 ---

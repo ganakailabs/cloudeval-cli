@@ -110,6 +110,7 @@ codex mcp list</code></pre>
       <pre><code>cloudeval mcp setup claude --dry-run --toolset reports --format json
 cloudeval mcp setup cursor --dry-run --toolset billing --format json
 cloudeval mcp setup vscode --dry-run --toolset readonly --format json</code></pre>
+      <p>Omit <code>--format json</code> for a concise human summary during local setup or installer onboarding.</p>
       <p>Generic MCP clients and Ollama-powered agent hosts can use a standard stdio config:</p>
       <pre><code>cloudeval mcp setup generic --dry-run --toolset readonly --format json</code></pre>
       <ul>

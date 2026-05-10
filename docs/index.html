@@ -59,7 +59,7 @@
       <h1>CloudEval CLI</h1>
       <p>Agent-ready terminal and MCP tooling for CloudEval projects, reports, billing, recipes, chat, and one-shot asks.</p>
       <pre><code>curl -fsSL https://cli.cloudeval.ai/install.sh | bash</code></pre>
-      <p>After install, run <code>cloudeval login</code>, <code>cloudeval status</code>, and <code>cloudeval chat</code>. Login uses <code>cloudeval.ai</code> device approval. Interactive terminals show CLI onboarding steps for new or incomplete accounts; headless login uses fast Playground setup. The installer can optionally detect Codex, Claude Desktop, Cursor, and VS Code, then help configure MCP for selected clients.</p>
+      <p>After install, run <code>cloudeval login</code>, <code>cloudeval status</code>, and <code>cloudeval chat</code>. Login uses <code>cloudeval.ai</code> device approval. Interactive terminals show CLI onboarding steps for new or incomplete accounts; headless login uses fast Playground setup. The installer can optionally detect Codex, Claude Desktop, Cursor, and VS Code, then help configure MCP for selected clients. Release downloads prefer compressed assets when available, show progress in interactive terminals, and use timeout/stall checks so slow CDN transfers fail clearly instead of appearing stuck.</p>
       <h2>First commands</h2>
       <pre><code>cloudeval ask "Summarize my cloud risk" --format json
 cloudeval agent "Find cost and architecture risks" --format json

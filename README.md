@@ -42,7 +42,8 @@ curl -fsSL https://cli.cloudeval.ai/install.sh | bash
 <details>
 <summary><strong>What the installer does</strong> (and fallbacks)</summary>
 
-- Pulls GitHub release assets, verifies `.sha256`, installs `cloudeval` and the `eva` alias (non-Windows), adds `~/.local/bin` to your shell profile when needed.
+- Pulls compressed GitHub release assets when available, falls back to raw assets, verifies `.sha256`, installs `cloudeval` and the `eva` alias (non-Windows), adds `~/.local/bin` to your shell profile when needed.
+- Shows download progress in interactive terminals and uses connect/stall timeouts so slow CDN transfers fail clearly instead of looking frozen. Set `CLOUDEVAL_DOWNLOAD_PROGRESS=0` to quiet progress, or tune `CLOUDEVAL_CURL_MAX_TIME`, `CLOUDEVAL_CURL_SPEED_TIME`, and `CLOUDEVAL_CURL_SPEED_LIMIT` for constrained networks.
 - On macOS/Linux, can run `cloudeval completion install` for bash/zsh/fish from `$SHELL`. Set `CLOUDEVAL_INSTALL_COMPLETION=0` to skip the prompt.
 - Detects Codex, Claude Desktop, Cursor, and VS Code, then offers optional MCP setup for one or more selected clients. Set `CLOUDEVAL_INSTALL_AGENT_SETUP=0` to skip, or `CLOUDEVAL_INSTALL_MCP_CLIENTS=codex,cursor` to preselect clients.
 - Nudges users to run `cloudeval login` and prints scoped access-key commands for automation. It never creates credentials or changes agent/IDE config without an explicit prompt.

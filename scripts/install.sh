@@ -122,6 +122,78 @@ asset_url() {
   fi
 }
 
+curl_download_args() {
+  printf '%s\n' \
+    "--fail" \
+    "--location" \
+    "--show-error" \
+    "--connect-timeout" "${CLOUDEVAL_CURL_CONNECT_TIMEOUT:-15}" \
+    "--max-time" "${CLOUDEVAL_CURL_MAX_TIME:-900}" \
+    "--speed-time" "${CLOUDEVAL_CURL_SPEED_TIME:-30}" \
+    "--speed-limit" "${CLOUDEVAL_CURL_SPEED_LIMIT:-1024}"
+}
+
+curl_should_show_progress() {
+  [ "${CLOUDEVAL_DOWNLOAD_PROGRESS:-1}" != "0" ] \
+    && [ "${CI:-}" != "true" ] \
+    && [ -r /dev/tty ]
+}
+
+curl_download_file() {
+  local url="$1"
+  local dest="$2"
+  local label="$3"
+  local optional="${4:-0}"
+  local attempts="${CLOUDEVAL_CURL_RETRIES:-2}"
+  local attempt=1
+  local curl_args=()
+  local arg
+
+  while IFS= read -r arg; do
+    curl_args+=("$arg")
+  done < <(curl_download_args)
+
+  if curl_should_show_progress; then
+    curl_args+=("--progress-bar")
+  else
+    curl_args+=("--silent")
+  fi
+
+  while [ "$attempt" -le "$attempts" ]; do
+    if [ "$attempts" -gt 1 ]; then
+      echo -e "${BLUE}${label} download attempt ${attempt}/${attempts}${NC}" >&2
+    fi
+
+    if curl "${curl_args[@]}" "$url" -o "$dest"; then
+      return 0
+    fi
+
+    if [ "$attempt" -lt "$attempts" ]; then
+      echo -e "${YELLOW}⚠ Download attempt ${attempt} failed for ${label}; retrying...${NC}" >&2
+      sleep "${CLOUDEVAL_CURL_RETRY_DELAY:-2}"
+    fi
+    attempt=$((attempt + 1))
+  done
+
+  if [ "$optional" != "1" ]; then
+    echo -e "${RED}✗ Failed to download ${url}${NC}" >&2
+    echo -e "${YELLOW}If the transfer stalls, retry or increase CLOUDEVAL_CURL_MAX_TIME for slower networks.${NC}" >&2
+  fi
+  return 1
+}
+
+asset_exists() {
+  local url="$1"
+  curl \
+    --fail \
+    --location \
+    --silent \
+    --head \
+    --connect-timeout "${CLOUDEVAL_CURL_CONNECT_TIMEOUT:-15}" \
+    --max-time "${CLOUDEVAL_CURL_HEAD_MAX_TIME:-30}" \
+    "$url" >/dev/null 2>&1
+}
+
 hash_file() {
   local file="$1"
   if command -v sha256sum >/dev/null 2>&1; then
@@ -152,7 +224,7 @@ verify_asset_checksum() {
     return 0
   fi
 
-  if ! curl -fsSL "$(asset_url "${asset}.sha256")" -o "$checksum_file"; then
+  if ! curl_download_file "$(asset_url "${asset}.sha256")" "$checksum_file" "${asset}.sha256" "0"; then
     rm -f "$checksum_file"
     echo -e "${RED}✗ Missing checksum for ${asset}. Refusing to install unverified binary.${NC}" >&2
     echo -e "${YELLOW}Set CLOUDEVAL_SKIP_CHECKSUM=1 only if you trust this release source.${NC}" >&2
@@ -179,10 +251,36 @@ download_verified_asset() {
   local mode="${3:-0644}"
   local tmp
   tmp="$(mktemp)"
+  local compressed_tmp="${tmp}.gz"
 
-  if ! curl -fsSL "$(asset_url "$asset")" -o "$tmp"; then
+  local compressed_url
+  compressed_url="$(asset_url "${asset}.gz")"
+
+  if [ "${CLOUDEVAL_DISABLE_COMPRESSED_ASSETS:-0}" != "1" ] && command -v gzip >/dev/null 2>&1; then
+    if asset_exists "$compressed_url" && curl_download_file "$compressed_url" "$compressed_tmp" "${asset}.gz" "0"; then
+      echo -e "${GREEN}✓ Downloaded compressed ${asset}.gz${NC}"
+      if ! gzip -dc "$compressed_tmp" > "$tmp"; then
+        rm -f "$tmp" "$compressed_tmp"
+        echo -e "${RED}✗ Failed to unpack ${asset}.gz${NC}" >&2
+        return 1
+      fi
+      rm -f "$compressed_tmp"
+
+      if ! verify_asset_checksum "$asset" "$tmp"; then
+        rm -f "$tmp"
+        return 1
+      fi
+
+      mv "$tmp" "$dest"
+      chmod "$mode" "$dest"
+      return 0
+    fi
+    rm -f "$compressed_tmp"
+    echo -e "${YELLOW}Compressed asset unavailable; downloading ${asset}.${NC}"
+  fi
+
+  if ! curl_download_file "$(asset_url "$asset")" "$tmp" "$asset" "0"; then
     rm -f "$tmp"
-    echo -e "${RED}✗ Failed to download $(asset_url "$asset")${NC}" >&2
     return 1
   fi
 
@@ -384,14 +482,28 @@ run_optional_agent_setup() {
   echo -e "  ${GREEN}${BIN_NAME} credentials create --template ci --name agent-automation --project <project-id> --expires 90d${NC}"
 }
 
+REPO="ganakailabs/cloudeval-cli"
+VERSION="${1:-latest}"
+BIN_NAME="cloudeval"
+
 if [ "${1:-}" = "--self-test-agent-detection" ]; then
   detect_mcp_clients
   exit 0
 fi
 
-REPO="ganakailabs/cloudeval-cli"
-VERSION="${1:-latest}"
-BIN_NAME="cloudeval"
+if [ "${1:-}" = "--self-test-download-options" ]; then
+  curl_download_args | tr '\n' ' '
+  printf '\n'
+  exit 0
+fi
+
+if [ "${1:-}" = "--self-test-download-plan" ]; then
+  VERSION="${CLOUDEVAL_SELF_TEST_VERSION:-latest}"
+  asset="${2:-cloudeval-macos-arm64}"
+  printf '%s\n' "$(asset_url "${asset}.gz")"
+  printf '%s\n' "$(asset_url "$asset")"
+  exit 0
+fi
 
 print_banner
 
@@ -456,7 +568,14 @@ mkdir -p "$DEST_DIR"
 
 if ! download_verified_asset "$BIN" "$DEST" "0755"; then
   echo ""
-  echo -e "${YELLOW}No pre-built release found. You can:${NC}"
+  echo -e "${YELLOW}Could not install the pre-built release.${NC}"
+  echo -e "  This can happen when the network/CDN stalls, a proxy blocks GitHub release"
+  echo -e "  assets, or the requested release does not provide ${OS}-${ARCH}."
+  echo ""
+  echo -e "  Retry on a slower network with:"
+  echo -e "     ${GREEN}curl -fsSL https://cli.cloudeval.ai/install.sh | CLOUDEVAL_CURL_MAX_TIME=1800 bash${NC}"
+  echo ""
+  echo -e "${YELLOW}Other options:${NC}"
   echo ""
   echo -e "${BLUE}Option 1: Build from source${NC}"
   echo -e "  1. Clone the repository:"

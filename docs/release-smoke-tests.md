@@ -50,7 +50,8 @@ The smoke script verifies:
 - The public installer at `scripts/install.sh` can be fetched and executed.
 - GitHub latest release resolution, or the explicit release tag you pass.
 - The installer selects the current OS/architecture release asset.
-- The installer downloads the CLI binary and `yoga.wasm`.
+- The installer downloads the CLI binary and `yoga.wasm`, preferring compressed
+  assets when the release provides them and falling back to raw assets.
 - The installer validates release checksums.
 - The installer creates `~/.local/bin/cloudeval`.
 - The installer creates the `eva` alias on non-Windows platforms.
@@ -94,6 +95,10 @@ CLOUDEVAL_SMOKE_KEEP_DIR=1
 CLOUDEVAL_SMOKE_ARTIFACT_ROOT=/tmp
 CLOUDEVAL_SMOKE_ARTIFACT_DIR=/tmp/cloudeval-smoke-debug
 CLOUDEVAL_INSTALL_AGENT_SETUP=0
+CLOUDEVAL_DOWNLOAD_PROGRESS=0
+CLOUDEVAL_CURL_MAX_TIME=900
+CLOUDEVAL_CURL_SPEED_TIME=30
+CLOUDEVAL_CURL_SPEED_LIMIT=1024
 ```
 
 `CLOUDEVAL_SMOKE_KEEP_DIR=1` preserves the downloaded binary and JSON outputs
@@ -102,6 +107,10 @@ By default smoke artifacts are created under the OS temporary directory, not the
 repository. `CLOUDEVAL_SMOKE_ARTIFACT_ROOT` changes that temporary parent.
 `CLOUDEVAL_SMOKE_ARTIFACT_DIR` uses an explicit directory and preserves it; use
 a path outside the repository for real-backend runs.
+
+The installer shows curl progress in interactive terminals. CI smoke runs keep
+downloads quiet by default, but still inherit the same connect, max-time, and
+stall detection checks.
 
 ## Expected Output
 

@@ -98,6 +98,17 @@ jobs:
           if [ "${{ matrix.platform }}-${{ matrix.arch }}" != "linux-x64" ]; then
             rm -f packages/cli/dist/bin/yoga.wasm
           fi
+      - name: Create compressed assets
+        shell: bash
+        run: |
+          cd packages/cli/dist/bin
+          for file in *; do
+            [ -f "$file" ] || continue
+            case "$file" in
+              *.sha256|*.gz) continue ;;
+            esac
+            gzip -9 -k "$file"
+          done
       - name: Generate checksums
         shell: bash
         run: |

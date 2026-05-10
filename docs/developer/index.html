@@ -55,7 +55,7 @@
 
       <h2>Install and Onboard</h2>
       <pre><code>curl -fsSL https://cli.cloudeval.ai/install.sh | bash</code></pre>
-      <p>The installer detects common agent clients and IDEs such as Codex, Claude Desktop, Cursor, and VS Code. Optional setup prompts can run login, configure MCP for selected clients, and print access-key commands for automation. Nothing is written to agent or IDE config unless you approve it.</p>
+      <p>The installer detects common agent clients and IDEs such as Codex, Claude Desktop, Cursor, and VS Code. Optional setup prompts can run login, configure MCP for selected clients, and print access-key commands for automation. Release downloads prefer compressed assets, show progress in interactive terminals, and use timeout/stall checks so slow CDN transfers fail clearly. Nothing is written to agent or IDE config unless you approve it.</p>
       <pre><code>CLOUDEVAL_INSTALL_AGENT_SETUP=0 curl -fsSL https://cli.cloudeval.ai/install.sh | bash
 CLOUDEVAL_INSTALL_MCP_CLIENTS=codex,cursor curl -fsSL https://cli.cloudeval.ai/install.sh | bash</code></pre>
 

@@ -1067,6 +1067,8 @@ test("mcp setup human output is readable and avoids generic field tables", async
     assert.match(result.stdout, /Client: Claude/);
     assert.match(result.stdout, /Status: wrote config/);
     assert.match(result.stdout, /Command: \/usr\/local\/bin\/cloudeval mcp serve --toolset readonly/);
+    assert.match(result.stdout, /Restart Claude Desktop to load the CloudEval MCP server/);
+    assert.doesNotMatch(result.stdout, /Merge the shown/);
     assert.doesNotMatch(result.stdout, /^Field\s+Value/m);
   } finally {
     await fs.rm(home, { recursive: true, force: true });

@@ -90,6 +90,8 @@ test("formatMcpClientSetupText renders a concise human summary for written confi
   assert.match(text, /Status: wrote config/);
   assert.match(text, /Config: \/tmp\/claude_desktop_config\.json/);
   assert.match(text, /Command: \/usr\/local\/bin\/cloudeval mcp serve --toolset readonly/);
+  assert.match(text, /Restart Claude Desktop to load the CloudEval MCP server/);
+  assert.doesNotMatch(text, /Merge the shown/);
   assert.doesNotMatch(text, /^Field\s+Value/m);
 });
 

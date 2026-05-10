@@ -431,6 +431,16 @@ normalize_mcp_client_selection() {
   printf '%s\n' "$normalized"
 }
 
+print_credentials_next_steps() {
+  echo -e "${BLUE}Credentials for automation${NC}"
+  echo -e "  The installer does not create access keys or write secrets into MCP client config."
+  echo -e "  For local MCP, use ${GREEN}${BIN_NAME} login${NC}. For CI and hosted agents, create a project-scoped credential after login:"
+  echo -e "  ${GREEN}${BIN_NAME} projects list${NC}"
+  echo -e "  ${GREEN}${BIN_NAME} credentials templates${NC}"
+  echo -e "  ${GREEN}${BIN_NAME} credentials create --template ci --name agent-automation --project <project-id> --expires 90d --format github-actions${NC}"
+  echo -e "  The raw access key is printed once. Store it as ${GREEN}CLOUDEVAL_ACCESS_KEY${NC} or pipe it with ${GREEN}--access-key-stdin${NC}."
+}
+
 print_agent_setup_next_steps() {
   echo -e "${BLUE}Agent and IDE setup${NC}"
   echo -e "  ${GREEN}${BIN_NAME} login${NC}"
@@ -438,8 +448,8 @@ print_agent_setup_next_steps() {
   echo -e "  ${GREEN}${BIN_NAME} mcp setup claude --dry-run --toolset readonly${NC}"
   echo -e "  ${GREEN}${BIN_NAME} mcp setup cursor --dry-run --toolset readonly${NC}"
   echo -e "  ${GREEN}${BIN_NAME} mcp setup vscode --dry-run --toolset readonly${NC}"
-  echo -e "  ${GREEN}${BIN_NAME} credentials templates${NC}"
-  echo -e "  ${GREEN}${BIN_NAME} credentials create --template ci --name agent-automation --project <project-id> --expires 90d${NC}"
+  echo ""
+  print_credentials_next_steps
 }
 
 setup_codex_mcp() {
@@ -546,10 +556,7 @@ run_optional_agent_setup() {
   done
 
   echo ""
-  echo -e "${BLUE}Access keys for automation${NC}"
-  echo -e "  Create scoped access keys only after login and project selection:"
-  echo -e "  ${GREEN}${BIN_NAME} credentials templates${NC}"
-  echo -e "  ${GREEN}${BIN_NAME} credentials create --template ci --name agent-automation --project <project-id> --expires 90d${NC}"
+  print_credentials_next_steps
 }
 
 REPO="ganakailabs/cloudeval-cli"

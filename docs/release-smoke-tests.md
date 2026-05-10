@@ -55,8 +55,8 @@ The smoke script verifies:
 - The installer validates release checksums.
 - The installer creates `~/.local/bin/cloudeval`.
 - The installer creates the `eva` alias on non-Windows platforms.
-- The installer prints optional agent setup guidance without running login or
-  writing MCP client config in CI.
+- The installer prints optional agent and credential setup guidance without
+  running login, creating credentials, or writing MCP client config in CI.
 - Interactive update/install flows can offer optional MCP onboarding for
   detected, all, or selected clients; unattended `--yes`/CI flows skip the
   prompt unless explicitly configured.

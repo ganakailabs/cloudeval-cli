@@ -68,6 +68,23 @@ test("formatUpdateStatusText renders human output without a field/value table", 
   assert.doesNotMatch(text, /^-+\s+-+/m);
 });
 
+test("formatUpdateStatusText mentions agent onboarding after updates", () => {
+  const text = formatUpdateStatusText({
+    currentVersion: "0.14.3",
+    latestVersion: "0.14.4",
+    latestTag: "v0.14.4",
+    updateAvailable: true,
+    checkedAt: "2026-05-10T22:00:00.000Z",
+    releaseUrl: "https://example.test/releases/v0.14.4",
+    publishedAt: "2026-05-10T21:59:00Z",
+    action: "updated",
+  });
+
+  assert.match(text, /Status: updated/);
+  assert.match(text, /MCP onboarding/);
+  assert.match(text, /Codex, Claude, Cursor, or VS Code/);
+});
+
 test("runInstaller pipes installer script to bash with the resolved release tag", async () => {
   const stderrChunks: Buffer[] = [];
   const stdin = new PassThrough();

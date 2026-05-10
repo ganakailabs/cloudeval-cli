@@ -402,6 +402,10 @@ export const formatUpdateStatusText = (result: UpdateCommandResult): string => {
     lines.push("Next step: run `cloudeval update --yes` to install.");
   } else if (result.action === "skipped") {
     lines.push("Next step: run `cloudeval update --yes` when you are ready.");
+  } else if (result.action === "updated") {
+    lines.push(
+      "MCP onboarding: interactive updates can ask to configure Codex, Claude, Cursor, or VS Code after installation."
+    );
   }
 
   return `${lines.join("\n")}\n`;

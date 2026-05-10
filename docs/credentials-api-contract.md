@@ -348,8 +348,12 @@ cloudeval capabilities --live --format json
 ```
 
 Automation auth uses `--access-key`, `--access-key-stdin`, and
-`CLOUDEVAL_ACCESS_KEY`. The beta `--api-key`, `--api-key-stdin`, and
-`CLOUDEVAL_API_KEY` names are hard errors, not aliases.
+`CLOUDEVAL_ACCESS_KEY`. Prefer stdin or the environment for automation.
+`--access-key` remains available but prints a warning because process arguments
+can leak through shell history and process listings. The beta `--api-key`,
+`--api-key-stdin`, and `CLOUDEVAL_API_KEY` names are hard errors, not aliases.
+MCP authenticates at server startup only; MCP tool schemas do not accept
+per-call access-key arguments.
 
 `--format github-actions` prints:
 
@@ -357,6 +361,10 @@ Automation auth uses `--access-key`, `--access-key-stdin`, and
 CLOUDEVAL_ACCESS_KEY: cev_live_ak_...
 CLOUDEVAL_PROJECT_ID: proj_...
 ```
+
+When `credentials create` writes a one-time secret to `--output`, the CLI writes
+the file with private permissions on POSIX systems. List and inspect commands
+must never print the raw access key.
 
 ## Frontend Contract
 

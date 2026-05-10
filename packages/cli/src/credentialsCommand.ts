@@ -2,6 +2,7 @@ import type { Command } from "commander";
 import { addAuthOptions, resolveAuthContext, type AuthGuardDeps } from "./authGuard.js";
 import {
   formatTextTable,
+  writePrivateOutputFile,
   writeFormattedOutput,
   type MachineOutputFormat,
 } from "./outputFormatter.js";
@@ -100,8 +101,7 @@ const writeCredentialOutput = async (input: {
       ...(projectId ? [`CLOUDEVAL_PROJECT_ID: ${projectId}`] : []),
     ].join("\n") + "\n";
     if (input.output) {
-      const fs = await import("node:fs/promises");
-      await fs.writeFile(input.output, text, "utf8");
+      await writePrivateOutputFile(input.output, text);
       return;
     }
     process.stdout.write(text);
@@ -127,6 +127,7 @@ const writeCredentialOutput = async (input: {
     data: input.data,
     format: input.format as MachineOutputFormat | undefined,
     output: input.output,
+    redactSensitiveSecrets: input.command !== "credentials create",
   });
 };
 

@@ -12,6 +12,7 @@ import {
   StreamRequestPayload,
   StreamSettings,
   ThinkingChunk,
+  redactSensitiveText,
 } from "@cloudeval/shared";
 import { normalizeApiBase } from "./auth";
 import { withIdempotencyHeader } from "./idempotency";
@@ -335,9 +336,10 @@ const compactErrorBody = (body: string): string | undefined => {
 
   try {
     const parsed = JSON.parse(trimmed);
-    return JSON.stringify(parsed);
+    return redactSensitiveText(JSON.stringify(parsed));
   } catch {
-    return trimmed.length > 1000 ? `${trimmed.slice(0, 1000)}...` : trimmed;
+    const redacted = redactSensitiveText(trimmed);
+    return redacted.length > 1000 ? `${redacted.slice(0, 1000)}...` : redacted;
   }
 };
 

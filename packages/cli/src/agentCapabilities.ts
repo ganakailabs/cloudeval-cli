@@ -5,7 +5,7 @@ import {
 } from "./outputFormatter.js";
 import { buildDomains, cliCommands } from "./cliCommandRegistry.js";
 import { getMcpStatusData, mcpToolNames } from "./mcpCommand.js";
-import { addAuthOptions } from "./authGuard.js";
+import { addAuthOptions, warnIfAccessKeyFromCliOption } from "./authGuard.js";
 
 type ResolveBaseUrl = (
   options: { baseUrl?: string },
@@ -104,9 +104,10 @@ export const registerCapabilitiesCommand = (
         accessKey?: string;
         accessKeyStdin?: boolean;
       },
-      command
-    ) => {
-      let data: Record<string, unknown> = capabilities;
+	      command
+	    ) => {
+	      warnIfAccessKeyFromCliOption(options, command);
+	      let data: Record<string, unknown> = capabilities;
       if (options.live) {
         const core = await import("@cloudeval/core");
         const baseUrl = await deps.resolveBaseUrl(options, command);

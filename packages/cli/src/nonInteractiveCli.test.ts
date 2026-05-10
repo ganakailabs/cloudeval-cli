@@ -721,9 +721,9 @@ test("credentials, identity, and live capabilities commands call credential APIs
     assert.equal(templates.command, "credentials templates");
     assert.equal(templates.data.templates[0].id, "ci");
 
-    const created = await runCli([
-      "credentials",
-      "create",
+	    const created = await runCli([
+	      "credentials",
+	      "create",
       "--base-url",
       backend.baseUrl,
       "--access-key",
@@ -742,11 +742,86 @@ test("credentials, identity, and live capabilities commands call credential APIs
       "github-actions",
       "--non-interactive",
     ]);
-    assert.equal(created.exitCode, 0, created.stderr);
-    assert.match(created.stdout, /^CLOUDEVAL_ACCESS_KEY: cev_test_ak_01JTEST_createdsecret/m);
-    assert.match(created.stdout, /^CLOUDEVAL_PROJECT_ID: project-main/m);
+	    assert.equal(created.exitCode, 0, created.stderr);
+	    assert.match(created.stdout, /^CLOUDEVAL_ACCESS_KEY: cev_test_ak_01JTEST_createdsecret/m);
+	    assert.match(created.stdout, /^CLOUDEVAL_PROJECT_ID: project-main/m);
 
-    const list = parseJson(await runCli(["credentials", "list", ...common, "--project", "project-main"]));
+	    const outputDir = await fs.mkdtemp(path.join(os.tmpdir(), "cloudeval-credential-output-"));
+	    const githubActionsOutput = path.join(outputDir, "github-actions.yml");
+	    const jsonOutput = path.join(outputDir, "credential.json");
+	    try {
+	      await fs.writeFile(githubActionsOutput, "old\n", { mode: 0o644 });
+	      await fs.chmod(githubActionsOutput, 0o644);
+	      const written = await runCli([
+	        "credentials",
+	        "create",
+	        "--base-url",
+	        backend.baseUrl,
+	        "--access-key",
+	        "test-token",
+	        "--template",
+	        "ci",
+	        "--name",
+	        "github-actions-prod",
+	        "--project",
+	        "project-main",
+	        "--expires",
+	        "90d",
+	        "--idempotency-key",
+	        "idem-create-1",
+	        "--format",
+	        "github-actions",
+	        "--output",
+	        githubActionsOutput,
+	        "--non-interactive",
+	      ]);
+	      assert.equal(written.exitCode, 0, written.stderr);
+	      assert.match(
+	        await fs.readFile(githubActionsOutput, "utf8"),
+	        /^CLOUDEVAL_ACCESS_KEY: cev_test_ak_01JTEST_createdsecret/m
+	      );
+	      if (process.platform !== "win32") {
+	        assert.equal((await fs.stat(githubActionsOutput)).mode & 0o777, 0o600);
+	      }
+
+	      await fs.writeFile(jsonOutput, "old\n", { mode: 0o644 });
+	      await fs.chmod(jsonOutput, 0o644);
+	      const jsonWritten = await runCli([
+	        "credentials",
+	        "create",
+	        "--base-url",
+	        backend.baseUrl,
+	        "--access-key",
+	        "test-token",
+	        "--template",
+	        "ci",
+	        "--name",
+	        "github-actions-prod",
+	        "--project",
+	        "project-main",
+	        "--expires",
+	        "90d",
+	        "--idempotency-key",
+	        "idem-create-1",
+	        "--format",
+	        "json",
+	        "--output",
+	        jsonOutput,
+	        "--non-interactive",
+	      ]);
+	      assert.equal(jsonWritten.exitCode, 0, jsonWritten.stderr);
+	      assert.match(
+	        await fs.readFile(jsonOutput, "utf8"),
+	        /cev_test_ak_01JTEST_createdsecret/
+	      );
+	      if (process.platform !== "win32") {
+	        assert.equal((await fs.stat(jsonOutput)).mode & 0o777, 0o600);
+	      }
+	    } finally {
+	      await fs.rm(outputDir, { recursive: true, force: true });
+	    }
+
+	    const list = parseJson(await runCli(["credentials", "list", ...common, "--project", "project-main"]));
     assert.equal(list.command, "credentials list");
     assert.equal(list.data.credentials[0].key_prefix, "cev_test_ak_01JTEST");
     assert.equal(JSON.stringify(list.data), JSON.stringify(list.data).replace("createdsecret", ""));
@@ -803,6 +878,41 @@ test("legacy API key flags and environment variables fail with beta migration me
   });
   assert.notEqual(envResult.exitCode, 0);
   assert.match(envResult.stderr, /API key auth was renamed in beta\. Use --access-key or CLOUDEVAL_ACCESS_KEY\./);
+});
+
+test("explicit --access-key warns without echoing the secret", async () => {
+  const backend = await startBackend();
+  try {
+    const result = await runCli([
+      "projects",
+      "list",
+      "--base-url",
+      backend.baseUrl,
+      "--access-key",
+      "test-token",
+      "--format",
+      "json",
+      "--non-interactive",
+    ]);
+    assert.equal(result.exitCode, 0, result.stderr);
+    assert.match(result.stderr, /--access-key can leak via shell history\/process listing/);
+    assert.doesNotMatch(result.stderr, /test-token/);
+
+    const stdinResult = await runCli([
+      "projects",
+      "list",
+      "--base-url",
+      backend.baseUrl,
+      "--access-key-stdin",
+      "--format",
+      "json",
+      "--non-interactive",
+    ], { input: "test-token\n" });
+    assert.equal(stdinResult.exitCode, 0, stdinResult.stderr);
+    assert.equal(stdinResult.stderr, "");
+  } finally {
+    await backend.close();
+  }
 });
 
 test("completion install and uninstall manages shell script path", async () => {

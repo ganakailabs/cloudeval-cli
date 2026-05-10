@@ -89,7 +89,7 @@ cloudeval recipes run cost-review --project &lt;id&gt; --format json --non-inter
 cloudeval update --yes</code></pre>
       <p>The default update output is a readable summary. In an interactive terminal, <code>cloudeval update</code> can also offer optional MCP onboarding for detected, all, or selected agent clients after the binary update. Use <code>--yes</code> for unattended updates and <code>--format json</code>, <code>--format ndjson</code>, or <code>--format markdown</code> for automation.</p>
       <h2>Sensitive output</h2>
-      <p>The CLI redacts account IDs, session IDs, tenant IDs, and sensitive URL query parameters by default. Use <code>--show-sensitive-ids</code> only for trusted local workflows that require full identifiers.</p>
+      <p>The CLI redacts account IDs, session IDs, tenant IDs, access-key-shaped strings, authorization headers, and sensitive URL query parameters by default. Use <code>--show-sensitive-ids</code> only for trusted local workflows that require full identifiers; it does not unredact tokens.</p>
       <pre><code>cloudeval auth status
 cloudeval auth status --show-sensitive-ids</code></pre>
       <h2>Access keys for automation</h2>
@@ -98,7 +98,7 @@ cloudeval auth status --show-sensitive-ids</code></pre>
 cloudeval credentials create --template ci --name github-actions-prod --project &lt;id&gt; --expires 90d --format github-actions
 cloudeval identity --format json
 cloudeval capabilities --live --format json</code></pre>
-      <p>Use <code>--access-key</code>, <code>--access-key-stdin</code>, or <code>CLOUDEVAL_ACCESS_KEY</code> for non-interactive automation. The beta <code>--api-key</code> names now fail with a migration error.</p>
+      <p>Prefer <code>--access-key-stdin</code> or <code>CLOUDEVAL_ACCESS_KEY</code> for non-interactive automation. <code>--access-key</code> is accepted but warns because command-line arguments can leak through shell history and process listings. Credential create output files are written with private permissions on POSIX systems. The beta <code>--api-key</code> names now fail with a migration error.</p>
       <h2>MCP server for agents</h2>
       <p>Expose CloudEval to Codex, Claude Desktop, Cursor, and other MCP clients:</p>
       <pre><code>cloudeval mcp serve
@@ -117,7 +117,7 @@ cloudeval mcp setup vscode --dry-run --toolset readonly --format json</code></pr
         <li>Tools: <code>capabilities_get</code>, <code>projects_list</code>, <code>projects_get</code>, <code>connections_list</code>, <code>connections_get</code>, <code>projects_export_diagram</code>, <code>ask</code>, <code>models_list</code>, <code>auth_status</code>, <code>status</code>, <code>doctor</code>, <code>recipes_list</code>, <code>recipes_get</code>, <code>recipes_run</code>, <code>reports_list</code>, <code>reports_run</code>, <code>reports_download</code>, <code>billing_summary</code>, <code>billing_usage</code>, <code>billing_ledger</code>, <code>billing_plans</code>, <code>billing_topups</code>, and <code>open_url</code>.</li>
         <li>Recipes: <code>cloudeval://recipes</code> plus prompts for <code>cost-review</code>, <code>waf-triage</code>, <code>architecture-review</code>, <code>template-project-review</code>, <code>report-summary</code>, <code>billing-review</code>, <code>diagram-export</code>, and <code>mcp-setup</code>.</li>
         <li>Compatibility: legacy dotted tool calls still work as aliases, but MCP clients should use underscore names.</li>
-        <li>Auth: run <code>cloudeval login</code> or <code>cloudeval login --headless</code> before starting the MCP server, or provide <code>CLOUDEVAL_ACCESS_KEY</code> / <code>--access-key</code> from a scoped credential. Stdin is reserved for JSON-RPC messages.</li>
+        <li>Auth: run <code>cloudeval login</code> or <code>cloudeval login --headless</code> before starting the MCP server, or provide <code>CLOUDEVAL_ACCESS_KEY</code> / <code>--access-key</code> from a scoped credential. Stdin is reserved for JSON-RPC messages, and tool calls do not accept per-call access-key arguments.</li>
         <li>Transport: newline-delimited stdio JSON-RPC for modern clients, with legacy <code>Content-Length</code> framing accepted. Protocol messages use stdout; server diagnostics use stderr.</li>
       </ul>
       <p><a href="/developer/">Developer setup</a> · <a href="https://github.com/ganakailabs/cloudeval-cli/releases/latest">Latest release</a> · <a href="https://docs.cloudeval.ai/quickstart/use-the-cli.md">Documentation</a></p>

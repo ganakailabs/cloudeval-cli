@@ -21,6 +21,7 @@ import {
   writeFormattedOutput,
   type MachineOutputFormat,
 } from "../outputFormatter.js";
+import { warnIfAccessKeyFromCliOption } from "../authGuard.js";
 
 type ResolveBaseUrl = (
   options: { baseUrl?: string },
@@ -96,8 +97,10 @@ const resolveFormat = (
 const resolveToken = async (
   options: CommonReportOptions,
   baseUrl: string,
-  deps: RegisterReportsCommandOptions
+  deps: RegisterReportsCommandOptions,
+  command?: Command
 ): Promise<string | undefined> => {
+  warnIfAccessKeyFromCliOption(options, command);
   if (options.accessKeyStdin) {
     return deps.readStdinValue();
   }
@@ -333,7 +336,7 @@ export const registerReportsCommand = (
     .action(async (options: CommonReportOptions & { kind?: ReportKind | "all" }, command) => {
       try {
         const baseUrl = await deps.resolveBaseUrl(options, command);
-        const token = await resolveToken(options, baseUrl, deps);
+        const token = await resolveToken(options, baseUrl, deps, command);
         const projectId = await resolveReportProjectId({
           baseUrl,
           token,
@@ -365,7 +368,7 @@ export const registerReportsCommand = (
     .action(async (options: CommonReportOptions & { type?: string; view?: ReportFormatMode; timestamp?: string }, command) => {
       try {
         const baseUrl = await deps.resolveBaseUrl(options, command);
-        const token = await resolveToken(options, baseUrl, deps);
+        const token = await resolveToken(options, baseUrl, deps, command);
         const core = await import("@cloudeval/core");
         const status = token ? await core.checkUserStatus(baseUrl, token) : undefined;
         const projectId = await resolveReportProjectId({
@@ -493,7 +496,7 @@ export const registerReportsCommand = (
       ) => {
         try {
           const baseUrl = await deps.resolveBaseUrl(options, command);
-          const token = await resolveToken(options, baseUrl, deps);
+          const token = await resolveToken(options, baseUrl, deps, command);
           const core = await import("@cloudeval/core");
           const status = token ? await core.checkUserStatus(baseUrl, token) : undefined;
           const projectId = await resolveReportProjectId({
@@ -567,7 +570,7 @@ export const registerReportsCommand = (
     .action(async (options: CommonReportOptions & { type?: string }, command) => {
       try {
         const baseUrl = await deps.resolveBaseUrl(options, command);
-        const token = await resolveToken(options, baseUrl, deps);
+        const token = await resolveToken(options, baseUrl, deps, command);
         const projectId = await resolveReportProjectId({
           baseUrl,
           token,
@@ -614,7 +617,7 @@ export const registerReportsCommand = (
   ).action(async (reportId: string, options: CommonReportOptions, command) => {
     try {
       const baseUrl = await deps.resolveBaseUrl(options, command);
-      const token = await resolveToken(options, baseUrl, deps);
+      const token = await resolveToken(options, baseUrl, deps, command);
       const projectId = await resolveReportProjectId({
         baseUrl,
         token,
@@ -646,7 +649,7 @@ export const registerReportsCommand = (
     .action(async (options: CommonReportOptions & { period?: string; view?: string }, command) => {
       try {
         const baseUrl = await deps.resolveBaseUrl(options, command);
-        const token = await resolveToken(options, baseUrl, deps);
+        const token = await resolveToken(options, baseUrl, deps, command);
         const projectId = await resolveReportProjectId({
           baseUrl,
           token,
@@ -683,7 +686,7 @@ export const registerReportsCommand = (
       ) => {
         try {
           const baseUrl = await deps.resolveBaseUrl(options, command);
-          const token = await resolveToken(options, baseUrl, deps);
+          const token = await resolveToken(options, baseUrl, deps, command);
           const projectId = await resolveReportProjectId({
             baseUrl,
             token,

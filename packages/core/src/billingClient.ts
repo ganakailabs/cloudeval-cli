@@ -1,3 +1,4 @@
+import { redactSensitiveText } from "@cloudeval/shared";
 import { getCLIHeaders, normalizeApiBase } from "./auth";
 import { withIdempotencyHeader } from "./idempotency";
 
@@ -121,9 +122,10 @@ const fetchBillingJson = async <T>(
   });
   if (!response.ok) {
     const body = await response.text().catch(() => "");
+    const redactedBody = redactSensitiveText(body.trim());
     throw new Error(
       `Billing request failed with status ${response.status} ${response.statusText}${
-        body.trim() ? `: ${body.trim()}` : ""
+        redactedBody ? `: ${redactedBody}` : ""
       }`
     );
   }

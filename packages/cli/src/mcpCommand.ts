@@ -41,6 +41,7 @@ import {
   normalizeProjectDiagramImageLayout,
   resolveProjectDiagramImageFrontendUrl,
 } from "./projectDiagramImage.js";
+import { warnIfAccessKeyFromCliOption } from "./authGuard.js";
 
 type JsonValue =
   | string
@@ -195,11 +196,6 @@ const commonToolProperties = {
     type: "string",
     description:
       "CloudEval CLI config profile to read defaults from. Defaults to the server --profile or CLOUDEVAL_PROFILE.",
-  },
-  accessKey: {
-    type: "string",
-    description:
-      "Optional access key for this call. Prefer MCP client env configuration or stored `cloudeval login` credentials.",
   },
 };
 
@@ -1235,7 +1231,7 @@ const resolveInvocationConfig = async (
     profile,
     defaultProjectId: config.defaultProjectId,
     model: stringValue(args.model) ?? config.model,
-    accessKey: stringValue(args.accessKey) ?? serverOptions.accessKey,
+    accessKey: serverOptions.accessKey,
   };
 };
 
@@ -2998,6 +2994,7 @@ export const registerMcpCommand = (
     )
     .option("-v, --verbose", "Write detailed MCP server diagnostics to stderr", false)
     .action(async (options, command) => {
+      warnIfAccessKeyFromCliOption(options, command);
       const baseUrl = await resolveMcpServeBaseUrl(
         options,
         command,

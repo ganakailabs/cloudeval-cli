@@ -274,6 +274,13 @@ test("mcp serve initializes, lists tools, and returns strict JSON-RPC stdout", a
     assert.equal(listed.id, 2);
     const names = listed.result.tools.map((tool: any) => tool.name);
     assert(names.every((name: string) => /^[A-Za-z0-9_]+$/.test(name)));
+    for (const tool of listed.result.tools) {
+      assert.equal(
+        tool.inputSchema?.properties?.accessKey,
+        undefined,
+        `${tool.name} must not expose accessKey as a tool argument`
+      );
+    }
     assert(names.includes("ask"));
     assert(names.includes("projects_list"));
     assert(names.includes("projects_export_diagram"));
@@ -307,6 +314,37 @@ test("mcp serve initializes, lists tools, and returns strict JSON-RPC stdout", a
     const closed = await mcp.close();
     assert.equal(closed.exitCode, 0, closed.stderr);
     assert.match(closed.stderr, /CloudEval MCP server started/);
+  }
+});
+
+test("mcp tools ignore per-call accessKey arguments", async () => {
+  const backend = await startBackend();
+  const mcp = await startMcp(["--base-url", backend.baseUrl]);
+  try {
+    await initialize(mcp);
+    mcp.send({
+      jsonrpc: "2.0",
+      id: 2,
+      method: "tools/call",
+      params: {
+        name: "projects_list",
+        arguments: {
+          accessKey: "test-token",
+        },
+      },
+    });
+    const response = await mcp.read();
+    assert.equal(response.id, 2);
+    assert.equal(response.result.isError, true);
+    assert.doesNotMatch(JSON.stringify(response), /test-token/);
+    assert.equal(
+      backend.requests.some((request) => request.authorization === "Bearer test-token"),
+      false
+    );
+  } finally {
+    const closed = await mcp.close();
+    assert.equal(closed.exitCode, 0, closed.stderr);
+    await backend.close();
   }
 });
 

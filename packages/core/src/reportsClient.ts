@@ -1,6 +1,7 @@
 import {
   normalizeReportEnvelope,
   normalizeReportList,
+  redactSensitiveText,
   type ReportEnvelope,
   type ReportKind,
   type ReportFormatMode,
@@ -83,7 +84,8 @@ const compactErrorBody = async (response: Response): Promise<string | undefined>
   if (!trimmed) {
     return undefined;
   }
-  return trimmed.length > 1000 ? `${trimmed.slice(0, 1000)}...` : trimmed;
+  const redacted = redactSensitiveText(trimmed);
+  return redacted.length > 1000 ? `${redacted.slice(0, 1000)}...` : redacted;
 };
 
 const isObject = (value: unknown): value is Record<string, unknown> =>

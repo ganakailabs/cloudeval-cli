@@ -174,6 +174,51 @@ test("formatOutput redacts sensitive account and session identifiers by default"
   assert.match(output, /session_id=63da\.\.\.3f21/);
 });
 
+test("formatOutput redacts access keys and sensitive credential fields by default", () => {
+  const accessKey = "cev_live_ak_01JTESTKEYVALUE_supersecretvalue";
+  const output = formatOutput({
+    format: "json",
+    command: "diagnostics",
+    data: {
+      accessKey,
+      access_key: accessKey,
+      nested: {
+        bearer: `Authorization: Bearer ${accessKey}`,
+        url: `https://api.example.test/check?access_key=${accessKey}&ok=1`,
+      },
+    },
+  });
+
+  assert.doesNotMatch(output, new RegExp(accessKey));
+  assert.match(output, /"accessKey": "\[redacted\]"/);
+  assert.match(output, /"access_key": "\[redacted\]"/);
+  assert.match(output, /Authorization: Bearer \[redacted\]/);
+  assert.match(output, /access_key=%5Bredacted%5D/);
+});
+
+test("formatOutput can intentionally show one-time credential secrets", () => {
+  const accessKey = "cev_test_ak_01JTESTKEYVALUE_createdsecret";
+  const output = formatOutput({
+    format: "json",
+    command: "credentials create",
+    data: { access_key: accessKey },
+    redactSensitiveSecrets: false,
+  });
+
+  assert.match(output, new RegExp(accessKey));
+});
+
+test("formatErrorEnvelope redacts access keys from error messages", () => {
+  const accessKey = "cev_test_ak_01JTESTKEYVALUE_errorsecret";
+  const envelope = formatErrorEnvelope(
+    "credentials list",
+    new Error(`Backend rejected access_key ${accessKey}`)
+  );
+
+  assert.doesNotMatch(JSON.stringify(envelope), new RegExp(accessKey));
+  assert.match(envelope.error.message, /\[redacted\]/);
+});
+
 test("formatOutput can show sensitive identifiers when explicitly requested", () => {
   const sessionId = "63da1973-e92a-4d2e-8d01-4d8e131b3f21";
   const output = formatOutput({

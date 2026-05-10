@@ -1,3 +1,4 @@
+import { redactSensitiveText } from "@cloudeval/shared";
 import { getCLIHeaders, normalizeApiBase, type Project } from "./auth";
 import { withIdempotencyHeader } from "./idempotency";
 
@@ -211,9 +212,10 @@ export const buildQuickProjectPayload = (
 const responseJson = async <T>(response: Response, label: string): Promise<T> => {
   if (!response.ok) {
     const body = await response.text().catch(() => "");
+    const redactedBody = redactSensitiveText(body.trim());
     throw new Error(
       `${label} failed with status ${response.status} ${response.statusText}${
-        body.trim() ? `: ${body.trim()}` : ""
+        redactedBody ? `: ${redactedBody}` : ""
       }`
     );
   }

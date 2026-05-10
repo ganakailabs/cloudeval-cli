@@ -2,6 +2,7 @@
 import "./runtime/prepareInk.js";
 import React from "react";
 import { Command } from "commander";
+import { isSensitiveSecretKey, redactSensitiveSecrets } from "@cloudeval/shared";
 import type { WriteStream } from "node:fs";
 import { promises as fs } from "node:fs";
 import os from "node:os";
@@ -47,12 +48,12 @@ import {
   summarizeHitlRequest,
 } from "./hitlPrompt.js";
 import { resolveLoginOnboardingMode } from "./loginOnboardingMode.js";
+import { warnIfAccessKeyFromCliOption } from "./authGuard.js";
 
 const DEFAULT_BASE_URL = getDefaultBaseUrl();
 const ASK_STREAM_IDLE_TIMEOUT_MS = 90_000;
 const LEGACY_API_KEY_MESSAGE =
   "API key auth was renamed in beta. Use --access-key or CLOUDEVAL_ACCESS_KEY.";
-const SENSITIVE_KEY_PATTERN = /token|authorization|cookie|secret|password|api[_-]?key/i;
 const STREAM_OUTPUT_NODES = new Set([
   "generate_response",
   "handle_social_interaction",
@@ -67,21 +68,7 @@ const enableCliDebugLogging = () => {
   process.env.CLOUDEVAL_CLI_DEBUG = "1";
 };
 
-const redactSensitive = (value: unknown): unknown => {
-  if (Array.isArray(value)) {
-    return value.map((item) => redactSensitive(item));
-  }
-  if (value && typeof value === "object") {
-    const redacted: Record<string, unknown> = {};
-    for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
-      redacted[key] = SENSITIVE_KEY_PATTERN.test(key)
-        ? "[REDACTED]"
-        : redactSensitive(item);
-    }
-    return redacted;
-  }
-  return value;
-};
+const redactSensitive = (value: unknown): unknown => redactSensitiveSecrets(value);
 
 const isHeadlessEnvironment = (): boolean =>
   Boolean(process.env.SSH_TTY || process.env.CI || process.env.CLOUDEVAL_HEADLESS_LOGIN);
@@ -426,7 +413,7 @@ export const verboseLogResponse = (url: string, response: Response, error?: any)
 const sanitizeHeaders = (headers: Record<string, string>): Record<string, string> => {
   const sanitized: Record<string, string> = { ...headers };
   for (const key of Object.keys(sanitized)) {
-    if (SENSITIVE_KEY_PATTERN.test(key)) {
+    if (isSensitiveSecretKey(key)) {
       sanitized[key] = "[REDACTED]";
     }
   }
@@ -897,6 +884,7 @@ program
     if (options.accessKeyStdin) {
       accessKey = await readStdinValue();
     }
+    warnIfAccessKeyFromCliOption(options, command);
 
     if (options.tab && options.tab !== "chat") {
       process.stderr.write(
@@ -964,11 +952,7 @@ program
     if (options.accessKeyStdin) {
       accessKey = await readStdinValue();
     }
-    if (options.accessKey) {
-      console.warn(
-        "Warning: --access-key can leak via shell history/process listing. Prefer --access-key-stdin."
-      );
-    }
+    warnIfAccessKeyFromCliOption(options, command);
 
     if (options.verbose) {
       setVerbose(true);
@@ -1067,10 +1051,8 @@ program
     if (options.accessKeyStdin) {
       providedAccessKey = await readStdinValue();
     }
-    if (options.accessKey && !options.quiet) {
-      console.warn(
-        "Warning: --access-key can leak via shell history/process listing. Prefer --access-key-stdin."
-      );
+    if (!options.quiet) {
+      warnIfAccessKeyFromCliOption(options, command);
     }
 
     if (options.verbose) {

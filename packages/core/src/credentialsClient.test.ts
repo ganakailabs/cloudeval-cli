@@ -124,3 +124,37 @@ test("credential client generates idempotency keys for mutations", async () => {
     global.fetch = originalFetch;
   }
 });
+
+test("credential client redacts secrets from backend error bodies", async () => {
+  const originalFetch = global.fetch;
+  const accessKey = "cev_test_ak_01JTESTKEYVALUE_backendsecret";
+  global.fetch = async () =>
+    jsonResponse(
+      {
+        error: {
+          message: `Credential ${accessKey} was denied`,
+          access_key: accessKey,
+          authorization: `Bearer ${accessKey}`,
+        },
+      },
+      403
+    );
+
+  try {
+    await assert.rejects(
+      () =>
+        listCredentials({
+          baseUrl: "http://127.0.0.1:8787",
+          authToken: accessKey,
+        }),
+      (error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error);
+        assert.doesNotMatch(message, new RegExp(accessKey));
+        assert.match(message, /\[redacted\]/);
+        return true;
+      }
+    );
+  } finally {
+    global.fetch = originalFetch;
+  }
+});

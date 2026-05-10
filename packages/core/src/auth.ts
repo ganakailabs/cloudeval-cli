@@ -2,6 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { execFileSync, spawn, spawnSync } from "node:child_process";
+import { redactSensitiveText } from "@cloudeval/shared";
 
 const DEFAULT_BASE_URL = "https://cloudeval.ai/api/proxy/v1";
 const DEFAULT_FRONTEND_URL = "https://cloudeval.ai";
@@ -14,9 +15,9 @@ const REFRESH_LOCK_WAIT_STEP_MS = 100;
 const REFRESH_LOCK_STALE_MS = 30_000;
 const CLI_DEBUG_ENV = "CLOUDEVAL_CLI_DEBUG";
 const SENSITIVE_DEBUG_KEY_PATTERN =
-  /token|authorization|cookie|secret|password|api[_-]?key|client_secret|refresh|device[_-]?code|user[_-]?code/i;
+  /token|authorization|cookie|secret|password|api[_-]?key|access[_-]?key|client_secret|refresh|device[_-]?code|user[_-]?code/i;
 const SENSITIVE_DEBUG_QUERY_PARAM_PATTERN =
-  /token|authorization|cookie|secret|password|api[_-]?key|client_secret|refresh|device[_-]?code|user[_-]?code|code/i;
+  /token|authorization|cookie|secret|password|api[_-]?key|access[_-]?key|client_secret|refresh|device[_-]?code|user[_-]?code|code/i;
 
 const KEYCHAIN_SERVICE = "cloudeval-cli";
 const KEYCHAIN_LABEL = "Cloudeval CLI";
@@ -40,9 +41,9 @@ const redactDebugValue = (value: unknown): unknown => {
           changed = true;
         }
       }
-      return changed ? url.toString() : value;
+      return redactSensitiveText(changed ? url.toString() : value);
     } catch {
-      return value;
+      return redactSensitiveText(value);
     }
   }
   if (value && typeof value === "object") {

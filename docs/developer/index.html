@@ -83,10 +83,10 @@ cloudeval mcp setup cursor --dry-run --toolset readonly
 cloudeval mcp setup vscode --dry-run --toolset readonly
 cloudeval mcp serve --toolset readonly</code></pre>
       <p>Setup commands print a short human summary by default. Use <code>--format json</code> when an agent or script needs the full machine-readable config envelope.</p>
-      <p>MCP exposes recipe discovery through <code>cloudeval://recipes</code>, prompts matching recipe IDs, and tools such as <code>recipes_list</code>, <code>recipes_get</code>, <code>recipes_run</code>, <code>projects_list</code>, <code>reports_list</code>, <code>billing_usage</code>, <code>models_list</code>, <code>auth_status</code>, <code>status</code>, and <code>doctor</code>.</p>
+      <p>MCP exposes recipe discovery through <code>cloudeval://recipes</code>, prompts matching recipe IDs, and tools such as <code>recipes_list</code>, <code>recipes_get</code>, <code>recipes_run</code>, <code>projects_list</code>, <code>reports_list</code>, <code>billing_usage</code>, <code>models_list</code>, <code>auth_status</code>, <code>status</code>, and <code>doctor</code>. Authenticate before the server starts; tool calls do not accept access keys as arguments.</p>
 
       <h2>Authentication and Automation</h2>
-      <p>Use device login for local development and scoped access keys for CI or long-running agent hosts. The CLI redacts sensitive identifiers by default.</p>
+      <p>Use device login for local development and scoped access keys for CI or long-running agent hosts. Prefer <code>--access-key-stdin</code> or <code>CLOUDEVAL_ACCESS_KEY</code>; <code>--access-key</code> warns because process arguments can leak. The CLI redacts sensitive identifiers and secret-shaped values by default.</p>
       <pre><code>cloudeval login
 cloudeval auth status
 cloudeval credentials templates

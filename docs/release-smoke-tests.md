@@ -204,8 +204,8 @@ command output, and a final summary. Every completed check emits `[PASS] <name>`
 followed by a `cli:` block and an `output:` block. JSON commands show the
 command envelope and response shape or counts, text commands show a few
 non-empty output lines, frontend deeplinks show the generated URL, and the MCP
-check shows tool/resource/prompt counts. Sensitive IDs in command output are
-redacted by default.
+check shows tool/resource/prompt counts. Sensitive IDs, authorization values,
+and access-key-shaped strings in command output are redacted by default.
 
 Example:
 
@@ -267,7 +267,8 @@ The read-only script covers:
 - Public/local commands: `--version`, `--help`, `help agents`, `capabilities`,
   `status`, `doctor`, `auth status`, `banner`, shell completions, config
   commands, recipe commands, model commands, sessions commands, and MCP
-  initialize/list paths.
+  initialize/list paths. MCP tool schemas must not expose `accessKey` as a
+  per-call argument.
 - Frontend deeplinks: overview, chat, projects, project details, connections,
   reports, and billing with `--print-url --no-open`.
 - Authenticated read-only commands when usable auth exists: projects,

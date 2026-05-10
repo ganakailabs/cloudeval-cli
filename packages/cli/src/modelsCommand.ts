@@ -1,5 +1,5 @@
 import type { Command } from "commander";
-import { addAuthOptions } from "./authGuard.js";
+import { addAuthOptions, warnIfAccessKeyFromCliOption } from "./authGuard.js";
 import {
   getActiveConfigProfile,
   loadCliConfig,
@@ -67,7 +67,13 @@ const normalizeModelsPayload = (payload: unknown): Array<Record<string, unknown>
   return list.map(normalizeModel).filter((model): model is Record<string, unknown> => Boolean(model));
 };
 
-const resolveToken = async (options: ModelListOptions, deps: ModelsDeps, baseUrl: string) => {
+const resolveToken = async (
+  options: ModelListOptions,
+  deps: ModelsDeps,
+  baseUrl: string,
+  command?: Command
+) => {
+  warnIfAccessKeyFromCliOption(options, command);
   if (options.accessKeyStdin) {
     return deps.readStdinValue();
   }
@@ -170,7 +176,7 @@ export const registerModelsCommand = (program: Command, deps: ModelsDeps) => {
     .option("--output <file>", "Output file")
     .action(async (options: ModelListOptions, command) => {
       const baseUrl = await deps.resolveBaseUrl(options, command);
-      const token = await resolveToken(options, deps, baseUrl);
+      const token = await resolveToken(options, deps, baseUrl, command);
       let source = "fallback";
       let modelList: Array<Record<string, unknown>> = fallbackModels;
       try {

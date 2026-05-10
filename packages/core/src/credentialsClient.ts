@@ -1,3 +1,4 @@
+import { redactSensitiveText } from "@cloudeval/shared";
 import { getCLIHeaders, normalizeApiBase } from "./auth";
 import { withIdempotencyHeader } from "./idempotency";
 
@@ -31,7 +32,7 @@ export interface RevokeCredentialOptions extends GetCredentialOptions {
 const compactErrorBody = async (response: Response): Promise<string | undefined> => {
   const body = await response.text().catch(() => "");
   const trimmed = body.trim();
-  return trimmed ? trimmed.slice(0, 1000) : undefined;
+  return trimmed ? redactSensitiveText(trimmed).slice(0, 1000) : undefined;
 };
 
 const fetchCredentialJson = async <T>(

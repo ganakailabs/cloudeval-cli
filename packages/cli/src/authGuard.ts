@@ -36,6 +36,18 @@ const isInteractive = (options: AuthGuardOptions): boolean =>
 const isCloudEvalAccessKey = (value?: string): value is string =>
   /^cev_[a-z0-9]+_ak_[A-Za-z0-9]+_.+$/i.test(String(value ?? "").trim());
 
+export const ACCESS_KEY_ARG_WARNING =
+  "Warning: --access-key can leak via shell history/process listing. Prefer --access-key-stdin or CLOUDEVAL_ACCESS_KEY.";
+
+export const warnIfAccessKeyFromCliOption = (
+  options: AuthGuardOptions,
+  command?: Command
+) => {
+  if (options.accessKey && command?.getOptionValueSource?.("accessKey") === "cli") {
+    process.stderr.write(`${ACCESS_KEY_ARG_WARNING}\n`);
+  }
+};
+
 export const resolveAuthContext = async (
   options: AuthGuardOptions,
   command: Command | undefined,
@@ -44,6 +56,7 @@ export const resolveAuthContext = async (
   const baseUrl = await deps.resolveBaseUrl(options, command);
   const core = await import("@cloudeval/core");
   core.assertSecureBaseUrl(baseUrl);
+  warnIfAccessKeyFromCliOption(options, command);
 
   let accessKey = options.accessKey;
   if (options.accessKeyStdin) {

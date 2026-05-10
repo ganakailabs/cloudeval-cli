@@ -25,7 +25,7 @@ Turn **ARM templates**, **GitHub-hosted IaC**, and **live Azure context** into c
 
 | | |
 | ---: | --- |
-| **Machine-readable first** | JSON / NDJSON / Markdown where supported; redacted IDs by default (`--show-sensitive-ids` when you really mean it). |
+| **Machine-readable first** | JSON / NDJSON / Markdown where supported; redacted IDs and secret-shaped values by default (`--show-sensitive-ids` only restores IDs). |
 | **MCP without scraping** | `cloudeval mcp serve` with underscore tool names, legacy dotted aliases, newline-delimited JSON-RPC plus optional `Content-Length` frames. |
 | **Completion everywhere** | One engine powers tab completion and TUI ghost text. Run `completion install` after the curl installer (or set `CLOUDEVAL_INSTALL_COMPLETION=0` to skip). |
 
@@ -237,7 +237,7 @@ cloudeval mcp setup vscode --dry-run --toolset readonly --format json
 
 `cloudeval mcp setup <client>` prints a concise human summary by default and keeps machine-readable envelopes with `--format json|ndjson|markdown`.
 
-Underscore tool names (`projects_list`, `ask`, `recipes_list`, `billing_summary`, and similar); dotted names remain aliases. MCP exposes recipe discovery (`cloudeval://recipes`), recipe prompts, read-only parity tools such as `connections_list`, `models_list`, `auth_status`, `status`, and `doctor`, plus non-read-only tools for report runs, diagram exports, recipe runs, browser links, and other explicit actions. **Stdout** is JSON-RPC only; **`[cloudeval-mcp]`** diagnostics go to stderr. Authenticate with `cloudeval login` or `CLOUDEVAL_ACCESS_KEY` / `--access-key`. **`mcp serve`** does not support `--access-key-stdin` (stdin is the protocol stream). Developer setup details are published at [cli.cloudeval.ai/developer/](https://cli.cloudeval.ai/developer/).
+Underscore tool names (`projects_list`, `ask`, `recipes_list`, `billing_summary`, and similar); dotted names remain aliases. MCP exposes recipe discovery (`cloudeval://recipes`), recipe prompts, read-only parity tools such as `connections_list`, `models_list`, `auth_status`, `status`, and `doctor`, plus non-read-only tools for report runs, diagram exports, recipe runs, browser links, and other explicit actions. **Stdout** is JSON-RPC only; **`[cloudeval-mcp]`** diagnostics go to stderr. Authenticate before the server starts with `cloudeval login` or `CLOUDEVAL_ACCESS_KEY` / `--access-key`; MCP tool schemas do not accept per-call access-key arguments. **`mcp serve`** does not support `--access-key-stdin` (stdin is the protocol stream). Developer setup details are published at [cli.cloudeval.ai/developer/](https://cli.cloudeval.ai/developer/).
 
 ---
 
@@ -254,7 +254,7 @@ cloudeval credentials create \
   --format github-actions
 ```
 
-Use `--access-key` or `--access-key-stdin` for non-interactive runs. Deprecated `--api-key` / `CLOUDEVAL_API_KEY` paths fail loudly with a migration message; there is no silent fallback.
+Prefer `--access-key-stdin` or `CLOUDEVAL_ACCESS_KEY` for non-interactive runs. `--access-key` is still accepted for compatibility with simple automation, but prints a warning because command-line arguments can leak through shell history and process listings. Credential create output files are written with private permissions on POSIX systems. Deprecated `--api-key` / `CLOUDEVAL_API_KEY` paths fail loudly with a migration message; there is no silent fallback.
 
 ---
 
@@ -267,7 +267,7 @@ cloudeval auth status
 cloudeval auth status --show-sensitive-ids
 ```
 
-`--show-sensitive-ids` only on trusted machines. Tokens stay redacted. Chat history lives in **SQLite** under the CloudEval config dir; legacy JSON migrates automatically.
+`--show-sensitive-ids` only on trusted machines. Tokens, access-key-shaped strings, authorization headers, and sensitive URL query parameters stay redacted. Chat history lives in **SQLite** under the CloudEval config dir; legacy JSON migrates automatically.
 
 ---
 

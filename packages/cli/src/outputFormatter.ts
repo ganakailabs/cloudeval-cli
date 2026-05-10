@@ -1,3 +1,5 @@
+import { redactSensitiveSecrets, redactSensitiveText } from "@cloudeval/shared";
+
 export type MachineOutputFormat = "text" | "json" | "ndjson" | "markdown";
 
 let showSensitiveIdsByDefault = false;
@@ -133,7 +135,7 @@ export const formatErrorEnvelope = (
     ok: false,
     command,
     error: {
-      message: error instanceof Error ? error.message : String(error),
+      message: redactSensitiveText(error instanceof Error ? error.message : String(error)),
       ...(code || typeof record.code === "string" ? { code: code ?? record.code } : {}),
       ...(typeof record.requestId === "string" ? { requestId: record.requestId } : {}),
       ...(Array.isArray(record.requiredCapabilities)
@@ -346,9 +348,14 @@ export const formatOutput = <T>(input: {
   filesWritten?: string[];
   traceId?: string;
   showSensitiveIds?: boolean;
+  redactSensitiveSecrets?: boolean;
 }): string => {
   const format = input.format ?? "text";
-  const data = redactSensitiveIds(input.data, {
+  const secretRedactedData =
+    input.redactSensitiveSecrets === false
+      ? input.data
+      : redactSensitiveSecrets(input.data);
+  const data = redactSensitiveIds(secretRedactedData, {
     showSensitiveIds: input.showSensitiveIds,
   });
   if (format === "json") {
@@ -387,12 +394,20 @@ export const writeFormattedOutput = async <T>(input: {
   filesWritten?: string[];
   traceId?: string;
   showSensitiveIds?: boolean;
+  redactSensitiveSecrets?: boolean;
 }) => {
   const text = formatOutput(input);
   if (input.output) {
-    const fs = await import("node:fs/promises");
-    await fs.writeFile(input.output, text, "utf8");
+    await writePrivateOutputFile(input.output, text);
     return;
   }
   process.stdout.write(text);
+};
+
+export const writePrivateOutputFile = async (output: string, text: string) => {
+  const fs = await import("node:fs/promises");
+  await fs.writeFile(output, text, { encoding: "utf8", mode: 0o600 });
+  if (process.platform !== "win32") {
+    await fs.chmod(output, 0o600);
+  }
 };

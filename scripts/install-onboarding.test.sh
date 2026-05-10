@@ -78,6 +78,20 @@ fi
 
 echo "ok - installer normalizes agent setup selections"
 
+banner_output="$(bash "$ROOT_DIR/scripts/install.sh" --self-test-banner)"
+
+if [[ "$banner_output" != *$'\033[1;38;5;220m ██████╗'* ]]; then
+  echo "installer banner should use a bright yellow top gradient band" >&2
+  exit 1
+fi
+
+if [[ "$banner_output" != *$'\033[0;38;5;94m ╚═════╝'* ]]; then
+  echo "installer banner should use a darker amber bottom gradient band" >&2
+  exit 1
+fi
+
+echo "ok - installer banner uses warm gradient bands"
+
 download_options="$(
   bash "$ROOT_DIR/scripts/install.sh" --self-test-download-options
 )"

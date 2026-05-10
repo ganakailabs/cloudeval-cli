@@ -6,6 +6,12 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
+BANNER_TOP='\033[1;38;5;220m'
+BANNER_UPPER='\033[1;38;5;214m'
+BANNER_MIDDLE='\033[1;38;5;208m'
+BANNER_LOWER='\033[0;38;5;172m'
+BANNER_BASE='\033[0;38;5;130m'
+BANNER_BOTTOM='\033[0;38;5;94m'
 NC='\033[0m' # No Color
 
 # Helper function to ask yes/no questions
@@ -350,12 +356,12 @@ resolve_release_version() {
 
 print_banner() {
   printf "%b\n" "${GREEN}Welcome to${NC}"
-  printf "%b\n" "${YELLOW} ██████╗  ██╗       ██████╗  ██╗   ██╗ ██████╗  ███████╗ ██╗   ██╗  █████╗  ██╗     ${NC}"
-  printf "%b\n" "${YELLOW}██╔════╝  ██║      ██╔═══██╗ ██║   ██║ ██╔══██╗ ██╔════╝ ██║   ██║ ██╔══██╗ ██║     ${NC}"
-  printf "%b\n" "${YELLOW}██║       ██║      ██║   ██║ ██║   ██║ ██║  ██║ █████╗   ██║   ██║ ███████║ ██║     ${NC}"
-  printf "%b\n" "${YELLOW}██║       ██║      ██║   ██║ ██║   ██║ ██║  ██║ ██╔══╝   ╚██╗ ██╔╝ ██╔══██║ ██║     ${NC}"
-  printf "%b\n" "${YELLOW}╚██████╗  ███████╗ ╚██████╔╝ ╚██████╔╝ ██████╔╝ ███████╗  ╚████╔╝  ██║  ██║ ███████╗${NC}"
-  printf "%b\n" "${YELLOW} ╚═════╝  ╚══════╝  ╚═════╝   ╚═════╝  ╚═════╝  ╚══════╝   ╚═══╝   ╚═╝  ╚═╝ ╚══════╝${NC}"
+  printf "%b\n" "${BANNER_TOP} ██████╗  ██╗       ██████╗  ██╗   ██╗ ██████╗  ███████╗ ██╗   ██╗  █████╗  ██╗     ${NC}"
+  printf "%b\n" "${BANNER_UPPER}██╔════╝  ██║      ██╔═══██╗ ██║   ██║ ██╔══██╗ ██╔════╝ ██║   ██║ ██╔══██╗ ██║     ${NC}"
+  printf "%b\n" "${BANNER_MIDDLE}██║       ██║      ██║   ██║ ██║   ██║ ██║  ██║ █████╗   ██║   ██║ ███████║ ██║     ${NC}"
+  printf "%b\n" "${BANNER_LOWER}██║       ██║      ██║   ██║ ██║   ██║ ██║  ██║ ██╔══╝   ╚██╗ ██╔╝ ██╔══██║ ██║     ${NC}"
+  printf "%b\n" "${BANNER_BASE}╚██████╗  ███████╗ ╚██████╔╝ ╚██████╔╝ ██████╔╝ ███████╗  ╚████╔╝  ██║  ██║ ███████╗${NC}"
+  printf "%b\n" "${BANNER_BOTTOM} ╚═════╝  ╚══════╝  ╚═════╝   ╚═════╝  ╚═════╝  ╚══════╝   ╚═══╝   ╚═╝  ╚═╝ ╚══════╝${NC}"
   printf "%b\n" "${GREEN}                                                                           Installer${NC}"
   echo ""
 }
@@ -557,6 +563,11 @@ fi
 
 if [ "${1:-}" = "--self-test-agent-selection" ]; then
   normalize_mcp_client_selection "${2:-}" "${3:-}"
+  exit 0
+fi
+
+if [ "${1:-}" = "--self-test-banner" ]; then
+  print_banner
   exit 0
 fi
 

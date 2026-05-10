@@ -1,6 +1,6 @@
 import React from "react";
 import { Box, Text } from "ink";
-import { terminalTheme } from "../theme.js";
+import { shouldUseColor, terminalTheme } from "../theme.js";
 import { CLI_VERSION } from "../../version.js";
 
 export interface BannerProps {
@@ -20,7 +20,25 @@ const wordArt = [
 
 const artWidth = (art: string[]): number => Math.max(...art.map((line) => line.length));
 
-type BannerSegmentTone = "fill" | "outline" | "space";
+export type BannerSegmentTone = "fill" | "outline" | "space";
+
+const fillGradient = [
+  "#ffd60a",
+  "#facc15",
+  "#fbbf24",
+  "#f59e0b",
+  "#d97706",
+  "#b45309",
+];
+
+const outlineGradient = [
+  "#ca8a04",
+  "#a16207",
+  "#92400e",
+  "#9a3412",
+  "#7c2d12",
+  "#7c2d12",
+];
 
 const outlineGlyphs = new Set(["╔", "╗", "╚", "╝", "═", "║", "╦", "╩", "╠", "╣"]);
 
@@ -47,22 +65,44 @@ export const splitBannerLineSegments = (
   return segments;
 };
 
-const bannerSegmentColor = (tone: BannerSegmentTone): string | undefined => {
+const gradientIndex = (
+  lineIndex: number,
+  totalLines: number,
+  paletteLength: number
+): number => {
+  const boundedTotal = Math.max(1, totalLines);
+  const boundedLine = Math.min(Math.max(0, lineIndex), boundedTotal - 1);
+  const ratio = boundedTotal === 1 ? 0 : boundedLine / (boundedTotal - 1);
+  return Math.min(paletteLength - 1, Math.round(ratio * (paletteLength - 1)));
+};
+
+export const bannerSegmentColor = (
+  tone: BannerSegmentTone,
+  lineIndex = 0,
+  totalLines = wordArt.length
+): string | undefined => {
+  if (!shouldUseColor()) {
+    return undefined;
+  }
   if (tone === "outline") {
-    return terminalTheme.brand;
+    return outlineGradient[gradientIndex(lineIndex, totalLines, outlineGradient.length)];
   }
   if (tone === "fill") {
-    return terminalTheme.accent;
+    return fillGradient[gradientIndex(lineIndex, totalLines, fillGradient.length)];
   }
   return undefined;
 };
 
-const BannerArtLine: React.FC<{ line: string }> = ({ line }) => (
-  <Text>
+const BannerArtLine: React.FC<{
+  line: string;
+  lineIndex: number;
+  totalLines: number;
+}> = ({ line, lineIndex, totalLines }) => (
+  <Text wrap="truncate">
     {splitBannerLineSegments(line).map((segment, index) => (
       <Text
         key={`${index}-${segment.text}`}
-        color={bannerSegmentColor(segment.tone)}
+        color={bannerSegmentColor(segment.tone, lineIndex, totalLines)}
       >
         {segment.text}
       </Text>
@@ -91,8 +131,13 @@ export const Banner: React.FC<BannerProps> = ({
           <Text color={terminalTheme.success}>Welcome to</Text>
           <Box flexDirection="row" gap={2}>
             <Box flexDirection="column">
-              {art.map((line) => (
-                <BannerArtLine key={line} line={line} />
+              {art.map((line, lineIndex) => (
+                <BannerArtLine
+                  key={line}
+                  line={line}
+                  lineIndex={lineIndex}
+                  totalLines={art.length}
+                />
               ))}
             </Box>
             {showDetailsBesideArt ? (

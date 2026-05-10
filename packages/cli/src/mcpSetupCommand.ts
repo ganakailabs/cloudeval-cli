@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-export type McpSetupClient = "codex" | "claude" | "cursor" | "generic";
+export type McpSetupClient = "codex" | "claude" | "cursor" | "vscode" | "generic";
 export type McpSetupToolset = "all" | "readonly" | "projects" | "reports" | "billing";
 
 export interface McpServerConfig {
@@ -15,11 +15,7 @@ export interface McpClientSetup {
   transport: "stdio";
   configPath?: string;
   server: McpServerConfig;
-  config?: {
-    mcpServers: {
-      cloudeval: McpServerConfig;
-    };
-  };
+  config?: Record<string, unknown>;
   instructions: string[];
 }
 
@@ -30,7 +26,7 @@ export interface BuildMcpClientSetupOptions {
   configPath?: string;
 }
 
-export const MCP_SETUP_CLIENTS: McpSetupClient[] = ["codex", "claude", "cursor", "generic"];
+export const MCP_SETUP_CLIENTS: McpSetupClient[] = ["codex", "claude", "cursor", "vscode", "generic"];
 
 const CLIENTS = new Set<McpSetupClient>(MCP_SETUP_CLIENTS);
 const TOOLSETS = new Set<McpSetupToolset>([
@@ -69,6 +65,9 @@ const defaultConfigPath = (client: McpSetupClient): string | undefined => {
   }
   if (client === "cursor") {
     return path.join(os.homedir(), ".cursor", "mcp.json");
+  }
+  if (client === "vscode") {
+    return path.join(process.cwd(), ".vscode", "mcp.json");
   }
   return undefined;
 };
@@ -109,6 +108,24 @@ export const buildMcpClientSetup = ({
     return setup;
   }
 
+  if (normalizedClient === "vscode") {
+    setup.config = {
+      servers: {
+        cloudeval: {
+          type: "stdio",
+          ...server,
+        },
+      },
+    };
+    setup.instructions.push(
+      `Merge the shown servers.cloudeval entry into ${setup.configPath}. In VS Code, run MCP: List Servers or reload the window after updating the file.`
+    );
+    setup.instructions.push(
+      `For user-profile setup, run: code --add-mcp ${shellQuote(JSON.stringify({ name: "cloudeval", type: "stdio", ...server }))}`
+    );
+    return setup;
+  }
+
   setup.config = {
     mcpServers: {
       cloudeval: server,
@@ -145,15 +162,20 @@ export const writeMcpClientConfig = async (setup: McpClientSetup): Promise<strin
     return undefined;
   }
   const current = await readJsonObject(setup.configPath);
+  const groupKey = setup.client === "vscode" ? "servers" : "mcpServers";
+  const nextServer =
+    setup.client === "vscode"
+      ? { type: "stdio", ...setup.server }
+      : setup.server;
   const currentServers =
-    current.mcpServers && typeof current.mcpServers === "object" && !Array.isArray(current.mcpServers)
-      ? current.mcpServers as Record<string, unknown>
+    current[groupKey] && typeof current[groupKey] === "object" && !Array.isArray(current[groupKey])
+      ? current[groupKey] as Record<string, unknown>
       : {};
   const next = {
     ...current,
-    mcpServers: {
+    [groupKey]: {
       ...currentServers,
-      cloudeval: setup.server,
+      cloudeval: nextServer,
     },
   };
   await fs.mkdir(path.dirname(setup.configPath), { recursive: true });

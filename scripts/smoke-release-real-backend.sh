@@ -224,6 +224,7 @@ pass "help renders"
 
 run_json_ok "status" status --base-url "$BASE_URL"
 run_json_ok "capabilities" capabilities
+run_json_ok "recipes-show-cost-review" recipes show cost-review --format json
 run_json_ok "models-list" models list --base-url "$BASE_URL"
 assert_json_number_ge "$TMP_DIR/models-list.json" "data.models.length" "1"
 

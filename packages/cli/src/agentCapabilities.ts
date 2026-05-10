@@ -144,6 +144,9 @@ Preferred agent flags:
 Mode-specific commands:
   cloudeval ask <question...>     Direct one-shot answer mode
   cloudeval agent <task...>       Agent/planner mode for deeper execution
+  cloudeval recipes list          Discover reusable CloudEval workflows
+  cloudeval recipes show <id>     Show skill-style commands, safety, and outputs
+  cloudeval recipes run <id>      Run ask/agent recipes or print explicit commands for side-effecting recipes
 
 Progress:
   ask/agent show a live stderr loader and reasoning progress bar in interactive terminals, then write the final answer to stdout. In non-TTY logs this falls back to append-only stderr events. Use --progress none or --quiet to suppress progress, or --format ndjson --progress ndjson to stream progress on stdout.
@@ -154,12 +157,17 @@ Human input:
 Sensitive identifiers:
   Account, session, and tenant identifiers are redacted by default. Use --show-sensitive-ids only in trusted local workflows.
 
+Recipes and skills:
+  Recipes only cover implemented CloudEval capabilities: projects, reports, billing, credentials, connections, diagrams, ask/agent, diagnostics, and MCP.
+  Public SKILL.md files live under skills/ for agent hosts that support portable skill instructions. MCP remains the preferred execution path.
+
 Stable JSON envelope:
   { "ok": true, "command": "...", "data": ..., "frontendUrl": "..." }
   { "ok": false, "command": "...", "error": { "message": "..." } }
 
 Discovery:
   cloudeval capabilities --format json
+  cloudeval recipes list
   cloudeval mcp serve
   cloudeval doctor --format json
   cloudeval config show --format json

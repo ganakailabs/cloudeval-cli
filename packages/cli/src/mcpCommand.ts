@@ -9,9 +9,15 @@ import {
   type FrontendTarget,
 } from "./frontendLinks.js";
 import { getFirstNameForDisplay } from "./ui/userDisplayName.js";
-import { loadCliConfig, normalizeConfigProfile } from "./cliConfig.js";
+import { getCliConfigPath, loadCliConfig, normalizeConfigProfile } from "./cliConfig.js";
 import { recordSessionTurn } from "./sessionsStore.js";
 import { CLI_VERSION } from "./version.js";
+import {
+  getRecipe,
+  recipes,
+  recipeSummary,
+  renderRecipePrompt,
+} from "./recipes/catalog.js";
 import {
   writeFormattedOutput,
   formatErrorEnvelope,
@@ -260,6 +266,44 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
     },
   },
   {
+    name: "connections_list",
+    title: "List Connections",
+    description:
+      "List CloudEval cloud/template connections visible to the authenticated account.",
+    inputSchema: makeInputSchema({}),
+    outputSchema: envelopeSchema,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: true,
+      requiresAuth: true,
+      mayExposeSensitiveData: true,
+    },
+  },
+  {
+    name: "connections_get",
+    title: "Get Connection",
+    description:
+      "Fetch one CloudEval connection by id from the authenticated account's connection list.",
+    inputSchema: makeInputSchema(
+      {
+        connectionId: {
+          type: "string",
+          description: "CloudEval connection id to fetch.",
+        },
+      },
+      ["connectionId"],
+    ),
+    outputSchema: envelopeSchema,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: true,
+      requiresAuth: true,
+      mayExposeSensitiveData: true,
+    },
+  },
+  {
     name: "projects_export_diagram",
     title: "Export Project Diagram",
     description:
@@ -311,6 +355,9 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
       readOnlyHint: false,
       destructiveHint: false,
       openWorldHint: true,
+      requiresAuth: true,
+      writesLocalFile: true,
+      mayExposeSensitiveData: true,
     },
   },
   {
@@ -335,6 +382,12 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
           description:
             "Optional thread id to use for this one-shot ask. Defaults to a generated UUID.",
         },
+        mode: {
+          type: "string",
+          enum: ["ask", "agent"],
+          description: "CloudEval runtime mode. Defaults to ask.",
+          default: "ask",
+        },
       },
       ["question"],
     ),
@@ -343,6 +396,147 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
       readOnlyHint: false,
       destructiveHint: false,
       openWorldHint: true,
+      requiresAuth: true,
+      consumesCredits: true,
+      mayExposeSensitiveData: true,
+    },
+  },
+  {
+    name: "models_list",
+    title: "List Models",
+    description:
+      "List backend-supported CloudEval models for the active account or access key.",
+    inputSchema: makeInputSchema({}),
+    outputSchema: envelopeSchema,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: true,
+      requiresAuth: false,
+    },
+  },
+  {
+    name: "auth_status",
+    title: "Auth Status",
+    description: "Return local CloudEval authentication status.",
+    inputSchema: makeInputSchema({}),
+    outputSchema: envelopeSchema,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: false,
+      requiresAuth: false,
+    },
+  },
+  {
+    name: "status",
+    title: "CLI Status",
+    description: "Return local CloudEval CLI status and active configuration metadata.",
+    inputSchema: makeInputSchema({}),
+    outputSchema: envelopeSchema,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: false,
+      requiresAuth: false,
+    },
+  },
+  {
+    name: "doctor",
+    title: "CLI Doctor",
+    description: "Return local CloudEval CLI diagnostic checks.",
+    inputSchema: makeInputSchema({
+      deep: {
+        type: "boolean",
+        description: "Check backend reachability as well as local setup.",
+        default: false,
+      },
+      mcp: {
+        type: "boolean",
+        description: "Include MCP metadata checks.",
+        default: false,
+      },
+    }),
+    outputSchema: envelopeSchema,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: true,
+      requiresAuth: false,
+    },
+  },
+  {
+    name: "recipes_list",
+    title: "List Recipes",
+    description: "List CloudEval reusable recipes and their safety metadata.",
+    inputSchema: makeInputSchema({}),
+    outputSchema: envelopeSchema,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: false,
+      requiresAuth: false,
+    },
+  },
+  {
+    name: "recipes_get",
+    title: "Get Recipe",
+    description: "Fetch one CloudEval recipe by id.",
+    inputSchema: makeInputSchema(
+      {
+        recipeId: {
+          type: "string",
+          description: "CloudEval recipe id.",
+        },
+      },
+      ["recipeId"],
+    ),
+    outputSchema: envelopeSchema,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: false,
+      requiresAuth: false,
+    },
+  },
+  {
+    name: "recipes_run",
+    title: "Run Recipe",
+    description:
+      "Run a CloudEval recipe. Ask/agent recipes consume model credits; explicit side-effect recipes return commands instead of mutating automatically.",
+    inputSchema: makeInputSchema(
+      {
+        recipeId: {
+          type: "string",
+          description: "CloudEval recipe id.",
+        },
+        projectId: projectIdProperty,
+        range: {
+          type: "string",
+          description: "Usage/report range such as 7d, 30d, 90d, or all.",
+          default: "30d",
+        },
+        templateFile: { type: "string" },
+        templateUrl: { type: "string" },
+        parametersFile: { type: "string" },
+        parametersUrl: { type: "string" },
+        provider: { type: "string" },
+        name: { type: "string" },
+        outputPath: { type: "string" },
+        model: { type: "string" },
+        threadId: { type: "string" },
+      },
+      ["recipeId"],
+    ),
+    outputSchema: envelopeSchema,
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      openWorldHint: true,
+      requiresAuth: true,
+      consumesCredits: true,
+      writesLocalFile: false,
+      mayExposeSensitiveData: true,
     },
   },
   {
@@ -363,6 +557,8 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
       readOnlyHint: true,
       destructiveHint: false,
       openWorldHint: true,
+      requiresAuth: true,
+      mayExposeSensitiveData: true,
     },
   },
   {
@@ -413,6 +609,9 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
       readOnlyHint: false,
       destructiveHint: false,
       openWorldHint: true,
+      requiresAuth: true,
+      consumesCredits: true,
+      mayExposeSensitiveData: true,
     },
   },
   {
@@ -447,6 +646,9 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
       readOnlyHint: false,
       destructiveHint: false,
       openWorldHint: true,
+      requiresAuth: true,
+      writesLocalFile: true,
+      mayExposeSensitiveData: true,
     },
   },
   {
@@ -460,6 +662,8 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
       readOnlyHint: true,
       destructiveHint: false,
       openWorldHint: true,
+      requiresAuth: true,
+      mayExposeSensitiveData: true,
     },
   },
   {
@@ -490,6 +694,8 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
       readOnlyHint: true,
       destructiveHint: false,
       openWorldHint: true,
+      requiresAuth: true,
+      mayExposeSensitiveData: true,
     },
   },
   {
@@ -516,6 +722,35 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
       readOnlyHint: true,
       destructiveHint: false,
       openWorldHint: true,
+      requiresAuth: true,
+      mayExposeSensitiveData: true,
+    },
+  },
+  {
+    name: "billing_plans",
+    title: "Billing Plans",
+    description: "Return CloudEval billing plan configuration.",
+    inputSchema: makeInputSchema({}),
+    outputSchema: envelopeSchema,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: true,
+      requiresAuth: false,
+    },
+  },
+  {
+    name: "billing_topups",
+    title: "Billing Top-ups",
+    description: "Return available CloudEval credit top-up packs.",
+    inputSchema: makeInputSchema({}),
+    outputSchema: envelopeSchema,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: true,
+      requiresAuth: true,
+      mayExposeSensitiveData: false,
     },
   },
   {
@@ -600,6 +835,7 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
       readOnlyHint: false,
       destructiveHint: false,
       openWorldHint: true,
+      requiresAuth: false,
     },
   },
 ];
@@ -613,12 +849,21 @@ const MCP_TOOL_ALIASES: Record<string, string> = {
   "projects.get": "projects_get",
   "projects.exportDiagram": "projects_export_diagram",
   "projects.diagramImage": "projects_export_diagram",
+  "connections.list": "connections_list",
+  "connections.get": "connections_get",
   "reports.list": "reports_list",
   "reports.run": "reports_run",
   "reports.download": "reports_download",
   "billing.summary": "billing_summary",
   "billing.usage": "billing_usage",
   "billing.ledger": "billing_ledger",
+  "billing.plans": "billing_plans",
+  "billing.topups": "billing_topups",
+  "models.list": "models_list",
+  "auth.status": "auth_status",
+  "recipes.list": "recipes_list",
+  "recipes.get": "recipes_get",
+  "recipes.run": "recipes_run",
   "open.url": "open_url",
 };
 
@@ -628,16 +873,30 @@ const MCP_TOOLSETS: Record<McpToolsetName, readonly string[]> = {
     "capabilities_get",
     "projects_list",
     "projects_get",
+    "connections_list",
+    "connections_get",
     "reports_list",
     "billing_summary",
     "billing_usage",
     "billing_ledger",
+    "billing_plans",
+    "billing_topups",
+    "models_list",
+    "auth_status",
+    "status",
+    "doctor",
+    "recipes_list",
+    "recipes_get",
   ],
   projects: [
     "capabilities_get",
     "projects_list",
     "projects_get",
+    "connections_list",
+    "connections_get",
     "projects_export_diagram",
+    "recipes_list",
+    "recipes_get",
     "open_url",
   ],
   reports: [
@@ -647,6 +906,8 @@ const MCP_TOOLSETS: Record<McpToolsetName, readonly string[]> = {
     "reports_list",
     "reports_run",
     "reports_download",
+    "recipes_list",
+    "recipes_get",
     "open_url",
   ],
   billing: [
@@ -654,6 +915,8 @@ const MCP_TOOLSETS: Record<McpToolsetName, readonly string[]> = {
     "billing_summary",
     "billing_usage",
     "billing_ledger",
+    "billing_plans",
+    "billing_topups",
     "open_url",
   ],
 };
@@ -669,8 +932,9 @@ const normalizeMcpToolset = (value?: string): McpToolsetName => {
 };
 
 const toolsForToolset = (toolset: McpToolsetName): McpToolDefinition[] => {
-  const names = new Set(MCP_TOOLSETS[toolset]);
-  return mcpToolDefinitions.filter((tool) => names.has(tool.name));
+  return MCP_TOOLSETS[toolset]
+    .map((name) => toolByName.get(name))
+    .filter((tool): tool is McpToolDefinition => Boolean(tool));
 };
 
 const mcpResourceDefinitions: McpResourceDefinition[] = [
@@ -702,57 +966,43 @@ const mcpResourceDefinitions: McpResourceDefinition[] = [
     description: "Latest cost and Well-Architected report list for the default project.",
     mimeType: "application/json",
   },
+  {
+    uri: "cloudeval://recipes",
+    name: "recipes",
+    title: "CloudEval Recipes",
+    description: "CloudEval reusable recipes and agent skill metadata.",
+    mimeType: "application/json",
+  },
 ];
 
-const mcpPromptDefinitions: McpPromptDefinition[] = [
-  {
-    name: "cost-review",
-    title: "Cost Review",
-    description: "Review CloudEval cost posture, usage trends, and savings opportunities.",
-    arguments: [
-      { name: "projectId", description: "CloudEval project id to review." },
-      { name: "range", description: "Usage/report range such as 7d, 30d, or 90d." },
-    ],
-  },
-  {
-    name: "waf-triage",
-    title: "Well-Architected Triage",
-    description: "Triage critical Well-Architected findings and next remediation steps.",
-    arguments: [
-      { name: "projectId", description: "CloudEval project id to triage." },
-      { name: "severity", description: "Finding severity focus.", required: false },
-    ],
-  },
-  {
-    name: "architecture-review",
-    title: "Architecture Review",
-    description: "Review a project architecture for reliability, cost, security, and operational risks.",
-    arguments: [
-      { name: "projectId", description: "CloudEval project id to review." },
-    ],
-  },
-  {
-    name: "billing-review",
-    title: "Billing Review",
-    description: "Summarize billing usage, credits, ledger anomalies, and recommended actions.",
-    arguments: [
-      { name: "range", description: "Usage range such as 7d, 30d, 90d, or all." },
-    ],
-  },
-];
+const mcpPromptDefinitions: McpPromptDefinition[] = recipes.map((recipe) => ({
+  name: recipe.id,
+  title: recipe.title,
+  description: recipe.description,
+  arguments: recipe.inputs.map((input) => ({
+    name: input.name === "projectId" ? "projectId" : input.name,
+    description: input.description,
+    required: input.required,
+  })),
+}));
 
 const MCP_RESOURCE_TOOL_REQUIREMENTS: Record<string, readonly string[]> = {
   "cloudeval://capabilities": ["capabilities_get"],
   "cloudeval://projects": ["projects_list"],
   "cloudeval://billing/summary": ["billing_summary"],
   "cloudeval://reports/latest": ["reports_list"],
+  "cloudeval://recipes": ["recipes_list"],
 };
 
 const MCP_PROMPT_TOOL_REQUIREMENTS: Record<string, readonly string[]> = {
-  "cost-review": ["reports_list", "billing_usage"],
-  "waf-triage": ["reports_list"],
-  "architecture-review": ["reports_list"],
-  "billing-review": ["billing_summary", "billing_usage", "billing_ledger"],
+  "cost-review": ["reports_list", "billing_usage", "ask"],
+  "waf-triage": ["reports_list", "ask"],
+  "architecture-review": ["projects_get", "reports_list", "ask"],
+  "template-project-review": ["projects_list", "reports_run", "ask"],
+  "report-summary": ["reports_list", "reports_download", "ask"],
+  "billing-review": ["billing_summary", "billing_usage", "billing_ledger", "billing_topups"],
+  "diagram-export": ["projects_export_diagram"],
+  "mcp-setup": ["recipes_run"],
 };
 
 const hasRequiredTools = (
@@ -1396,6 +1646,53 @@ const buildToolHandlers = (
     });
   });
 
+  handlers.set("connections_list", async (args) => {
+    const config = await resolveInvocationConfig(serverOptions, args);
+    const auth = await resolveAuth(config, { requireUser: true });
+    const data = await auth.core.listConnections({
+      baseUrl: config.baseUrl,
+      authToken: auth.token,
+      userId: auth.user!.id,
+    });
+    const frontendUrl = buildFrontendUrl({
+      baseUrl: frontendBase(config),
+      target: "connections",
+    });
+    return withEnvelope({
+      command: "connections list",
+      data,
+      frontendUrl,
+    });
+  });
+
+  handlers.set("connections_get", async (args) => {
+    const connectionId = stringValue(args.connectionId);
+    if (!connectionId) {
+      throw new Error("connectionId is required.");
+    }
+    const config = await resolveInvocationConfig(serverOptions, args);
+    const auth = await resolveAuth(config, { requireUser: true });
+    const data = await auth.core.getConnection({
+      baseUrl: config.baseUrl,
+      authToken: auth.token,
+      userId: auth.user!.id,
+      connectionId,
+    });
+    if (!data) {
+      throw new Error(`Connection ${connectionId} was not found.`);
+    }
+    const frontendUrl = buildFrontendUrl({
+      baseUrl: frontendBase(config),
+      target: "connection",
+      connectionId,
+    });
+    return withEnvelope({
+      command: "connections get",
+      data,
+      frontendUrl,
+    });
+  });
+
   handlers.set("projects_export_diagram", async (args) => {
     const config = await resolveInvocationConfig(serverOptions, args);
     const projectId = stringValue(args.projectId) ?? config.defaultProjectId;
@@ -1472,6 +1769,7 @@ const buildToolHandlers = (
     await assertModelAvailable(config, auth.token);
     const project = await resolveProject(config, args, auth);
     const threadId = stringValue(args.threadId) ?? randomUUID();
+    const mode = enumValue(args.mode, ["ask", "agent"], "ask");
     const email = auth.core.extractEmailFromToken(auth.token);
     const userName = getFirstNameForDisplay({
       email: email ?? auth.user?.email,
@@ -1488,7 +1786,10 @@ const buildToolHandlers = (
         name: userName,
       },
       project,
-      settings: config.model ? { model: config.model } : undefined,
+      settings: {
+        ...(config.model ? { model: config.model } : {}),
+        mode,
+      },
       completeAfterResponse: true,
       responseCompletionGraceMs: 5000,
       streamIdleTimeoutMs: ASK_STREAM_IDLE_TIMEOUT_MS,
@@ -1543,6 +1844,7 @@ const buildToolHandlers = (
       data: {
         response: finalResponse,
         threadId: chatState.threadId,
+        mode,
         project: {
           id: project.id,
           name: project.name,
@@ -1550,6 +1852,209 @@ const buildToolHandlers = (
       },
       frontendUrl,
       traceId: chatState.traceId,
+    });
+  });
+
+  handlers.set("models_list", async (args) => {
+    const config = await resolveInvocationConfig(serverOptions, args);
+    const auth = await resolveAuth(config);
+    const response = await fetch(`${auth.core.normalizeApiBase(config.baseUrl)}/models`, {
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${auth.token}`,
+      },
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to list models: ${response.status} ${response.statusText}`);
+    }
+    const payload = await response.json();
+    return withEnvelope({
+      command: "models list",
+      data: payload,
+    });
+  });
+
+  handlers.set("auth_status", async (args) => {
+    const config = await resolveInvocationConfig(serverOptions, args);
+    const core = await import("@cloudeval/core");
+    const data = await core.getAuthStatus(config.baseUrl, { validate: true });
+    return withEnvelope({
+      command: "auth status",
+      data,
+    });
+  });
+
+  handlers.set("status", async (args) => {
+    const config = await resolveInvocationConfig(serverOptions, args);
+    const core = await import("@cloudeval/core");
+    const auth = await core.getAuthStatus(config.baseUrl, { validate: true });
+    return withEnvelope({
+      command: "status",
+      data: {
+        profile: config.profile,
+        baseUrl: config.baseUrl,
+        configPath: getCliConfigPath(config.profile),
+        config: await loadCliConfig(config.profile),
+        auth,
+        node: process.versions.node,
+      },
+    });
+  });
+
+  handlers.set("doctor", async (args) => {
+    const config = await resolveInvocationConfig(serverOptions, args);
+    const checks: Array<Record<string, unknown>> = [
+      {
+        id: "node-version",
+        label: "Node.js version",
+        status: Number(process.versions.node.split(".")[0] ?? 0) >= 20 ? "pass" : "fail",
+        detail: process.versions.node,
+      },
+      {
+        id: "config-readable",
+        label: "Config profile is readable",
+        status: "pass",
+        detail: getCliConfigPath(config.profile),
+      },
+    ];
+    try {
+      const core = await import("@cloudeval/core");
+      core.assertSecureBaseUrl(config.baseUrl);
+      checks.push({
+        id: "base-url-secure",
+        label: "Backend URL is HTTPS or localhost HTTP",
+        status: "pass",
+        detail: config.baseUrl,
+      });
+      const auth = await core.getAuthStatus(config.baseUrl);
+      checks.push({
+        id: "auth-storage",
+        label: "Auth storage backend",
+        status: auth.storageBackend === "memory" ? "warn" : "pass",
+        detail: auth.storageBackend,
+      });
+    } catch (error: any) {
+      checks.push({
+        id: "base-url-secure",
+        label: "Backend URL is HTTPS or localhost HTTP",
+        status: "fail",
+        detail: error?.message ?? String(error),
+      });
+    }
+    if (booleanValue(args.deep)) {
+      try {
+        const response = await fetch(config.baseUrl.replace(/\/$/, ""));
+        checks.push({
+          id: "backend-reachable",
+          label: "Backend is reachable",
+          status: response.status < 500 ? "pass" : "warn",
+          detail: `${response.status} ${response.statusText}`,
+        });
+      } catch (error: any) {
+        checks.push({
+          id: "backend-reachable",
+          label: "Backend is reachable",
+          status: "warn",
+          detail: error?.message ?? String(error),
+        });
+      }
+    }
+    const mcp = booleanValue(args.mcp) ? getMcpDoctorChecks() : undefined;
+    const allChecks = [...checks, ...(mcp?.checks ?? [])];
+    return withEnvelope({
+      command: "doctor",
+      data: {
+        ok: allChecks.every((check) => check.status !== "fail"),
+        checks: allChecks,
+        profile: config.profile,
+        config: await loadCliConfig(config.profile),
+        ...(mcp?.status ? { mcp: mcp.status } : {}),
+      },
+    });
+  });
+
+  handlers.set("recipes_list", async () => {
+    return withEnvelope({
+      command: "recipes list",
+      data: { recipes: recipes.map(recipeSummary) },
+    });
+  });
+
+  handlers.set("recipes_get", async (args) => {
+    const recipeId = stringValue(args.recipeId);
+    if (!recipeId) {
+      throw new Error("recipeId is required.");
+    }
+    const recipe = getRecipe(recipeId);
+    if (!recipe) {
+      throw new Error(`Unknown recipe '${recipeId}'.`);
+    }
+    return withEnvelope({
+      command: "recipes get",
+      data: recipe,
+    });
+  });
+
+  handlers.set("recipes_run", async (args) => {
+    const recipeId = stringValue(args.recipeId);
+    if (!recipeId) {
+      throw new Error("recipeId is required.");
+    }
+    const recipe = getRecipe(recipeId);
+    if (!recipe) {
+      throw new Error(`Unknown recipe '${recipeId}'.`);
+    }
+    const prompt = renderRecipePrompt(recipe, {
+      projectId: stringValue(args.projectId),
+      range: stringValue(args.range),
+      templateFile: stringValue(args.templateFile),
+      templateUrl: stringValue(args.templateUrl),
+      parametersFile: stringValue(args.parametersFile),
+      parametersUrl: stringValue(args.parametersUrl),
+      provider: stringValue(args.provider),
+      name: stringValue(args.name),
+      outputPath: stringValue(args.outputPath),
+    });
+    if (recipe.mode === "guide") {
+      return withEnvelope({
+        command: "recipes run",
+        data: {
+          recipeId: recipe.id,
+          title: recipe.title,
+          mode: recipe.mode,
+          prompt,
+          commands: recipe.commands,
+          safety: recipe.safety,
+          expectedOutput: recipe.expectedOutput,
+          note: "This recipe requires explicit user-run commands for side effects; no mutation was performed.",
+        },
+      });
+    }
+    const askHandler = handlers.get("ask");
+    if (!askHandler) {
+      throw new Error("ask tool is unavailable.");
+    }
+    const envelope = await askHandler({
+      ...args,
+      question: prompt,
+      mode: recipe.mode,
+      threadId: stringValue(args.threadId),
+      projectId: stringValue(args.projectId),
+      model: stringValue(args.model),
+    });
+    return withEnvelope({
+      command: "recipes run",
+      data: {
+        recipeId: recipe.id,
+        title: recipe.title,
+        mode: recipe.mode,
+        prompt,
+        commands: recipe.commands,
+        safety: recipe.safety,
+        ...(envelope.data as Record<string, unknown>),
+      },
+      frontendUrl: envelope.frontendUrl,
+      traceId: envelope.traceId,
     });
   });
 
@@ -1733,6 +2238,51 @@ const buildToolHandlers = (
     });
   });
 
+  handlers.set("billing_plans", async (args) => {
+    const config = await resolveInvocationConfig(serverOptions, args);
+    let token: string | undefined;
+    try {
+      const auth = await resolveAuth(config);
+      token = auth.token;
+    } catch {
+      token = config.accessKey;
+    }
+    const core = await import("@cloudeval/core");
+    const data = await core.getBillingConfig({
+      baseUrl: config.baseUrl,
+      authToken: token,
+    });
+    const frontendUrl = buildFrontendUrl({
+      baseUrl: frontendBase(config),
+      target: "billing",
+      tab: "plans",
+    });
+    return withEnvelope({
+      command: "billing plans",
+      data,
+      frontendUrl,
+    });
+  });
+
+  handlers.set("billing_topups", async (args) => {
+    const config = await resolveInvocationConfig(serverOptions, args);
+    const auth = await resolveAuth(config, { requireUser: true });
+    const data = await auth.core.getTopUpPacks({
+      baseUrl: config.baseUrl,
+      authToken: auth.token,
+    });
+    const frontendUrl = buildFrontendUrl({
+      baseUrl: frontendBase(config),
+      target: "billing",
+      tab: "billing",
+    });
+    return withEnvelope({
+      command: "billing topups",
+      data,
+      frontendUrl,
+    });
+  });
+
   handlers.set("open_url", async (args) => {
     const target = stringValue(args.target) as FrontendTarget | undefined;
     if (!target) {
@@ -1822,7 +2372,9 @@ const readMcpResource = async (
       ? "projects_list"
       : uri === "cloudeval://billing/summary"
         ? "billing_summary"
-        : "reports_list";
+        : uri === "cloudeval://recipes"
+          ? "recipes_list"
+          : "reports_list";
   const handler = handlers.get(toolName);
   if (!handler) {
     return {
@@ -1848,36 +2400,19 @@ const promptArgument = (
 ): string => stringValue(args[name]) ?? fallback;
 
 const renderPromptText = (name: string, args: JsonRecord): string => {
-  const projectId = promptArgument(args, "projectId", "the default CloudEval project");
-  const range = promptArgument(args, "range", "30d");
-  if (name === "cost-review") {
-    return [
-      `Run a CloudEval cost review for ${projectId} over ${range}.`,
-      "Use available CloudEval tools to inspect latest reports, billing usage, and project context.",
-      "Return the top cost drivers, savings opportunities, anomalies, and concrete next actions.",
-    ].join("\n");
-  }
-  if (name === "waf-triage") {
-    const severity = promptArgument(args, "severity", "critical and high");
-    return [
-      `Triage ${severity} Well-Architected findings for ${projectId}.`,
-      "Use CloudEval report data where available.",
-      "Group issues by pillar, identify likely blast radius, and propose an ordered remediation plan.",
-    ].join("\n");
-  }
-  if (name === "architecture-review") {
-    return [
-      `Review the CloudEval architecture for ${projectId}.`,
-      "Focus on reliability, security, operational excellence, performance, and cost efficiency.",
-      "Call out missing evidence separately from confirmed findings.",
-    ].join("\n");
-  }
-  if (name === "billing-review") {
-    return [
-      `Review CloudEval billing usage over ${range}.`,
-      "Inspect credits, usage, ledger patterns, and subscription status.",
-      "Summarize risks, unusual charges, forecast pressure, and recommended billing actions.",
-    ].join("\n");
+  const recipe = getRecipe(name);
+  if (recipe) {
+    return renderRecipePrompt(recipe, {
+      projectId: promptArgument(args, "projectId", "the default CloudEval project"),
+      range: promptArgument(args, "range", "30d"),
+      templateFile: stringValue(args.templateFile),
+      templateUrl: stringValue(args.templateUrl),
+      parametersFile: stringValue(args.parametersFile),
+      parametersUrl: stringValue(args.parametersUrl),
+      provider: stringValue(args.provider),
+      name: stringValue(args.name),
+      outputPath: stringValue(args.outputPath),
+    });
   }
   throw new Error(`Unknown prompt: ${name}`);
 };

@@ -535,18 +535,18 @@ const cliInvocation = () => {
   }
   return {
     command: path.resolve("node_modules/.bin/tsx"),
-    prefix: ["src/cli.tsx"],
+    prefix: [path.resolve("src/cli.tsx")],
   };
 };
 
 const runCli = async (
   args: string[],
-  options: { input?: string; env?: Record<string, string>; timeoutMs?: number; home?: string } = {}
+  options: { input?: string; env?: Record<string, string>; timeoutMs?: number; home?: string; cwd?: string } = {}
 ) => {
   const home = options.home ?? await fs.mkdtemp(path.join(os.tmpdir(), "cloudeval-cli-test-home-"));
   const { command, prefix } = cliInvocation();
   const child = spawn(command, [...prefix, ...args], {
-    cwd: path.resolve("."),
+    cwd: options.cwd ?? path.resolve("."),
     env: {
       ...process.env,
       HOME: home,
@@ -639,7 +639,7 @@ test("non-interactive discovery commands are machine-readable", async () => {
   const capabilities = parseJson(await runCli(["capabilities", "--format", "json"]));
   assert.equal(capabilities.ok, true);
   assert.deepEqual(
-    ["ask", "agent", "reports download", "projects create", "credentials create", "mcp serve"].every((command) =>
+    ["ask", "agent", "recipes run", "reports download", "projects create", "credentials create", "mcp serve"].every((command) =>
       JSON.stringify(capabilities.data.domains).includes(command)
     ),
     true
@@ -656,6 +656,60 @@ test("non-interactive discovery commands are machine-readable", async () => {
   const dynamicCompletion = await runCli(["__complete", "compl"]);
   assert.equal(dynamicCompletion.exitCode, 0, dynamicCompletion.stderr);
   assert.match(dynamicCompletion.stdout, /^completion\tcommand\t/m);
+});
+
+test("recipes commands list, show, and run implemented CloudEval workflows", async () => {
+  const backend = await startBackend();
+  try {
+    const table = await runCli(["recipes", "list"]);
+    assert.equal(table.exitCode, 0, table.stderr);
+    assert.match(table.stdout, /^ID\s+Title\s+Skill\s+Mode/m);
+    assert.match(table.stdout, /cost-review/);
+    assert.doesNotMatch(table.stdout.toLowerCase(), /terraform/);
+
+    const listed = parseJson(await runCli(["recipes", "list", "--format", "json"]));
+    assert.equal(listed.command, "recipes list");
+    assert.equal(listed.data.recipes.some((recipe: any) => recipe.id === "waf-triage"), true);
+
+    const shown = await runCli(["recipes", "show", "cost-review", "--format", "markdown"]);
+    assert.equal(shown.exitCode, 0, shown.stderr);
+    assert.match(shown.stdout, /^# Cost Review/m);
+    assert.match(shown.stdout, /cloudeval reports list --project/);
+
+    const run = parseJson(await runCli([
+      "recipes",
+      "run",
+      "cost-review",
+      "--base-url",
+      backend.baseUrl,
+      "--access-key",
+      "test-token",
+      "--project",
+      "project-main",
+      "--format",
+      "json",
+      "--progress",
+      "none",
+      "--non-interactive",
+    ]));
+    assert.equal(run.command, "recipes run");
+    assert.equal(run.data.recipeId, "cost-review");
+    assert.equal(run.data.mode, "ask");
+    assert.equal(run.data.response, "Mock answer from Cloudeval AI.");
+
+    const streamRequest = backend.requests.find((request) => request.path === "/api/v1/chat/stream");
+    assert(streamRequest);
+    const payload = JSON.parse(streamRequest.body);
+    assert.match(payload.message, /CloudEval cost review/);
+    assert.equal(payload.project.id, "project-main");
+    assert.equal(payload.settings.mode, "ask");
+
+    const missing = await runCli(["recipes", "show", "terraform-risk-scan"]);
+    assert.equal(missing.exitCode, 1);
+    assert.match(missing.stderr, /Unknown recipe 'terraform-risk-scan'/);
+  } finally {
+    await backend.close();
+  }
 });
 
 test("credentials, identity, and live capabilities commands call credential APIs", async () => {
@@ -918,6 +972,7 @@ test("mcp status and setup helpers are machine-readable", async () => {
   assert.equal(status.data.resources.includes("cloudeval://capabilities"), true);
   assert.equal(status.data.prompts.includes("cost-review"), true);
   assert.equal(status.data.setupClients.includes("generic"), true);
+  assert.equal(status.data.setupClients.includes("vscode"), true);
 
   const setup = parseJson(await runCli([
     "mcp",
@@ -960,6 +1015,38 @@ test("mcp status and setup helpers are machine-readable", async () => {
     },
   });
   assert.match(genericSetup.data.instructions[0], /Copy the shown mcpServers\.cloudeval entry/);
+
+  const vscodeHome = await fs.mkdtemp(path.join(os.tmpdir(), "cloudeval-cli-vscode-mcp-home-"));
+  try {
+    const vscodeSetup = parseJson(await runCli([
+      "mcp",
+      "setup",
+      "vscode",
+      "--dry-run",
+      "--command",
+      "/usr/local/bin/cloudeval",
+      "--toolset",
+      "readonly",
+      "--format",
+      "json",
+    ], { home: vscodeHome, cwd: vscodeHome }));
+    assert.equal(vscodeSetup.command, "mcp setup");
+    assert.equal(vscodeSetup.data.client, "vscode");
+    assert.match(vscodeSetup.data.configPath, /\.vscode\/mcp\.json$/);
+    assert.deepEqual(vscodeSetup.data.config, {
+      servers: {
+        cloudeval: {
+          type: "stdio",
+          command: "/usr/local/bin/cloudeval",
+          args: ["mcp", "serve", "--toolset", "readonly"],
+        },
+      },
+    });
+    assert.match(vscodeSetup.data.instructions[0], /VS Code/);
+    assert.match(vscodeSetup.data.instructions[1], /"type":"stdio"/);
+  } finally {
+    await fs.rm(vscodeHome, { recursive: true, force: true });
+  }
 });
 
 test("auth status is non-interactive and respects explicit base url", async () => {

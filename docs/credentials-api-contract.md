@@ -64,7 +64,7 @@ recoverable.
 `credentials`:
 
 - `id`, `org_id`, `type = access_key`, `environment`, `name`, `description`
-- `status`, `public_key_id`, `key_prefix`, `key_suffix`
+- `status`, `public_key_id`, `key_prefix` (a server-side `key_suffix` may exist in storage but is **not** returned by APIs)
 - `secret_hash`, `hash_alg`, `hash_key_version`
 - `subject_type = service_account`, `subject_id`
 - `created_by_user_id`, `expires_at`, `revoked_at`, `revoked_by_user_id`
@@ -194,7 +194,6 @@ Response:
     "name": "github-actions-prod",
     "status": "active",
     "key_prefix": "cev_live_ak_01JABCDEF1234567890",
-    "key_suffix": "abcd",
     "subject_type": "service_account",
     "subject_id": "sa_123",
     "project_ids": ["proj_123"],
@@ -220,7 +219,6 @@ Optional filters: `project_id`, `status`, `subject_id`.
       "name": "github-actions-prod",
       "status": "active",
       "key_prefix": "cev_live_ak_01JABCDEF1234567890",
-      "key_suffix": "abcd",
       "subject_type": "service_account",
       "subject_id": "sa_123",
       "subject_name": "github-actions-prod",

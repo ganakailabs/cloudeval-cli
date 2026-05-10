@@ -369,10 +369,20 @@ test("mcp serve filters tools by safety toolset", async () => {
       "capabilities_get",
       "projects_list",
       "projects_get",
+      "connections_list",
+      "connections_get",
       "reports_list",
       "billing_summary",
       "billing_usage",
       "billing_ledger",
+      "billing_plans",
+      "billing_topups",
+      "models_list",
+      "auth_status",
+      "status",
+      "doctor",
+      "recipes_list",
+      "recipes_get",
     ]);
 
     mcp.send({
@@ -449,6 +459,7 @@ test("mcp serve exposes CloudEval resources and prompts", async () => {
     assert(resourceUris.includes("cloudeval://projects"));
     assert(resourceUris.includes("cloudeval://billing/summary"));
     assert(resourceUris.includes("cloudeval://reports/latest"));
+    assert(resourceUris.includes("cloudeval://recipes"));
 
     mcp.send({
       jsonrpc: "2.0",
@@ -466,6 +477,8 @@ test("mcp serve exposes CloudEval resources and prompts", async () => {
     assert.equal(capabilityPayload.cliVersion, packageJson.version);
     assert(capabilityPayload.mcp.tools.includes("projects_list"));
     assert(capabilityPayload.mcp.tools.includes("projects_export_diagram"));
+    assert(capabilityPayload.mcp.tools.includes("recipes_list"));
+    assert(capabilityPayload.mcp.tools.includes("recipes_run"));
     assert(!capabilityPayload.mcp.tools.includes("projects.exportDiagram"));
     assert(!capabilityPayload.mcp.tools.includes("projects.diagramImage"));
 
@@ -477,7 +490,11 @@ test("mcp serve exposes CloudEval resources and prompts", async () => {
       "cost-review",
       "waf-triage",
       "architecture-review",
+      "template-project-review",
+      "report-summary",
       "billing-review",
+      "diagram-export",
+      "mcp-setup",
     ]);
 
     mcp.send({
@@ -493,8 +510,50 @@ test("mcp serve exposes CloudEval resources and prompts", async () => {
     assert.equal(prompt.id, 5);
     assert.match(prompt.result.messages[0].content.text, /project-main/);
     assert.match(prompt.result.messages[0].content.text, /30d/);
+
+    mcp.send({
+      jsonrpc: "2.0",
+      id: 6,
+      method: "resources/read",
+      params: { uri: "cloudeval://recipes" },
+    });
+    const recipeResource = await mcp.read();
+    assert.equal(recipeResource.id, 6);
+    const recipePayload = JSON.parse(recipeResource.result.contents[0].text);
+    assert.equal(recipePayload.ok, true);
+    assert.equal(recipePayload.data.recipes.some((recipe: any) => recipe.id === "cost-review"), true);
   } finally {
     const closed = await mcp.close();
+    assert.equal(closed.exitCode, 0, closed.stderr);
+  }
+});
+
+test("mcp recipe tools expose catalog and keep recipe runs out of readonly toolset", async () => {
+  const readonly = await startMcp(["--toolset", "readonly"]);
+  try {
+    await initialize(readonly);
+
+    readonly.send({
+      jsonrpc: "2.0",
+      id: 2,
+      method: "tools/call",
+      params: { name: "recipes_list", arguments: {} },
+    });
+    const listed = await readonly.read();
+    assert.equal(listed.result.isError, false);
+    assert.equal(listed.result.structuredContent.command, "recipes list");
+
+    readonly.send({
+      jsonrpc: "2.0",
+      id: 3,
+      method: "tools/call",
+      params: { name: "recipes_run", arguments: { recipeId: "cost-review" } },
+    });
+    const blocked = await readonly.read();
+    assert.equal(blocked.error.code, -32602);
+    assert.match(blocked.error.message, /not available in toolset readonly/);
+  } finally {
+    const closed = await readonly.close();
     assert.equal(closed.exitCode, 0, closed.stderr);
   }
 });

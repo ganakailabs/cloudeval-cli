@@ -54,6 +54,8 @@ The smoke script verifies:
 - The installer validates release checksums.
 - The installer creates `~/.local/bin/cloudeval`.
 - The installer creates the `eva` alias on non-Windows platforms.
+- The installer prints optional agent setup guidance without running login or
+  writing MCP client config in CI.
 - The installed CLI resolves from `PATH`.
 - Release binary version matches the resolved release tag.
 - `cloudeval --help` renders command help.
@@ -91,6 +93,7 @@ CLOUDEVAL_SMOKE_HEALTH_URL=https://cloudeval.ai/api/proxy/v1/health
 CLOUDEVAL_SMOKE_KEEP_DIR=1
 CLOUDEVAL_SMOKE_ARTIFACT_ROOT=/tmp
 CLOUDEVAL_SMOKE_ARTIFACT_DIR=/tmp/cloudeval-smoke-debug
+CLOUDEVAL_INSTALL_AGENT_SETUP=0
 ```
 
 `CLOUDEVAL_SMOKE_KEEP_DIR=1` preserves the downloaded binary and JSON outputs
@@ -229,7 +232,7 @@ Example:
       --base-url \
       https://cloudeval.ai/api/proxy/v1
   output:
-    tools=7 resources=4 prompts=4
+    tools=17 resources=5 prompts=1
 
 === Final summary ===
 [PASS] overall: passed
@@ -243,7 +246,8 @@ The read-only script covers:
 
 - Public/local commands: `--version`, `--help`, `help agents`, `capabilities`,
   `status`, `doctor`, `auth status`, `banner`, shell completions, config
-  commands, model commands, sessions commands, and MCP initialize/list paths.
+  commands, recipe commands, model commands, sessions commands, and MCP
+  initialize/list paths.
 - Frontend deeplinks: overview, chat, projects, project details, connections,
   reports, and billing with `--print-url --no-open`.
 - Authenticated read-only commands when usable auth exists: projects,
@@ -254,11 +258,15 @@ The read-only script covers:
   set. It is opt-in so the default read-only run does not consume model tokens.
 - The basic non-interactive `agent` command when `CLOUDEVAL_SMOKE_RUN_AGENT=1`
   is set. It is opt-in for the same token-usage reason as `ask`.
+- The basic non-interactive `recipes run cost-review` path can be covered with
+  the same authenticated project setup; it is token-consuming for ask/agent
+  backed recipes.
 
 Useful controls:
 
 ```bash
 CLOUDEVAL_SMOKE_CLI_BIN=/path/to/cloudeval
+CLOUDEVAL_SMOKE_CLI_SOURCE=auto|local|installed
 CLOUDEVAL_SMOKE_BASE_URL=https://cloudeval.ai/api/proxy/v1
 CLOUDEVAL_SMOKE_FRONTEND_URL=https://cloudeval.ai
 CLOUDEVAL_SMOKE_RUN_ASK=1
@@ -275,6 +283,13 @@ By default, auth-gated checks are skipped when the shell has no usable stored
 auth. Set `CLOUDEVAL_SMOKE_REQUIRE_AUTH=1` to fail instead.
 Color defaults to `auto`; use `CLOUDEVAL_SMOKE_COLOR=always` for CI logs or
 `CLOUDEVAL_SMOKE_COLOR=never` for plain text.
+
+When run from this repository, `pnpm smoke:readonly:real` defaults to the
+current checkout through a temporary local wrapper. This is the right path for
+validating branch changes before release. Use
+`CLOUDEVAL_SMOKE_CLI_SOURCE=installed` to test the already-installed
+`cloudeval` binary, or `CLOUDEVAL_SMOKE_CLI_BIN=/path/to/cloudeval` to test a
+specific executable.
 
 For full non-interactive source coverage against a mock backend:
 

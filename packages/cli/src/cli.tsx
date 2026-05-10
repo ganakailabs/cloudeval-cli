@@ -12,6 +12,7 @@ import {
 } from "./shellCompletion.js";
 import { completeCliWords } from "./completionEngine.js";
 import { registerReportsCommand } from "./reports/reportCommand.js";
+import { registerRecipesCommand } from "./recipesCommand.js";
 import { getFirstNameForDisplay } from "./ui/userDisplayName.js";
 import { registerOpenCommand } from "./openCommand.js";
 import { registerProjectsCommand } from "./projectsCommand.js";
@@ -712,6 +713,13 @@ registerReportsCommand(program, {
   defaultBaseUrl: DEFAULT_BASE_URL,
   resolveBaseUrl,
   readStdinValue,
+});
+
+registerRecipesCommand(program, {
+  defaultBaseUrl: DEFAULT_BASE_URL,
+  resolveBaseUrl,
+  readStdinValue,
+  isHeadlessEnvironment,
 });
 
 registerOpenCommand(program, {

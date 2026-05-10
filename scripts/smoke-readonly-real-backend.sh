@@ -4,6 +4,7 @@ set -euo pipefail
 BASE_URL="${CLOUDEVAL_SMOKE_BASE_URL:-https://cloudeval.ai/api/proxy/v1}"
 FRONTEND_URL="${CLOUDEVAL_SMOKE_FRONTEND_URL:-https://cloudeval.ai}"
 CLI_BIN="${CLOUDEVAL_SMOKE_CLI_BIN:-}"
+CLI_SOURCE="${CLOUDEVAL_SMOKE_CLI_SOURCE:-auto}"
 RUN_ASK="${CLOUDEVAL_SMOKE_RUN_ASK:-0}"
 RUN_AGENT="${CLOUDEVAL_SMOKE_RUN_AGENT:-0}"
 REQUIRE_AUTH="${CLOUDEVAL_SMOKE_REQUIRE_AUTH:-0}"
@@ -14,6 +15,8 @@ COLOR_MODE="${CLOUDEVAL_SMOKE_COLOR:-auto}"
 ARTIFACT_ROOT="${CLOUDEVAL_SMOKE_ARTIFACT_ROOT:-${TMPDIR:-/tmp}}"
 ARTIFACT_DIR="${CLOUDEVAL_SMOKE_ARTIFACT_DIR:-}"
 KEEP_DIR="${CLOUDEVAL_SMOKE_KEEP_DIR:-0}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 if [ -n "$ARTIFACT_DIR" ]; then
   TMP_DIR="$ARTIFACT_DIR"
   mkdir -p "$TMP_DIR"
@@ -215,6 +218,30 @@ resolve_cli_bin() {
     return
   fi
 
+  case "$CLI_SOURCE" in
+    auto|local)
+      if [ -f "$REPO_ROOT/packages/cli/src/cli.tsx" ] && command -v pnpm >/dev/null 2>&1; then
+        local wrapper="$TMP_DIR/cloudeval-local"
+        cat >"$wrapper" <<EOF
+#!/usr/bin/env bash
+cd "$REPO_ROOT/packages/cli"
+exec pnpm exec tsx src/cli.tsx "\$@"
+EOF
+        chmod +x "$wrapper"
+        printf '%s\n' "$wrapper"
+        return
+      fi
+      if [ "$CLI_SOURCE" = "local" ]; then
+        fail "CLOUDEVAL_SMOKE_CLI_SOURCE=local requires packages/cli/src/cli.tsx and pnpm. Set CLOUDEVAL_SMOKE_CLI_BIN to an executable CLI instead."
+      fi
+      ;;
+    installed)
+      ;;
+    *)
+      fail "unknown CLOUDEVAL_SMOKE_CLI_SOURCE value: $CLI_SOURCE (expected auto, local, or installed)"
+      ;;
+  esac
+
   if command -v cloudeval >/dev/null 2>&1; then
     command -v cloudeval
     return
@@ -414,6 +441,30 @@ run_capture() {
   print_text_result "$name" "$output"
 }
 
+run_recipes_list() {
+  local name="recipes-list"
+  local output="$TMP_DIR/${name}.out"
+  local stderr="$TMP_DIR/${name}.stderr"
+  set +e
+  "$CLI" recipes list >"$output" 2>"$stderr"
+  local exit_code=$?
+  set -e
+  if [ "$exit_code" -ne 0 ]; then
+    local reason
+    reason="exit $exit_code: $(clean_stderr "$stderr")"
+    if grep -qi "unknown command 'recipes'" "$stderr"; then
+      reason="$reason"$'\n'"selected CLI does not include the recipes command."
+      reason="$reason"$'\n'"binary: $CLI"
+      reason="$reason"$'\n'"cli_source: $CLI_SOURCE"
+      reason="$reason"$'\n'"next: for branch testing, leave CLOUDEVAL_SMOKE_CLI_SOURCE unset or set it to local. For installed-binary testing, install a release that contains recipes."
+    fi
+    fail_check "$name" "$reason" recipes list
+  fi
+  pass "$name"
+  show_cli_command recipes list
+  print_text_result "$name" "$output"
+}
+
 run_text_contains() {
   local name="$1"
   local expected="$2"
@@ -514,6 +565,35 @@ run_open_url() {
   pass "$name"
   show_cli_command "$@" --frontend-url "$FRONTEND_URL" --print-url --no-open
   print_text_result "$name" "$output"
+}
+
+require_auth_preflight() {
+  if [ "$REQUIRE_AUTH" != "1" ]; then
+    return 0
+  fi
+
+  local output="$TMP_DIR/auth-status-preflight.json"
+  local stderr="$TMP_DIR/auth-status-preflight.stderr"
+  set +e
+  "$CLI" auth status --base-url "$BASE_URL" --format json >"$output" 2>"$stderr"
+  local exit_code=$?
+  set -e
+  if [ "$exit_code" -ne 0 ]; then
+    fail_check "auth preflight" "exit $exit_code: $(clean_stderr "$stderr")" auth status --base-url "$BASE_URL" --format json
+  fi
+  assert_json_ok "$output" || fail_check "auth preflight" "expected JSON envelope with ok=true" auth status --base-url "$BASE_URL" --format json
+
+  local authenticated
+  authenticated="$(json_query "$output" "data.authenticated")"
+  if [ "$authenticated" != "true" ]; then
+    local login_command="cloudeval login --base-url $BASE_URL"
+    if [ "$CLI_SOURCE" = "auto" ] || [ "$CLI_SOURCE" = "local" ]; then
+      login_command="pnpm -C packages/cli exec tsx src/cli.tsx login --base-url $BASE_URL"
+    fi
+    fail_check "auth preflight" \
+      "CLOUDEVAL_SMOKE_REQUIRE_AUTH=1 was set, but the selected CLI has no usable CloudEval session."$'\n'"binary: $CLI"$'\n'"cli_source: $CLI_SOURCE"$'\n'"next: run $login_command, then rerun the smoke test. To run only public read-only checks, unset CLOUDEVAL_SMOKE_REQUIRE_AUTH." \
+      auth status --base-url "$BASE_URL" --format json
+  fi
 }
 
 run_mcp_readonly_smoke() {
@@ -618,18 +698,21 @@ need python3
 CLI="$(resolve_cli_bin)"
 
 log "CloudEval read-only CLI smoke"
-printf 'binary=%s\nbase_url=%s\nfrontend_url=%s\nartifacts=%s\nrun_ask=%s\nrun_agent=%s\nrequire_auth=%s\n' \
-  "$CLI" "$BASE_URL" "$FRONTEND_URL" "$TMP_DIR" "$RUN_ASK" "$RUN_AGENT" "$REQUIRE_AUTH"
+printf 'binary=%s\ncli_source=%s\nbase_url=%s\nfrontend_url=%s\nartifacts=%s\nrun_ask=%s\nrun_agent=%s\nrequire_auth=%s\n' \
+  "$CLI" "$CLI_SOURCE" "$BASE_URL" "$FRONTEND_URL" "$TMP_DIR" "$RUN_ASK" "$RUN_AGENT" "$REQUIRE_AUTH"
 
 log "Public and local read-only commands"
 run_text_contains "version" "." --version
 run_text_contains "root-help" "Commands:" --help
 run_text_contains "help-agents" "CloudEval CLI agent contract" help agents
 run_json_envelope "capabilities-json" capabilities --format json
+run_recipes_list
+run_json_envelope "recipes-show-cost-review" recipes show cost-review --format json
 run_json_envelope "status-json" status --base-url "$BASE_URL" --format json
 run_json_envelope "doctor-json" doctor --base-url "$BASE_URL" --format json
 run_json_envelope "doctor-deep-json" doctor --base-url "$BASE_URL" --deep --format json
 run_capture "auth-status" auth status --base-url "$BASE_URL"
+require_auth_preflight
 run_capture "banner" banner
 run_capture "completion-bash" completion bash
 run_capture "completion-zsh" completion zsh
@@ -758,8 +841,16 @@ if [ "$RUN_ASK" = "1" ]; then
     --quiet \
     --progress none \
     --format json
+  run_json_envelope "recipes-run-cost-review" recipes run cost-review \
+    --base-url "$BASE_URL" \
+    --project "$PROJECT_ID" \
+    --non-interactive \
+    --quiet \
+    --progress none \
+    --format json
 else
   skip "ask-basic (CLOUDEVAL_SMOKE_RUN_ASK=0)"
+  skip "recipes-run-cost-review (CLOUDEVAL_SMOKE_RUN_ASK=0)"
 fi
 
 if [ "$RUN_AGENT" = "1" ]; then

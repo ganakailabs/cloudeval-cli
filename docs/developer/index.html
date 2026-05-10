@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>CloudEval CLI Developer Setup</title>
+    <style>
+      body {
+        background: #0b0f0a;
+        color: #f4f7ed;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        margin: 0;
+      }
+      main {
+        margin: 0 auto;
+        max-width: 900px;
+        padding: 56px 24px;
+      }
+      h1 {
+        color: #b6f23c;
+        font-size: 44px;
+        letter-spacing: 0;
+        margin: 0 0 16px;
+      }
+      h2 {
+        color: #eef9cf;
+        font-size: 24px;
+        margin: 38px 0 12px;
+      }
+      p, li {
+        color: #c8d0bf;
+        font-size: 16px;
+        line-height: 1.65;
+      }
+      pre {
+        background: #11170f;
+        border: 1px solid #354125;
+        border-radius: 8px;
+        color: #f7ffcf;
+        overflow-x: auto;
+        padding: 16px;
+      }
+      code {
+        color: #f7ffcf;
+      }
+      a {
+        color: #8be6ff;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Developer Setup</h1>
+      <p>CloudEval CLI exposes cloud evaluation workflows to terminals, CI, and agent hosts through normal commands, public skills, reusable recipes, and MCP.</p>
+
+      <h2>Install and Onboard</h2>
+      <pre><code>curl -fsSL https://cli.cloudeval.ai/install.sh | bash</code></pre>
+      <p>The installer detects common agent clients and IDEs such as Codex, Claude Desktop, Cursor, and VS Code. Optional setup prompts can run login, configure MCP for selected clients, and print access-key commands for automation. Nothing is written to agent or IDE config unless you approve it.</p>
+      <pre><code>CLOUDEVAL_INSTALL_AGENT_SETUP=0 curl -fsSL https://cli.cloudeval.ai/install.sh | bash
+CLOUDEVAL_INSTALL_MCP_CLIENTS=codex,cursor curl -fsSL https://cli.cloudeval.ai/install.sh | bash</code></pre>
+
+      <h2>Skills</h2>
+      <p>Public skill files live in the repository under <code>skills/</code>. They are open-source agent guidance only and do not contain proprietary backend internals, secrets, tenant IDs, account IDs, customer payloads, or private business logic.</p>
+      <ul>
+        <li><code>cloudeval</code>: router, safety rules, MCP-first guidance, stdout/stderr contract.</li>
+        <li><code>cloudeval-agent-ops</code>: ask, agent, chat/TUI, models, sessions.</li>
+        <li><code>cloudeval-projects</code>: projects, template creation paths, deeplinks, diagram export.</li>
+        <li><code>cloudeval-reports</code>, <code>cloudeval-cost</code>, and <code>cloudeval-waf</code>: report discovery, triage, and evidence-backed summaries.</li>
+        <li><code>cloudeval-billing</code>, <code>cloudeval-connections</code>, <code>cloudeval-credentials</code>, and <code>cloudeval-mcp-diagnostics</code>: operational workflows with redaction guardrails.</li>
+      </ul>
+
+      <h2>Recipes</h2>
+      <p>Recipes are thin wrappers over implemented CloudEval capabilities. Ask/agent-backed recipes can consume credits. Guide recipes print commands for explicit side effects such as project creation, diagram writes, browser opens, checkout flows, or MCP config changes.</p>
+      <pre><code>cloudeval recipes list
+cloudeval recipes show cost-review
+cloudeval recipes run cost-review --project &lt;project-id&gt; --format json --non-interactive</code></pre>
+
+      <h2>MCP</h2>
+      <p>MCP is the preferred path for Codex, Claude, Cursor, VS Code, and other agent clients. Start with <code>readonly</code> for inspection-only workflows and move to <code>all</code> only when users need explicit mutations.</p>
+      <pre><code>cloudeval mcp setup codex --dry-run --toolset readonly
+cloudeval mcp setup claude --dry-run --toolset readonly
+cloudeval mcp setup cursor --dry-run --toolset readonly
+cloudeval mcp setup vscode --dry-run --toolset readonly
+cloudeval mcp serve --toolset readonly</code></pre>
+      <p>MCP exposes recipe discovery through <code>cloudeval://recipes</code>, prompts matching recipe IDs, and tools such as <code>recipes_list</code>, <code>recipes_get</code>, <code>recipes_run</code>, <code>projects_list</code>, <code>reports_list</code>, <code>billing_usage</code>, <code>models_list</code>, <code>auth_status</code>, <code>status</code>, and <code>doctor</code>.</p>
+
+      <h2>Authentication and Automation</h2>
+      <p>Use device login for local development and scoped access keys for CI or long-running agent hosts. The CLI redacts sensitive identifiers by default.</p>
+      <pre><code>cloudeval login
+cloudeval auth status
+cloudeval credentials templates
+cloudeval credentials create --template ci --name agent-automation --project &lt;project-id&gt; --expires 90d</code></pre>
+
+      <p><a href="/">Back to CLI quickstart</a> · <a href="https://github.com/ganakailabs/cloudeval-cli">GitHub</a></p>
+    </main>
+  </body>
+</html>

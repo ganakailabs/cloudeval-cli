@@ -9,7 +9,8 @@
   "scripts": {
     "build": "pnpm -r build",
     "lint": "pnpm -r --workspace-concurrency=1 --if-present lint",
-    "test": "pnpm -r --workspace-concurrency=1 --if-present test",
+    "test": "bash scripts/install-onboarding.test.sh && pnpm -r --workspace-concurrency=1 --if-present test",
+    "test:installer": "bash scripts/install-onboarding.test.sh",
     "security:scan": "bash scripts/security-scan.sh",
     "smoke:release:real": "bash scripts/smoke-release-real-backend.sh",
     "smoke:readonly:real": "bash scripts/smoke-readonly-real-backend.sh"

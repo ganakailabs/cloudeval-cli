@@ -1,6 +1,7 @@
 export type CliDomain =
   | "chat"
   | "reports"
+  | "recipes"
   | "projects"
   | "connections"
   | "credentials"
@@ -186,6 +187,36 @@ export const cliCommands: CliCommandMetadata[] = [
       "reports run",
       "reports rules",
     ],
+  },
+  {
+    name: "recipes",
+    description: "CloudEval reusable recipes and agent skills",
+    domain: "recipes",
+    options: [
+      "list",
+      "show",
+      "run",
+      "--project",
+      "--range",
+      "--template-file",
+      "--template-url",
+      "--parameters-file",
+      "--parameters-url",
+      "--provider",
+      "--name",
+      "--output-path",
+      "--model",
+      "--thread",
+      "--format",
+      "--output",
+      "--progress",
+      "--quiet",
+      "--frontend-url",
+      ...authOptions,
+      "--profile",
+      "--help",
+    ],
+    workflows: ["recipes list", "recipes show", "recipes run"],
   },
   {
     name: "projects",

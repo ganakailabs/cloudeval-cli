@@ -229,6 +229,166 @@ print_banner() {
   echo ""
 }
 
+append_unique_client() {
+  local clients="$1"
+  local client="$2"
+  case " $clients " in
+    *" $client "*) printf '%s\n' "$clients" ;;
+    *) printf '%s\n' "${clients:+$clients }$client" ;;
+  esac
+}
+
+detect_mcp_clients() {
+  local clients=""
+
+  if command -v codex >/dev/null 2>&1 || [ -d "$HOME/.codex" ]; then
+    clients="$(append_unique_client "$clients" "codex")"
+  fi
+  if command -v cursor >/dev/null 2>&1 || [ -d "$HOME/.cursor" ] || [ -d "/Applications/Cursor.app" ]; then
+    clients="$(append_unique_client "$clients" "cursor")"
+  fi
+  if [ -d "$HOME/Library/Application Support/Claude" ] || [ -d "$HOME/.config/Claude" ] || [ -d "/Applications/Claude.app" ]; then
+    clients="$(append_unique_client "$clients" "claude")"
+  fi
+  if command -v code >/dev/null 2>&1 || [ -d "$HOME/.vscode" ] || [ -d "/Applications/Visual Studio Code.app" ]; then
+    clients="$(append_unique_client "$clients" "vscode")"
+  fi
+
+  printf '%s\n' "$clients"
+}
+
+print_agent_setup_next_steps() {
+  echo -e "${BLUE}Agent and IDE setup${NC}"
+  echo -e "  ${GREEN}${BIN_NAME} login${NC}"
+  echo -e "  ${GREEN}${BIN_NAME} mcp setup codex --dry-run --toolset readonly${NC}"
+  echo -e "  ${GREEN}${BIN_NAME} mcp setup claude --dry-run --toolset readonly${NC}"
+  echo -e "  ${GREEN}${BIN_NAME} mcp setup cursor --dry-run --toolset readonly${NC}"
+  echo -e "  ${GREEN}${BIN_NAME} mcp setup vscode --dry-run --toolset readonly${NC}"
+  echo -e "  ${GREEN}${BIN_NAME} credentials templates${NC}"
+  echo -e "  ${GREEN}${BIN_NAME} credentials create --template ci --name agent-automation --project <project-id> --expires 90d${NC}"
+}
+
+setup_codex_mcp() {
+  if command -v codex >/dev/null 2>&1; then
+    codex mcp add cloudeval -- "$DEST" mcp serve --toolset readonly
+    return $?
+  fi
+  "$DEST" mcp setup codex --command "$DEST" --toolset readonly
+}
+
+setup_vscode_mcp() {
+  if command -v code >/dev/null 2>&1; then
+    code --add-mcp "{\"name\":\"cloudeval\",\"type\":\"stdio\",\"command\":\"$DEST\",\"args\":[\"mcp\",\"serve\",\"--toolset\",\"readonly\"]}"
+    return $?
+  fi
+  echo -e "${YELLOW}⚠ VS Code command 'code' was not found on PATH. Showing workspace config instead.${NC}"
+  "$DEST" mcp setup vscode --dry-run --command "$DEST" --toolset readonly
+}
+
+setup_mcp_client() {
+  local client="$1"
+  case "$client" in
+    codex)
+      setup_codex_mcp
+      ;;
+    claude|cursor)
+      "$DEST" mcp setup "$client" --command "$DEST" --toolset readonly
+      ;;
+    vscode)
+      setup_vscode_mcp
+      ;;
+    "")
+      return 0
+      ;;
+    *)
+      echo -e "${YELLOW}⚠ Skipping unknown MCP client: ${client}${NC}" >&2
+      return 0
+      ;;
+  esac
+}
+
+run_optional_agent_setup() {
+  if [ "${CLOUDEVAL_INSTALL_AGENT_SETUP:-1}" = "0" ]; then
+    return 0
+  fi
+
+  echo ""
+  echo -e "${BLUE}CloudEval for agents${NC}"
+  echo -e "  MCP exposes CloudEval tools, recipes, and prompts for Codex, Claude, Cursor, VS Code, and other clients."
+  echo -e "  Skills available: ${GREEN}cost-review, waf-triage, architecture-review, template-project-review, report-summary, billing-review, diagram-export, mcp-setup${NC}"
+
+  local detected
+  detected="$(detect_mcp_clients)"
+  if [ -n "$detected" ]; then
+    echo -e "  Detected clients: ${GREEN}${detected}${NC}"
+  else
+    echo -e "  Detected clients: ${YELLOW}none${NC}"
+  fi
+
+  if [ "${CI:-}" = "true" ] || [ ! -r /dev/tty ]; then
+    print_agent_setup_next_steps
+    return 0
+  fi
+
+  if ! ask_yes_no "Run optional login and agent setup prompts now?" "n"; then
+    print_agent_setup_next_steps
+    return 0
+  fi
+
+  if ask_yes_no "Run ${BIN_NAME} login now?" "n"; then
+    if "$DEST" login; then
+      echo -e "${GREEN}✓ Login completed${NC}"
+    else
+      echo -e "${YELLOW}⚠ Login did not complete. You can rerun: ${BIN_NAME} login${NC}"
+    fi
+  fi
+
+  local selected="${CLOUDEVAL_INSTALL_MCP_CLIENTS:-}"
+  if [ -z "$selected" ]; then
+    if [ -n "$detected" ]; then
+      read -r -p "$(echo -e "${BLUE}Set up MCP for which clients? Use comma-separated names, 'detected', or 'skip' [detected]: ${NC}")" selected < /dev/tty || selected=""
+      selected="${selected:-detected}"
+    else
+      read -r -p "$(echo -e "${BLUE}Set up MCP for which clients? Use codex,claude,cursor,vscode or 'skip' [skip]: ${NC}")" selected < /dev/tty || selected=""
+      selected="${selected:-skip}"
+    fi
+  fi
+
+  case "$selected" in
+    skip|none|no)
+      echo -e "${YELLOW}Skipped MCP setup.${NC}"
+      selected=""
+      ;;
+    detected|all)
+      selected="$detected"
+      ;;
+  esac
+
+  local normalized
+  normalized="$(printf '%s\n' "$selected" | tr ',;' '  ')"
+  local client
+  for client in $normalized; do
+    echo ""
+    echo -e "${BLUE}Setting up MCP for ${client}...${NC}"
+    if setup_mcp_client "$client"; then
+      echo -e "${GREEN}✓ MCP setup step completed for ${client}${NC}"
+    else
+      echo -e "${YELLOW}⚠ MCP setup failed for ${client}. Run: ${BIN_NAME} mcp setup ${client} --dry-run --toolset readonly${NC}"
+    fi
+  done
+
+  echo ""
+  echo -e "${BLUE}Access keys for automation${NC}"
+  echo -e "  Create scoped access keys only after login and project selection:"
+  echo -e "  ${GREEN}${BIN_NAME} credentials templates${NC}"
+  echo -e "  ${GREEN}${BIN_NAME} credentials create --template ci --name agent-automation --project <project-id> --expires 90d${NC}"
+}
+
+if [ "${1:-}" = "--self-test-agent-detection" ]; then
+  detect_mcp_clients
+  exit 0
+fi
+
 REPO="ganakailabs/cloudeval-cli"
 VERSION="${1:-latest}"
 BIN_NAME="cloudeval"
@@ -391,3 +551,5 @@ if [ "${CLOUDEVAL_INSTALL_COMPLETION:-1}" != "0" ] && [ "$OS" != "win" ]; then
   fi
   echo ""
 fi
+
+run_optional_agent_setup

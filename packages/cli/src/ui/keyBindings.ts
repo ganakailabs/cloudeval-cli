@@ -32,3 +32,21 @@ export const getTuiKeyBindings = (
   open: "O open frontend",
   refresh: "R refresh tab",
 });
+
+export const getChatInputHelpText = ({
+  isCancelling,
+  promptCount = 0,
+}: {
+  isCancelling: boolean;
+  promptCount?: number;
+}): string => {
+  if (isCancelling) {
+    return "Esc stop | Ctrl+C quit | /stop | /help";
+  }
+
+  if (promptCount <= 0) {
+    return "Enter send | Ctrl+J newline | Tab focus | /help";
+  }
+
+  return "Enter send | Ctrl+J newline | Tab focus | Enter choose | 1-8 tabs | /help";
+};

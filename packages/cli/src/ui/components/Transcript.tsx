@@ -401,7 +401,7 @@ export const Transcript: React.FC<TranscriptProps> = ({
             {!isUser && message.followUpQuestions?.length ? (
               <Box flexDirection="column" paddingLeft={2} marginTop={1}>
                 <Text dimColor italic>
-                  Follow-ups are available as prompt buttons.
+                  Follow-ups are available above the input.
                 </Text>
               </Box>
             ) : null}

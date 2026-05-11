@@ -73,6 +73,117 @@ const Scrollbar: React.FC<{ totalRows: number; visibleRows: number; startRow: nu
   );
 };
 
+export interface FollowUpRowViewportItem {
+  index: number;
+  question: string;
+  label: string;
+  width: number;
+}
+
+export interface FollowUpRowViewport {
+  items: FollowUpRowViewportItem[];
+  clippedStart: boolean;
+  clippedEnd: boolean;
+  rowCount: 1;
+}
+
+const truncateInline = (value: string, maxLength: number): string => {
+  if (value.length <= maxLength) {
+    return value;
+  }
+  if (maxLength <= 3) {
+    return ".".repeat(Math.max(0, maxLength));
+  }
+  return `${value.slice(0, maxLength - 3)}...`;
+};
+
+export const getFollowUpRowViewport = ({
+  followUps,
+  focusedFollowUpIndex,
+  terminalColumns,
+}: {
+  followUps: string[];
+  focusedFollowUpIndex?: number;
+  terminalColumns: number;
+}): FollowUpRowViewport => {
+  if (!followUps.length) {
+    return { items: [], clippedStart: false, clippedEnd: false, rowCount: 1 };
+  }
+
+  const availableWidth = Math.max(24, terminalColumns - 8);
+  const maxLabelLength = Math.max(
+    12,
+    Math.min(32, Math.floor(availableWidth / 2) - 5)
+  );
+  const targetIndex = Math.min(
+    followUps.length - 1,
+    Math.max(0, focusedFollowUpIndex ?? 0)
+  );
+  const items = followUps.map((question, index) => {
+    const prefix = `${index + 1}. `;
+    const label = `${prefix}${question}`;
+    return {
+      index,
+      question,
+      label,
+      width: label.length + 2,
+    } satisfies FollowUpRowViewportItem;
+  });
+  const fullWidth = items.reduce(
+    (total, item, index) => total + item.width + (index > 0 ? 1 : 0),
+    0
+  );
+  if (fullWidth <= availableWidth) {
+    return {
+      items,
+      clippedStart: false,
+      clippedEnd: false,
+      rowCount: 1,
+    };
+  }
+
+  const truncatedItems = followUps.map((question, index) => {
+    const prefix = `${index + 1}. `;
+    const label = `${prefix}${truncateInline(
+      question,
+      Math.max(4, maxLabelLength - prefix.length)
+    )}`;
+    return {
+      index,
+      question,
+      label,
+      width: label.length + 2,
+    } satisfies FollowUpRowViewportItem;
+  });
+
+  let start = 0;
+  let usedWidth = 0;
+  for (let index = 0; index <= targetIndex; index++) {
+    usedWidth += truncatedItems[index].width + (index > start ? 1 : 0);
+    while (usedWidth > availableWidth && start < targetIndex) {
+      usedWidth -= truncatedItems[start].width + (start + 1 <= index ? 1 : 0);
+      start++;
+    }
+  }
+
+  let end = targetIndex + 1;
+  while (end < truncatedItems.length) {
+    const nextWidth = truncatedItems[end].width + (end > start ? 1 : 0);
+    if (usedWidth + nextWidth > availableWidth) {
+      break;
+    }
+    usedWidth += nextWidth;
+    end++;
+  }
+
+  return {
+    items: truncatedItems.slice(start, end),
+    clippedStart: start > 0,
+    clippedEnd: end < truncatedItems.length,
+    rowCount: 1,
+  };
+};
+
 export const InputBox: React.FC<InputBoxProps> = ({
   value,
   onChange,
@@ -101,6 +212,14 @@ export const InputBox: React.FC<InputBoxProps> = ({
   const [cursorVisible, setCursorVisible] = useState(true);
   const keyBindings = getTuiKeyBindings();
   const compact = terminalColumns < 78;
+  const defaultHelpText = `${keyBindings.submit} | ${keyBindings.newline} | ${keyBindings.quit}`;
+  const resolvedHelpText = helpText ?? defaultHelpText;
+  const showHeaderRow = followUps.length > 0 || resolvedHelpText.length > 0;
+  const followUpViewport = getFollowUpRowViewport({
+    followUps,
+    focusedFollowUpIndex,
+    terminalColumns,
+  });
   const actionButtonWidth = actionLabel ? actionLabel.length + 4 : 0;
   const inputWidth = Math.max(
     20,
@@ -202,39 +321,39 @@ export const InputBox: React.FC<InputBoxProps> = ({
       borderColor={followUpsActive ? terminalTheme.brand : terminalTheme.muted}
       padding={1}
     >
-      <Box
-        flexDirection={compact ? "column" : "row"}
-        justifyContent="space-between"
-        columnGap={1}
-      >
-        <Text dimColor>
-          {followUps.length ? followUpsLabel : ""}
-        </Text>
-        <Text dimColor wrap="truncate">
-          {helpText ?? `${keyBindings.submit} | ${keyBindings.newline} | ${keyBindings.quit}`}
-        </Text>
-      </Box>
+      {showHeaderRow ? (
+        <Box
+          flexDirection={compact ? "column" : "row"}
+          justifyContent="space-between"
+          columnGap={1}
+        >
+          <Text dimColor>
+            {followUps.length ? followUpsLabel : ""}
+          </Text>
+          {resolvedHelpText ? (
+            <Text dimColor wrap="truncate">
+              {resolvedHelpText}
+            </Text>
+          ) : null}
+        </Box>
+      ) : null}
       {followUps.length ? (
-        <Box flexDirection="row" flexWrap="wrap" columnGap={1} rowGap={0} marginTop={compact ? 1 : 0}>
-          {followUps.map((question, index) => {
+        <Box flexDirection="row" columnGap={1} marginTop={compact ? 1 : 0}>
+          {followUpViewport.clippedStart ? <Text dimColor>{"<--"}</Text> : null}
+          {followUpViewport.items.map(({ question, index, label }) => {
             const focused = followUpsActive && focusedFollowUpIndex === index;
             return (
-              <Box
+              <Text
                 key={`${index}-${question}`}
-                borderStyle={raisedButtonStyle.border}
-                borderColor={focused ? terminalTheme.brand : terminalTheme.muted}
-                paddingX={1}
+                color={focused ? terminalTheme.brand : undefined}
+                bold={focused}
               >
-                <Text
-                  color={focused ? terminalTheme.brand : undefined}
-                  bold={focused}
-                >
-                  {focused ? raisedButtonStyle.activeMarker : raisedButtonStyle.inactiveMarker}{" "}
-                  {index + 1}. {question}
-                </Text>
-              </Box>
+                {focused ? raisedButtonStyle.activeMarker : raisedButtonStyle.inactiveMarker}{" "}
+                {label}
+              </Text>
             );
           })}
+          {followUpViewport.clippedEnd ? <Text dimColor>{"-->"}</Text> : null}
         </Box>
       ) : null}
       <TitledBox
@@ -315,7 +434,7 @@ export const InputBox: React.FC<InputBoxProps> = ({
         ) : null}
       </TitledBox>
       {actionHint ? (
-        <Text dimColor wrap="wrap">
+        <Text dimColor wrap="truncate">
           {actionHint}
         </Text>
       ) : null}

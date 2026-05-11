@@ -8,7 +8,7 @@ import { join, resolve } from "node:path";
 import { Banner } from "./components/Banner.js";
 import { Loader } from "./components/Loader.js";
 import { Transcript } from "./components/Transcript.js";
-import { InputBox } from "./components/InputBox.js";
+import { InputBox, getFollowUpRowViewport } from "./components/InputBox.js";
 import { Spinner } from "./components/Spinner.js";
 import { Scrollbar } from "./components/Scrollbar.js";
 import { ProjectSelector } from "./components/ProjectSelector.js";
@@ -22,7 +22,7 @@ import {
 import { billingSummaryText, type BillingSummaryState } from "./billingSummary.js";
 import { sanitizeTerminalMultilineInput } from "./inputSanitizer.js";
 import { getInputViewport, nextInputScrollOffset } from "./inputViewport.js";
-import { getTuiKeyBindings } from "./keyBindings.js";
+import { getChatInputHelpText, getTuiKeyBindings } from "./keyBindings.js";
 import {
   buildControlFocusOrder,
   focusFollowUpIndex,
@@ -505,12 +505,11 @@ const readTerminalSize = (): TerminalSize => ({
   rows: process.stdout.rows || 32,
 });
 
-const estimatePromptSuggestionRows = (count: number, columns: number): number => {
+const estimatePromptSuggestionRows = (count: number): number => {
   if (count <= 0) {
     return 0;
   }
-  const promptsPerRow = columns < 90 ? 1 : columns < 132 ? 2 : 3;
-  return Math.max(1, Math.ceil(count / promptsPerRow)) * 3;
+  return 1;
 };
 
 const estimatePromptControlRows = ({
@@ -536,10 +535,10 @@ const estimatePromptPanelRows = ({
   hasThinkingSteps: boolean;
 }): number => {
   const outerChromeRows = 4;
-  const topHelpRows = 1;
+  const topHelpRows = suggestionRows > 0 ? 1 : 0;
   const inputBoxRows = inputRows + 3;
   const footerRows =
-    1 + 1 + estimatePromptControlRows({ compact, hasThinkingSteps }) + 1 + 2;
+    1 + 1 + estimatePromptControlRows({ compact, hasThinkingSteps });
   return outerChromeRows + topHelpRows + suggestionRows + inputBoxRows + footerRows;
 };
 
@@ -777,9 +776,6 @@ const PromptControlBar: React.FC<{
           </Box>
         </Box>
       </Box>
-      <Text dimColor wrap="truncate">
-        Tab/left/right focus | Enter open | /project /model /mode /thinking
-      </Text>
     </Box>
   );
 };
@@ -2092,8 +2088,7 @@ export const App: React.FC<AppProps> = ({
   });
   const promptInputRows = promptInputViewport.visibleRowCount;
   const promptSuggestionRows = estimatePromptSuggestionRows(
-    visiblePromptSuggestions.length,
-    terminalSize.columns
+    visiblePromptSuggestions.length
   );
   const focusedFollowUpIndex = focusFollowUpIndex(focusedControl);
   const controlFocusOrder = buildControlFocusOrder({
@@ -2322,13 +2317,21 @@ export const App: React.FC<AppProps> = ({
     if (mouseEvent.y < promptAreaTop) {
       return;
     }
-    const buttonWidth = Math.max(16, Math.floor(terminalSize.columns / visiblePromptSuggestions.length));
-    const index = Math.min(
-      visiblePromptSuggestions.length - 1,
-      Math.max(0, Math.floor((mouseEvent.x - 1) / buttonWidth))
-    );
-    setFocusedControl(`followup:${index}`);
-    submitFollowUp(index);
+    const followUpViewport = getFollowUpRowViewport({
+      followUps: visiblePromptSuggestions,
+      focusedFollowUpIndex,
+      terminalColumns: terminalSize.columns,
+    });
+    let columnStart = followUpViewport.clippedStart ? 5 : 1;
+    for (const item of followUpViewport.items) {
+      const columnEnd = columnStart + item.width - 1;
+      if (mouseEvent.x >= columnStart && mouseEvent.x <= columnEnd) {
+        setFocusedControl(`followup:${item.index}`);
+        submitFollowUp(item.index);
+        return;
+      }
+      columnStart = columnEnd + 2;
+    }
   };
 
   useInput(
@@ -3056,37 +3059,28 @@ export const App: React.FC<AppProps> = ({
             minInputRows={promptInputRowBudget}
             maxInputRows={promptInputRowBudget}
             footerControls={
-              <Box flexDirection="column" gap={0}>
-                <PromptControlBar
-                  focused={focusedControl}
-                  selectedProject={selectedProject}
-                  selectedModel={selectedModel}
-                  selectedMode={selectedMode}
-                  hasThinkingSteps={hasThinkingSteps}
-                  thinkingExpanded={thinkingExpanded}
-                  thinkingSummary={thinkingSummary}
-                  compact={tuiLayout.compact}
-                  terminalColumns={terminalSize.columns}
-                  statusText={chatStatusText}
-                  statusColor={chatStatusColor}
-                  busy={chatBusy}
-                  animate={animationsEnabled}
-                />
-                <Text dimColor wrap="wrap">
-                  /project | /model | /mode | /thinking | /stop | /open | /help
-                </Text>
-                <Text dimColor wrap="wrap">
-                  {keyBindings.commandComplete} | {keyBindings.historySearch} | Esc cancel response | {scrollHelp}
-                </Text>
-              </Box>
+              <PromptControlBar
+                focused={focusedControl}
+                selectedProject={selectedProject}
+                selectedModel={selectedModel}
+                selectedMode={selectedMode}
+                hasThinkingSteps={hasThinkingSteps}
+                thinkingExpanded={thinkingExpanded}
+                thinkingSummary={thinkingSummary}
+                compact={tuiLayout.compact}
+                terminalColumns={terminalSize.columns}
+                statusText={chatStatusText}
+                statusColor={chatStatusColor}
+                busy={chatBusy}
+                animate={animationsEnabled}
+              />
             }
-            helpText={`${keyBindings.submit} | ${keyBindings.newline} | ${keyBindings.quit}`}
+            helpText=""
             actionLabel={promptActionIsCancel ? "ESC to cancel" : "ENTER to send"}
-            actionHint={
-              promptActionIsCancel
-                ? "Esc, Ctrl+C, or /stop cancels the running response."
-                : "Enter sends. Use Option+Enter or Ctrl+J for a newline."
-            }
+            actionHint={getChatInputHelpText({
+              isCancelling: promptActionIsCancel,
+              promptCount: visiblePromptSuggestions.length,
+            })}
             actionTone={promptActionIsCancel ? terminalTheme.warning : terminalTheme.brand}
             onAction={() => {
               if (promptActionIsCancel) {

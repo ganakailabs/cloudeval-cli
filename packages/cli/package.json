@@ -5,6 +5,7 @@
   "type": "module",
   "bin": {
     "cloudeval": "dist/cli.js",
+    "cloud": "dist/cli.js",
     "eva": "dist/cli.js"
   },
   "files": [

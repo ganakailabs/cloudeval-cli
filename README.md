@@ -48,7 +48,7 @@ Device login goes through **cloudeval.ai**. No local Azure app registration is n
 The installer:
 
 - downloads checksum-verified GitHub release assets and installs `cloudeval`;
-- creates the `eva` alias on non-Windows platforms;
+- creates the `eva` and `cloud` aliases on non-Windows platforms;
 - can install shell completions for bash, zsh, and fish;
 - can offer MCP setup for detected Codex, Claude Desktop, Cursor, and VS Code clients;
 - explains credential setup but does not create access keys or write secrets into MCP client config;

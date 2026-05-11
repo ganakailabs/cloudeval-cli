@@ -639,7 +639,7 @@ echo -e "  Install Directory: ${GREEN}${DEST_DIR}${NC}"
 echo -e "  Executable: ${GREEN}${DEST}${NC}"
 echo -e "  Yoga Runtime: ${GREEN}${YOGA_DEST}${NC}"
 if [ "$OS" != "win" ]; then
-  echo -e "  Alias: ${GREEN}${DEST_DIR}/eva -> ${DEST}${NC}"
+  echo -e "  Aliases: ${GREEN}${DEST_DIR}/eva -> ${DEST}${NC}, ${GREEN}${DEST_DIR}/cloud -> ${DEST}${NC}"
 fi
 echo -e "  Checksum Verification: ${GREEN}required${NC}"
 echo ""
@@ -676,6 +676,8 @@ if ! download_verified_asset "$BIN" "$DEST" "0755"; then
   echo -e "  5. Copy to your PATH:"
   echo -e "     ${GREEN}cp packages/cli/dist/bin/cloudeval ${DEST_DIR}/${BIN_NAME}${NC}"
   echo -e "     ${GREEN}cp packages/cli/dist/bin/yoga.wasm ${DEST_DIR}/yoga.wasm${NC}"
+  echo -e "     ${GREEN}ln -sf ${DEST_DIR}/${BIN_NAME} ${DEST_DIR}/eva${NC}"
+  echo -e "     ${GREEN}ln -sf ${DEST_DIR}/${BIN_NAME} ${DEST_DIR}/cloud${NC}"
   echo ""
   echo -e "${BLUE}Option 2: Wait for a release${NC}"
   echo -e "  Check https://github.com/${REPO}/releases for available releases"
@@ -695,9 +697,10 @@ echo -e "${GREEN}✓ Downloaded yoga.wasm${NC}"
 
 if [ "$OS" != "win" ]; then
   echo ""
-  if ask_yes_no "Create 'eva' alias symlink?" "y"; then
+  if ask_yes_no "Create 'eva' and 'cloud' alias symlinks?" "y"; then
     ln -sf "$DEST" "${DEST_DIR}/eva"
-    echo -e "${GREEN}✓ Created 'eva' alias${NC}"
+    ln -sf "$DEST" "${DEST_DIR}/cloud"
+    echo -e "${GREEN}✓ Created 'eva' and 'cloud' aliases${NC}"
   fi
 fi
 
@@ -732,8 +735,12 @@ esac
 
 echo ""
 echo -e "${GREEN}You can now run: ${BIN_NAME} --help${NC}"
-if [ "$OS" != "win" ] && [ -L "${DEST_DIR}/eva" ]; then
+if [ "$OS" != "win" ] && [ -L "${DEST_DIR}/eva" ] && [ -L "${DEST_DIR}/cloud" ]; then
+  echo -e "${GREEN}Or use an alias: eva --help or cloud --help${NC}"
+elif [ "$OS" != "win" ] && [ -L "${DEST_DIR}/eva" ]; then
   echo -e "${GREEN}Or use the alias: eva --help${NC}"
+elif [ "$OS" != "win" ] && [ -L "${DEST_DIR}/cloud" ]; then
+  echo -e "${GREEN}Or use the alias: cloud --help${NC}"
 fi
 echo ""
 

@@ -129,3 +129,56 @@ for workflow in "$ROOT_DIR/.github/workflows/semantic-release.yml" "$ROOT_DIR/.g
 done
 
 echo "ok - release workflows publish compressed assets"
+
+package_aliases="$(
+  node -e 'const pkg = require(process.argv[1]); console.log(Object.keys(pkg.bin || {}).sort().join(" "));' \
+    "$ROOT_DIR/packages/cli/package.json"
+)"
+for expected in cloudeval cloud eva; do
+  case " $package_aliases " in
+    *" $expected "*) ;;
+    *)
+      echo "package bin aliases should include: $expected" >&2
+      echo "aliases: $package_aliases" >&2
+      exit 1
+      ;;
+  esac
+done
+
+echo "ok - package exposes CLI aliases"
+
+alias_test_dir="$TMP_DIR/alias-executables"
+mkdir -p "$alias_test_dir/dist/bin"
+printf 'unix binary\n' >"$alias_test_dir/dist/bin/cloudeval-linux-x64"
+printf 'windows binary\n' >"$alias_test_dir/dist/bin/cloudeval-win-x64.exe"
+
+(
+  cd "$alias_test_dir"
+  node "$ROOT_DIR/packages/cli/scripts/alias-executables.js"
+)
+
+for expected in \
+  eva-linux-x64 \
+  eva-win-x64.exe \
+  cloud-linux-x64 \
+  cloud-win-x64.exe; do
+  if [ ! -f "$alias_test_dir/dist/bin/$expected" ]; then
+    echo "alias executable was not generated: $expected" >&2
+    find "$alias_test_dir/dist/bin" -maxdepth 1 -type f -print >&2
+    exit 1
+  fi
+done
+
+echo "ok - release alias executables include eva and cloud"
+
+if ! grep -q 'DEST_DIR}/cloud' "$ROOT_DIR/scripts/install.sh"; then
+  echo "installer should create a cloud alias symlink" >&2
+  exit 1
+fi
+
+if ! grep -q 'cloud --help' "$ROOT_DIR/scripts/install.sh"; then
+  echo "installer should show cloud alias usage after install" >&2
+  exit 1
+fi
+
+echo "ok - installer documents cloud alias symlink"

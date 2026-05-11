@@ -54,7 +54,7 @@ The smoke script verifies:
   assets when the release provides them and falling back to raw assets.
 - The installer validates release checksums.
 - The installer creates `~/.local/bin/cloudeval`.
-- The installer creates the `eva` alias on non-Windows platforms.
+- The installer creates the `eva` and `cloud` aliases on non-Windows platforms.
 - The installer prints optional agent and credential setup guidance without
   running login, creating credentials, or writing MCP client config in CI.
 - Interactive update/install flows can offer optional MCP onboarding for

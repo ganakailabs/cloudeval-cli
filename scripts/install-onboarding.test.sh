@@ -174,6 +174,47 @@ fi
 
 echo "ok - installer download progress uses compact labeled bars"
 
+cat >"$TMP_DIR/bin/curl" <<'SH'
+#!/usr/bin/env bash
+out=""
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    -o)
+      out="$2"
+      shift 2
+      ;;
+    *)
+      shift
+      ;;
+  esac
+done
+printf 'downloaded\n' >"$out"
+for _ in 1 2 3 4 5 6 7 8; do
+  printf '##########'
+done >&2
+printf ' 100.0%%\n' >&2
+SH
+chmod +x "$TMP_DIR/bin/curl"
+
+progress_sync="$(
+  PATH="$TMP_DIR/bin:/usr/bin:/bin" \
+  CLOUDEVAL_FORCE_DOWNLOAD_PROGRESS=1 \
+  CI=false \
+  bash "$ROOT_DIR/scripts/install.sh" --self-test-progress-sync 2>&1
+)"
+
+case "$progress_sync" in
+  *"] 100%"*$'\n'"after download"*) ;;
+  *)
+    echo "installer should wait for the rendered progress line before continuing" >&2
+    echo "progress sync output:" >&2
+    printf '%s\n' "$progress_sync" >&2
+    exit 1
+    ;;
+esac
+
+echo "ok - installer waits for progress renderer before continuing"
+
 for workflow in "$ROOT_DIR/.github/workflows/semantic-release.yml" "$ROOT_DIR/.github/workflows/release.yml"; do
   if ! grep -q "Create compressed assets" "$workflow"; then
     echo "release workflow is missing compressed asset generation: $workflow" >&2

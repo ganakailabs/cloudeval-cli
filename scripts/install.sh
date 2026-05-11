@@ -175,8 +175,7 @@ curl_download_args() {
 
 curl_should_show_progress() {
   [ "${CLOUDEVAL_DOWNLOAD_PROGRESS:-1}" != "0" ] \
-    && [ "${CI:-}" != "true" ] \
-    && [ -r /dev/tty ]
+    && { [ "${CLOUDEVAL_FORCE_DOWNLOAD_PROGRESS:-0}" = "1" ] || { [ "${CI:-}" != "true" ] && [ -r /dev/tty ]; }; }
 }
 
 repeat_char() {
@@ -196,18 +195,12 @@ curl_progress_payload() {
   [[ "$raw" == *"#"* || "$raw" == *"%"* ]]
 }
 
-render_download_progress_snapshot() {
-  local label="$1"
-  local raw="$2"
-  local width="${3:-${CLOUDEVAL_PROGRESS_WIDTH:-34}}"
-  local percent=""
+curl_progress_percent() {
+  local raw="$1"
   local hashes=""
   local hash_count=0
   local curl_columns="${CLOUDEVAL_CURL_PROGRESS_COLUMNS:-72}"
-  local filled=0
-  local empty=0
-  local filled_bar=""
-  local empty_bar=""
+  local percent=""
 
   if [[ "$raw" =~ ([0-9][0-9]?[0-9]?)(\.[0-9]+)?% ]]; then
     percent="${BASH_REMATCH[1]}"
@@ -222,6 +215,21 @@ render_download_progress_snapshot() {
   elif [ "$percent" -gt 100 ]; then
     percent=100
   fi
+
+  printf '%s\n' "$percent"
+}
+
+render_download_progress_snapshot() {
+  local label="$1"
+  local raw="$2"
+  local width="${3:-${CLOUDEVAL_PROGRESS_WIDTH:-34}}"
+  local percent
+  local filled=0
+  local empty=0
+  local filled_bar=""
+  local empty_bar=""
+
+  percent="$(curl_progress_percent "$raw")"
 
   filled=$((percent * width / 100))
   empty=$((width - filled))
@@ -239,14 +247,28 @@ format_curl_progress() {
   local char=""
   local raw=""
   local rendered=0
+  local percent=""
+  local last_percent="-1"
+
+  maybe_render_download_progress() {
+    if curl_progress_payload "$raw"; then
+      percent="$(curl_progress_percent "$raw")"
+      if [ "$percent" != "$last_percent" ]; then
+        render_download_progress_snapshot "$label" "$raw"
+        rendered=1
+        last_percent="$percent"
+      fi
+      return 0
+    fi
+    return 1
+  }
 
   while IFS= read -r -n 1 char; do
     case "$char" in
       $'\r'|$'\n')
         if [ -n "$raw" ]; then
-          if curl_progress_payload "$raw"; then
-            render_download_progress_snapshot "$label" "$raw"
-            rendered=1
+          if maybe_render_download_progress; then
+            :
           else
             [ "$rendered" = "1" ] && printf '\r\033[2K' >&2
             printf '%s\n' "$raw" >&2
@@ -257,18 +279,14 @@ format_curl_progress() {
         ;;
       *)
         raw="${raw}${char}"
-        if curl_progress_payload "$raw"; then
-          render_download_progress_snapshot "$label" "$raw"
-          rendered=1
-        fi
+        maybe_render_download_progress || true
         ;;
     esac
   done
 
   if [ -n "$raw" ]; then
-    if curl_progress_payload "$raw"; then
-      render_download_progress_snapshot "$label" "$raw"
-      rendered=1
+    if maybe_render_download_progress; then
+      :
     else
       [ "$rendered" = "1" ] && printf '\r\033[2K' >&2
       printf '%s\n' "$raw" >&2
@@ -305,7 +323,25 @@ curl_download_file() {
     fi
 
     if curl_should_show_progress; then
-      if curl "${curl_args[@]}" "$url" -o "$dest" 2> >(format_curl_progress "$label"); then
+      local progress_fifo
+      local progress_pid
+      local curl_status
+      progress_fifo="$(mktemp "${TMPDIR:-/tmp}/cloudeval-curl-progress.XXXXXX")"
+      rm -f "$progress_fifo"
+      mkfifo "$progress_fifo"
+      format_curl_progress "$label" < "$progress_fifo" &
+      progress_pid=$!
+
+      if curl "${curl_args[@]}" "$url" -o "$dest" 2> "$progress_fifo"; then
+        curl_status=0
+      else
+        curl_status=$?
+      fi
+
+      wait "$progress_pid" || true
+      rm -f "$progress_fifo"
+
+      if [ "$curl_status" -eq 0 ]; then
         return 0
       fi
     elif curl "${curl_args[@]}" "$url" -o "$dest"; then
@@ -759,6 +795,14 @@ fi
 if [ "${1:-}" = "--self-test-progress-line" ]; then
   render_download_progress_snapshot "${2:-cloudeval-macos-arm64.gz}" "${3:-######################################################################## 100.0%}" 2>&1
   printf '\n'
+  exit 0
+fi
+
+if [ "${1:-}" = "--self-test-progress-sync" ]; then
+  tmp="$(mktemp)"
+  CLOUDEVAL_FORCE_DOWNLOAD_PROGRESS=1 curl_download_file "${2:-https://example.invalid/cloudeval-test}" "$tmp" "${3:-cloudeval-test}" "0" 2>&1
+  printf 'after download\n'
+  rm -f "$tmp"
   exit 0
 fi
 

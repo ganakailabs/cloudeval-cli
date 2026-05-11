@@ -1,7 +1,9 @@
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-const binDir = path.resolve("dist", "bin");
+const scriptDir = path.dirname(fileURLToPath(import.meta.url));
+const binDir = path.resolve(scriptDir, "..", "dist", "bin");
 
 if (!fs.existsSync(binDir)) {
   process.exit(0);

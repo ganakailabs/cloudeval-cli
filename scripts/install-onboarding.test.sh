@@ -148,13 +148,14 @@ done
 echo "ok - package exposes CLI aliases"
 
 alias_test_dir="$TMP_DIR/alias-executables"
-mkdir -p "$alias_test_dir/dist/bin"
-printf 'unix binary\n' >"$alias_test_dir/dist/bin/cloudeval-linux-x64"
-printf 'windows binary\n' >"$alias_test_dir/dist/bin/cloudeval-win-x64.exe"
+mkdir -p "$alias_test_dir/packages/cli/dist/bin" "$alias_test_dir/packages/cli/scripts"
+cp "$ROOT_DIR/packages/cli/scripts/alias-executables.js" "$alias_test_dir/packages/cli/scripts/alias-executables.js"
+printf 'unix binary\n' >"$alias_test_dir/packages/cli/dist/bin/cloudeval-linux-x64"
+printf 'windows binary\n' >"$alias_test_dir/packages/cli/dist/bin/cloudeval-win-x64.exe"
 
 (
   cd "$alias_test_dir"
-  node "$ROOT_DIR/packages/cli/scripts/alias-executables.js"
+  node packages/cli/scripts/alias-executables.js
 )
 
 for expected in \
@@ -162,9 +163,9 @@ for expected in \
   eva-win-x64.exe \
   cloud-linux-x64 \
   cloud-win-x64.exe; do
-  if [ ! -f "$alias_test_dir/dist/bin/$expected" ]; then
+  if [ ! -f "$alias_test_dir/packages/cli/dist/bin/$expected" ]; then
     echo "alias executable was not generated: $expected" >&2
-    find "$alias_test_dir/dist/bin" -maxdepth 1 -type f -print >&2
+    find "$alias_test_dir/packages/cli/dist/bin" -maxdepth 1 -type f -print >&2
     exit 1
   fi
 done

@@ -78,6 +78,41 @@ fi
 
 echo "ok - installer normalizes agent setup selections"
 
+agent_next_steps="$(
+  bash "$ROOT_DIR/scripts/install.sh" --self-test-agent-next-steps
+)"
+if [[ "$agent_next_steps" != *"cloudeval mcp setup <codex|claude|cursor|vscode> --toolset readonly"* ]]; then
+  echo "agent next steps should use one concise MCP setup command" >&2
+  echo "$agent_next_steps" >&2
+  exit 1
+fi
+if [[ "$agent_next_steps" == *"mcp setup codex --dry-run"* || "$agent_next_steps" == *"mcp setup claude --dry-run"* ]]; then
+  echo "agent next steps should not print every MCP client dry-run command" >&2
+  echo "$agent_next_steps" >&2
+  exit 1
+fi
+
+mcp_summary="$(
+  bash "$ROOT_DIR/scripts/install.sh" --self-test-mcp-summary "codex claude" "vscode" "cursor" "codex claude vscode cursor"
+)"
+for expected in "MCP setup summary" "Configured:" "codex, claude" "Manual:" "vscode" "Failed:" "cursor" "Retry:"; do
+  case "$mcp_summary" in
+    *"$expected"*) ;;
+    *)
+      echo "MCP summary missing expected text: $expected" >&2
+      echo "$mcp_summary" >&2
+      exit 1
+      ;;
+  esac
+done
+if [[ "$mcp_summary" == *"Field    Value"* || "$mcp_summary" == *"McpServers"* || "$mcp_summary" == *"instructions"* ]]; then
+  echo "MCP summary should not expose verbose setup tables" >&2
+  echo "$mcp_summary" >&2
+  exit 1
+fi
+
+echo "ok - installer MCP onboarding uses concise next steps and summary"
+
 banner_output="$(bash "$ROOT_DIR/scripts/install.sh" --self-test-banner)"
 
 if [[ "$banner_output" != *$'\033[1;38;5;220m ██████╗'* ]]; then

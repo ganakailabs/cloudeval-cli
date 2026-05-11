@@ -821,6 +821,14 @@ const getDeviceVerificationOverride = () =>
     ""
   ).trim();
 
+const DEVICE_LOGIN_PROMPT = "select_account";
+
+const forceDeviceLoginAccountChooser = (value: string): string => {
+  const url = new URL(value);
+  url.searchParams.set("prompt", DEVICE_LOGIN_PROMPT);
+  return url.toString();
+};
+
 const buildDeviceVerificationUrl = (override: string, userCode?: string): string => {
   const url = new URL(override);
   if (!url.pathname || url.pathname === "/") {
@@ -829,6 +837,7 @@ const buildDeviceVerificationUrl = (override: string, userCode?: string): string
   if (userCode) {
     url.searchParams.set("user_code", userCode);
   }
+  url.searchParams.set("prompt", DEVICE_LOGIN_PROMPT);
   return url.toString();
 };
 
@@ -867,7 +876,11 @@ const resolveDeviceVerificationUrl = (deviceCodeData: DeviceCodeResponse): strin
   if (isLocalDeviceVerificationUrl(backendUrl)) {
     return buildDeviceVerificationUrl(DEFAULT_FRONTEND_URL, deviceCodeData.user_code);
   }
-  return backendUrl;
+  try {
+    return forceDeviceLoginAccountChooser(backendUrl);
+  } catch {
+    return backendUrl;
+  }
 };
 
 const openBrowser = (url: string): boolean => {

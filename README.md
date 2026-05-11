@@ -40,7 +40,10 @@ cloudeval status
 cloudeval chat
 ```
 
-Device login goes through **cloudeval.ai**. No local Azure app registration is needed for normal CLI use.
+Device login goes through **cloudeval.ai** and always asks the browser auth
+provider to show the account chooser, so users can choose the intended work
+email even when another account is already signed in. No local Azure app
+registration is needed for normal CLI use.
 
 <details>
 <summary><strong>Installer behavior and controls</strong></summary>
@@ -50,7 +53,7 @@ The installer:
 - downloads checksum-verified GitHub release assets and installs `cloudeval`;
 - creates the `eva` and `cloud` aliases on non-Windows platforms;
 - can install shell completions for bash, zsh, and fish;
-- can offer MCP setup for detected Codex, Claude Desktop, Cursor, and VS Code clients;
+- can offer concise MCP setup for detected Codex, Claude Desktop, Cursor, and VS Code clients, then print a short summary;
 - explains credential setup but does not create access keys or write secrets into MCP client config;
 - shows compact labeled progress bars in interactive terminals;
 - uses connect/stall timeouts so slow CDN transfers fail clearly.
@@ -104,7 +107,9 @@ Run `cloudeval <command> --help` for exact flags.
 
 ## Access Keys For CI And Agents
 
-Use `cloudeval login` for humans. Use scoped access keys for CI, hosted agents, and long-running automation.
+Use `cloudeval login` for humans. The browser approval page requests an
+account chooser on every login. Use scoped access keys for CI, hosted agents,
+and long-running automation.
 
 Create an access key after login and project selection:
 
@@ -209,6 +214,8 @@ cloudeval help agents
 
 Output contract:
 
+- `cloudeval login` opens or prints a `cloudeval.ai/device/login` approval URL
+  with an account chooser hint for the web auth provider;
 - machine-readable commands write payloads to stdout;
 - prompts, progress, browser-open messages, and warnings go to stderr;
 - `ask` and `agent` support `--progress none`, `--quiet`, or `--format ndjson --progress ndjson`;

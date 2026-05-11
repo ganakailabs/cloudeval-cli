@@ -983,7 +983,7 @@ test("login uses browser-assisted device flow", async () => {
           user_code: "ABCD-EFGH",
           verification_uri: "https://cloudeval.ai/device/login",
           verification_uri_complete:
-            "https://cloudeval.ai/device/login?user_code=ABCD-EFGH",
+            "https://cloudeval.ai/device/login?user_code=ABCD-EFGH&prompt=login",
           expires_in: 60,
           interval: 1,
         });
@@ -1017,7 +1017,7 @@ test("login uses browser-assisted device flow", async () => {
       });
       assert.equal(token, "access-token");
       assert.deepEqual(openedUrls, [
-        "https://cloudeval.ai/device/login?user_code=ABCD-EFGH",
+        "https://cloudeval.ai/device/login?user_code=ABCD-EFGH&prompt=select_account",
       ]);
       assert.deepEqual(requests, [
         "https://cloudeval.ai/api/v1/auth/device/code",
@@ -1095,7 +1095,7 @@ test("browser-assisted device flow appends user code when backend omits complete
       });
       assert.equal(token, "access-token");
       assert.deepEqual(openedUrls, [
-        "https://cloudeval.ai/device/login?user_code=ABCD-EFGH",
+        "https://cloudeval.ai/device/login?user_code=ABCD-EFGH&prompt=select_account",
       ]);
     } finally {
       global.fetch = originalFetch;
@@ -1212,7 +1212,7 @@ test("browser-assisted device flow honors frontend URL override", async () => {
       });
       assert.equal(token, "access-token");
       assert.deepEqual(openedUrls, [
-        "http://localhost:3000/device/login?user_code=ABCD-EFGH",
+        "http://localhost:3000/device/login?user_code=ABCD-EFGH&prompt=select_account",
       ]);
     } finally {
       global.fetch = originalFetch;
@@ -1296,7 +1296,7 @@ test("browser-assisted device flow rewrites backend localhost verification URLs 
       });
       assert.equal(token, "access-token");
       assert.deepEqual(openedUrls, [
-        "https://cloudeval.ai/device/login?user_code=ABCD-EFGH",
+        "https://cloudeval.ai/device/login?user_code=ABCD-EFGH&prompt=select_account",
       ]);
     } finally {
       global.fetch = originalFetch;

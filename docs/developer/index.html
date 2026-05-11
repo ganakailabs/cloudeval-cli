@@ -88,7 +88,7 @@ cloudeval mcp serve --toolset readonly</code></pre>
       <p>MCP exposes recipe discovery through <code>cloudeval://recipes</code>, prompts matching recipe IDs, and tools such as <code>recipes_list</code>, <code>recipes_get</code>, <code>recipes_run</code>, <code>projects_list</code>, <code>reports_list</code>, <code>reports_cost</code>, <code>reports_waf</code>, <code>billing_usage</code>, <code>billing_invoices</code>, <code>credentials_templates</code>, <code>sessions_search</code>, <code>models_list</code>, <code>auth_status</code>, <code>status</code>, and <code>doctor</code>. Authenticate before the server starts; tool calls do not accept access keys as arguments.</p>
 
       <h2>Authentication and Automation</h2>
-      <p>Use device login for local development and scoped access keys for CI or long-running agent hosts. Prefer <code>--access-key-stdin</code> or <code>CLOUDEVAL_ACCESS_KEY</code>; <code>--access-key</code> warns because process arguments can leak. The CLI redacts sensitive identifiers and secret-shaped values by default.</p>
+      <p>Use device login for local development and scoped access keys for CI or long-running agent hosts. Device login opens <code>cloudeval.ai/device/login</code> with an account chooser hint so the browser auth provider asks which work email to use. Prefer <code>--access-key-stdin</code> or <code>CLOUDEVAL_ACCESS_KEY</code>; <code>--access-key</code> warns because process arguments can leak. The CLI redacts sensitive identifiers and secret-shaped values by default.</p>
       <pre><code>cloudeval login
 cloudeval auth status
 cloudeval credentials templates

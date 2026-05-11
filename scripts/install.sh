@@ -503,6 +503,18 @@ supported_mcp_clients() {
   printf '%s\n' "codex claude cursor vscode"
 }
 
+join_words() {
+  local separator="$1"
+  shift || true
+  local output=""
+  local item
+  for item in "$@"; do
+    [ -n "$item" ] || continue
+    output="${output:+${output}${separator}}${item}"
+  done
+  printf '%s\n' "$output"
+}
+
 normalize_mcp_client_selection() {
   local selected="$1"
   local detected="$2"
@@ -538,21 +550,14 @@ normalize_mcp_client_selection() {
 
 print_credentials_next_steps() {
   echo -e "${BLUE}Credentials for automation${NC}"
-  echo -e "  The installer does not create access keys or write secrets into MCP client config."
-  echo -e "  For local MCP, use ${GREEN}${BIN_NAME} login${NC}. For CI and hosted agents, create a project-scoped credential after login:"
-  echo -e "  ${GREEN}${BIN_NAME} projects list${NC}"
-  echo -e "  ${GREEN}${BIN_NAME} credentials templates${NC}"
-  echo -e "  ${GREEN}${BIN_NAME} credentials create --template ci --name agent-automation --project <project-id> --expires 90d --format github-actions${NC}"
-  echo -e "  The raw access key is printed once. Store it as ${GREEN}CLOUDEVAL_ACCESS_KEY${NC} or pipe it with ${GREEN}--access-key-stdin${NC}."
+  echo -e "  Local agents use ${GREEN}${BIN_NAME} login${NC}; CI uses scoped ${GREEN}CLOUDEVAL_ACCESS_KEY${NC} credentials."
+  echo -e "  Create later: ${GREEN}${BIN_NAME} credentials create --template ci --project <project-id> --expires 90d${NC}"
 }
 
 print_agent_setup_next_steps() {
-  echo -e "${BLUE}Agent and IDE setup${NC}"
+  echo -e "${BLUE}Agent setup later${NC}"
   echo -e "  ${GREEN}${BIN_NAME} login${NC}"
-  echo -e "  ${GREEN}${BIN_NAME} mcp setup codex --dry-run --toolset readonly${NC}"
-  echo -e "  ${GREEN}${BIN_NAME} mcp setup claude --dry-run --toolset readonly${NC}"
-  echo -e "  ${GREEN}${BIN_NAME} mcp setup cursor --dry-run --toolset readonly${NC}"
-  echo -e "  ${GREEN}${BIN_NAME} mcp setup vscode --dry-run --toolset readonly${NC}"
+  echo -e "  ${GREEN}${BIN_NAME} mcp setup <codex|claude|cursor|vscode> --toolset readonly${NC}"
   echo ""
   print_credentials_next_steps
 }
@@ -596,6 +601,37 @@ setup_mcp_client() {
   esac
 }
 
+print_mcp_setup_summary() {
+  local configured="$1"
+  local manual="$2"
+  local failed="$3"
+  local selected="$4"
+
+  echo ""
+  echo -e "${BLUE}MCP setup summary${NC}"
+  if [ -n "$configured" ]; then
+    echo -e "  ${GREEN}Configured:${NC} $(join_words ', ' $configured)"
+  fi
+  if [ -n "$manual" ]; then
+    echo -e "  ${YELLOW}Manual:${NC} $(join_words ', ' $manual)"
+  fi
+  if [ -n "$failed" ]; then
+    echo -e "  ${YELLOW}Failed:${NC} $(join_words ', ' $failed)"
+  fi
+  if [ -z "$configured$manual$failed" ]; then
+    echo -e "  ${YELLOW}No MCP clients configured.${NC}"
+  else
+    echo -e "  Toolset: ${GREEN}readonly${NC}"
+    echo -e "  Restart configured clients to load CloudEval tools."
+  fi
+  if [ -n "$manual$failed" ]; then
+    echo -e "  Retry: ${GREEN}${BIN_NAME} mcp setup <client> --toolset readonly${NC}"
+  fi
+  if [ -z "$selected" ]; then
+    echo -e "  Later: ${GREEN}${BIN_NAME} mcp setup <codex|claude|cursor|vscode> --toolset readonly${NC}"
+  fi
+}
+
 run_optional_agent_setup() {
   if [ "${CLOUDEVAL_INSTALL_AGENT_SETUP:-1}" = "0" ]; then
     return 0
@@ -603,15 +639,14 @@ run_optional_agent_setup() {
 
   echo ""
   echo -e "${BLUE}CloudEval for agents${NC}"
-  echo -e "  MCP exposes CloudEval tools, recipes, and prompts for Codex, Claude, Cursor, VS Code, and other clients."
-  echo -e "  Skills available: ${GREEN}cloudeval-cloud-cost-review, cloudeval-well-architected-framework-review, cloudeval-architecture-review, cloudeval-report-summary, cloudeval-project-healthcheck, cloudeval-billing-review, cloudeval-credential-rotation, cloudeval-architecture-diagram-export, cloudeval-dependency-diagram-export, cloudeval-mcp-setup${NC}"
+  echo -e "  MCP adds CloudEval tools, recipes, and prompts to Codex, Claude, Cursor, and VS Code."
 
   local detected
   detected="$(detect_mcp_clients)"
   if [ -n "$detected" ]; then
-    echo -e "  Detected clients: ${GREEN}${detected}${NC}"
+    echo -e "  Detected: ${GREEN}${detected}${NC}"
   else
-    echo -e "  Detected clients: ${YELLOW}none${NC}"
+    echo -e "  Detected: ${YELLOW}none${NC}"
   fi
 
   if ! can_prompt_on_tty; then
@@ -635,10 +670,10 @@ run_optional_agent_setup() {
   local selected="${CLOUDEVAL_INSTALL_MCP_CLIENTS:-}"
   if [ -z "$selected" ]; then
     if [ -n "$detected" ]; then
-      read -r -p "$(echo -e "${BLUE}Set up MCP for which clients? Use 'detected', 'all', comma-separated names, or 'skip' [detected]: ${NC}")" selected < /dev/tty || selected=""
+      read -r -p "$(echo -e "${BLUE}MCP clients? detected/all/codex,cursor/skip [detected]: ${NC}")" selected < /dev/tty || selected=""
       selected="${selected:-detected}"
     else
-      read -r -p "$(echo -e "${BLUE}Set up MCP for which clients? Use 'all', codex,claude,cursor,vscode, or 'skip' [skip]: ${NC}")" selected < /dev/tty || selected=""
+      read -r -p "$(echo -e "${BLUE}MCP clients? all/codex,cursor/skip [skip]: ${NC}")" selected < /dev/tty || selected=""
       selected="${selected:-skip}"
     fi
   fi
@@ -650,18 +685,32 @@ run_optional_agent_setup() {
   fi
 
   local client
+  local configured=""
+  local manual=""
+  local failed=""
+  local log_file
+  local log_dir
+  log_dir="$(mktemp -d "${TMPDIR:-/tmp}/cloudeval-mcp-setup.XXXXXX")"
   for client in $normalized; do
-    echo ""
-    echo -e "${BLUE}Setting up MCP for ${client}...${NC}"
-    if setup_mcp_client "$client"; then
-      echo -e "${GREEN}✓ MCP setup step completed for ${client}${NC}"
+    if [ "$client" = "vscode" ] && ! command -v code >/dev/null 2>&1; then
+      echo -e "  ${YELLOW}• vscode${NC} ${MUTED}manual; VS Code 'code' command not found${NC}"
+      manual="$(append_unique_client "$manual" "$client")"
+      continue
+    fi
+
+    log_file="$log_dir/${client}.log"
+    if setup_mcp_client "$client" >"$log_file" 2>&1; then
+      echo -e "  ${GREEN}✓ ${client}${NC}"
+      configured="$(append_unique_client "$configured" "$client")"
     else
-      echo -e "${YELLOW}⚠ MCP setup failed for ${client}. Run: ${BIN_NAME} mcp setup ${client} --dry-run --toolset readonly${NC}"
+      echo -e "  ${YELLOW}⚠ ${client}${NC} ${MUTED}setup failed${NC}"
+      failed="$(append_unique_client "$failed" "$client")"
     fi
   done
+  rm -rf "$log_dir"
 
-  echo ""
   print_credentials_next_steps
+  print_mcp_setup_summary "$configured" "$manual" "$failed" "$normalized"
 }
 
 REPO="ganakailabs/cloudeval-cli"
@@ -675,6 +724,16 @@ fi
 
 if [ "${1:-}" = "--self-test-agent-selection" ]; then
   normalize_mcp_client_selection "${2:-}" "${3:-}"
+  exit 0
+fi
+
+if [ "${1:-}" = "--self-test-agent-next-steps" ]; then
+  print_agent_setup_next_steps
+  exit 0
+fi
+
+if [ "${1:-}" = "--self-test-mcp-summary" ]; then
+  print_mcp_setup_summary "${2:-}" "${3:-}" "${4:-}" "${5:-}"
   exit 0
 fi
 

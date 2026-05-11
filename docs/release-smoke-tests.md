@@ -59,7 +59,9 @@ The smoke script verifies:
   running login, creating credentials, or writing MCP client config in CI.
 - Interactive update/install flows can offer optional MCP onboarding for
   detected, all, or selected clients; unattended `--yes`/CI flows skip the
-  prompt unless explicitly configured.
+  prompt unless explicitly configured. MCP onboarding keeps per-client output
+  concise and ends with a summary instead of printing full setup tables during
+  installation.
 - The installed CLI resolves from `PATH`.
 - Release binary version matches the resolved release tag.
 - `cloudeval --help` renders command help.
@@ -79,7 +81,9 @@ The smoke script verifies:
 Authenticated smoke coverage should use a stored `cloudeval login` session. For
 new, incomplete, or deleted-and-recreated accounts, `cloudeval login --verbose`
 should authenticate through `cloudeval.ai/device/login` and show the CLI
-onboarding steps in an interactive terminal. `cloudeval login --headless
+onboarding steps in an interactive terminal. The login approval URL should carry
+an account chooser hint so the browser auth provider does not silently reuse the
+wrong signed-in account. `cloudeval login --headless
 --verbose` should run quick Playground setup and leave `cloudeval projects list
 --format json` able to resolve the default Playground without a follow-up repair
 from `cloudeval ask`.

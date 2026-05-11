@@ -121,6 +121,24 @@ esac
 
 echo "ok - installer download path has timeouts and compressed asset preference"
 
+progress_line="$(
+  bash "$ROOT_DIR/scripts/install.sh" --self-test-progress-line cloudeval-macos-arm64.gz "######################################################################## 100.0%"
+)"
+
+if [[ "$progress_line" != *"cloudeval-macos-arm64.gz"* || "$progress_line" != *"=================================="* || "$progress_line" != *"] 100%"* ]]; then
+  echo "installer progress line should render a compact labeled progress bar" >&2
+  echo "progress: $progress_line" >&2
+  exit 1
+fi
+
+if [[ "$progress_line" == *"########"* ]]; then
+  echo "installer progress line should not expose curl's raw hash bar" >&2
+  echo "progress: $progress_line" >&2
+  exit 1
+fi
+
+echo "ok - installer download progress uses compact labeled bars"
+
 for workflow in "$ROOT_DIR/.github/workflows/semantic-release.yml" "$ROOT_DIR/.github/workflows/release.yml"; do
   if ! grep -q "Create compressed assets" "$workflow"; then
     echo "release workflow is missing compressed asset generation: $workflow" >&2

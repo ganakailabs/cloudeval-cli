@@ -52,6 +52,7 @@ The installer:
 - can install shell completions for bash, zsh, and fish;
 - can offer MCP setup for detected Codex, Claude Desktop, Cursor, and VS Code clients;
 - explains credential setup but does not create access keys or write secrets into MCP client config;
+- shows compact labeled progress bars in interactive terminals;
 - uses connect/stall timeouts so slow CDN transfers fail clearly.
 
 Useful controls:

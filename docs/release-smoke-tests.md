@@ -113,9 +113,9 @@ repository. `CLOUDEVAL_SMOKE_ARTIFACT_ROOT` changes that temporary parent.
 `CLOUDEVAL_SMOKE_ARTIFACT_DIR` uses an explicit directory and preserves it; use
 a path outside the repository for real-backend runs.
 
-The installer shows curl progress in interactive terminals. CI smoke runs keep
-downloads quiet by default, but still inherit the same connect, max-time, and
-stall detection checks.
+The installer shows compact labeled progress bars in interactive terminals. CI
+smoke runs keep downloads quiet by default, but still inherit the same connect,
+max-time, and stall detection checks.
 
 `CLOUDEVAL_INSTALL_AGENT_SETUP=0` disables installer onboarding. When enabled,
 `CLOUDEVAL_INSTALL_MCP_CLIENTS` can preselect `detected`, `all`, or a

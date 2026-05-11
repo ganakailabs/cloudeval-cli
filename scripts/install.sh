@@ -6,6 +6,7 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
+MUTED='\033[0;90m'
 BANNER_TOP='\033[1;38;5;220m'
 BANNER_UPPER='\033[1;38;5;214m'
 BANNER_MIDDLE='\033[1;38;5;208m'
@@ -178,6 +179,106 @@ curl_should_show_progress() {
     && [ -r /dev/tty ]
 }
 
+repeat_char() {
+  local count="$1"
+  local char="$2"
+  local output=""
+
+  while [ "$count" -gt 0 ]; do
+    output="${output}${char}"
+    count=$((count - 1))
+  done
+  printf '%s' "$output"
+}
+
+curl_progress_payload() {
+  local raw="$1"
+  [[ "$raw" == *"#"* || "$raw" == *"%"* ]]
+}
+
+render_download_progress_snapshot() {
+  local label="$1"
+  local raw="$2"
+  local width="${3:-${CLOUDEVAL_PROGRESS_WIDTH:-34}}"
+  local percent=""
+  local hashes=""
+  local hash_count=0
+  local curl_columns="${CLOUDEVAL_CURL_PROGRESS_COLUMNS:-72}"
+  local filled=0
+  local empty=0
+  local filled_bar=""
+  local empty_bar=""
+
+  if [[ "$raw" =~ ([0-9][0-9]?[0-9]?)(\.[0-9]+)?% ]]; then
+    percent="${BASH_REMATCH[1]}"
+  else
+    hashes="${raw//[^#]/}"
+    hash_count="${#hashes}"
+    percent=$((hash_count * 100 / curl_columns))
+  fi
+
+  if [ "$percent" -lt 0 ]; then
+    percent=0
+  elif [ "$percent" -gt 100 ]; then
+    percent=100
+  fi
+
+  filled=$((percent * width / 100))
+  empty=$((width - filled))
+  filled_bar="$(repeat_char "$filled" "=")"
+  empty_bar="$(repeat_char "$empty" ".")"
+
+  printf '\r\033[2K  %b%-30s%b [%b%s%b%s%b] %3d%%' \
+    "$BLUE" "$label" "$NC" \
+    "$GREEN" "$filled_bar" "$MUTED" "$empty_bar" "$NC" \
+    "$percent" >&2
+}
+
+format_curl_progress() {
+  local label="$1"
+  local char=""
+  local raw=""
+  local rendered=0
+
+  while IFS= read -r -n 1 char; do
+    case "$char" in
+      $'\r'|$'\n')
+        if [ -n "$raw" ]; then
+          if curl_progress_payload "$raw"; then
+            render_download_progress_snapshot "$label" "$raw"
+            rendered=1
+          else
+            [ "$rendered" = "1" ] && printf '\r\033[2K' >&2
+            printf '%s\n' "$raw" >&2
+            rendered=0
+          fi
+        fi
+        raw=""
+        ;;
+      *)
+        raw="${raw}${char}"
+        if curl_progress_payload "$raw"; then
+          render_download_progress_snapshot "$label" "$raw"
+          rendered=1
+        fi
+        ;;
+    esac
+  done
+
+  if [ -n "$raw" ]; then
+    if curl_progress_payload "$raw"; then
+      render_download_progress_snapshot "$label" "$raw"
+      rendered=1
+    else
+      [ "$rendered" = "1" ] && printf '\r\033[2K' >&2
+      printf '%s\n' "$raw" >&2
+      rendered=0
+    fi
+  fi
+
+  [ "$rendered" = "1" ] && printf '\n' >&2
+}
+
 curl_download_file() {
   local url="$1"
   local dest="$2"
@@ -200,10 +301,14 @@ curl_download_file() {
 
   while [ "$attempt" -le "$attempts" ]; do
     if [ "$attempts" -gt 1 ]; then
-      echo -e "${BLUE}${label} download attempt ${attempt}/${attempts}${NC}" >&2
+      echo -e "${BLUE}${label}${NC} ${MUTED}(attempt ${attempt}/${attempts})${NC}" >&2
     fi
 
-    if curl "${curl_args[@]}" "$url" -o "$dest"; then
+    if curl_should_show_progress; then
+      if curl "${curl_args[@]}" "$url" -o "$dest" 2> >(format_curl_progress "$label"); then
+        return 0
+      fi
+    elif curl "${curl_args[@]}" "$url" -o "$dest"; then
       return 0
     fi
 
@@ -589,6 +694,12 @@ if [ "${1:-}" = "--self-test-download-plan" ]; then
   asset="${2:-cloudeval-macos-arm64}"
   printf '%s\n' "$(asset_url "${asset}.gz")"
   printf '%s\n' "$(asset_url "$asset")"
+  exit 0
+fi
+
+if [ "${1:-}" = "--self-test-progress-line" ]; then
+  render_download_progress_snapshot "${2:-cloudeval-macos-arm64.gz}" "${3:-######################################################################## 100.0%}" 2>&1
+  printf '\n'
   exit 0
 fi
 

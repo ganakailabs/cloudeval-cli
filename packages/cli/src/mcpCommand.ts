@@ -9,13 +9,27 @@ import {
   type FrontendTarget,
 } from "./frontendLinks.js";
 import { getFirstNameForDisplay } from "./ui/userDisplayName.js";
-import { getCliConfigPath, loadCliConfig, normalizeConfigProfile } from "./cliConfig.js";
-import { recordSessionTurn } from "./sessionsStore.js";
+import {
+  getCliConfigPath,
+  listCliConfigProfiles,
+  loadCliConfig,
+  normalizeConfigProfile,
+  readCliConfigValue,
+  saveCliConfig,
+} from "./cliConfig.js";
+import {
+  exportSessions,
+  getSession,
+  listSessions,
+  recordSessionTurn,
+  searchSessions,
+} from "./sessionsStore.js";
 import { CLI_VERSION } from "./version.js";
 import {
   getRecipe,
   recipes,
   recipeSummary,
+  renderRecipeCommands,
   renderRecipePrompt,
 } from "./recipes/catalog.js";
 import {
@@ -413,6 +427,120 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
     },
   },
   {
+    name: "models_default_get",
+    title: "Get Default Model",
+    description: "Return the configured default model for the selected CLI profile.",
+    inputSchema: makeInputSchema({}),
+    outputSchema: envelopeSchema,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: false,
+      requiresAuth: false,
+    },
+  },
+  {
+    name: "models_default_set",
+    title: "Set Default Model",
+    description: "Set the configured default model for the selected CLI profile.",
+    inputSchema: makeInputSchema(
+      {
+        model: { type: "string", description: "Model id or name to store." },
+      },
+      ["model"],
+    ),
+    outputSchema: envelopeSchema,
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      openWorldHint: false,
+      requiresAuth: false,
+    },
+  },
+  {
+    name: "sessions_list",
+    title: "List Sessions",
+    description: "List local CloudEval CLI session history summaries.",
+    inputSchema: makeInputSchema({
+      limit: { type: "number", default: 20 },
+    }),
+    outputSchema: envelopeSchema,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: false,
+      requiresAuth: false,
+      mayExposeSensitiveData: true,
+    },
+  },
+  {
+    name: "sessions_get",
+    title: "Get Session",
+    description: "Return one local CloudEval CLI session by thread id.",
+    inputSchema: makeInputSchema(
+      {
+        threadId: { type: "string", description: "Local session thread id." },
+      },
+      ["threadId"],
+    ),
+    outputSchema: envelopeSchema,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: false,
+      requiresAuth: false,
+      mayExposeSensitiveData: true,
+    },
+  },
+  {
+    name: "sessions_search",
+    title: "Search Sessions",
+    description: "Search local CloudEval CLI session titles and messages.",
+    inputSchema: makeInputSchema(
+      {
+        query: { type: "string", description: "Search query." },
+        limit: { type: "number", default: 20 },
+      },
+      ["query"],
+    ),
+    outputSchema: envelopeSchema,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: false,
+      requiresAuth: false,
+      mayExposeSensitiveData: true,
+    },
+  },
+  {
+    name: "sessions_export",
+    title: "Export Sessions",
+    description: "Return local CloudEval CLI session history for the selected profile.",
+    inputSchema: makeInputSchema({}),
+    outputSchema: envelopeSchema,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: false,
+      requiresAuth: false,
+      mayExposeSensitiveData: true,
+    },
+  },
+  {
+    name: "identity_get",
+    title: "Get Identity",
+    description: "Return CloudEval identity and capability metadata for the active credential.",
+    inputSchema: makeInputSchema({}),
+    outputSchema: envelopeSchema,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: true,
+      requiresAuth: true,
+      mayExposeSensitiveData: true,
+    },
+  },
+  {
     name: "auth_status",
     title: "Auth Status",
     description: "Return local CloudEval authentication status.",
@@ -463,6 +591,156 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
     },
   },
   {
+    name: "config_show",
+    title: "Show Config",
+    description: "Return the selected CloudEval CLI profile configuration.",
+    inputSchema: makeInputSchema({}),
+    outputSchema: envelopeSchema,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: false,
+      requiresAuth: false,
+      mayExposeSensitiveData: true,
+    },
+  },
+  {
+    name: "config_get",
+    title: "Get Config Value",
+    description: "Return one setting from the selected CloudEval CLI profile.",
+    inputSchema: makeInputSchema(
+      {
+        key: { type: "string", description: "Config key." },
+      },
+      ["key"],
+    ),
+    outputSchema: envelopeSchema,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: false,
+      requiresAuth: false,
+      mayExposeSensitiveData: true,
+    },
+  },
+  {
+    name: "config_profiles",
+    title: "List Config Profiles",
+    description: "Return CloudEval CLI config profile names.",
+    inputSchema: makeInputSchema({}),
+    outputSchema: envelopeSchema,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: false,
+      requiresAuth: false,
+    },
+  },
+  {
+    name: "credentials_templates",
+    title: "Credential Templates",
+    description: "List CloudEval access-key credential templates.",
+    inputSchema: makeInputSchema({}),
+    outputSchema: envelopeSchema,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: true,
+      requiresAuth: true,
+    },
+  },
+  {
+    name: "credentials_list",
+    title: "List Credentials",
+    description: "List CloudEval access-key credentials, optionally scoped by project.",
+    inputSchema: makeInputSchema({
+      projectId: projectIdProperty,
+    }),
+    outputSchema: envelopeSchema,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: true,
+      requiresAuth: true,
+      mayExposeSensitiveData: true,
+    },
+  },
+  {
+    name: "credentials_inspect",
+    title: "Inspect Credential",
+    description: "Inspect a CloudEval access-key credential by id.",
+    inputSchema: makeInputSchema(
+      {
+        credentialId: { type: "string", description: "Credential id." },
+      },
+      ["credentialId"],
+    ),
+    outputSchema: envelopeSchema,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: true,
+      requiresAuth: true,
+      mayExposeSensitiveData: true,
+    },
+  },
+  {
+    name: "credentials_create",
+    title: "Create Credential",
+    description:
+      "Create a scoped CloudEval access-key credential. Secret values are redacted unless showSecret is true.",
+    inputSchema: makeInputSchema(
+      {
+        template: { type: "string", description: "Credential template id." },
+        name: { type: "string", description: "Credential name." },
+        projectId: projectIdProperty,
+        expires: { type: "string", description: "Expiration duration, for example 90d." },
+        capabilities: {
+          oneOf: [
+            { type: "string" },
+            { type: "array", items: { type: "string" } },
+          ],
+        },
+        idempotencyKey: { type: "string" },
+        showSecret: {
+          type: "boolean",
+          description: "Return the one-time access key secret. Defaults to false.",
+          default: false,
+        },
+      },
+      ["template", "name", "projectId"],
+    ),
+    outputSchema: envelopeSchema,
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      openWorldHint: true,
+      requiresAuth: true,
+      mayExposeSensitiveData: true,
+    },
+  },
+  {
+    name: "credentials_revoke",
+    title: "Revoke Credential",
+    description: "Revoke a CloudEval access-key credential.",
+    inputSchema: makeInputSchema(
+      {
+        credentialId: { type: "string", description: "Credential id." },
+        reason: { type: "string", description: "Revocation reason." },
+        idempotencyKey: { type: "string" },
+      },
+      ["credentialId"],
+    ),
+    outputSchema: envelopeSchema,
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      openWorldHint: true,
+      requiresAuth: true,
+      mayExposeSensitiveData: true,
+    },
+  },
+  {
     name: "recipes_list",
     title: "List Recipes",
     description: "List CloudEval reusable recipes and their safety metadata.",
@@ -508,6 +786,8 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
           description: "CloudEval recipe id.",
         },
         projectId: projectIdProperty,
+        connectionId: { type: "string" },
+        credentialId: { type: "string" },
         range: {
           type: "string",
           description: "Usage/report range such as 7d, 30d, 90d, or all.",
@@ -520,6 +800,9 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
         provider: { type: "string" },
         name: { type: "string" },
         outputPath: { type: "string" },
+        outputDir: { type: "string" },
+        client: { type: "string" },
+        layout: { type: "string" },
         model: { type: "string" },
         threadId: { type: "string" },
       },
@@ -548,6 +831,85 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
         description: "Report kind filter.",
         default: "all",
       },
+    }),
+    outputSchema: envelopeSchema,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: true,
+      requiresAuth: true,
+      mayExposeSensitiveData: true,
+    },
+  },
+  {
+    name: "reports_show",
+    title: "Show Report",
+    description: "Fetch one CloudEval report by id for a project.",
+    inputSchema: makeInputSchema(
+      {
+        reportId: { type: "string", description: "CloudEval report id." },
+        projectId: projectIdProperty,
+        view: {
+          type: "string",
+          enum: ["raw", "parsed", "formatted"],
+          default: "formatted",
+        },
+      },
+      ["reportId"],
+    ),
+    outputSchema: envelopeSchema,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: true,
+      requiresAuth: true,
+      mayExposeSensitiveData: true,
+    },
+  },
+  {
+    name: "reports_cost",
+    title: "Latest Cost Report",
+    description: "Fetch the latest normalized CloudEval cost report for a project.",
+    inputSchema: makeInputSchema({
+      projectId: projectIdProperty,
+      period: { type: "string", default: "30d" },
+      view: { type: "string", description: "Cost view hint such as overview or raw." },
+    }),
+    outputSchema: envelopeSchema,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: true,
+      requiresAuth: true,
+      mayExposeSensitiveData: true,
+    },
+  },
+  {
+    name: "reports_waf",
+    title: "Latest WAF Report",
+    description: "Fetch the latest normalized Well-Architected report for a project.",
+    inputSchema: makeInputSchema({
+      projectId: projectIdProperty,
+      reportId: { type: "string", description: "Optional report id." },
+      severity: { type: "string", description: "Optional severity filter." },
+      view: { type: "string", description: "WAF view hint such as overview, rules, or raw." },
+    }),
+    outputSchema: envelopeSchema,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: true,
+      requiresAuth: true,
+      mayExposeSensitiveData: true,
+    },
+  },
+  {
+    name: "reports_rules",
+    title: "WAF Rules",
+    description: "Return WAF rule findings from the latest CloudEval WAF report.",
+    inputSchema: makeInputSchema({
+      projectId: projectIdProperty,
+      severity: { type: "string", description: "Optional severity filter." },
     }),
     outputSchema: envelopeSchema,
     annotations: {
@@ -751,6 +1113,64 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
     },
   },
   {
+    name: "billing_invoices",
+    title: "Billing Invoices",
+    description: "Return CloudEval subscription invoice or billing-info records.",
+    inputSchema: makeInputSchema({
+      limit: { type: "number", default: 25 },
+    }),
+    outputSchema: envelopeSchema,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: true,
+      requiresAuth: true,
+      mayExposeSensitiveData: true,
+    },
+  },
+  {
+    name: "billing_notifications",
+    title: "Billing Notifications",
+    description: "Return CloudEval billing notifications for the authenticated account.",
+    inputSchema: makeInputSchema({
+      limit: { type: "number", default: 25 },
+    }),
+    outputSchema: envelopeSchema,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: true,
+      requiresAuth: true,
+      mayExposeSensitiveData: true,
+    },
+  },
+  {
+    name: "billing_topup_checkout",
+    title: "Create Top-up Checkout",
+    description:
+      "Create a checkout session for a selected top-up pack. This is explicit and externally visible.",
+    inputSchema: makeInputSchema(
+      {
+        packId: { type: "string", description: "Top-up pack id." },
+        preferredCurrency: { type: "string" },
+        countryCode: { type: "string" },
+        contactEmail: { type: "string" },
+        contactPhone: { type: "string" },
+        contactCountryCode: { type: "string" },
+        returnTo: { type: "string" },
+      },
+      ["packId"],
+    ),
+    outputSchema: envelopeSchema,
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      openWorldHint: true,
+      requiresAuth: true,
+      mayExposeSensitiveData: true,
+    },
+  },
+  {
     name: "open_url",
     title: "Build Frontend URL",
     description:
@@ -849,6 +1269,10 @@ const MCP_TOOL_ALIASES: Record<string, string> = {
   "connections.list": "connections_list",
   "connections.get": "connections_get",
   "reports.list": "reports_list",
+  "reports.show": "reports_show",
+  "reports.cost": "reports_cost",
+  "reports.waf": "reports_waf",
+  "reports.rules": "reports_rules",
   "reports.run": "reports_run",
   "reports.download": "reports_download",
   "billing.summary": "billing_summary",
@@ -856,8 +1280,26 @@ const MCP_TOOL_ALIASES: Record<string, string> = {
   "billing.ledger": "billing_ledger",
   "billing.plans": "billing_plans",
   "billing.topups": "billing_topups",
+  "billing.invoices": "billing_invoices",
+  "billing.notifications": "billing_notifications",
+  "billing.topupCheckout": "billing_topup_checkout",
   "models.list": "models_list",
+  "models.defaultGet": "models_default_get",
+  "models.defaultSet": "models_default_set",
+  "sessions.list": "sessions_list",
+  "sessions.get": "sessions_get",
+  "sessions.search": "sessions_search",
+  "sessions.export": "sessions_export",
+  "identity.get": "identity_get",
   "auth.status": "auth_status",
+  "config.show": "config_show",
+  "config.get": "config_get",
+  "config.profiles": "config_profiles",
+  "credentials.templates": "credentials_templates",
+  "credentials.list": "credentials_list",
+  "credentials.inspect": "credentials_inspect",
+  "credentials.create": "credentials_create",
+  "credentials.revoke": "credentials_revoke",
   "recipes.list": "recipes_list",
   "recipes.get": "recipes_get",
   "recipes.run": "recipes_run",
@@ -873,15 +1315,33 @@ const MCP_TOOLSETS: Record<McpToolsetName, readonly string[]> = {
     "connections_list",
     "connections_get",
     "reports_list",
+    "reports_show",
+    "reports_cost",
+    "reports_waf",
+    "reports_rules",
     "billing_summary",
     "billing_usage",
     "billing_ledger",
     "billing_plans",
     "billing_topups",
+    "billing_invoices",
+    "billing_notifications",
     "models_list",
+    "models_default_get",
+    "sessions_list",
+    "sessions_get",
+    "sessions_search",
+    "sessions_export",
+    "identity_get",
     "auth_status",
     "status",
     "doctor",
+    "config_show",
+    "config_get",
+    "config_profiles",
+    "credentials_templates",
+    "credentials_list",
+    "credentials_inspect",
     "recipes_list",
     "recipes_get",
   ],
@@ -901,6 +1361,10 @@ const MCP_TOOLSETS: Record<McpToolsetName, readonly string[]> = {
     "projects_list",
     "projects_get",
     "reports_list",
+    "reports_show",
+    "reports_cost",
+    "reports_waf",
+    "reports_rules",
     "reports_run",
     "reports_download",
     "recipes_list",
@@ -914,6 +1378,9 @@ const MCP_TOOLSETS: Record<McpToolsetName, readonly string[]> = {
     "billing_ledger",
     "billing_plans",
     "billing_topups",
+    "billing_invoices",
+    "billing_notifications",
+    "billing_topup_checkout",
     "open_url",
   ],
 };
@@ -991,16 +1458,13 @@ const MCP_RESOURCE_TOOL_REQUIREMENTS: Record<string, readonly string[]> = {
   "cloudeval://recipes": ["recipes_list"],
 };
 
-const MCP_PROMPT_TOOL_REQUIREMENTS: Record<string, readonly string[]> = {
-  "cost-review": ["reports_list", "billing_usage", "ask"],
-  "waf-triage": ["reports_list", "ask"],
-  "architecture-review": ["projects_get", "reports_list", "ask"],
-  "template-project-review": ["projects_list", "reports_run", "ask"],
-  "report-summary": ["reports_list", "reports_download", "ask"],
-  "billing-review": ["billing_summary", "billing_usage", "billing_ledger", "billing_topups"],
-  "diagram-export": ["projects_export_diagram"],
-  "mcp-setup": ["recipes_run"],
-};
+const promptRequirementTools = (tools: string[]): string[] =>
+  tools.filter((tool) => tool !== "ask" && tool !== "recipes_run");
+
+const MCP_PROMPT_TOOL_REQUIREMENTS: Record<string, readonly string[]> =
+  Object.fromEntries(
+    recipes.map((recipe) => [recipe.id, promptRequirementTools(recipe.mcpTools)])
+  );
 
 const hasRequiredTools = (
   requiredTools: readonly string[] | undefined,
@@ -1551,6 +2015,75 @@ const downloadReports = async (
   });
 };
 
+const resolveMcpReportProjectId = async (
+  config: InvocationConfig,
+  args: JsonRecord,
+  auth: Awaited<ReturnType<typeof resolveAuth>>,
+): Promise<string> =>
+  resolveReportProjectId({
+    baseUrl: config.baseUrl,
+    token: auth.token,
+    requestedProjectId: stringValue(args.projectId) ?? config.defaultProjectId,
+    workspace: {
+      checkUserStatus: auth.core.checkUserStatus,
+      getProjects: auth.core.getProjects,
+    },
+  });
+
+const arrayValue = (value: unknown): string[] | undefined => {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => (typeof item === "string" ? item.trim() : ""))
+      .filter(Boolean);
+  }
+  if (typeof value === "string") {
+    const parsed = value.split(",").map((item) => item.trim()).filter(Boolean);
+    return parsed.length ? parsed : undefined;
+  }
+  return undefined;
+};
+
+const boundedLimit = (value: unknown, fallback: number, max: number): number =>
+  Math.max(1, Math.min(max, Math.floor(numberValue(value) ?? fallback)));
+
+const redactCredentialSecrets = (value: unknown): unknown => {
+  if (Array.isArray(value)) {
+    return value.map(redactCredentialSecrets);
+  }
+  if (!value || typeof value !== "object") {
+    return value;
+  }
+  const output: Record<string, unknown> = {};
+  for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
+    if (/^(access_?key|secret|token|api_?key|private_?key)$/i.test(key)) {
+      output[key] = "<redacted>";
+      continue;
+    }
+    output[key] = redactCredentialSecrets(item);
+  }
+  return output;
+};
+
+const rulesFromWafReport = (report: unknown): unknown[] => {
+  if (!report || typeof report !== "object") {
+    return [];
+  }
+  const record = report as Record<string, any>;
+  const candidates = [
+    record.parsed?.rules,
+    record.raw?.rules,
+    record.raw?.ruleResults,
+    record.raw?.all_rules,
+    record.all_rules,
+  ];
+  for (const candidate of candidates) {
+    if (Array.isArray(candidate)) {
+      return candidate;
+    }
+  }
+  return [];
+};
+
 const buildToolHandlers = (
   serverOptions: ServeMcpOptions,
 ): Map<string, ToolHandler> => {
@@ -1871,6 +2404,93 @@ const buildToolHandlers = (
     });
   });
 
+  handlers.set("models_default_get", async (args) => {
+    const config = await resolveInvocationConfig(serverOptions, args);
+    const current = await loadCliConfig(config.profile);
+    return withEnvelope({
+      command: "models default get",
+      data: { profile: config.profile, model: current.model ?? null },
+    });
+  });
+
+  handlers.set("models_default_set", async (args) => {
+    const model = stringValue(args.model);
+    if (!model) {
+      throw new Error("model is required.");
+    }
+    const config = await resolveInvocationConfig(serverOptions, args);
+    const current = await loadCliConfig(config.profile);
+    const next = { ...current, model };
+    const configPath = await saveCliConfig(next, config.profile);
+    return withEnvelope({
+      command: "models default set",
+      data: { profile: config.profile, path: configPath, model },
+    });
+  });
+
+  handlers.set("sessions_list", async (args) => {
+    const config = await resolveInvocationConfig(serverOptions, args);
+    const data = await listSessions(boundedLimit(args.limit, 20, 200), config.profile);
+    return withEnvelope({
+      command: "sessions list",
+      data,
+    });
+  });
+
+  handlers.set("sessions_get", async (args) => {
+    const threadId = stringValue(args.threadId);
+    if (!threadId) {
+      throw new Error("threadId is required.");
+    }
+    const config = await resolveInvocationConfig(serverOptions, args);
+    const data = await getSession(threadId, config.profile);
+    if (!data) {
+      throw new Error(`Session ${threadId} was not found.`);
+    }
+    return withEnvelope({
+      command: "sessions get",
+      data,
+    });
+  });
+
+  handlers.set("sessions_search", async (args) => {
+    const query = stringValue(args.query);
+    if (!query) {
+      throw new Error("query is required.");
+    }
+    const config = await resolveInvocationConfig(serverOptions, args);
+    const data = await searchSessions(query, {
+      profile: config.profile,
+      limit: boundedLimit(args.limit, 20, 200),
+    });
+    return withEnvelope({
+      command: "sessions search",
+      data,
+    });
+  });
+
+  handlers.set("sessions_export", async (args) => {
+    const config = await resolveInvocationConfig(serverOptions, args);
+    const data = await exportSessions(config.profile);
+    return withEnvelope({
+      command: "sessions export",
+      data,
+    });
+  });
+
+  handlers.set("identity_get", async (args) => {
+    const config = await resolveInvocationConfig(serverOptions, args);
+    const auth = await resolveAuth(config);
+    const data = await auth.core.getIdentity({
+      baseUrl: config.baseUrl,
+      authToken: auth.token,
+    });
+    return withEnvelope({
+      command: "identity",
+      data,
+    });
+  });
+
   handlers.set("auth_status", async (args) => {
     const config = await resolveInvocationConfig(serverOptions, args);
     const core = await import("@cloudeval/core");
@@ -1970,6 +2590,124 @@ const buildToolHandlers = (
     });
   });
 
+  handlers.set("config_show", async (args) => {
+    const config = await resolveInvocationConfig(serverOptions, args);
+    return withEnvelope({
+      command: "config show",
+      data: await loadCliConfig(config.profile),
+    });
+  });
+
+  handlers.set("config_get", async (args) => {
+    const key = stringValue(args.key);
+    if (!key) {
+      throw new Error("key is required.");
+    }
+    const config = await resolveInvocationConfig(serverOptions, args);
+    const data = await loadCliConfig(config.profile);
+    return withEnvelope({
+      command: "config get",
+      data: { key, value: readCliConfigValue(data, key) ?? null },
+    });
+  });
+
+  handlers.set("config_profiles", async () => {
+    return withEnvelope({
+      command: "config profiles",
+      data: await listCliConfigProfiles(),
+    });
+  });
+
+  handlers.set("credentials_templates", async (args) => {
+    const config = await resolveInvocationConfig(serverOptions, args);
+    const auth = await resolveAuth(config);
+    const data = await auth.core.getCredentialTemplates({
+      baseUrl: config.baseUrl,
+      authToken: auth.token,
+    });
+    return withEnvelope({
+      command: "credentials templates",
+      data,
+    });
+  });
+
+  handlers.set("credentials_list", async (args) => {
+    const config = await resolveInvocationConfig(serverOptions, args);
+    const auth = await resolveAuth(config);
+    const data = await auth.core.listCredentials({
+      baseUrl: config.baseUrl,
+      authToken: auth.token,
+      projectId: stringValue(args.projectId),
+    });
+    return withEnvelope({
+      command: "credentials list",
+      data,
+    });
+  });
+
+  handlers.set("credentials_inspect", async (args) => {
+    const credentialId = stringValue(args.credentialId);
+    if (!credentialId) {
+      throw new Error("credentialId is required.");
+    }
+    const config = await resolveInvocationConfig(serverOptions, args);
+    const auth = await resolveAuth(config);
+    const data = await auth.core.getCredential({
+      baseUrl: config.baseUrl,
+      authToken: auth.token,
+      credentialId,
+    });
+    return withEnvelope({
+      command: "credentials inspect",
+      data,
+    });
+  });
+
+  handlers.set("credentials_create", async (args) => {
+    const template = stringValue(args.template);
+    const name = stringValue(args.name);
+    const projectId = stringValue(args.projectId);
+    if (!template || !name || !projectId) {
+      throw new Error("template, name, and projectId are required.");
+    }
+    const config = await resolveInvocationConfig(serverOptions, args);
+    const auth = await resolveAuth(config);
+    const data = await auth.core.createCredential({
+      baseUrl: config.baseUrl,
+      authToken: auth.token,
+      template,
+      name,
+      projectId,
+      expires: stringValue(args.expires),
+      capabilities: arrayValue(args.capabilities),
+      idempotencyKey: stringValue(args.idempotencyKey) ?? randomUUID(),
+    });
+    return withEnvelope({
+      command: "credentials create",
+      data: booleanValue(args.showSecret) ? data : redactCredentialSecrets(data),
+    });
+  });
+
+  handlers.set("credentials_revoke", async (args) => {
+    const credentialId = stringValue(args.credentialId);
+    if (!credentialId) {
+      throw new Error("credentialId is required.");
+    }
+    const config = await resolveInvocationConfig(serverOptions, args);
+    const auth = await resolveAuth(config);
+    const data = await auth.core.revokeCredential({
+      baseUrl: config.baseUrl,
+      authToken: auth.token,
+      credentialId,
+      reason: stringValue(args.reason),
+      idempotencyKey: stringValue(args.idempotencyKey) ?? randomUUID(),
+    });
+    return withEnvelope({
+      command: "credentials revoke",
+      data,
+    });
+  });
+
   handlers.set("recipes_list", async () => {
     return withEnvelope({
       command: "recipes list",
@@ -2001,8 +2739,10 @@ const buildToolHandlers = (
     if (!recipe) {
       throw new Error(`Unknown recipe '${recipeId}'.`);
     }
-    const prompt = renderRecipePrompt(recipe, {
+    const recipeContext = {
       projectId: stringValue(args.projectId),
+      connectionId: stringValue(args.connectionId),
+      credentialId: stringValue(args.credentialId),
       range: stringValue(args.range),
       templateFile: stringValue(args.templateFile),
       templateUrl: stringValue(args.templateUrl),
@@ -2011,7 +2751,14 @@ const buildToolHandlers = (
       provider: stringValue(args.provider),
       name: stringValue(args.name),
       outputPath: stringValue(args.outputPath),
-    });
+      outputDir: stringValue(args.outputDir),
+      client: stringValue(args.client),
+      model: stringValue(args.model),
+      layout: stringValue(args.layout),
+      format: stringValue(args.format),
+    };
+    const prompt = renderRecipePrompt(recipe, recipeContext);
+    const commands = renderRecipeCommands(recipe, recipeContext);
     if (recipe.mode === "guide") {
       return withEnvelope({
         command: "recipes run",
@@ -2020,7 +2767,7 @@ const buildToolHandlers = (
           title: recipe.title,
           mode: recipe.mode,
           prompt,
-          commands: recipe.commands,
+          commands,
           safety: recipe.safety,
           expectedOutput: recipe.expectedOutput,
           note: "This recipe requires explicit user-run commands for side effects; no mutation was performed.",
@@ -2046,7 +2793,7 @@ const buildToolHandlers = (
         title: recipe.title,
         mode: recipe.mode,
         prompt,
-        commands: recipe.commands,
+        commands,
         safety: recipe.safety,
         ...(envelope.data as Record<string, unknown>),
       },
@@ -2058,16 +2805,7 @@ const buildToolHandlers = (
   handlers.set("reports_list", async (args) => {
     const config = await resolveInvocationConfig(serverOptions, args);
     const auth = await resolveAuth(config, { requireUser: true });
-    const projectId = await resolveReportProjectId({
-      baseUrl: config.baseUrl,
-      token: auth.token,
-      requestedProjectId:
-        stringValue(args.projectId) ?? config.defaultProjectId,
-      workspace: {
-        checkUserStatus: auth.core.checkUserStatus,
-        getProjects: auth.core.getProjects,
-      },
-    });
+    const projectId = await resolveMcpReportProjectId(config, args, auth);
     const kind = enumValue(args.kind, ["all", "cost", "waf"], "all");
     const reports = await auth.core.listReports({
       baseUrl: config.baseUrl,
@@ -2080,6 +2818,92 @@ const buildToolHandlers = (
       command: "reports list",
       data: reports,
       frontendUrl: reportsFrontendUrl(config, { projectId, type: kind }),
+    });
+  });
+
+  handlers.set("reports_show", async (args) => {
+    const reportId = stringValue(args.reportId);
+    if (!reportId) {
+      throw new Error("reportId is required.");
+    }
+    const config = await resolveInvocationConfig(serverOptions, args);
+    const auth = await resolveAuth(config, { requireUser: true });
+    const projectId = await resolveMcpReportProjectId(config, args, auth);
+    const view = enumValue<ReportView>(
+      args.view,
+      ["raw", "parsed", "formatted"],
+      "formatted",
+    );
+    const report = await auth.core.getReport({
+      baseUrl: config.baseUrl,
+      authToken: auth.token,
+      projectId,
+      reportId,
+      view,
+      userId: auth.user?.id,
+    });
+    return withEnvelope({
+      command: "reports show",
+      data: report,
+      frontendUrl: reportsFrontendUrl(config, { projectId }),
+    });
+  });
+
+  handlers.set("reports_cost", async (args) => {
+    const config = await resolveInvocationConfig(serverOptions, args);
+    const auth = await resolveAuth(config, { requireUser: true });
+    const projectId = await resolveMcpReportProjectId(config, args, auth);
+    const report = await auth.core.getCostReport({
+      baseUrl: config.baseUrl,
+      authToken: auth.token,
+      projectId,
+      period: stringValue(args.period) ?? "30d",
+      view: stringValue(args.view),
+      userId: auth.user?.id,
+    });
+    return withEnvelope({
+      command: "reports cost",
+      data: report,
+      frontendUrl: reportsFrontendUrl(config, { projectId, type: "cost" }),
+    });
+  });
+
+  handlers.set("reports_waf", async (args) => {
+    const config = await resolveInvocationConfig(serverOptions, args);
+    const auth = await resolveAuth(config, { requireUser: true });
+    const projectId = await resolveMcpReportProjectId(config, args, auth);
+    const report = await auth.core.getWafReport({
+      baseUrl: config.baseUrl,
+      authToken: auth.token,
+      projectId,
+      reportId: stringValue(args.reportId),
+      severity: stringValue(args.severity),
+      view: stringValue(args.view),
+      userId: auth.user?.id,
+    });
+    return withEnvelope({
+      command: "reports waf",
+      data: report,
+      frontendUrl: reportsFrontendUrl(config, { projectId, type: "waf" }),
+    });
+  });
+
+  handlers.set("reports_rules", async (args) => {
+    const config = await resolveInvocationConfig(serverOptions, args);
+    const auth = await resolveAuth(config, { requireUser: true });
+    const projectId = await resolveMcpReportProjectId(config, args, auth);
+    const report = await auth.core.getWafReport({
+      baseUrl: config.baseUrl,
+      authToken: auth.token,
+      projectId,
+      severity: stringValue(args.severity),
+      view: "rules",
+      userId: auth.user?.id,
+    });
+    return withEnvelope({
+      command: "reports rules",
+      data: rulesFromWafReport(report),
+      frontendUrl: reportsFrontendUrl(config, { projectId, type: "waf" }),
     });
   });
 
@@ -2280,6 +3104,79 @@ const buildToolHandlers = (
     });
   });
 
+  handlers.set("billing_invoices", async (args) => {
+    const config = await resolveInvocationConfig(serverOptions, args);
+    const auth = await resolveAuth(config, { requireUser: true });
+    const data = await auth.core.getSubscriptionBillingInfo({
+      baseUrl: config.baseUrl,
+      authToken: auth.token,
+      limit: boundedLimit(args.limit, 25, 50),
+    });
+    const frontendUrl = buildFrontendUrl({
+      baseUrl: frontendBase(config),
+      target: "billing",
+      tab: "billing",
+    });
+    return withEnvelope({
+      command: "billing invoices",
+      data,
+      frontendUrl,
+    });
+  });
+
+  handlers.set("billing_notifications", async (args) => {
+    const config = await resolveInvocationConfig(serverOptions, args);
+    const auth = await resolveAuth(config, { requireUser: true });
+    const data = await auth.core.getBillingNotifications({
+      baseUrl: config.baseUrl,
+      authToken: auth.token,
+      limit: boundedLimit(args.limit, 25, 100),
+    });
+    const frontendUrl = buildFrontendUrl({
+      baseUrl: frontendBase(config),
+      target: "billing",
+      tab: "billing",
+    });
+    return withEnvelope({
+      command: "billing notifications",
+      data,
+      frontendUrl,
+    });
+  });
+
+  handlers.set("billing_topup_checkout", async (args) => {
+    const packId = stringValue(args.packId);
+    if (!packId) {
+      throw new Error("packId is required.");
+    }
+    const config = await resolveInvocationConfig(serverOptions, args);
+    const auth = await resolveAuth(config, { requireUser: true });
+    const returnTo =
+      stringValue(args.returnTo) ??
+      buildFrontendUrl({
+        baseUrl: frontendBase(config),
+        target: "billing",
+        tab: "billing",
+      });
+    const session = await auth.core.createTopUpCheckoutSession({
+      baseUrl: config.baseUrl,
+      authToken: auth.token,
+      packId,
+      preferredCurrency: stringValue(args.preferredCurrency),
+      countryCode: stringValue(args.countryCode),
+      contactEmail: stringValue(args.contactEmail),
+      contactPhone: stringValue(args.contactPhone),
+      contactCountryCode: stringValue(args.contactCountryCode),
+      returnTo,
+    });
+    const checkoutUrl = String((session as any)?.checkout_url ?? (session as any)?.launcher_url ?? "");
+    return withEnvelope({
+      command: "billing topup",
+      data: { packId, checkoutUrl: checkoutUrl || null, session },
+      frontendUrl: checkoutUrl || returnTo,
+    });
+  });
+
   handlers.set("open_url", async (args) => {
     const target = stringValue(args.target) as FrontendTarget | undefined;
     if (!target) {
@@ -2421,14 +3318,30 @@ const getMcpPrompt = (
   toolset: McpToolsetName
 ): JsonRecord => {
   const definition = mcpPromptDefinitions.find((prompt) => prompt.name === name);
-  if (!definition) {
+  const aliasedRecipe = definition ? undefined : getRecipe(name);
+  const effectiveName = definition?.name ?? aliasedRecipe?.id;
+  const effectiveDefinition: McpPromptDefinition | undefined =
+    definition ??
+    (aliasedRecipe
+      ? {
+          name: aliasedRecipe.id,
+          title: aliasedRecipe.title,
+          description: aliasedRecipe.description,
+          arguments: aliasedRecipe.inputs.map((input) => ({
+            name: input.name === "projectId" ? "projectId" : input.name,
+            description: input.description,
+            required: input.required,
+          })),
+        }
+      : undefined);
+  if (!effectiveDefinition || !effectiveName) {
     throw new Error(`Unknown prompt: ${name}`);
   }
-  if (!hasRequiredTools(MCP_PROMPT_TOOL_REQUIREMENTS[name], availableToolNames)) {
+  if (!hasRequiredTools(MCP_PROMPT_TOOL_REQUIREMENTS[effectiveName], availableToolNames)) {
     throw new Error(`Prompt ${name} is not available in toolset ${toolset}.`);
   }
   return {
-    description: definition.description,
+    description: effectiveDefinition.description,
     messages: [
       {
         role: "user",

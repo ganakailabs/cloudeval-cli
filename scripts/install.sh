@@ -499,7 +499,7 @@ run_optional_agent_setup() {
   echo ""
   echo -e "${BLUE}CloudEval for agents${NC}"
   echo -e "  MCP exposes CloudEval tools, recipes, and prompts for Codex, Claude, Cursor, VS Code, and other clients."
-  echo -e "  Skills available: ${GREEN}cost-review, waf-triage, architecture-review, template-project-review, report-summary, billing-review, diagram-export, mcp-setup${NC}"
+  echo -e "  Skills available: ${GREEN}cloudeval-cloud-cost-review, cloudeval-well-architected-framework-review, cloudeval-architecture-review, cloudeval-report-summary, cloudeval-project-healthcheck, cloudeval-billing-review, cloudeval-credential-rotation, cloudeval-architecture-diagram-export, cloudeval-dependency-diagram-export, cloudeval-mcp-setup${NC}"
 
   local detected
   detected="$(detect_mcp_clients)"

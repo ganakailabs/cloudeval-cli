@@ -252,7 +252,7 @@ Example:
       --base-url \
       https://cloudeval.ai/api/proxy/v1
   output:
-    tools=17 resources=5 prompts=1
+    tools=<count> resources=<count> prompts=<count>
 
 === Final summary ===
 [PASS] overall: passed
@@ -266,8 +266,8 @@ The read-only script covers:
 
 - Public/local commands: `--version`, `--help`, `help agents`, `capabilities`,
   `status`, `doctor`, `auth status`, `banner`, shell completions, config
-  commands, recipe commands, model commands, sessions commands, and MCP
-  initialize/list paths. MCP tool schemas must not expose `accessKey` as a
+  commands, expanded recipe commands, model commands, sessions commands, and
+  MCP initialize/list paths. MCP tool schemas must not expose `accessKey` as a
   per-call argument.
 - Frontend deeplinks: overview, chat, projects, project details, connections,
   reports, and billing with `--print-url --no-open`.
@@ -279,9 +279,12 @@ The read-only script covers:
   set. It is opt-in so the default read-only run does not consume model tokens.
 - The basic non-interactive `agent` command when `CLOUDEVAL_SMOKE_RUN_AGENT=1`
   is set. It is opt-in for the same token-usage reason as `ask`.
-- The basic non-interactive `recipes run cost-review` path can be covered with
+- The basic non-interactive `recipes run cloudeval-cloud-cost-review` path can be covered with
   the same authenticated project setup; it is token-consuming for ask/agent
-  backed recipes.
+  backed recipes. Guide recipes such as `cloudeval-architecture-diagram-export`,
+  `cloudeval-dependency-diagram-export`, `cloudeval-report-export-pack`, and
+  `cloudeval-credential-rotation` should print explicit commands instead of performing
+  side effects implicitly.
 
 Useful controls:
 

@@ -163,20 +163,23 @@ MCP rules:
 - stdout is JSON-RPC only and `[cloudeval-mcp]` diagnostics go to stderr;
 - MCP tool schemas do not accept per-call access-key arguments;
 - `mcp serve` does not support `--access-key-stdin` because stdin is the protocol stream.
+- `readonly` includes safe inspection tools for projects, reports, billing, connections, credentials, config, models, sessions, auth, status, doctor, and recipes; generation, downloads, checkouts, credential mutation, browser opens, and diagram file writes stay explicit.
 
 Developer setup details: [cli.cloudeval.ai/developer/](https://cli.cloudeval.ai/developer/).
 
 ## Recipes And Skills
 
-CloudEval recipes are reusable workflows for agents and humans. Current recipes cover cost review, WAF triage, architecture review, template project review, report summary, billing review, diagram export, and MCP setup.
+CloudEval recipes are reusable workflows for agents and humans. Current recipes cover cost review, WAF triage, architecture review, template project review, report summaries, report generation planning, report export packs, billing review, top-up readiness, project inventory and healthchecks, connection audit, credential setup and rotation, model selection, session recovery, CLI onboarding checks, frontend workspace links, architecture/dependency diagram exports, and MCP setup.
 
 ```bash
 cloudeval recipes list
-cloudeval recipes show cost-review
-cloudeval recipes run cost-review --project <project-id> --format json --non-interactive
+cloudeval recipes show cloudeval-cloud-cost-review
+cloudeval recipes run cloudeval-cloud-cost-review --project <project-id> --format json --non-interactive
+cloudeval recipes show cloudeval-architecture-diagram-export
+cloudeval recipes run cloudeval-dependency-diagram-export --project <project-id> --output-path ./dependency.svg
 ```
 
-Ask/agent-backed recipes may consume model credits. Recipes that would create projects, write diagrams, change MCP config, open browsers, or start checkout flows print explicit commands instead of performing those side effects implicitly. Portable agent instructions live under [`skills/`](skills/); MCP remains the preferred execution path for Codex, Cursor, Claude, and other agents.
+Ask/agent-backed recipes may consume model credits. Recipes that would create projects, write report or diagram files, change MCP config, mutate credentials, open browsers, or start checkout flows print explicit commands instead of performing those side effects implicitly. Portable agent instructions live under [`skills/`](skills/); MCP remains the preferred execution path for Codex, Cursor, Claude, and other agents.
 
 ## Project Example
 

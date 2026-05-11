@@ -707,7 +707,7 @@ run_text_contains "root-help" "Commands:" --help
 run_text_contains "help-agents" "CloudEval CLI agent contract" help agents
 run_json_envelope "capabilities-json" capabilities --format json
 run_recipes_list
-run_json_envelope "recipes-show-cost-review" recipes show cost-review --format json
+run_json_envelope "recipes-show-cloudeval-cloud-cost-review" recipes show cloudeval-cloud-cost-review --format json
 run_json_envelope "status-json" status --base-url "$BASE_URL" --format json
 run_json_envelope "doctor-json" doctor --base-url "$BASE_URL" --format json
 run_json_envelope "doctor-deep-json" doctor --base-url "$BASE_URL" --deep --format json
@@ -841,7 +841,7 @@ if [ "$RUN_ASK" = "1" ]; then
     --quiet \
     --progress none \
     --format json
-  run_json_envelope "recipes-run-cost-review" recipes run cost-review \
+  run_json_envelope "recipes-run-cloudeval-cloud-cost-review" recipes run cloudeval-cloud-cost-review \
     --base-url "$BASE_URL" \
     --project "$PROJECT_ID" \
     --non-interactive \
@@ -850,7 +850,7 @@ if [ "$RUN_ASK" = "1" ]; then
     --format json
 else
   skip "ask-basic (CLOUDEVAL_SMOKE_RUN_ASK=0)"
-  skip "recipes-run-cost-review (CLOUDEVAL_SMOKE_RUN_ASK=0)"
+  skip "recipes-run-cloudeval-cloud-cost-review (CLOUDEVAL_SMOKE_RUN_ASK=0)"
 fi
 
 if [ "$RUN_AGENT" = "1" ]; then

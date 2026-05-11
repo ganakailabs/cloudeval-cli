@@ -1,47 +1,56 @@
 ---
 name: cloudeval-billing
-description: Inspect CloudEval credits, plans, usage, ledger, invoices, top-ups, and checkout links.
+description: Use when inspecting CloudEval credits, plans, usage, ledger, invoices, notifications, top-ups, or checkout links.
 ---
 
 # CloudEval Billing
 
 ## WHEN
-- Use for credit balance, plan state, usage trends, ledger summaries, invoices, top-up packs, and buy links.
+- Use for credit status, usage trends, ledger summaries, invoices, notifications, top-up readiness, and plan visibility.
+- Use when a user asks to buy more credits or understand consumption.
 
 ## DO NOT USE FOR
-- Purchasing credits unless the user explicitly asks.
-- Sharing full ledger data or customer billing identifiers.
+- Sharing full ledger data, customer billing identifiers, or payment details.
+- Creating checkout sessions unless the user explicitly chooses a top-up pack.
 
 ## Required CloudEval Context
-- Auth for user/account-specific billing.
+- Auth for account-specific billing, credits, ledger, invoices, notifications, and top-ups.
+- Range for usage review: `7d`, `30d`, `90d`, or `all`.
 
 ## CLI Commands
 - `cloudeval credits`
 - `cloudeval billing summary`
 - `cloudeval billing plans`
 - `cloudeval billing usage --range 30d`
-- `cloudeval billing ledger --limit 25`
-- `cloudeval billing invoices`
+- `cloudeval billing ledger --range 30d --limit 25`
+- `cloudeval billing invoices --limit 25`
+- `cloudeval billing notifications --limit 25`
 - `cloudeval billing topups`
-- `cloudeval billing topups buy <pack-id> --print-url`
+- `cloudeval billing topups buy <pack-id> --print-url --no-open`
 
 ## MCP Tools
-- `billing_summary`
-- `billing_usage`
-- `billing_ledger`
-- `billing_plans`
-- `billing_topups`
-- `open_url`
+- `billing_summary`, `billing_usage`, `billing_ledger`
+- `billing_plans`, `billing_topups`, `billing_invoices`, `billing_notifications`
+- `billing_topup_checkout` for explicit checkout creation
+
+## Operating Pattern
+1. Start with summary to understand plan, remaining credits, and status.
+2. Use usage and ledger for trends; summarize rather than copying events.
+3. Use invoices and notifications only when billing operations are in scope.
+4. Before checkout, show candidate packs and ask for explicit pack selection.
 
 ## Safety Requirements
-- Buying top-ups creates an external checkout flow and must be explicit.
-- Summarize ledger entries; do not paste complete ledgers.
-- Redact identifiers and payment-related metadata.
+- Redact ledger ids, customer identifiers, and account/session ids.
+- Checkout creation is externally visible and must be explicit.
+- Do not infer payment success from checkout session creation.
 
 ## Expected Output / Proof
-- Plan, credit status, usage trend, ledger anomaly summary.
-- Checkout launcher URL only after explicit buy/top-up request.
+- Plan and credit position.
+- Usage trend and notable charge patterns.
+- Top-up pack candidates or checkout URL if explicitly created.
+- Billing frontend link.
 
 ## Failure Handling
 - If billing auth fails, ask for `cloudeval login`.
-- If checkout URL is unavailable, return the launcher URL and status.
+- If no top-up packs are returned, report that checkout cannot proceed from CLI data.
+- If checkout lacks a URL, return the session status and next link if present.

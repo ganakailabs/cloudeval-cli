@@ -1,41 +1,51 @@
 ---
 name: cloudeval-waf
-description: Triage CloudEval Well-Architected findings and remediation plans.
+description: Use when triaging CloudEval Well-Architected findings, failed rules, pillar risk, or remediation plans.
 ---
 
 # CloudEval WAF
 
 ## WHEN
-- Use for WAF findings, architecture posture, pillar summaries, and remediation planning.
+- Use for `cloudeval-well-architected-framework-review`, Well-Architected reports, rule failures, pillar summaries, and remediation planning.
+- Use when the user asks what is risky about a CloudEval project.
 
 ## DO NOT USE FOR
-- Claiming compliance certification.
-- Running WAF reports without explicit user approval.
+- Creating new assessment frameworks or unsupported rule engines.
+- Regenerating WAF reports unless the user explicitly asks.
 
 ## Required CloudEval Context
-- Project id and latest WAF report/rules.
+- Project id.
+- Latest WAF report and rules if available.
+- Optional severity filter.
 
 ## CLI Commands
-- `cloudeval recipes run waf-triage --project <id>`
+- `cloudeval recipes run cloudeval-well-architected-framework-review --project <id>`
+- `cloudeval reports list --project <id> --kind waf`
 - `cloudeval reports waf --project <id>`
 - `cloudeval reports rules --project <id>`
 - `cloudeval reports run --project <id> --type waf`
 
 ## MCP Tools
-- `recipes_get`
-- `recipes_run`
-- `reports_list`
-- `ask`
+- `reports_list`, `reports_waf`, `reports_rules`
+- `recipes_get`, `recipes_run`, `ask`
+
+## Operating Pattern
+1. Establish report freshness and rule availability.
+2. Group failed/warned rules by pillar and severity.
+3. Rank remediation by blast radius, evidence strength, and dependency order.
+4. Include a small verification plan for each major remediation.
 
 ## Safety Requirements
-- Separate confirmed report findings from assumptions.
-- Prioritize by severity, pillar, and likely blast radius.
-- Avoid exposing raw project/report JSON in public summaries.
+- Do not overclaim beyond report evidence.
+- Do not expose raw topology or project identifiers unless requested.
+- Treat `reports run --type waf` as explicit credit/backend work.
 
 ## Expected Output / Proof
-- Pillar summary.
-- Critical/high/medium findings.
-- Remediation order and owners/actions where inferable.
+- Pillar-by-pillar findings.
+- Severity and confidence.
+- Ordered remediation plan.
+- Missing evidence notes.
 
 ## Failure Handling
-- If WAF report is missing or stale, say so and ask before regenerating.
+- If no WAF report exists, recommend running one and stop.
+- If rules are empty, summarize report-level evidence and say rules were unavailable.

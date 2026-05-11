@@ -64,16 +64,18 @@ curl -fsSL https://cli.cloudeval.ai/install.sh | CLOUDEVAL_INSTALL_MCP_CLIENTS=c
       <ul>
         <li><code>cloudeval</code>: router, safety rules, MCP-first guidance, stdout/stderr contract.</li>
         <li><code>cloudeval-agent-ops</code>: ask, agent, chat/TUI, models, sessions.</li>
-        <li><code>cloudeval-projects</code>: projects, template creation paths, deeplinks, diagram export.</li>
+        <li><code>cloudeval-projects</code>: projects, template creation paths, deeplinks, inventory, and healthchecks.</li>
+        <li><code>cloudeval-visualizations</code>: architecture and dependency diagram exports with file-write guardrails.</li>
         <li><code>cloudeval-reports</code>, <code>cloudeval-cost</code>, and <code>cloudeval-waf</code>: report discovery, triage, and evidence-backed summaries.</li>
         <li><code>cloudeval-billing</code>, <code>cloudeval-connections</code>, <code>cloudeval-credentials</code>, and <code>cloudeval-mcp-diagnostics</code>: operational workflows with redaction guardrails.</li>
       </ul>
 
       <h2>Recipes</h2>
-      <p>Recipes are thin wrappers over implemented CloudEval capabilities. Ask/agent-backed recipes can consume credits. Guide recipes print commands for explicit side effects such as project creation, diagram writes, browser opens, checkout flows, or MCP config changes.</p>
+      <p>Recipes are thin wrappers over implemented CloudEval capabilities. They now cover cost, WAF, architecture, reports, project inventory and health, connections, credentials, billing, models, sessions, onboarding, frontend links, MCP setup, and architecture/dependency visualizations. Ask/agent-backed recipes can consume credits. Guide recipes print commands for explicit side effects such as project creation, report or diagram writes, browser opens, checkout flows, credential mutation, or MCP config changes.</p>
       <pre><code>cloudeval recipes list
-cloudeval recipes show cost-review
-cloudeval recipes run cost-review --project &lt;project-id&gt; --format json --non-interactive</code></pre>
+cloudeval recipes show cloudeval-cloud-cost-review
+cloudeval recipes run cloudeval-cloud-cost-review --project &lt;project-id&gt; --format json --non-interactive
+cloudeval recipes run cloudeval-architecture-diagram-export --project &lt;project-id&gt; --output-path ./architecture.png</code></pre>
 
       <h2>MCP</h2>
       <p>MCP is the preferred path for Codex, Claude, Cursor, VS Code, and other agent clients. Start with <code>readonly</code> for inspection-only workflows and move to <code>all</code> only when users need explicit mutations.</p>
@@ -83,7 +85,7 @@ cloudeval mcp setup cursor --dry-run --toolset readonly
 cloudeval mcp setup vscode --dry-run --toolset readonly
 cloudeval mcp serve --toolset readonly</code></pre>
       <p>Setup commands print a short human summary by default. Use <code>--format json</code> when an agent or script needs the full machine-readable config envelope.</p>
-      <p>MCP exposes recipe discovery through <code>cloudeval://recipes</code>, prompts matching recipe IDs, and tools such as <code>recipes_list</code>, <code>recipes_get</code>, <code>recipes_run</code>, <code>projects_list</code>, <code>reports_list</code>, <code>billing_usage</code>, <code>models_list</code>, <code>auth_status</code>, <code>status</code>, and <code>doctor</code>. Authenticate before the server starts; tool calls do not accept access keys as arguments.</p>
+      <p>MCP exposes recipe discovery through <code>cloudeval://recipes</code>, prompts matching recipe IDs, and tools such as <code>recipes_list</code>, <code>recipes_get</code>, <code>recipes_run</code>, <code>projects_list</code>, <code>reports_list</code>, <code>reports_cost</code>, <code>reports_waf</code>, <code>billing_usage</code>, <code>billing_invoices</code>, <code>credentials_templates</code>, <code>sessions_search</code>, <code>models_list</code>, <code>auth_status</code>, <code>status</code>, and <code>doctor</code>. Authenticate before the server starts; tool calls do not accept access keys as arguments.</p>
 
       <h2>Authentication and Automation</h2>
       <p>Use device login for local development and scoped access keys for CI or long-running agent hosts. Prefer <code>--access-key-stdin</code> or <code>CLOUDEVAL_ACCESS_KEY</code>; <code>--access-key</code> warns because process arguments can leak. The CLI redacts sensitive identifiers and secret-shaped values by default.</p>

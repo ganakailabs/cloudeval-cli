@@ -22,6 +22,7 @@ import {
   getRecipe,
   recipes,
   recipeSummary,
+  renderRecipeCommands,
   renderRecipeMarkdown,
   renderRecipePrompt,
   type Recipe,
@@ -46,6 +47,8 @@ interface CommonRecipeOptions extends AuthGuardOptions {
 
 interface RecipeRunOptions extends CommonRecipeOptions {
   project?: string;
+  connectionId?: string;
+  credentialId?: string;
   range?: string;
   templateFile?: string;
   templateUrl?: string;
@@ -54,6 +57,9 @@ interface RecipeRunOptions extends CommonRecipeOptions {
   provider?: string;
   name?: string;
   outputPath?: string;
+  outputDir?: string;
+  client?: string;
+  layout?: string;
   model?: string;
   thread?: string;
   progress?: string;
@@ -70,6 +76,8 @@ const STREAM_OUTPUT_NODES = new Set([
 
 const recipeContext = (options: RecipeRunOptions): RecipePromptContext => ({
   projectId: options.project,
+  connectionId: options.connectionId,
+  credentialId: options.credentialId,
   range: options.range,
   templateFile: options.templateFile,
   templateUrl: options.templateUrl,
@@ -78,6 +86,9 @@ const recipeContext = (options: RecipeRunOptions): RecipePromptContext => ({
   provider: options.provider,
   name: options.name,
   outputPath: options.outputPath,
+  outputDir: options.outputDir,
+  client: options.client,
+  layout: options.layout,
 });
 
 const renderRecipesTable = (): string =>
@@ -85,7 +96,6 @@ const renderRecipesTable = (): string =>
     recipes.map((recipe) => ({
       id: recipe.id,
       title: recipe.title,
-      skill: recipe.skill,
       mode: recipe.mode,
       category: recipe.category,
       safety: [
@@ -95,11 +105,10 @@ const renderRecipesTable = (): string =>
       ].filter(Boolean).join(", ") || "read",
     })),
     [
-      { key: "id", header: "ID", width: 24 },
-      { key: "title", header: "Title", maxWidth: 28 },
-      { key: "skill", header: "Skill", maxWidth: 30 },
+      { key: "id", header: "ID", width: 43 },
+      { key: "title", header: "Title", maxWidth: 36 },
       { key: "mode", header: "Mode", width: 6 },
-      { key: "category", header: "Category", width: 12 },
+      { key: "category", header: "Category", width: 14 },
       { key: "safety", header: "Safety", maxWidth: 18 },
     ],
     { emptyMessage: "No CloudEval recipes found." },
@@ -325,7 +334,7 @@ const runChatRecipe = async (
     response: finalResponse,
     threadId: chatState.threadId,
     project: { id: project.id, name: project.name },
-    commands: recipe.commands,
+    commands: renderRecipeCommands(recipe, recipeContext(options)),
     safety: recipe.safety,
     frontendUrl,
   };
@@ -336,7 +345,7 @@ const buildGuideResult = (recipe: Recipe, context: RecipePromptContext) => ({
   title: recipe.title,
   mode: recipe.mode,
   prompt: renderRecipePrompt(recipe, context),
-  commands: recipe.commands,
+  commands: renderRecipeCommands(recipe, context),
   inputs: context,
   safety: recipe.safety,
   expectedOutput: recipe.expectedOutput,
@@ -379,6 +388,8 @@ export const registerRecipesCommand = (
     deps.defaultBaseUrl,
   )
     .option("--project <id>", "Project ID to use")
+    .option("--connection-id <id>", "Connection id for connection recipes")
+    .option("--credential-id <id>", "Credential id for credential recipes")
     .option("--range <range>", "Usage/report range such as 7d, 30d, 90d, all", "30d")
     .option("--template-file <path>", "Local JSON template file")
     .option("--template-url <url>", "Template URL")
@@ -387,6 +398,9 @@ export const registerRecipesCommand = (
     .option("--provider <provider>", "Cloud provider accepted by projects create")
     .option("--name <name>", "Project or recipe display name")
     .option("--output-path <path>", "Side-effect output path for guide recipes")
+    .option("--output-dir <path>", "Side-effect output directory for guide recipes")
+    .option("--client <name>", "MCP client name for setup recipes")
+    .option("--layout <layout>", "Visualization layout such as architecture or dependency")
     .option("--model <name>", "Model name")
     .option("--thread <id>", "Thread id to reuse")
     .option("--format <format>", "Output format: text, json, ndjson, markdown", "text")

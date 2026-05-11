@@ -663,15 +663,15 @@ test("recipes commands list, show, and run implemented CloudEval workflows", asy
   try {
     const table = await runCli(["recipes", "list"]);
     assert.equal(table.exitCode, 0, table.stderr);
-    assert.match(table.stdout, /^ID\s+Title\s+Skill\s+Mode/m);
-    assert.match(table.stdout, /cost-review/);
+    assert.match(table.stdout, /^ID\s+Title\s+Mode\s+Category\s+Safety/m);
+    assert.match(table.stdout, /cloudeval-cloud-cost-review/);
     assert.doesNotMatch(table.stdout.toLowerCase(), /terraform/);
 
     const listed = parseJson(await runCli(["recipes", "list", "--format", "json"]));
     assert.equal(listed.command, "recipes list");
-    assert.equal(listed.data.recipes.some((recipe: any) => recipe.id === "waf-triage"), true);
+    assert.equal(listed.data.recipes.some((recipe: any) => recipe.id === "cloudeval-well-architected-framework-review"), true);
 
-    const shown = await runCli(["recipes", "show", "cost-review", "--format", "markdown"]);
+    const shown = await runCli(["recipes", "show", "cloudeval-cloud-cost-review", "--format", "markdown"]);
     assert.equal(shown.exitCode, 0, shown.stderr);
     assert.match(shown.stdout, /^# Cost Review/m);
     assert.match(shown.stdout, /cloudeval reports list --project/);
@@ -679,7 +679,7 @@ test("recipes commands list, show, and run implemented CloudEval workflows", asy
     const run = parseJson(await runCli([
       "recipes",
       "run",
-      "cost-review",
+      "cloudeval-cloud-cost-review",
       "--base-url",
       backend.baseUrl,
       "--access-key",
@@ -693,7 +693,7 @@ test("recipes commands list, show, and run implemented CloudEval workflows", asy
       "--non-interactive",
     ]));
     assert.equal(run.command, "recipes run");
-    assert.equal(run.data.recipeId, "cost-review");
+    assert.equal(run.data.recipeId, "cloudeval-cloud-cost-review");
     assert.equal(run.data.mode, "ask");
     assert.equal(run.data.response, "Mock answer from Cloudeval AI.");
 
@@ -1080,7 +1080,7 @@ test("mcp status and setup helpers are machine-readable", async () => {
   assert.equal(status.data.protocolVersion, "2025-06-18");
   assert.equal(status.data.toolsets.includes("readonly"), true);
   assert.equal(status.data.resources.includes("cloudeval://capabilities"), true);
-  assert.equal(status.data.prompts.includes("cost-review"), true);
+  assert.equal(status.data.prompts.includes("cloudeval-cloud-cost-review"), true);
   assert.equal(status.data.setupClients.includes("generic"), true);
   assert.equal(status.data.setupClients.includes("vscode"), true);
 

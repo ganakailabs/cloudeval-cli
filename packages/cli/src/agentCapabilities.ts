@@ -159,7 +159,8 @@ Sensitive identifiers:
   Account, session, and tenant identifiers are redacted by default. Use --show-sensitive-ids only in trusted local workflows.
 
 Recipes and skills:
-  Recipes only cover implemented CloudEval capabilities: projects, reports, billing, credentials, connections, diagrams, ask/agent, diagnostics, and MCP.
+  Recipes only cover implemented CloudEval capabilities: projects, reports, billing, credentials, connections, architecture/dependency diagrams, models, sessions, ask/agent, diagnostics, frontend links, and MCP.
+  Visualization recipes include cloudeval-architecture-diagram-export and cloudeval-dependency-diagram-export; both require an explicit output path before writing files.
   Public SKILL.md files live under skills/ for agent hosts that support portable skill instructions. MCP remains the preferred execution path.
 
 Installer onboarding:

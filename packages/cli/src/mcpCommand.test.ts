@@ -403,25 +403,57 @@ test("mcp serve filters tools by safety toolset", async () => {
     mcp.send({ jsonrpc: "2.0", id: 2, method: "tools/list" });
     const listed = await mcp.read();
     const names = listed.result.tools.map((tool: any) => tool.name);
-    assert.deepEqual(names, [
+    for (const expected of [
       "capabilities_get",
       "projects_list",
       "projects_get",
       "connections_list",
       "connections_get",
       "reports_list",
+      "reports_show",
+      "reports_cost",
+      "reports_waf",
+      "reports_rules",
       "billing_summary",
       "billing_usage",
       "billing_ledger",
       "billing_plans",
       "billing_topups",
+      "billing_invoices",
+      "billing_notifications",
       "models_list",
+      "models_default_get",
+      "sessions_list",
+      "sessions_get",
+      "sessions_search",
+      "sessions_export",
+      "identity_get",
       "auth_status",
       "status",
       "doctor",
+      "config_show",
+      "config_get",
+      "config_profiles",
+      "credentials_templates",
+      "credentials_list",
+      "credentials_inspect",
       "recipes_list",
       "recipes_get",
-    ]);
+    ]) {
+      assert(names.includes(expected), `${expected} should be available in readonly`);
+    }
+    for (const forbidden of [
+      "ask",
+      "reports_run",
+      "reports_download",
+      "projects_export_diagram",
+      "credentials_create",
+      "credentials_revoke",
+      "billing_topup_checkout",
+      "models_default_set",
+    ]) {
+      assert.equal(names.includes(forbidden), false, `${forbidden} must not be available in readonly`);
+    }
 
     mcp.send({
       jsonrpc: "2.0",
@@ -465,13 +497,14 @@ test("mcp serve filters resources and prompts by focused toolset", async () => {
     mcp.send({ jsonrpc: "2.0", id: 4, method: "prompts/list" });
     const prompts = await mcp.read();
     const promptNames = prompts.result.prompts.map((prompt: any) => prompt.name);
-    assert.deepEqual(promptNames, ["billing-review"]);
+    assert(promptNames.includes("cloudeval-billing-review"));
+    assert(promptNames.includes("cloudeval-credit-topup-readiness"));
 
     mcp.send({
       jsonrpc: "2.0",
       id: 5,
       method: "prompts/get",
-      params: { name: "cost-review", arguments: {} },
+      params: { name: "cloudeval-cloud-cost-review", arguments: {} },
     });
     const blockedPrompt = await mcp.read();
     assert.equal(blockedPrompt.error.code, -32602);
@@ -524,23 +557,41 @@ test("mcp serve exposes CloudEval resources and prompts", async () => {
     const prompts = await mcp.read();
     assert.equal(prompts.id, 4);
     const promptNames = prompts.result.prompts.map((prompt: any) => prompt.name);
-    assert.deepEqual(promptNames, [
-      "cost-review",
-      "waf-triage",
-      "architecture-review",
-      "template-project-review",
-      "report-summary",
-      "billing-review",
-      "diagram-export",
-      "mcp-setup",
-    ]);
+    for (const expected of [
+      "cloudeval-cloud-cost-review",
+      "cloudeval-well-architected-framework-review",
+      "cloudeval-architecture-review",
+      "cloudeval-template-project-review",
+      "cloudeval-report-summary",
+      "cloudeval-report-generation-plan",
+      "cloudeval-report-export-pack",
+      "cloudeval-billing-review",
+      "cloudeval-credit-topup-readiness",
+      "cloudeval-project-inventory",
+      "cloudeval-project-healthcheck",
+      "cloudeval-connection-audit",
+      "cloudeval-agent-access-key-setup",
+      "cloudeval-credential-rotation",
+      "cloudeval-model-selection",
+      "cloudeval-session-recovery",
+      "cloudeval-cli-onboarding-check",
+      "cloudeval-frontend-workspace-links",
+      "cloudeval-diagram-export",
+      "cloudeval-architecture-diagram-export",
+      "cloudeval-dependency-diagram-export",
+      "cloudeval-mcp-setup",
+    ]) {
+      assert(promptNames.includes(expected), `${expected} prompt should be exposed`);
+    }
+    assert.equal(promptNames.includes("waf-triage"), false);
+    assert.equal(promptNames.includes("cost-review"), false);
 
     mcp.send({
       jsonrpc: "2.0",
       id: 5,
       method: "prompts/get",
       params: {
-        name: "cost-review",
+        name: "cloudeval-cloud-cost-review",
         arguments: { projectId: "project-main", range: "30d" },
       },
     });
@@ -552,14 +603,28 @@ test("mcp serve exposes CloudEval resources and prompts", async () => {
     mcp.send({
       jsonrpc: "2.0",
       id: 6,
+      method: "prompts/get",
+      params: {
+        name: "waf-triage",
+        arguments: { projectId: "project-main" },
+      },
+    });
+    const aliasedPrompt = await mcp.read();
+    assert.equal(aliasedPrompt.id, 6);
+    assert.match(aliasedPrompt.result.messages[0].content.text, /project-main/);
+    assert.match(aliasedPrompt.result.messages[0].content.text, /Well-Architected/i);
+
+    mcp.send({
+      jsonrpc: "2.0",
+      id: 7,
       method: "resources/read",
       params: { uri: "cloudeval://recipes" },
     });
     const recipeResource = await mcp.read();
-    assert.equal(recipeResource.id, 6);
+    assert.equal(recipeResource.id, 7);
     const recipePayload = JSON.parse(recipeResource.result.contents[0].text);
     assert.equal(recipePayload.ok, true);
-    assert.equal(recipePayload.data.recipes.some((recipe: any) => recipe.id === "cost-review"), true);
+    assert.equal(recipePayload.data.recipes.some((recipe: any) => recipe.id === "cloudeval-cloud-cost-review"), true);
   } finally {
     const closed = await mcp.close();
     assert.equal(closed.exitCode, 0, closed.stderr);
@@ -585,7 +650,7 @@ test("mcp recipe tools expose catalog and keep recipe runs out of readonly tools
       jsonrpc: "2.0",
       id: 3,
       method: "tools/call",
-      params: { name: "recipes_run", arguments: { recipeId: "cost-review" } },
+      params: { name: "recipes_run", arguments: { recipeId: "cloudeval-cloud-cost-review" } },
     });
     const blocked = await readonly.read();
     assert.equal(blocked.error.code, -32602);

@@ -1,12 +1,26 @@
 export type RecipeId =
-  | "cost-review"
-  | "waf-triage"
-  | "architecture-review"
-  | "template-project-review"
-  | "report-summary"
-  | "billing-review"
-  | "diagram-export"
-  | "mcp-setup";
+  | "cloudeval-cloud-cost-review"
+  | "cloudeval-well-architected-framework-review"
+  | "cloudeval-architecture-review"
+  | "cloudeval-template-project-review"
+  | "cloudeval-report-summary"
+  | "cloudeval-report-generation-plan"
+  | "cloudeval-report-export-pack"
+  | "cloudeval-billing-review"
+  | "cloudeval-credit-topup-readiness"
+  | "cloudeval-project-inventory"
+  | "cloudeval-project-healthcheck"
+  | "cloudeval-connection-audit"
+  | "cloudeval-agent-access-key-setup"
+  | "cloudeval-credential-rotation"
+  | "cloudeval-model-selection"
+  | "cloudeval-session-recovery"
+  | "cloudeval-cli-onboarding-check"
+  | "cloudeval-frontend-workspace-links"
+  | "cloudeval-diagram-export"
+  | "cloudeval-architecture-diagram-export"
+  | "cloudeval-dependency-diagram-export"
+  | "cloudeval-mcp-setup";
 
 export type RecipeCategory =
   | "cost"
@@ -15,6 +29,13 @@ export type RecipeCategory =
   | "projects"
   | "reports"
   | "billing"
+  | "connections"
+  | "credentials"
+  | "models"
+  | "sessions"
+  | "frontend"
+  | "diagnostics"
+  | "visualizations"
   | "mcp";
 
 export type RecipeMode = "ask" | "agent" | "guide";
@@ -50,6 +71,8 @@ export interface Recipe {
 
 export interface RecipePromptContext {
   projectId?: string;
+  connectionId?: string;
+  credentialId?: string;
   range?: string;
   templateFile?: string;
   templateUrl?: string;
@@ -58,13 +81,43 @@ export interface RecipePromptContext {
   provider?: string;
   name?: string;
   outputPath?: string;
+  outputDir?: string;
+  client?: string;
+  model?: string;
+  layout?: string;
+  format?: string;
 }
+
+const authSensitiveNoMutation = {
+  requiresAuth: true,
+  consumesCredits: false,
+  writesLocalFile: false,
+  mayExposeSensitiveData: true,
+  mutation: "none" as const,
+};
+
+const askSensitive = {
+  requiresAuth: true,
+  consumesCredits: true,
+  writesLocalFile: false,
+  mayExposeSensitiveData: true,
+  mutation: "none" as const,
+};
+
+const explicitMutation = {
+  requiresAuth: true,
+  consumesCredits: false,
+  writesLocalFile: false,
+  mayExposeSensitiveData: true,
+  mutation: "explicit" as const,
+};
 
 export const recipes: Recipe[] = [
   {
-    id: "cost-review",
+    id: "cloudeval-cloud-cost-review",
     title: "Cost Review",
-    description: "Review latest CloudEval cost posture, usage, savings, and anomalies.",
+    description:
+      "Review latest CloudEval cost posture, usage, savings, and anomalies using existing cost reports and billing usage.",
     category: "cost",
     skill: "cloudeval-cost",
     mode: "ask",
@@ -78,29 +131,24 @@ export const recipes: Recipe[] = [
       "cloudeval billing usage --range <range>",
       "cloudeval ask \"Run a CloudEval cost review\" --project <project-id>",
     ],
-    mcpTools: ["reports_list", "billing_usage", "ask"],
-    safety: {
-      requiresAuth: true,
-      consumesCredits: true,
-      writesLocalFile: false,
-      mayExposeSensitiveData: true,
-      mutation: "none",
-    },
+    mcpTools: ["reports_list", "reports_cost", "billing_usage", "ask"],
+    safety: askSensitive,
     expectedOutput: [
-      "Top cost drivers",
-      "Savings opportunities",
-      "Anomalies or missing evidence",
-      "Prioritized next actions",
+      "Top cost drivers with evidence source",
+      "Savings opportunities ranked by likely impact",
+      "Anomalies and missing evidence separated from confirmed findings",
+      "Concrete next actions",
     ],
     failureHandling: [
-      "If reports are unavailable, ask the user before running reports.",
-      "If billing usage is unavailable, state the missing evidence.",
+      "If reports are unavailable, ask before running report generation.",
+      "If billing usage is unavailable, state the missing evidence and continue from reports.",
     ],
   },
   {
-    id: "waf-triage",
-    title: "WAF Triage",
-    description: "Triage Well-Architected Framework findings and remediation order.",
+    id: "cloudeval-well-architected-framework-review",
+    title: "Well-Architected Framework Review",
+    description:
+      "Triage Well-Architected Framework findings, rule failures, severity, and remediation order from existing reports.",
     category: "waf",
     skill: "cloudeval-waf",
     mode: "ask",
@@ -114,28 +162,23 @@ export const recipes: Recipe[] = [
       "cloudeval reports rules --project <project-id>",
       "cloudeval ask \"Triage WAF findings\" --project <project-id>",
     ],
-    mcpTools: ["reports_list", "ask"],
-    safety: {
-      requiresAuth: true,
-      consumesCredits: true,
-      writesLocalFile: false,
-      mayExposeSensitiveData: true,
-      mutation: "none",
-    },
+    mcpTools: ["reports_list", "reports_waf", "reports_rules", "ask"],
+    safety: askSensitive,
     expectedOutput: [
       "Findings grouped by pillar",
-      "Severity and likely blast radius",
-      "Remediation plan",
-      "Missing evidence called out separately",
+      "Severity, likely blast radius, and confidence",
+      "Ordered remediation plan",
+      "Missing report or rule evidence called out separately",
     ],
     failureHandling: [
-      "If no WAF report exists, recommend `cloudeval reports run --type waf` but do not run it automatically.",
+      "If no WAF report exists, recommend `cloudeval reports run --type waf` without running it automatically.",
     ],
   },
   {
-    id: "architecture-review",
+    id: "cloudeval-architecture-review",
     title: "Architecture Review",
-    description: "Review CloudEval project architecture across reliability, security, operations, performance, and cost.",
+    description:
+      "Review CloudEval project architecture across reliability, security, operations, performance, and cost using project data and reports.",
     category: "architecture",
     skill: "cloudeval-reports",
     mode: "ask",
@@ -147,26 +190,22 @@ export const recipes: Recipe[] = [
       "cloudeval ask \"Review architecture risks\" --project <project-id>",
     ],
     mcpTools: ["projects_get", "reports_list", "open_url", "ask"],
-    safety: {
-      requiresAuth: true,
-      consumesCredits: true,
-      writesLocalFile: false,
-      mayExposeSensitiveData: true,
-      mutation: "none",
-    },
+    safety: askSensitive,
     expectedOutput: [
-      "Architecture risks",
-      "Best-practice gaps",
-      "Evidence-backed recommendations",
+      "Architecture risks by domain",
+      "Best-practice gaps backed by CloudEval evidence",
+      "Frontend workspace link",
+      "Prioritized recommendations",
     ],
     failureHandling: [
       "If project details are unavailable, ask for a project id or run `cloudeval projects list`.",
     ],
   },
   {
-    id: "template-project-review",
+    id: "cloudeval-template-project-review",
     title: "Template Project Review",
-    description: "Create or inspect a CloudEval template project using existing local JSON or URL template support.",
+    description:
+      "Create or inspect a CloudEval template project using existing local JSON or URL template support.",
     category: "projects",
     skill: "cloudeval-projects",
     mode: "guide",
@@ -185,13 +224,7 @@ export const recipes: Recipe[] = [
       "cloudeval agent \"Review this CloudEval template project\" --project <project-id>",
     ],
     mcpTools: ["projects_list", "reports_run", "ask"],
-    safety: {
-      requiresAuth: true,
-      consumesCredits: false,
-      writesLocalFile: false,
-      mayExposeSensitiveData: true,
-      mutation: "explicit",
-    },
+    safety: explicitMutation,
     expectedOutput: [
       "Exact project creation command",
       "Follow-up report commands",
@@ -203,9 +236,10 @@ export const recipes: Recipe[] = [
     ],
   },
   {
-    id: "report-summary",
+    id: "cloudeval-report-summary",
     title: "Report Summary",
-    description: "Summarize latest CloudEval reports into a concise Markdown-ready review.",
+    description:
+      "Summarize latest CloudEval reports into a concise Markdown-ready review without copying raw report payloads.",
     category: "reports",
     skill: "cloudeval-reports",
     mode: "ask",
@@ -216,13 +250,7 @@ export const recipes: Recipe[] = [
       "cloudeval ask \"Summarize CloudEval reports\" --project <project-id>",
     ],
     mcpTools: ["reports_list", "reports_download", "ask"],
-    safety: {
-      requiresAuth: true,
-      consumesCredits: true,
-      writesLocalFile: false,
-      mayExposeSensitiveData: true,
-      mutation: "none",
-    },
+    safety: askSensitive,
     expectedOutput: [
       "Executive summary",
       "Cost and WAF highlights",
@@ -234,9 +262,77 @@ export const recipes: Recipe[] = [
     ],
   },
   {
-    id: "billing-review",
+    id: "cloudeval-report-generation-plan",
+    title: "Report Generation Plan",
+    description:
+      "Plan an explicit CloudEval report run for cost, WAF, architecture, unit-test, or all supported report types.",
+    category: "reports",
+    skill: "cloudeval-reports",
+    mode: "guide",
+    inputs: [{ name: "projectId", description: "CloudEval project id.", required: true }],
+    commands: [
+      "cloudeval reports list --project <project-id>",
+      "cloudeval reports run --project <project-id> --type all --wait",
+      "cloudeval open reports --project <project-id> --tab overview --print-url --no-open",
+    ],
+    mcpTools: ["reports_list", "reports_run", "open_url"],
+    safety: {
+      requiresAuth: true,
+      consumesCredits: true,
+      writesLocalFile: false,
+      mayExposeSensitiveData: true,
+      mutation: "explicit",
+    },
+    expectedOutput: [
+      "Report types to run",
+      "Exact run command",
+      "Wait and polling recommendation",
+      "Frontend report link",
+    ],
+    failureHandling: [
+      "Do not submit report jobs until the user explicitly confirms the command.",
+    ],
+  },
+  {
+    id: "cloudeval-report-export-pack",
+    title: "Report Export Pack",
+    description:
+      "Export existing CloudEval cost and WAF report payloads to local JSON or Markdown files for offline review.",
+    category: "reports",
+    skill: "cloudeval-reports",
+    mode: "guide",
+    inputs: [
+      { name: "projectId", description: "CloudEval project id.", required: true },
+      { name: "outputPath", description: "Local output file or directory.", required: true },
+    ],
+    commands: [
+      "cloudeval reports download --project <project-id> --type all --view formatted --output <dir>",
+      "cloudeval reports download --project <project-id> --type cost --view parsed --output <file>",
+      "cloudeval reports download --project <project-id> --type waf --view parsed --output <file>",
+    ],
+    mcpTools: ["reports_list", "reports_download"],
+    safety: {
+      requiresAuth: true,
+      consumesCredits: false,
+      writesLocalFile: true,
+      mayExposeSensitiveData: true,
+      mutation: "explicit",
+    },
+    expectedOutput: [
+      "Files to be written",
+      "Report type and view",
+      "Redaction reminder for shared artifacts",
+    ],
+    failureHandling: [
+      "Require an explicit output path before writing local report files.",
+      "Prefer formatted or parsed views for sharing; avoid raw payloads unless requested.",
+    ],
+  },
+  {
+    id: "cloudeval-billing-review",
     title: "Billing Review",
-    description: "Review CloudEval credits, plans, usage, ledger patterns, invoices, and top-up options.",
+    description:
+      "Review CloudEval credits, plans, usage, ledger patterns, invoices, notifications, and top-up options.",
     category: "billing",
     skill: "cloudeval-billing",
     mode: "ask",
@@ -245,21 +341,25 @@ export const recipes: Recipe[] = [
       "cloudeval billing summary",
       "cloudeval billing usage --range <range>",
       "cloudeval billing ledger --range <range>",
+      "cloudeval billing invoices --limit 10",
+      "cloudeval billing notifications --limit 10",
       "cloudeval billing topups",
       "cloudeval ask \"Review CloudEval billing usage\"",
     ],
-    mcpTools: ["billing_summary", "billing_usage", "billing_ledger", "billing_topups", "ask"],
-    safety: {
-      requiresAuth: true,
-      consumesCredits: true,
-      writesLocalFile: false,
-      mayExposeSensitiveData: true,
-      mutation: "none",
-    },
+    mcpTools: [
+      "billing_summary",
+      "billing_usage",
+      "billing_ledger",
+      "billing_invoices",
+      "billing_notifications",
+      "billing_topups",
+      "ask",
+    ],
+    safety: askSensitive,
     expectedOutput: [
       "Credit status",
       "Usage trend",
-      "Ledger anomalies",
+      "Ledger anomalies summarized without raw identifiers",
       "Recommended billing action",
     ],
     failureHandling: [
@@ -267,11 +367,328 @@ export const recipes: Recipe[] = [
     ],
   },
   {
-    id: "diagram-export",
-    title: "Diagram Export",
-    description: "Export CloudEval architecture or dependency diagrams using the existing project diagram command.",
+    id: "cloudeval-credit-topup-readiness",
+    title: "Billing Top-up Readiness",
+    description:
+      "Check whether a user should buy more credits and prepare an explicit checkout command from existing top-up packs.",
+    category: "billing",
+    skill: "cloudeval-billing",
+    mode: "guide",
+    inputs: [{ name: "range", description: "Usage range to inspect before choosing a pack." }],
+    commands: [
+      "cloudeval billing summary",
+      "cloudeval billing usage --range <range>",
+      "cloudeval billing topups",
+      "cloudeval billing topups buy <pack-id> --print-url --no-open",
+    ],
+    mcpTools: ["billing_summary", "billing_usage", "billing_topups", "billing_topup_checkout"],
+    safety: {
+      requiresAuth: true,
+      consumesCredits: false,
+      writesLocalFile: false,
+      mayExposeSensitiveData: true,
+      mutation: "explicit",
+    },
+    expectedOutput: [
+      "Current credit position",
+      "Suitable top-up pack candidates",
+      "Explicit checkout command",
+    ],
+    failureHandling: [
+      "Do not create checkout sessions unless the user explicitly selects a pack.",
+    ],
+  },
+  {
+    id: "cloudeval-project-inventory",
+    title: "Project Inventory",
+    description:
+      "Inventory CloudEval projects, providers, sources, status, and direct workspace links.",
     category: "projects",
     skill: "cloudeval-projects",
+    mode: "guide",
+    inputs: [],
+    commands: [
+      "cloudeval projects list",
+      "cloudeval connections list",
+      "cloudeval open projects --print-url --no-open",
+    ],
+    mcpTools: ["projects_list", "connections_list", "open_url"],
+    safety: authSensitiveNoMutation,
+    expectedOutput: [
+      "Project count and status spread",
+      "Provider/source inventory",
+      "Frontend projects link",
+    ],
+    failureHandling: [
+      "If authentication is missing, run `cloudeval login` before listing private projects.",
+    ],
+  },
+  {
+    id: "cloudeval-project-healthcheck",
+    title: "Project Healthcheck",
+    description:
+      "Check one CloudEval project's sync/report state, links, and next diagnostic commands.",
+    category: "projects",
+    skill: "cloudeval-projects",
+    mode: "guide",
+    inputs: [{ name: "projectId", description: "CloudEval project id.", required: true }],
+    commands: [
+      "cloudeval projects get <project-id>",
+      "cloudeval reports list --project <project-id>",
+      "cloudeval open project <project-id> --view both --layout architecture --print-url --no-open",
+      "cloudeval open reports --project <project-id> --tab overview --print-url --no-open",
+    ],
+    mcpTools: ["projects_get", "reports_list", "open_url"],
+    safety: authSensitiveNoMutation,
+    expectedOutput: [
+      "Project identity and provider",
+      "Sync/report status",
+      "Useful frontend links",
+      "Missing next step if reports or sync data are absent",
+    ],
+    failureHandling: [
+      "If the project id is missing, run `cloudeval projects list` first.",
+    ],
+  },
+  {
+    id: "cloudeval-connection-audit",
+    title: "Connection Audit",
+    description:
+      "Review CloudEval connections and identify stale, missing, or mismatched project connection context.",
+    category: "connections",
+    skill: "cloudeval-connections",
+    mode: "guide",
+    inputs: [{ name: "connectionId", description: "Optional CloudEval connection id." }],
+    commands: [
+      "cloudeval connections list",
+      "cloudeval connections get <connection-id>",
+      "cloudeval open connections --print-url --no-open",
+      "cloudeval open connection <connection-id> --print-url --no-open",
+    ],
+    mcpTools: ["connections_list", "connections_get", "open_url"],
+    safety: authSensitiveNoMutation,
+    expectedOutput: [
+      "Connection list or selected connection",
+      "Provider/source summary",
+      "Frontend connection link",
+      "Any missing project association to investigate",
+    ],
+    failureHandling: [
+      "Do not display embedded credentials or raw provider payloads.",
+    ],
+  },
+  {
+    id: "cloudeval-agent-access-key-setup",
+    title: "Agent Access Key Setup",
+    description:
+      "Prepare a scoped CloudEval access key workflow for automation clients using existing credential templates.",
+    category: "credentials",
+    skill: "cloudeval-credentials",
+    mode: "guide",
+    inputs: [
+      { name: "projectId", description: "Project scope for the access key.", required: true },
+      { name: "name", description: "Credential name." },
+    ],
+    commands: [
+      "cloudeval credentials templates",
+      "cloudeval credentials create --template ci --name <name> --project <project-id> --expires 90d",
+      "cloudeval credentials list --project <project-id>",
+    ],
+    mcpTools: ["credentials_templates", "credentials_list", "credentials_create"],
+    safety: explicitMutation,
+    expectedOutput: [
+      "Template choice",
+      "Exact create command",
+      "Secret-handling warning",
+    ],
+    failureHandling: [
+      "Access keys are one-time secrets; never paste them into docs, logs, or shared chat.",
+      "Do not create a credential until the user confirms the project and template.",
+    ],
+  },
+  {
+    id: "cloudeval-credential-rotation",
+    title: "Credential Rotation",
+    description:
+      "Inspect and rotate CloudEval access-key credentials with explicit create and revoke steps.",
+    category: "credentials",
+    skill: "cloudeval-credentials",
+    mode: "guide",
+    inputs: [
+      { name: "projectId", description: "Optional project scope." },
+      { name: "credentialId", description: "Credential id to inspect or revoke." },
+    ],
+    commands: [
+      "cloudeval credentials list --project <project-id>",
+      "cloudeval credentials inspect <credential-id>",
+      "cloudeval credentials create --template ci --name <new-name> --project <project-id> --expires 90d",
+      "cloudeval credentials revoke <credential-id> --reason rotated",
+    ],
+    mcpTools: [
+      "credentials_list",
+      "credentials_inspect",
+      "credentials_create",
+      "credentials_revoke",
+    ],
+    safety: explicitMutation,
+    expectedOutput: [
+      "Credential inventory",
+      "Rotation order",
+      "Create command before revoke command",
+      "Rollback reminder",
+    ],
+    failureHandling: [
+      "Never revoke a credential until replacement access has been verified.",
+      "Redact credential ids unless full ids are explicitly requested.",
+    ],
+  },
+  {
+    id: "cloudeval-model-selection",
+    title: "Model Selection",
+    description:
+      "List CloudEval-supported models and set or explain the default model for a CLI profile.",
+    category: "models",
+    skill: "cloudeval-agent-ops",
+    mode: "guide",
+    inputs: [{ name: "model", description: "Optional model id to set." }],
+    commands: [
+      "cloudeval models list",
+      "cloudeval models default get",
+      "cloudeval models default set <model>",
+      "cloudeval ask \"Test selected model with a short answer\" --model <model>",
+    ],
+    mcpTools: ["models_list", "models_default_get", "models_default_set", "ask"],
+    safety: {
+      requiresAuth: true,
+      consumesCredits: true,
+      writesLocalFile: false,
+      mayExposeSensitiveData: false,
+      mutation: "explicit",
+    },
+    expectedOutput: [
+      "Available models",
+      "Current default model",
+      "Set command for profile default",
+      "Optional smoke question",
+    ],
+    failureHandling: [
+      "If a selected model is unavailable, list available backend models before retrying.",
+    ],
+  },
+  {
+    id: "cloudeval-session-recovery",
+    title: "Session Recovery",
+    description:
+      "Find, inspect, resume, export, or clean local CloudEval CLI session history stored by the CLI.",
+    category: "sessions",
+    skill: "cloudeval-agent-ops",
+    mode: "guide",
+    inputs: [{ name: "name", description: "Search query or session title." }],
+    commands: [
+      "cloudeval sessions list",
+      "cloudeval sessions search <query>",
+      "cloudeval sessions get <thread-id>",
+      "cloudeval chat --resume <thread-id>",
+      "cloudeval sessions export --output <file>",
+    ],
+    mcpTools: ["sessions_list", "sessions_search", "sessions_get", "sessions_export"],
+    safety: {
+      requiresAuth: false,
+      consumesCredits: false,
+      writesLocalFile: true,
+      mayExposeSensitiveData: true,
+      mutation: "explicit",
+    },
+    expectedOutput: [
+      "Matching session ids or titles",
+      "Resume command",
+      "Export path if requested",
+    ],
+    failureHandling: [
+      "Do not quote full private transcripts unless the user asks for that exact local data.",
+    ],
+  },
+  {
+    id: "cloudeval-cli-onboarding-check",
+    title: "CLI Onboarding Check",
+    description:
+      "Verify local CloudEval CLI auth, config, model defaults, MCP status, and shell setup.",
+    category: "diagnostics",
+    skill: "cloudeval-mcp-diagnostics",
+    mode: "guide",
+    inputs: [],
+    commands: [
+      "cloudeval status",
+      "cloudeval doctor --mcp",
+      "cloudeval config show",
+      "cloudeval models list",
+      "cloudeval mcp status",
+      "cloudeval help agents",
+    ],
+    mcpTools: [
+      "status",
+      "doctor",
+      "config_show",
+      "models_list",
+      "auth_status",
+      "capabilities_get",
+    ],
+    safety: {
+      requiresAuth: false,
+      consumesCredits: false,
+      writesLocalFile: false,
+      mayExposeSensitiveData: true,
+      mutation: "none",
+    },
+    expectedOutput: [
+      "Auth and config status",
+      "MCP readiness",
+      "Model visibility",
+      "Next setup command if anything is missing",
+    ],
+    failureHandling: [
+      "Redact account and session identifiers by default.",
+    ],
+  },
+  {
+    id: "cloudeval-frontend-workspace-links",
+    title: "Frontend Workspace Links",
+    description:
+      "Build CloudEval frontend links for overview, projects, reports, billing, chat, and connection workspaces.",
+    category: "frontend",
+    skill: "cloudeval-projects",
+    mode: "guide",
+    inputs: [{ name: "projectId", description: "Optional project id for project/report links." }],
+    commands: [
+      "cloudeval open overview --print-url --no-open",
+      "cloudeval open projects --print-url --no-open",
+      "cloudeval open project <project-id> --view both --layout dependency --print-url --no-open",
+      "cloudeval open reports --project <project-id> --tab overview --print-url --no-open",
+      "cloudeval open billing --tab usage --print-url --no-open",
+    ],
+    mcpTools: ["open_url"],
+    safety: {
+      requiresAuth: false,
+      consumesCredits: false,
+      writesLocalFile: false,
+      mayExposeSensitiveData: true,
+      mutation: "explicit",
+    },
+    expectedOutput: [
+      "One or more frontend URLs",
+      "Browser-open command only when explicitly requested",
+    ],
+    failureHandling: [
+      "Prefer `--print-url --no-open` for automation and agent contexts.",
+    ],
+  },
+  {
+    id: "cloudeval-diagram-export",
+    title: "Diagram Export",
+    description:
+      "Export CloudEval architecture or dependency diagrams using the existing project diagram command.",
+    category: "visualizations",
+    skill: "cloudeval-visualizations",
     mode: "guide",
     inputs: [
       { name: "projectId", description: "CloudEval project id.", required: true },
@@ -299,20 +716,90 @@ export const recipes: Recipe[] = [
     ],
   },
   {
-    id: "mcp-setup",
+    id: "cloudeval-architecture-diagram-export",
+    title: "Architecture Diagram Export",
+    description:
+      "Export a CloudEval architecture-view diagram image for presentations, reviews, or offline inspection.",
+    category: "visualizations",
+    skill: "cloudeval-visualizations",
+    mode: "guide",
+    inputs: [
+      { name: "projectId", description: "CloudEval project id.", required: true },
+      { name: "outputPath", description: "Local PNG, JPEG, or SVG output path.", required: true },
+    ],
+    commands: [
+      "cloudeval projects export-diagram <project-id> --layout architecture --format png --labels all --output <file>",
+      "cloudeval open project <project-id> --view both --layout architecture --print-url --no-open",
+    ],
+    mcpTools: ["projects_export_diagram", "open_url"],
+    safety: {
+      requiresAuth: true,
+      consumesCredits: false,
+      writesLocalFile: true,
+      mayExposeSensitiveData: true,
+      mutation: "explicit",
+    },
+    expectedOutput: [
+      "Architecture diagram file path",
+      "Image format and label mode",
+      "Architecture workspace link",
+    ],
+    failureHandling: [
+      "Use `--public` only for intentionally public/share graphs.",
+      "Do not embed exported diagrams in public docs until labels and resources are reviewed.",
+    ],
+  },
+  {
+    id: "cloudeval-dependency-diagram-export",
+    title: "Dependency Diagram Export",
+    description:
+      "Export a CloudEval dependency-view diagram image for relationship and blast-radius analysis.",
+    category: "visualizations",
+    skill: "cloudeval-visualizations",
+    mode: "guide",
+    inputs: [
+      { name: "projectId", description: "CloudEval project id.", required: true },
+      { name: "outputPath", description: "Local PNG, JPEG, or SVG output path.", required: true },
+    ],
+    commands: [
+      "cloudeval projects export-diagram <project-id> --layout dependency --format svg --labels all --output <file>",
+      "cloudeval open project <project-id> --view both --layout dependency --print-url --no-open",
+    ],
+    mcpTools: ["projects_export_diagram", "open_url"],
+    safety: {
+      requiresAuth: true,
+      consumesCredits: false,
+      writesLocalFile: true,
+      mayExposeSensitiveData: true,
+      mutation: "explicit",
+    },
+    expectedOutput: [
+      "Dependency diagram file path",
+      "Image format and label mode",
+      "Dependency workspace link",
+    ],
+    failureHandling: [
+      "Require an explicit output path before writing files.",
+      "Review node labels before sharing externally.",
+    ],
+  },
+  {
+    id: "cloudeval-mcp-setup",
     title: "MCP Setup",
-    description: "Configure CloudEval MCP for Codex, Cursor, Claude, or a generic stdio client.",
+    description:
+      "Configure CloudEval MCP for Codex, Cursor, Claude, VS Code, or a generic stdio client.",
     category: "mcp",
     skill: "cloudeval-mcp-diagnostics",
     mode: "guide",
-    inputs: [{ name: "client", description: "codex, cursor, claude, or generic." }],
+    inputs: [{ name: "client", description: "codex, cursor, claude, vscode, generic, detected, or all." }],
     commands: [
       "cloudeval mcp status --format json",
       "cloudeval mcp setup codex --dry-run --toolset readonly --format json",
       "cloudeval mcp setup cursor --dry-run --toolset reports --format json",
+      "cloudeval mcp setup claude --dry-run --toolset readonly --format json",
       "cloudeval mcp serve --toolset readonly",
     ],
-    mcpTools: ["capabilities_get", "recipes_list"],
+    mcpTools: ["capabilities_get", "recipes_list", "status", "doctor"],
     safety: {
       requiresAuth: false,
       consumesCredits: false,
@@ -324,10 +811,11 @@ export const recipes: Recipe[] = [
       "MCP config or command",
       "Selected toolset",
       "Setup instructions",
+      "Validation command",
     ],
     failureHandling: [
       "Use --dry-run before writing client config files.",
-      "If auth is missing, run `cloudeval login` before serving MCP.",
+      "If auth is missing, run `cloudeval login` before serving private MCP tools.",
     ],
   },
 ];
@@ -336,8 +824,38 @@ export const recipeIds = recipes.map((recipe) => recipe.id);
 
 const recipeById = new Map(recipes.map((recipe) => [recipe.id, recipe]));
 
-export const getRecipe = (id: string): Recipe | undefined =>
-  recipeById.get(id as RecipeId);
+export const recipeAliases: Record<string, RecipeId> = {
+  "cost-review": "cloudeval-cloud-cost-review",
+  "waf-triage": "cloudeval-well-architected-framework-review",
+  "well-architected-framework-review": "cloudeval-well-architected-framework-review",
+  "cloudeval-well-architect-framework-review": "cloudeval-well-architected-framework-review",
+  "architecture-review": "cloudeval-architecture-review",
+  "template-project-review": "cloudeval-template-project-review",
+  "report-summary": "cloudeval-report-summary",
+  "report-generation-plan": "cloudeval-report-generation-plan",
+  "report-export-pack": "cloudeval-report-export-pack",
+  "billing-review": "cloudeval-billing-review",
+  "billing-topup-readiness": "cloudeval-credit-topup-readiness",
+  "project-inventory": "cloudeval-project-inventory",
+  "project-healthcheck": "cloudeval-project-healthcheck",
+  "connection-audit": "cloudeval-connection-audit",
+  "credentials-agent-key-setup": "cloudeval-agent-access-key-setup",
+  "credentials-rotation": "cloudeval-credential-rotation",
+  "model-selection": "cloudeval-model-selection",
+  "session-recovery": "cloudeval-session-recovery",
+  "cli-onboarding-check": "cloudeval-cli-onboarding-check",
+  "frontend-workspace-links": "cloudeval-frontend-workspace-links",
+  "diagram-export": "cloudeval-diagram-export",
+  "architecture-diagram-export": "cloudeval-architecture-diagram-export",
+  "dependency-diagram-export": "cloudeval-dependency-diagram-export",
+  "mcp-setup": "cloudeval-mcp-setup",
+};
+
+export const getRecipe = (id: string): Recipe | undefined => {
+  const key = id.trim().toLowerCase();
+  const alias = recipeAliases[key];
+  return recipeById.get(key as RecipeId) ?? (alias ? recipeById.get(alias) : undefined);
+};
 
 export const recipeSummary = (recipe: Recipe) => ({
   id: recipe.id,
@@ -358,21 +876,64 @@ const contextValue = (
   return typeof value === "string" && value.trim() ? value : fallback;
 };
 
+export const renderRecipeCommands = (
+  recipe: Recipe,
+  context: RecipePromptContext = {},
+): string[] => {
+  const replacements: Record<string, string> = {
+    "<project-id>": contextValue(context, "projectId", "<project-id>"),
+    "<connection-id>": contextValue(context, "connectionId", "<connection-id>"),
+    "<credential-id>": contextValue(context, "credentialId", "<credential-id>"),
+    "<range>": contextValue(context, "range", "<range>"),
+    "<path>": contextValue(context, "templateFile", "<path>"),
+    "<url>": contextValue(context, "templateUrl", "<url>"),
+    "<file>": contextValue(context, "outputPath", "<file>"),
+    "<dir>": contextValue(context, "outputDir", contextValue(context, "outputPath", "<dir>")),
+    "<name>": contextValue(context, "name", "<name>"),
+    "<new-name>": contextValue(context, "name", "<new-name>"),
+    "<model>": contextValue(context, "model", "<model>"),
+    "<client>": contextValue(context, "client", "<client>"),
+  };
+  return recipe.commands.map((command) => {
+    let rendered = command;
+    for (const [placeholder, value] of Object.entries(replacements)) {
+      rendered = rendered.replaceAll(placeholder, value);
+    }
+    return rendered;
+  });
+};
+
+const explicitCommandPrompt = (
+  recipe: Recipe,
+  context: RecipePromptContext,
+  extra: string[] = [],
+): string => [
+  `${recipe.title}: ${recipe.description}`,
+  "Use only existing CloudEval CLI and MCP capabilities listed in the recipe.",
+  "Do not perform explicit mutations unless the user runs or confirms the shown command.",
+  ...extra,
+  "",
+  "Commands:",
+  ...renderRecipeCommands(recipe, context).map((command) => `- ${command}`),
+  context.outputPath ? `Output path requested: ${context.outputPath}` : "",
+].filter(Boolean).join("\n");
+
 export const renderRecipePrompt = (
   recipe: Recipe,
   context: RecipePromptContext = {},
 ): string => {
   const projectId = contextValue(context, "projectId", "the default CloudEval project");
   const range = contextValue(context, "range", "30d");
-  if (recipe.id === "cost-review") {
+  const outputPath = contextValue(context, "outputPath", "<file>");
+  if (recipe.id === "cloudeval-cloud-cost-review") {
     return [
       `Run a CloudEval cost review for ${projectId} over ${range}.`,
-      "Use CloudEval reports, billing usage, and project context where available.",
+      "Use CloudEval reports, cost report details, billing usage, and project context where available.",
       "Return top cost drivers, savings opportunities, anomalies, and concrete next actions.",
       "Separate confirmed evidence from assumptions or missing data.",
     ].join("\n");
   }
-  if (recipe.id === "waf-triage") {
+  if (recipe.id === "cloudeval-well-architected-framework-review") {
     return [
       `Triage Well-Architected findings for ${projectId}.`,
       "Use CloudEval WAF reports and rules where available.",
@@ -380,7 +941,7 @@ export const renderRecipePrompt = (
       "Do not regenerate reports unless the user explicitly asks.",
     ].join("\n");
   }
-  if (recipe.id === "architecture-review") {
+  if (recipe.id === "cloudeval-architecture-review") {
     return [
       `Review the CloudEval architecture for ${projectId}.`,
       "Focus on reliability, security, operational excellence, performance, and cost efficiency.",
@@ -388,26 +949,40 @@ export const renderRecipePrompt = (
       "Call out missing evidence separately from confirmed findings.",
     ].join("\n");
   }
-  if (recipe.id === "report-summary") {
+  if (recipe.id === "cloudeval-report-summary") {
     return [
       `Summarize latest CloudEval reports for ${projectId}.`,
       "Create a concise Markdown-ready summary with cost highlights, WAF highlights, top risks, and next actions.",
       "Do not paste raw report JSON.",
     ].join("\n");
   }
-  if (recipe.id === "billing-review") {
+  if (recipe.id === "cloudeval-billing-review") {
     return [
       `Review CloudEval billing usage over ${range}.`,
-      "Use billing summary, usage, ledger, plans, and top-up context where available.",
+      "Use billing summary, usage, ledger, invoices, notifications, plans, and top-up context where available.",
       "Summarize credit status, usage trend, unusual charges, and recommended billing actions.",
       "Do not paste full ledger entries or sensitive identifiers.",
     ].join("\n");
   }
-  return [
-    `${recipe.title}: ${recipe.description}`,
-    "Use only existing CloudEval CLI and MCP capabilities listed in the recipe.",
-    "Do not perform explicit mutations unless the user runs the shown command.",
-  ].join("\n");
+  if (recipe.id === "cloudeval-architecture-diagram-export") {
+    return explicitCommandPrompt(recipe, context, [
+      `Prepare an architecture diagram export for ${projectId} to ${outputPath}.`,
+      "Use layout=architecture, labels=all by default, and include the architecture workspace URL.",
+    ]);
+  }
+  if (recipe.id === "cloudeval-dependency-diagram-export") {
+    return explicitCommandPrompt(recipe, context, [
+      `Prepare a dependency diagram export for ${projectId} to ${outputPath}.`,
+      "Use layout=dependency, labels=all by default, and include the dependency workspace URL.",
+    ]);
+  }
+  if (recipe.id === "cloudeval-diagram-export") {
+    return explicitCommandPrompt(recipe, context, [
+      `Prepare a CloudEval diagram export for ${projectId} to ${outputPath}.`,
+      "Ask whether architecture or dependency layout is preferred if the layout is not specified.",
+    ]);
+  }
+  return explicitCommandPrompt(recipe, context);
 };
 
 export const renderRecipeMarkdown = (recipe: Recipe): string => {

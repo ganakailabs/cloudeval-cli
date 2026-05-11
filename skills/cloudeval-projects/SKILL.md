@@ -1,44 +1,55 @@
 ---
 name: cloudeval-projects
-description: Work with CloudEval projects, template project creation, project links, and diagram exports.
+description: Use when listing, inspecting, creating, opening, or health-checking CloudEval projects and template project workflows.
 ---
 
 # CloudEval Projects
 
 ## WHEN
-- Use to list, inspect, open, create template projects, or export project diagrams.
+- Use for project inventory, project healthchecks, template-file or template-URL project creation, and frontend project links.
+- Use before report, WAF, cost, or diagram work when a project id is missing.
 
 ## DO NOT USE FOR
-- Generic IaC scanning outside CloudEval template project support.
-- Creating projects without an explicit user request.
+- Unsupported project sources or cloud analysis outside CloudEval project APIs.
+- Dumping raw project payloads containing customer or provider identifiers into public docs.
 
 ## Required CloudEval Context
-- Auth for project list/get/create.
-- Template project creation accepts existing CloudEval inputs: local JSON template file, template URL, parameters file, parameters URL, provider, name, and description.
+- Auth is required for private project list/get/create.
+- Template project creation requires `--template-file` or `--template-url`; parameters are optional.
+- Provider must be one already accepted by `cloudeval projects create`.
 
 ## CLI Commands
 - `cloudeval projects list`
 - `cloudeval projects get <id>`
-- `cloudeval projects open <id>`
-- `cloudeval projects create --template-file <path>|--template-url <url>`
-- `cloudeval projects export-diagram <id> --layout architecture|dependency --format png|jpeg|svg --labels all|viewport --output <file>`
+- `cloudeval projects create --template-file <path> --name <name>`
+- `cloudeval projects create --template-url <url> --parameters-file <path> --provider azure --name <name>`
+- `cloudeval open projects --print-url --no-open`
+- `cloudeval open project <id> --view both --layout architecture|dependency --print-url --no-open`
 
 ## MCP Tools
-- `projects_list`
-- `projects_get`
-- `projects_export_diagram`
+- `projects_list`, `projects_get`
+- `connections_list`, `connections_get`
 - `open_url`
+- `projects_export_diagram` when visualization output is explicitly requested
+
+## Operating Pattern
+1. List projects if no project id is available; choose only with user confirmation unless a default profile project exists.
+2. For create workflows, render the exact command first and explain what it will create.
+3. After create, use `reports run` only if the user asks to generate reports.
+4. Provide frontend links with `--print-url --no-open` for agents and scripts.
 
 ## Safety Requirements
 - Project creation is explicit mutation.
-- Diagram export writes local files only when an output path is provided.
-- Redact project/customer metadata in public summaries.
+- Browser opening is explicit; prefer printing links in automation.
+- Do not expose raw template parameters or provider identifiers unless requested.
 
 ## Expected Output / Proof
-- Project id/name/provider/source/status summary.
-- Frontend project link when available.
-- Diagram output path and byte count for exports.
+- Project id/name/provider/source/status.
+- Creation command or created project summary.
+- Frontend URL for projects or selected project.
+- Missing project/report/sync evidence if unavailable.
 
 ## Failure Handling
-- If project id is missing, list projects first.
-- If diagram export fails, report the HTTP status/content-type and avoid writing partial misleading outputs.
+- If auth fails, run `cloudeval login`.
+- If template creation lacks a template file or URL, stop and request one.
+- If project id is unknown, list projects instead of guessing.

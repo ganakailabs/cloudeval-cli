@@ -185,9 +185,14 @@ const startBackend = async (
       const payload = JSON.parse(body || "{}");
       assert.equal(payload.template.resources[0].name, "sttest001");
       assert.equal(payload.parameter_file.parameters.location.value, "eastus2");
+      assert.deepEqual(payload.options.rule_names, [
+        "storage-public-access",
+        "storage-encryption",
+      ]);
       return json(res, {
         success: true,
         summary: { total_rules: 1, passed_rules: 0, failed_rules: 1 },
+        requested_rule_names: payload.options.rule_names,
       });
     }
     if (url.pathname === "/api/v1/rule/rules/search" && req.method === "GET") {
@@ -421,6 +426,14 @@ test("mcp serve initializes, lists tools, and returns strict JSON-RPC stdout", a
     assert(names.includes("projects_graph_insights"));
     assert(names.includes("template_validate"));
     assert(names.includes("rules_search"));
+    const templateValidate = listed.result.tools.find(
+      (tool: any) => tool.name === "template_validate",
+    );
+    assert.equal(templateValidate.inputSchema.properties.ruleId.type, "string");
+    assert.deepEqual(templateValidate.inputSchema.properties.ruleNames.oneOf[1], {
+      type: "array",
+      items: { type: "string" },
+    });
     assert(!names.includes("projects.exportDiagram"));
     assert(!names.includes("projects.diagramImage"));
     assert(names.includes("reports_run"));
@@ -1061,6 +1074,8 @@ test("mcp server exposes graph intelligence and generic validation tools", async
           templatePath,
           parametersPath,
           failedOnly: true,
+          ruleId: "storage-public-access",
+          ruleNames: ["storage-encryption"],
         },
       },
     });
@@ -1072,6 +1087,10 @@ test("mcp server exposes graph intelligence and generic validation tools", async
       "validate template",
     );
     assert.equal(validationResponse.result.structuredContent.data.summary.failed_rules, 1);
+    assert.deepEqual(
+      validationResponse.result.structuredContent.data.requested_rule_names,
+      ["storage-public-access", "storage-encryption"],
+    );
 
     mcp.send({
       jsonrpc: "2.0",

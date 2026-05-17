@@ -1247,6 +1247,18 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
         templatePath: templatePathProperty,
         parametersPath: parametersPathProperty,
         failedOnly: { type: "boolean", default: false },
+        ruleId: {
+          type: "string",
+          description: "Single validation check id to run.",
+        },
+        ruleNames: {
+          oneOf: [
+            { type: "string" },
+            { type: "array", items: { type: "string" } },
+          ],
+          description:
+            "Validation check ids to run. Accepts an array or comma-separated string.",
+        },
         category: { type: "string", description: "Validation category filter." },
         pillar: { type: "string", description: "Architecture pillar filter." },
         minSeverity: { type: "string", description: "Minimum severity level." },
@@ -2960,6 +2972,11 @@ const buildToolHandlers = (
     if (!templatePath) {
       throw new Error("templatePath is required.");
     }
+    const ruleId = stringValue(args.ruleId);
+    const ruleNames = Array.from(new Set([
+      ...(ruleId ? [ruleId] : []),
+      ...(arrayValue(args.ruleNames) ?? []),
+    ]));
     const data = await validateTemplate({
       baseUrl: config.baseUrl,
       authToken: auth.token,
@@ -2967,6 +2984,7 @@ const buildToolHandlers = (
       templatePath,
       parametersPath: stringValue(args.parametersPath),
       failedOnly: booleanValue(args.failedOnly),
+      ruleNames,
       category: stringValue(args.category),
       pillar: stringValue(args.pillar),
       minSeverity: stringValue(args.minSeverity),

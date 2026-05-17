@@ -73,7 +73,8 @@ The smoke script verifies:
   credential APIs.
 - `cloudeval projects graph ...`, `cloudeval validate ...`, and
   `cloudeval rules ...` are covered by the non-interactive mock-backend suite
-  because they require authenticated project/template context.
+  because they require authenticated project/template context. This includes
+  exact validation check targeting with repeatable `--rule`.
 - `cloudeval models list --format json` reaches the real backend and returns at
   least one model.
 - `cloudeval billing plans --format json --non-interactive` returns a parseable

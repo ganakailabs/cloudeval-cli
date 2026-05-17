@@ -747,11 +747,22 @@ const startBackend = async (
         assert.equal(payload.parameter_file.parameters.location.value, "eastus2");
       }
       assert.equal(typeof payload.options.include_only_failed, "boolean");
+      const selectedRules = Array.isArray(payload.options.rule_names)
+        ? payload.options.rule_names
+        : [];
       return json(res, {
         success: true,
-        summary: { total_rules: 12, passed_rules: 10, failed_rules: 2 },
+        summary:
+          selectedRules.length > 0
+            ? {
+                total_rules: selectedRules.length,
+                passed_rules: 0,
+                failed_rules: selectedRules.length,
+              }
+            : { total_rules: 12, passed_rules: 10, failed_rules: 2 },
+        requested_rule_names: selectedRules,
         filtered_results: {
-          total_matching_rules: 2,
+          total_matching_rules: selectedRules.length > 0 ? selectedRules.length : 2,
           results: [
             {
               rule_name: "storage-public-access",
@@ -2484,11 +2495,19 @@ test("template validation, parsing, and rule catalog commands use generic public
         "--failed-only",
         "--min-severity",
         "Warning",
+        "--rule",
+        "storage-public-access",
+        "--rule",
+        "storage-encryption",
         ...common,
       ]);
     const validation = parseJson(validationResult);
     assert.equal(validation.command, "validate template");
     assert.equal(validation.data.summary.failed_rules, 2);
+    assert.deepEqual(validation.data.requested_rule_names, [
+      "storage-public-access",
+      "storage-encryption",
+    ]);
 
     const validationWithoutParamsResult = await runCli([
       "validate",

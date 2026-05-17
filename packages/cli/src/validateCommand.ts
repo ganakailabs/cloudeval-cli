@@ -19,6 +19,7 @@ type ValidateOptions = AuthGuardOptions & {
   templateFile?: string;
   parametersFile?: string;
   failedOnly?: boolean;
+  rule?: string[];
   category?: string;
   pillar?: string;
   minSeverity?: string;
@@ -49,6 +50,14 @@ const parsePositiveInteger = (value?: string): number | undefined => {
   return parsed;
 };
 
+const collectRule = (value: string, previous: string[] = []): string[] => [
+  ...previous,
+  ...value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean),
+];
+
 export const registerValidateCommand = (
   program: Command,
   deps: RegisterValidateCommandOptions,
@@ -59,6 +68,11 @@ export const registerValidateCommand = (
 
   addCommon(validate.command("template").description("Validate a cloud template"), deps)
     .option("--failed-only", "Return failed validation checks only", false)
+    .option(
+      "--rule <id>",
+      "Run a specific validation check id; repeat for multiple checks",
+      collectRule,
+    )
     .option("--category <name>", "Validation category filter")
     .option("--pillar <name>", "Architecture pillar filter")
     .option("--min-severity <level>", "Minimum severity level")
@@ -75,6 +89,7 @@ export const registerValidateCommand = (
           templatePath: options.templateFile!,
           parametersPath: options.parametersFile,
           failedOnly: options.failedOnly,
+          ruleNames: options.rule,
           category: options.category,
           pillar: options.pillar,
           minSeverity: options.minSeverity,

@@ -8,6 +8,7 @@ export type TemplateFileInput = {
 
 export type ValidationOptions = {
   failedOnly?: boolean;
+  ruleNames?: string[];
   category?: string;
   pillar?: string;
   minSeverity?: string;
@@ -55,6 +56,7 @@ const validationRequestBody = async (
       include_remediation_steps: true,
       include_documentation_links: true,
       include_only_failed: Boolean(options.failedOnly),
+      ...(options.ruleNames?.length ? { rule_names: options.ruleNames } : {}),
       ...(options.category ? { rule_categories: [options.category] } : {}),
       ...(options.pillar ? { rule_pillars: [options.pillar] } : {}),
       ...(options.minSeverity ? { min_severity_level: options.minSeverity } : {}),

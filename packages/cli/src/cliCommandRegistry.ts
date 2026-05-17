@@ -311,6 +311,7 @@ export const cliCommands: CliCommandMetadata[] = [
       "--template-file",
       "--parameters-file",
       "--failed-only",
+      "--rule",
       "--category",
       "--pillar",
       "--min-severity",

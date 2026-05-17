@@ -748,11 +748,56 @@ const startBackend = async (
     if (url.pathname === "/api/v1/jobs/job-template-validation-1/result") {
       assert.equal(url.searchParams.get("user_id"), user.id);
       return json(res, {
-        success: true,
-        summary: { total_rules: 1, passed_rules: 0, failed_rules: 1 },
-        filtered_results: {
-          total_matching_rules: 1,
-          results: [{ rule_name: "async-template-validation", outcome: "Fail" }],
+        result: {
+          success: true,
+          summary: { total_rules: 1, passed_rules: 0, failed_rules: 1 },
+          filtered_results: {
+            total_matching_rules: 1,
+            results: [{ rule_name: "async-template-validation", outcome: "Fail" }],
+          },
+        },
+      });
+    }
+    if (url.pathname === "/api/v1/jobs/job-template-tests-1") {
+      assert.equal(url.searchParams.get("user_id"), user.id);
+      return json(res, {
+        job_id: "job-template-tests-1",
+        status: "SUCCEEDED",
+        operation: "template_test",
+        progress: 100,
+      });
+    }
+    if (url.pathname === "/api/v1/jobs/job-template-tests-1/result") {
+      assert.equal(url.searchParams.get("user_id"), user.id);
+      return json(res, {
+        result: {
+          success: true,
+          total_tests: 2,
+          passed_tests: 1,
+          failed_tests: 1,
+          skipped_tests: 0,
+          test_results: [
+            {
+              test_name: "Template Should Not Contain Blanks",
+              test_category: "syntax",
+              passed: true,
+              severity: "info",
+              message: "Template contains no blank elements.",
+              recommendation: "No action required.",
+              duration_ms: 12,
+              file_path: "azuredeploy.json",
+            },
+            {
+              test_name: "IDs Should Be Derived From ResourceIDs",
+              test_category: "security",
+              passed: false,
+              severity: "error",
+              message: "One resource id is not derived from resourceId().",
+              recommendation: "Use resourceId() for resource identifiers.",
+              duration_ms: 18,
+              file_path: "azuredeploy.json",
+            },
+          ],
         },
       });
     }
@@ -803,10 +848,37 @@ const startBackend = async (
               outcome: "Fail",
               level: "Warning",
               target_name: "sttest001",
+              target_type: "Microsoft.Storage/storageAccounts",
+              info: {
+                display_name: "Disable anonymous blob access",
+                description: "Storage accounts should reject anonymous blob access.",
+                synopsis: "Anonymous blob access increases data exposure risk.",
+              },
+              recommendation: "Set allowBlobPublicAccess to false.",
+              documentation_url: "https://example.test/rules/storage-public-access",
             },
           ],
         },
       });
+    }
+    if (url.pathname === "/api/v1/arm-template/test" && req.method === "POST") {
+      assert.equal(url.searchParams.get("user_id"), user.id);
+      const payload = JSON.parse(body || "{}");
+      assert.equal(payload.template.resources[0].name, "sttest001");
+      assert.equal(payload.parameter_file.parameters.location.value, "eastus2");
+      assert.deepEqual(payload.include_tests, ["IDs Should Be Derived From ResourceIDs"]);
+      return json(
+        res,
+        {
+          message: "Template test job submitted",
+          job: {
+            job_id: "job-template-tests-1",
+            status: "QUEUED",
+            operation: "template_test",
+          },
+        },
+        202,
+      );
     }
     if (url.pathname === "/api/v1/arm-template/parse" && req.method === "POST") {
       assert.equal(url.searchParams.get("user_id"), user.id);
@@ -2543,6 +2615,41 @@ test("template validation, parsing, and rule catalog commands use generic public
       "storage-encryption",
     ]);
 
+    const validationDetailsResult = await runCli([
+      "validate",
+      "template",
+      "--template-file",
+      templatePath,
+      "--parameters-file",
+      parametersPath,
+      "--details",
+      "--rule",
+      "storage-public-access",
+      ...common,
+    ]);
+    const validationDetails = parseJson(validationDetailsResult);
+    assert.equal(validationDetails.command, "validate template");
+    assert.equal(validationDetails.data.summary.failed_rules, 1);
+    assert.equal(validationDetails.data.details.length, 1);
+    assert.deepEqual(validationDetails.data.details[0], {
+      source: "template_rules",
+      rule_id: "storage-public-access",
+      rule_name: "storage-public-access",
+      display_name: "Disable anonymous blob access",
+      status: "Fail",
+      severity: "Warning",
+      target: {
+        name: "sttest001",
+        type: "Microsoft.Storage/storageAccounts",
+      },
+      evidence: {
+        description: "Storage accounts should reject anonymous blob access.",
+        synopsis: "Anonymous blob access increases data exposure risk.",
+        recommendation: "Set allowBlobPublicAccess to false.",
+        documentation_url: "https://example.test/rules/storage-public-access",
+      },
+    });
+
     const waitedValidationResult = await runCli([
       "validate",
       "template",
@@ -2564,6 +2671,46 @@ test("template validation, parsing, and rule catalog commands use generic public
     assert.equal(waitedValidation.data.jobId, "job-template-validation-1");
     assert.equal(waitedValidation.data.status.status, "SUCCEEDED");
     assert.equal(waitedValidation.data.result.summary.failed_rules, 1);
+
+    const templateTestsResult = await runCli([
+      "validate",
+      "tests",
+      "--template-file",
+      templatePath,
+      "--parameters-file",
+      parametersPath,
+      "--test",
+      "IDs Should Be Derived From ResourceIDs",
+      "--wait",
+      "--poll-interval",
+      "10",
+      "--wait-timeout",
+      "5000",
+      ...common,
+    ]);
+    const templateTests = parseJson(templateTestsResult);
+    assert.equal(templateTests.command, "validate tests");
+    assert.equal(templateTests.data.jobId, "job-template-tests-1");
+    assert.equal(templateTests.data.status.status, "SUCCEEDED");
+    assert.deepEqual(templateTests.data.summary, {
+      total_tests: 2,
+      passed_tests: 1,
+      failed_tests: 1,
+      skipped_tests: 0,
+    });
+    assert.equal(templateTests.data.details.length, 2);
+    assert.deepEqual(templateTests.data.details[1], {
+      source: "template_tests",
+      test_name: "IDs Should Be Derived From ResourceIDs",
+      category: "security",
+      status: "Fail",
+      passed: false,
+      severity: "error",
+      message: "One resource id is not derived from resourceId().",
+      recommendation: "Use resourceId() for resource identifiers.",
+      duration_ms: 18,
+      file_path: "azuredeploy.json",
+    });
 
     const validationWithoutParamsResult = await runCli([
       "validate",

@@ -71,8 +71,11 @@ import {
   getRuleCategories,
   parseTemplate,
   searchRules,
+  testTemplate,
   validateTemplate,
   waitForTemplateValidationResult,
+  withTemplateTestDetails,
+  withTemplateValidationDetails,
 } from "./templateValidationClient.js";
 import { warnIfAccessKeyFromCliOption } from "./authGuard.js";
 
@@ -1266,9 +1269,75 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
         maxResults: { type: "number", description: "Maximum validation results." },
         projectId: projectIdProperty,
         saveReport: { type: "boolean", default: false },
+        details: {
+          type: "boolean",
+          description: "Include frontend-style per-check evidence details.",
+          default: false,
+        },
         wait: {
           type: "boolean",
           description: "Poll an async validation job until results are ready.",
+          default: false,
+        },
+        pollIntervalMs: {
+          type: "number",
+          description: "Polling interval when wait is true.",
+        },
+        waitTimeoutMs: {
+          type: "number",
+          description: "Maximum time to wait when wait is true.",
+        },
+      },
+      ["templatePath"],
+    ),
+    outputSchema: envelopeSchema,
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      openWorldHint: true,
+      requiresAuth: true,
+      consumesCredits: true,
+      mayExposeSensitiveData: true,
+    },
+  },
+  {
+    name: "template_test",
+    title: "Run Template Tests",
+    description:
+      "Run local cloud template test checks. Parameters files are accepted but optional.",
+    inputSchema: makeInputSchema(
+      {
+        templatePath: templatePathProperty,
+        parametersPath: parametersPathProperty,
+        includeTests: {
+          oneOf: [
+            { type: "string" },
+            { type: "array", items: { type: "string" } },
+          ],
+          description:
+            "Template test names to run. Accepts an array or comma-separated string.",
+        },
+        skipTests: {
+          oneOf: [
+            { type: "string" },
+            { type: "array", items: { type: "string" } },
+          ],
+          description:
+            "Template test names to skip. Accepts an array or comma-separated string.",
+        },
+        category: { type: "string", description: "Template test category." },
+        testGroups: {
+          oneOf: [
+            { type: "string" },
+            { type: "array", items: { type: "string" } },
+          ],
+          description:
+            "Template test groups to run. Accepts an array or comma-separated string.",
+        },
+        verbose: { type: "boolean", default: false },
+        wait: {
+          type: "boolean",
+          description: "Poll an async template test job until results are ready.",
           default: false,
         },
         pollIntervalMs: {
@@ -1642,6 +1711,7 @@ const MCP_TOOL_ALIASES: Record<string, string> = {
   "reports.run": "reports_run",
   "reports.download": "reports_download",
   "template.validate": "template_validate",
+  "template.test": "template_test",
   "template.parse": "template_parse",
   "rules.categories": "rules_categories",
   "rules.search": "rules_search",
@@ -1784,6 +1854,7 @@ const MCP_TOOLSETS: Record<McpToolsetName, readonly string[]> = {
   validation: [
     "capabilities_get",
     "template_validate",
+    "template_test",
     "template_parse",
     "rules_categories",
     "rules_search",
@@ -3016,7 +3087,49 @@ const buildToolHandlers = (
           waitTimeoutMs: numberValue(args.waitTimeoutMs),
         })
       : submitted;
-    return withEnvelope({ command: "validate template", data });
+    return withEnvelope({
+      command: "validate template",
+      data: booleanValue(args.details)
+        ? withTemplateValidationDetails(data)
+        : data,
+    });
+  });
+
+  handlers.set("template_test", async (args) => {
+    const config = await resolveInvocationConfig(serverOptions, args);
+    const auth = await resolveAuth(config, { requireUser: true });
+    const templatePath = stringValue(args.templatePath);
+    if (!templatePath) {
+      throw new Error("templatePath is required.");
+    }
+    const submitted = await testTemplate({
+      baseUrl: config.baseUrl,
+      authToken: auth.token,
+      userId: auth.user!.id,
+      templatePath,
+      parametersPath: stringValue(args.parametersPath),
+      includeTests: arrayValue(args.includeTests),
+      skipTests: arrayValue(args.skipTests),
+      testCategories: stringValue(args.category)
+        ? [stringValue(args.category)!]
+        : undefined,
+      testGroups: arrayValue(args.testGroups),
+      verboseOutput: booleanValue(args.verbose),
+    });
+    const data = booleanValue(args.wait)
+      ? await waitForTemplateValidationResult({
+          baseUrl: config.baseUrl,
+          authToken: auth.token,
+          userId: auth.user!.id,
+          submitted,
+          pollIntervalMs: numberValue(args.pollIntervalMs),
+          waitTimeoutMs: numberValue(args.waitTimeoutMs),
+        })
+      : submitted;
+    return withEnvelope({
+      command: "validate tests",
+      data: withTemplateTestDetails(data),
+    });
   });
 
   handlers.set("template_parse", async (args) => {

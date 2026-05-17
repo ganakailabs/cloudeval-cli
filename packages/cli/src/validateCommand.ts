@@ -9,8 +9,11 @@ import {
 import { writeFormattedOutput, type MachineOutputFormat } from "./outputFormatter.js";
 import {
   parseTemplate,
+  testTemplate,
   validateTemplate,
   waitForTemplateValidationResult,
+  withTemplateTestDetails,
+  withTemplateValidationDetails,
 } from "./templateValidationClient.js";
 
 export interface RegisterValidateCommandOptions extends AuthGuardDeps {
@@ -30,10 +33,15 @@ type ValidateOptions = AuthGuardOptions & {
   maxResults?: string;
   project?: string;
   saveReport?: boolean;
+  details?: boolean;
   wait?: boolean;
   pollInterval?: string;
   waitTimeout?: string;
   location?: string;
+  test?: string[];
+  skipTest?: string[];
+  group?: string[];
+  verbose?: boolean;
 };
 
 const addCommon = <T extends Command>(
@@ -89,6 +97,7 @@ export const registerValidateCommand = (
     .option("--max-results <count>", "Maximum validation results")
     .option("--project <id>", "Project id for saved validation results")
     .option("--save-report", "Persist validation results when a project is provided", false)
+    .option("--details", "Include frontend-style per-check evidence details", false)
     .option("--wait", "Poll an async validation job until results are ready", false)
     .option("--poll-interval <ms>", "Polling interval when --wait is set", "2500")
     .option("--wait-timeout <ms>", "Maximum time to wait when --wait is set", "600000")
@@ -126,9 +135,12 @@ export const registerValidateCommand = (
               ),
             })
           : submitted;
+        const outputData = options.details
+          ? withTemplateValidationDetails(data)
+          : data;
         await writeFormattedOutput({
           command: "validate template",
-          data,
+          data: outputData,
           format: options.format,
           output: options.output,
         });
@@ -160,6 +172,58 @@ export const registerValidateCommand = (
         });
       } catch (error: any) {
         console.error(`Failed to parse template: ${error?.message ?? "Unknown error"}`);
+        process.exit(1);
+      }
+    });
+
+  addCommon(validate.command("tests").description("Run cloud template test checks"), deps)
+    .option("--test <name>", "Run a specific template test; repeat for multiple tests", collectRule)
+    .option("--skip-test <name>", "Skip a specific template test; repeat for multiple tests", collectRule)
+    .option("--category <name>", "Template test category")
+    .option("--group <name>", "Template test group; repeat for multiple groups", collectRule)
+    .option("--verbose", "Request verbose template test output", false)
+    .option("--wait", "Poll an async template test job until results are ready", false)
+    .option("--poll-interval <ms>", "Polling interval when --wait is set", "2500")
+    .option("--wait-timeout <ms>", "Maximum time to wait when --wait is set", "600000")
+    .action(async (options: ValidateOptions, command) => {
+      try {
+        const context = requireAuthUser(await resolveAuthContext(options, command, deps));
+        const submitted = await testTemplate({
+          baseUrl: context.baseUrl,
+          authToken: context.token,
+          userId: context.user.id,
+          templatePath: options.templateFile!,
+          parametersPath: options.parametersFile,
+          includeTests: options.test,
+          skipTests: options.skipTest,
+          testCategories: options.category ? [options.category] : undefined,
+          testGroups: options.group,
+          verboseOutput: options.verbose,
+        });
+        const data = options.wait
+          ? await waitForTemplateValidationResult({
+              baseUrl: context.baseUrl,
+              authToken: context.token,
+              userId: context.user.id,
+              submitted,
+              pollIntervalMs: parsePositiveInteger(
+                options.pollInterval,
+                "--poll-interval",
+              ),
+              waitTimeoutMs: parsePositiveInteger(
+                options.waitTimeout,
+                "--wait-timeout",
+              ),
+            })
+          : submitted;
+        await writeFormattedOutput({
+          command: "validate tests",
+          data: withTemplateTestDetails(data),
+          format: options.format,
+          output: options.output,
+        });
+      } catch (error: any) {
+        console.error(`Failed to run template tests: ${error?.message ?? "Unknown error"}`);
         process.exit(1);
       }
     });

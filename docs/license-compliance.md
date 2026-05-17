@@ -99,4 +99,3 @@ pnpm licenses list --prod
 already uses static CloudEval-authored banner art, so `ink-big-text` was not
 needed at runtime and should stay removed unless legal explicitly approves a
 GPL-compatible distribution model.
-

@@ -81,4 +81,3 @@ if (denied.length > 0) {
 }
 
 console.log(`ok - production dependency license audit passed (${rows.length} packages)`);
-

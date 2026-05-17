@@ -33,9 +33,7 @@ jobs:
         run: pnpm test:npm-package
       - name: Release
         id: semantic
-        uses: cycjimmy/semantic-release-action@v4
-        with:
-          semantic_version: 23
+        run: node scripts/run-semantic-release.mjs
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

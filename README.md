@@ -88,7 +88,8 @@ cloudeval agents run cost --project <project-id> --format json
 cloudeval recipes list
 cloudeval projects list
 cloudeval projects graph insights <project-id> --focus impact --resource <resource-id> --format json
-cloudeval validate template --template-file template.json --parameters-file parameters.json --format json
+cloudeval validate template --template-file template.json --parameters-file parameters.json --rule <check-id> --details --wait --wait-timeout 600000 --format json
+cloudeval validate tests --template-file template.json --parameters-file parameters.json --wait --wait-timeout 600000 --format json
 cloudeval rules search "public network" --format json
 cloudeval reports list
 cloudeval capabilities --format json
@@ -118,7 +119,10 @@ Profile. When `agents run` omits a prompt, the CLI uses a starter prompt for
 the selected project source and profile mode: template or live sync, ask or
 agent. The choice is deterministic for automation. Profile runs send only
 `agent_profile_id`; CloudEval applies profile instructions, planning lens, and
-response defaults on the backend.
+response defaults on the backend. `agents list` and `agents show` first try the
+backend profile catalog; if the profile catalog endpoint requires sign-in or is
+not available, they fall back to the bundled public catalog so discovery still
+works. `agents run` still requires authenticated backend access.
 
 Run `cloudeval <command> --help` for exact flags.
 

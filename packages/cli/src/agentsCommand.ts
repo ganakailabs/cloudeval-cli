@@ -1,6 +1,10 @@
 import type { Command } from "commander";
 import { randomUUID } from "node:crypto";
-import type { AgentProfile } from "@cloudeval/shared";
+import {
+  getBundledAgentProfile,
+  getBundledAgentProfiles,
+  type AgentProfile,
+} from "@cloudeval/shared";
 import { addAuthOptions, resolveAuthContext, type AuthGuardDeps } from "./authGuard.js";
 import { getActiveConfigProfile, loadCliConfig } from "./cliConfig.js";
 import { runLocalHooks, writeHookWarnings } from "./localHooks.js";
@@ -78,6 +82,44 @@ const profileFromResponse = (payload: unknown): AgentProfile => {
     throw new Error("Agent Profile response did not include a profile.");
   }
   return profile as AgentProfile;
+};
+
+const listProfilesForDiscovery = async (
+  core: typeof import("@cloudeval/core"),
+  baseUrl: string,
+) => {
+  try {
+    return await core.listAgentProfiles({
+      baseUrl,
+    });
+  } catch (error) {
+    if (core.isAgentProfileDiscoveryFallbackError(error)) {
+      return { profiles: getBundledAgentProfiles() };
+    }
+    throw error;
+  }
+};
+
+const getProfileForDiscovery = async (
+  core: typeof import("@cloudeval/core"),
+  baseUrl: string,
+  profileId: string,
+) => {
+  try {
+    return await core.getAgentProfile({
+      baseUrl,
+      profileId,
+    });
+  } catch (error) {
+    if (core.isAgentProfileDiscoveryFallbackError(error)) {
+      const profile = getBundledAgentProfile(profileId);
+      if (!profile) {
+        throw new Error(`Unknown Agent Profile "${profileId}".`);
+      }
+      return { profile };
+    }
+    throw error;
+  }
 };
 
 const projectStarterPromptType = (project: any): "template" | "sync" =>
@@ -161,9 +203,7 @@ export const registerAgentsCommand = (program: Command, deps: AgentsDeps) => {
       const baseUrl = await deps.resolveBaseUrl(options, command);
       const core = await import("@cloudeval/core");
       core.assertSecureBaseUrl(baseUrl);
-      const data = await core.listAgentProfiles({
-        baseUrl,
-      });
+      const data = await listProfilesForDiscovery(core, baseUrl);
       await writeProfiles({
         command: "agents list",
         data,
@@ -180,10 +220,7 @@ export const registerAgentsCommand = (program: Command, deps: AgentsDeps) => {
     const baseUrl = await deps.resolveBaseUrl(options, command);
     const core = await import("@cloudeval/core");
     core.assertSecureBaseUrl(baseUrl);
-    const data = await core.getAgentProfile({
-      baseUrl,
-      profileId,
-    });
+    const data = await getProfileForDiscovery(core, baseUrl, profileId);
     await writeProfiles({
       command: "agents show",
       data,

@@ -3,6 +3,10 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import type { Command } from "commander";
 import {
+  getBundledAgentProfile,
+  getBundledAgentProfiles,
+} from "@cloudeval/shared";
+import {
   buildFrontendUrl,
   openExternalUrl,
   resolveFrontendBaseUrl,
@@ -67,7 +71,11 @@ import {
   getRuleCategories,
   parseTemplate,
   searchRules,
+  testTemplate,
   validateTemplate,
+  waitForTemplateValidationResult,
+  withTemplateTestDetails,
+  withTemplateValidationDetails,
 } from "./templateValidationClient.js";
 import { warnIfAccessKeyFromCliOption } from "./authGuard.js";
 
@@ -1243,12 +1251,103 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
         templatePath: templatePathProperty,
         parametersPath: parametersPathProperty,
         failedOnly: { type: "boolean", default: false },
+        ruleId: {
+          type: "string",
+          description: "Single validation check id to run.",
+        },
+        ruleNames: {
+          oneOf: [
+            { type: "string" },
+            { type: "array", items: { type: "string" } },
+          ],
+          description:
+            "Validation check ids to run. Accepts an array or comma-separated string.",
+        },
         category: { type: "string", description: "Validation category filter." },
         pillar: { type: "string", description: "Architecture pillar filter." },
         minSeverity: { type: "string", description: "Minimum severity level." },
         maxResults: { type: "number", description: "Maximum validation results." },
         projectId: projectIdProperty,
         saveReport: { type: "boolean", default: false },
+        details: {
+          type: "boolean",
+          description: "Include frontend-style per-check evidence details.",
+          default: false,
+        },
+        wait: {
+          type: "boolean",
+          description: "Poll an async validation job until results are ready.",
+          default: false,
+        },
+        pollIntervalMs: {
+          type: "number",
+          description: "Polling interval when wait is true.",
+        },
+        waitTimeoutMs: {
+          type: "number",
+          description: "Maximum time to wait when wait is true.",
+        },
+      },
+      ["templatePath"],
+    ),
+    outputSchema: envelopeSchema,
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      openWorldHint: true,
+      requiresAuth: true,
+      consumesCredits: true,
+      mayExposeSensitiveData: true,
+    },
+  },
+  {
+    name: "template_test",
+    title: "Run Template Tests",
+    description:
+      "Run local cloud template test checks. Parameters files are accepted but optional.",
+    inputSchema: makeInputSchema(
+      {
+        templatePath: templatePathProperty,
+        parametersPath: parametersPathProperty,
+        includeTests: {
+          oneOf: [
+            { type: "string" },
+            { type: "array", items: { type: "string" } },
+          ],
+          description:
+            "Template test names to run. Accepts an array or comma-separated string.",
+        },
+        skipTests: {
+          oneOf: [
+            { type: "string" },
+            { type: "array", items: { type: "string" } },
+          ],
+          description:
+            "Template test names to skip. Accepts an array or comma-separated string.",
+        },
+        category: { type: "string", description: "Template test category." },
+        testGroups: {
+          oneOf: [
+            { type: "string" },
+            { type: "array", items: { type: "string" } },
+          ],
+          description:
+            "Template test groups to run. Accepts an array or comma-separated string.",
+        },
+        verbose: { type: "boolean", default: false },
+        wait: {
+          type: "boolean",
+          description: "Poll an async template test job until results are ready.",
+          default: false,
+        },
+        pollIntervalMs: {
+          type: "number",
+          description: "Polling interval when wait is true.",
+        },
+        waitTimeoutMs: {
+          type: "number",
+          description: "Maximum time to wait when wait is true.",
+        },
       },
       ["templatePath"],
     ),
@@ -1612,6 +1711,7 @@ const MCP_TOOL_ALIASES: Record<string, string> = {
   "reports.run": "reports_run",
   "reports.download": "reports_download",
   "template.validate": "template_validate",
+  "template.test": "template_test",
   "template.parse": "template_parse",
   "rules.categories": "rules_categories",
   "rules.search": "rules_search",
@@ -1754,6 +1854,7 @@ const MCP_TOOLSETS: Record<McpToolsetName, readonly string[]> = {
   validation: [
     "capabilities_get",
     "template_validate",
+    "template_test",
     "template_parse",
     "rules_categories",
     "rules_search",
@@ -2228,6 +2329,44 @@ const starterPromptForProject = (profile: any, project: any): string =>
   profile.starter_prompts?.[projectStarterPromptType(project)]?.trim() ||
   profile.starter_prompt;
 
+const listProfilesForDiscovery = async (
+  core: typeof import("@cloudeval/core"),
+  baseUrl: string,
+) => {
+  try {
+    return await core.listAgentProfiles({
+      baseUrl,
+    });
+  } catch (error) {
+    if (core.isAgentProfileDiscoveryFallbackError(error)) {
+      return { profiles: getBundledAgentProfiles() };
+    }
+    throw error;
+  }
+};
+
+const getProfileForDiscovery = async (
+  core: typeof import("@cloudeval/core"),
+  baseUrl: string,
+  profileId: string,
+) => {
+  try {
+    return await core.getAgentProfile({
+      baseUrl,
+      profileId,
+    });
+  } catch (error) {
+    if (core.isAgentProfileDiscoveryFallbackError(error)) {
+      const profile = getBundledAgentProfile(profileId);
+      if (!profile) {
+        throw new Error(`Unknown Agent Profile "${profileId}".`);
+      }
+      return { profile };
+    }
+    throw error;
+  }
+};
+
 const assertModelAvailable = async (
   config: InvocationConfig,
   token: string,
@@ -2548,9 +2687,7 @@ const buildToolHandlers = (
   handlers.set("agent_profiles_list", async (args) => {
     const config = await resolveInvocationConfig(serverOptions, args);
     const core = await import("@cloudeval/core");
-    const data = await core.listAgentProfiles({
-      baseUrl: config.baseUrl,
-    });
+    const data = await listProfilesForDiscovery(core, config.baseUrl);
     return withEnvelope({
       command: "agents list",
       data,
@@ -2564,10 +2701,7 @@ const buildToolHandlers = (
     }
     const config = await resolveInvocationConfig(serverOptions, args);
     const core = await import("@cloudeval/core");
-    const data = await core.getAgentProfile({
-      baseUrl: config.baseUrl,
-      profileId,
-    });
+    const data = await getProfileForDiscovery(core, config.baseUrl, profileId);
     return withEnvelope({
       command: "agents show",
       data,
@@ -2923,13 +3057,19 @@ const buildToolHandlers = (
     if (!templatePath) {
       throw new Error("templatePath is required.");
     }
-    const data = await validateTemplate({
+    const ruleId = stringValue(args.ruleId);
+    const ruleNames = Array.from(new Set([
+      ...(ruleId ? [ruleId] : []),
+      ...(arrayValue(args.ruleNames) ?? []),
+    ]));
+    const submitted = await validateTemplate({
       baseUrl: config.baseUrl,
       authToken: auth.token,
       userId: auth.user!.id,
       templatePath,
       parametersPath: stringValue(args.parametersPath),
       failedOnly: booleanValue(args.failedOnly),
+      ruleNames,
       category: stringValue(args.category),
       pillar: stringValue(args.pillar),
       minSeverity: stringValue(args.minSeverity),
@@ -2937,7 +3077,59 @@ const buildToolHandlers = (
       projectId: stringValue(args.projectId) ?? config.defaultProjectId,
       saveReport: booleanValue(args.saveReport),
     });
-    return withEnvelope({ command: "validate template", data });
+    const data = booleanValue(args.wait)
+      ? await waitForTemplateValidationResult({
+          baseUrl: config.baseUrl,
+          authToken: auth.token,
+          userId: auth.user!.id,
+          submitted,
+          pollIntervalMs: numberValue(args.pollIntervalMs),
+          waitTimeoutMs: numberValue(args.waitTimeoutMs),
+        })
+      : submitted;
+    return withEnvelope({
+      command: "validate template",
+      data: booleanValue(args.details)
+        ? withTemplateValidationDetails(data)
+        : data,
+    });
+  });
+
+  handlers.set("template_test", async (args) => {
+    const config = await resolveInvocationConfig(serverOptions, args);
+    const auth = await resolveAuth(config, { requireUser: true });
+    const templatePath = stringValue(args.templatePath);
+    if (!templatePath) {
+      throw new Error("templatePath is required.");
+    }
+    const submitted = await testTemplate({
+      baseUrl: config.baseUrl,
+      authToken: auth.token,
+      userId: auth.user!.id,
+      templatePath,
+      parametersPath: stringValue(args.parametersPath),
+      includeTests: arrayValue(args.includeTests),
+      skipTests: arrayValue(args.skipTests),
+      testCategories: stringValue(args.category)
+        ? [stringValue(args.category)!]
+        : undefined,
+      testGroups: arrayValue(args.testGroups),
+      verboseOutput: booleanValue(args.verbose),
+    });
+    const data = booleanValue(args.wait)
+      ? await waitForTemplateValidationResult({
+          baseUrl: config.baseUrl,
+          authToken: auth.token,
+          userId: auth.user!.id,
+          submitted,
+          pollIntervalMs: numberValue(args.pollIntervalMs),
+          waitTimeoutMs: numberValue(args.waitTimeoutMs),
+        })
+      : submitted;
+    return withEnvelope({
+      command: "validate tests",
+      data: withTemplateTestDetails(data),
+    });
   });
 
   handlers.set("template_parse", async (args) => {

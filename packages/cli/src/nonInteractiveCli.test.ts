@@ -250,6 +250,7 @@ const startBackend = async (
   options: {
     models?: Array<Record<string, unknown>>;
     authMeStatus?: number;
+    agentProfilesStatus?: number;
     authUser?: typeof user;
     projects?: (typeof project)[];
   } = {},
@@ -395,10 +396,40 @@ const startBackend = async (
       });
     }
     if (url.pathname === "/api/v1/agent-profiles") {
+      if (options.agentProfilesStatus) {
+        return json(
+          res,
+          {
+            error: "Authentication required for this endpoint",
+            code: "AUTH_REQUIRED_PUBLIC",
+            requiresAuth: true,
+            signInUrl: "/auth?callbackUrl=%2Fplayground",
+            method: "GET",
+            path: "/api/v1/agent-profiles",
+          },
+          options.agentProfilesStatus,
+        );
+      }
       return json(res, { profiles: [agentProfile] });
     }
-    if (url.pathname === "/api/v1/agent-profiles/cost") {
-      return json(res, { profile: agentProfile });
+    if (url.pathname.startsWith("/api/v1/agent-profiles/")) {
+      if (options.agentProfilesStatus) {
+        return json(
+          res,
+          {
+            error: "Authentication required for this endpoint",
+            code: "AUTH_REQUIRED_PUBLIC",
+            requiresAuth: true,
+            signInUrl: "/auth?callbackUrl=%2Fplayground",
+            method: "GET",
+            path: "/api/v1/agent-profiles/cost",
+          },
+          options.agentProfilesStatus,
+        );
+      }
+      if (url.pathname === "/api/v1/agent-profiles/cost") {
+        return json(res, { profile: agentProfile });
+      }
     }
     if (url.pathname === `/api/v1/projects/user/${authUser.id}`) {
       return json(res, [
@@ -705,6 +736,71 @@ const startBackend = async (
         progress: 100,
       });
     }
+    if (url.pathname === "/api/v1/jobs/job-template-validation-1") {
+      assert.equal(url.searchParams.get("user_id"), user.id);
+      return json(res, {
+        job_id: "job-template-validation-1",
+        status: "SUCCEEDED",
+        operation: "template_validate",
+        progress: 100,
+      });
+    }
+    if (url.pathname === "/api/v1/jobs/job-template-validation-1/result") {
+      assert.equal(url.searchParams.get("user_id"), user.id);
+      return json(res, {
+        result: {
+          success: true,
+          summary: { total_rules: 1, passed_rules: 0, failed_rules: 1 },
+          filtered_results: {
+            total_matching_rules: 1,
+            results: [{ rule_name: "async-template-validation", outcome: "Fail" }],
+          },
+        },
+      });
+    }
+    if (url.pathname === "/api/v1/jobs/job-template-tests-1") {
+      assert.equal(url.searchParams.get("user_id"), user.id);
+      return json(res, {
+        job_id: "job-template-tests-1",
+        status: "SUCCEEDED",
+        operation: "template_test",
+        progress: 100,
+      });
+    }
+    if (url.pathname === "/api/v1/jobs/job-template-tests-1/result") {
+      assert.equal(url.searchParams.get("user_id"), user.id);
+      return json(res, {
+        result: {
+          success: true,
+          total_tests: 2,
+          passed_tests: 1,
+          failed_tests: 1,
+          skipped_tests: 0,
+          test_results: [
+            {
+              test_name: "Template Should Not Contain Blanks",
+              test_category: "syntax",
+              passed: true,
+              severity: "info",
+              message: "Template contains no blank elements.",
+              recommendation: "No action required.",
+              duration_ms: 12,
+              file_path: "azuredeploy.json",
+            },
+            {
+              test_name: "IDs Should Be Derived From ResourceIDs",
+              test_category: "security",
+              passed: false,
+              severity: "error",
+              message: "One resource id is not derived from resourceId().",
+              recommendation: "Use resourceId() for resource identifiers.",
+              duration_ms: 18,
+              file_path: "azuredeploy.json",
+            },
+          ],
+        },
+      });
+    }
     if (
       url.pathname === "/api/v1/rule/template/validate" &&
       req.method === "POST"
@@ -716,21 +812,73 @@ const startBackend = async (
         assert.equal(payload.parameter_file.parameters.location.value, "eastus2");
       }
       assert.equal(typeof payload.options.include_only_failed, "boolean");
+      const selectedRules = Array.isArray(payload.options.rule_names)
+        ? payload.options.rule_names
+        : [];
+      if (selectedRules.includes("async-template-validation")) {
+        return json(
+          res,
+          {
+            message: "Template validation job submitted",
+            job: {
+              job_id: "job-template-validation-1",
+              status: "QUEUED",
+              operation: "template_validate",
+            },
+          },
+          202,
+        );
+      }
       return json(res, {
         success: true,
-        summary: { total_rules: 12, passed_rules: 10, failed_rules: 2 },
+        summary:
+          selectedRules.length > 0
+            ? {
+                total_rules: selectedRules.length,
+                passed_rules: 0,
+                failed_rules: selectedRules.length,
+              }
+            : { total_rules: 12, passed_rules: 10, failed_rules: 2 },
+        requested_rule_names: selectedRules,
         filtered_results: {
-          total_matching_rules: 2,
+          total_matching_rules: selectedRules.length > 0 ? selectedRules.length : 2,
           results: [
             {
               rule_name: "storage-public-access",
               outcome: "Fail",
               level: "Warning",
               target_name: "sttest001",
+              target_type: "Microsoft.Storage/storageAccounts",
+              info: {
+                display_name: "Disable anonymous blob access",
+                description: "Storage accounts should reject anonymous blob access.",
+                synopsis: "Anonymous blob access increases data exposure risk.",
+              },
+              recommendation: "Set allowBlobPublicAccess to false.",
+              documentation_url: "https://example.test/rules/storage-public-access",
             },
           ],
         },
       });
+    }
+    if (url.pathname === "/api/v1/arm-template/test" && req.method === "POST") {
+      assert.equal(url.searchParams.get("user_id"), user.id);
+      const payload = JSON.parse(body || "{}");
+      assert.equal(payload.template.resources[0].name, "sttest001");
+      assert.equal(payload.parameter_file.parameters.location.value, "eastus2");
+      assert.deepEqual(payload.include_tests, ["IDs Should Be Derived From ResourceIDs"]);
+      return json(
+        res,
+        {
+          message: "Template test job submitted",
+          job: {
+            job_id: "job-template-tests-1",
+            status: "QUEUED",
+            operation: "template_test",
+          },
+        },
+        202,
+      );
     }
     if (url.pathname === "/api/v1/arm-template/parse" && req.method === "POST") {
       assert.equal(url.searchParams.get("user_id"), user.id);
@@ -2453,11 +2601,116 @@ test("template validation, parsing, and rule catalog commands use generic public
         "--failed-only",
         "--min-severity",
         "Warning",
+        "--rule",
+        "storage-public-access",
+        "--rule",
+        "storage-encryption",
         ...common,
       ]);
     const validation = parseJson(validationResult);
     assert.equal(validation.command, "validate template");
     assert.equal(validation.data.summary.failed_rules, 2);
+    assert.deepEqual(validation.data.requested_rule_names, [
+      "storage-public-access",
+      "storage-encryption",
+    ]);
+
+    const validationDetailsResult = await runCli([
+      "validate",
+      "template",
+      "--template-file",
+      templatePath,
+      "--parameters-file",
+      parametersPath,
+      "--details",
+      "--rule",
+      "storage-public-access",
+      ...common,
+    ]);
+    const validationDetails = parseJson(validationDetailsResult);
+    assert.equal(validationDetails.command, "validate template");
+    assert.equal(validationDetails.data.summary.failed_rules, 1);
+    assert.equal(validationDetails.data.details.length, 1);
+    assert.deepEqual(validationDetails.data.details[0], {
+      source: "template_rules",
+      rule_id: "storage-public-access",
+      rule_name: "storage-public-access",
+      display_name: "Disable anonymous blob access",
+      status: "Fail",
+      severity: "Warning",
+      target: {
+        name: "sttest001",
+        type: "Microsoft.Storage/storageAccounts",
+      },
+      evidence: {
+        description: "Storage accounts should reject anonymous blob access.",
+        synopsis: "Anonymous blob access increases data exposure risk.",
+        recommendation: "Set allowBlobPublicAccess to false.",
+        documentation_url: "https://example.test/rules/storage-public-access",
+      },
+    });
+
+    const waitedValidationResult = await runCli([
+      "validate",
+      "template",
+      "--template-file",
+      templatePath,
+      "--parameters-file",
+      parametersPath,
+      "--rule",
+      "async-template-validation",
+      "--wait",
+      "--poll-interval",
+      "10",
+      "--wait-timeout",
+      "5000",
+      ...common,
+    ]);
+    const waitedValidation = parseJson(waitedValidationResult);
+    assert.equal(waitedValidation.command, "validate template");
+    assert.equal(waitedValidation.data.jobId, "job-template-validation-1");
+    assert.equal(waitedValidation.data.status.status, "SUCCEEDED");
+    assert.equal(waitedValidation.data.result.summary.failed_rules, 1);
+
+    const templateTestsResult = await runCli([
+      "validate",
+      "tests",
+      "--template-file",
+      templatePath,
+      "--parameters-file",
+      parametersPath,
+      "--test",
+      "IDs Should Be Derived From ResourceIDs",
+      "--wait",
+      "--poll-interval",
+      "10",
+      "--wait-timeout",
+      "5000",
+      ...common,
+    ]);
+    const templateTests = parseJson(templateTestsResult);
+    assert.equal(templateTests.command, "validate tests");
+    assert.equal(templateTests.data.jobId, "job-template-tests-1");
+    assert.equal(templateTests.data.status.status, "SUCCEEDED");
+    assert.deepEqual(templateTests.data.summary, {
+      total_tests: 2,
+      passed_tests: 1,
+      failed_tests: 1,
+      skipped_tests: 0,
+    });
+    assert.equal(templateTests.data.details.length, 2);
+    assert.deepEqual(templateTests.data.details[1], {
+      source: "template_tests",
+      test_name: "IDs Should Be Derived From ResourceIDs",
+      category: "security",
+      status: "Fail",
+      passed: false,
+      severity: "error",
+      message: "One resource id is not derived from resourceId().",
+      recommendation: "Use resourceId() for resource identifiers.",
+      duration_ms: 18,
+      file_path: "azuredeploy.json",
+    });
 
     const validationWithoutParamsResult = await runCli([
       "validate",
@@ -2878,6 +3131,77 @@ test("agents list and show do not require authentication", async () => {
     assert.deepEqual(
       profileRequests.map((request) => request.authorization),
       [undefined, undefined],
+    );
+  } finally {
+    await backend.close();
+  }
+});
+
+test("agents list and show fall back to bundled profiles when backend requires authentication", async () => {
+  const backend = await startBackend({ agentProfilesStatus: 401 });
+  try {
+    const list = parseJson(
+      await runCli([
+        "agents",
+        "list",
+        "--base-url",
+        backend.baseUrl,
+        "--format",
+        "json",
+        "--non-interactive",
+      ]),
+    );
+    assert.deepEqual(
+      list.data.profiles.map((profile: any) => profile.id),
+      ["architecture", "cost", "triage", "remediation"],
+    );
+    assert.equal(list.data.profiles[0].display_name, "Architecture");
+
+    const show = parseJson(
+      await runCli([
+        "agents",
+        "show",
+        "remediation",
+        "--base-url",
+        backend.baseUrl,
+        "--format",
+        "json",
+        "--non-interactive",
+      ]),
+    );
+    assert.equal(show.data.profile.id, "remediation");
+    assert.equal(show.data.profile.display_name, "Remediation");
+
+    const profileRequests = backend.requests.filter((request) =>
+      request.path.startsWith("/api/v1/agent-profiles"),
+    );
+    assert.equal(profileRequests.length, 2);
+    assert.deepEqual(
+      profileRequests.map((request) => request.authorization),
+      [undefined, undefined],
+    );
+  } finally {
+    await backend.close();
+  }
+});
+
+test("agents list falls back to bundled profiles when backend catalog route is missing", async () => {
+  const backend = await startBackend({ agentProfilesStatus: 404 });
+  try {
+    const list = parseJson(
+      await runCli([
+        "agents",
+        "list",
+        "--base-url",
+        backend.baseUrl,
+        "--format",
+        "json",
+        "--non-interactive",
+      ]),
+    );
+    assert.deepEqual(
+      list.data.profiles.map((profile: any) => profile.id),
+      ["architecture", "cost", "triage", "remediation"],
     );
   } finally {
     await backend.close();

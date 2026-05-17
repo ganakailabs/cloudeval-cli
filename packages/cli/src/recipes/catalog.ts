@@ -803,10 +803,11 @@ export const recipes: Recipe[] = [
     ],
     commands: [
       "cloudeval validate parse --template-file <template.json> --parameters-file <parameters.json> --format json",
-      "cloudeval validate template --template-file <template.json> --parameters-file <parameters.json> --failed-only --format json",
+      "cloudeval validate template --template-file <template.json> --parameters-file <parameters.json> --details --format json",
+      "cloudeval validate tests --template-file <template.json> --parameters-file <parameters.json> --wait --format json",
       "cloudeval rules search \"public network\" --format json",
     ],
-    mcpTools: ["template_parse", "template_validate", "rules_search"],
+    mcpTools: ["template_parse", "template_validate", "template_test", "rules_search"],
     safety: {
       requiresAuth: true,
       consumesCredits: true,
@@ -816,8 +817,8 @@ export const recipes: Recipe[] = [
     },
     expectedOutput: [
       "Parsed resource inventory",
-      "Validation summary",
-      "Failed checks with recommended fixes",
+      "Validation summary and per-check details",
+      "Template test-suite results with recommendations",
     ],
     failureHandling: [
       "`--parameters-file` is accepted by parse and validate but remains optional.",
@@ -838,10 +839,11 @@ export const recipes: Recipe[] = [
     ],
     commands: [
       "cloudeval validate template --template-file <template.json> --parameters-file <parameters.json> --min-severity Warning --failed-only --format json",
+      "cloudeval validate tests --template-file <template.json> --parameters-file <parameters.json> --wait --format json",
       "cloudeval rules categories --format json",
       "cloudeval rules show <rule-id> --format json",
     ],
-    mcpTools: ["template_validate", "rules_categories", "rules_get"],
+    mcpTools: ["template_validate", "template_test", "rules_categories", "rules_get"],
     safety: {
       requiresAuth: true,
       consumesCredits: true,

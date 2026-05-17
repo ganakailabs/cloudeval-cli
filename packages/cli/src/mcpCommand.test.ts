@@ -83,7 +83,11 @@ const json = (res: http.ServerResponse, value: unknown, status = 200) => {
   res.end(JSON.stringify(value));
 };
 
-const startBackend = async () => {
+const startBackend = async (
+  options: {
+    agentProfilesStatus?: number;
+  } = {},
+) => {
   const requests: Array<{
     path: string;
     query: URLSearchParams;
@@ -104,10 +108,34 @@ const startBackend = async () => {
       return json(res, user);
     }
     if (url.pathname === "/api/v1/agent-profiles") {
+      if (options.agentProfilesStatus) {
+        return json(
+          res,
+          {
+            error: "Authentication required for this endpoint",
+            code: "AUTH_REQUIRED_PUBLIC",
+            requiresAuth: true,
+          },
+          options.agentProfilesStatus,
+        );
+      }
       return json(res, { profiles: [agentProfile] });
     }
-    if (url.pathname === "/api/v1/agent-profiles/cost") {
-      return json(res, { profile: agentProfile });
+    if (url.pathname.startsWith("/api/v1/agent-profiles/")) {
+      if (options.agentProfilesStatus) {
+        return json(
+          res,
+          {
+            error: "Authentication required for this endpoint",
+            code: "AUTH_REQUIRED_PUBLIC",
+            requiresAuth: true,
+          },
+          options.agentProfilesStatus,
+        );
+      }
+      if (url.pathname === "/api/v1/agent-profiles/cost") {
+        return json(res, { profile: agentProfile });
+      }
     }
     if (url.pathname === `/api/v1/projects/user/${user.id}`) {
       return json(res, [project]);
@@ -157,10 +185,103 @@ const startBackend = async () => {
       const payload = JSON.parse(body || "{}");
       assert.equal(payload.template.resources[0].name, "sttest001");
       assert.equal(payload.parameter_file.parameters.location.value, "eastus2");
+      if (payload.options.rule_names?.includes("async-template-validation")) {
+        return json(
+          res,
+          {
+            message: "Template validation job submitted",
+            job: {
+              job_id: "job-template-validation-1",
+              status: "QUEUED",
+              operation: "template_validate",
+            },
+          },
+          202,
+        );
+      }
+      assert.deepEqual(payload.options.rule_names, [
+        "storage-public-access",
+        "storage-encryption",
+      ]);
       return json(res, {
         success: true,
         summary: { total_rules: 1, passed_rules: 0, failed_rules: 1 },
+        requested_rule_names: payload.options.rule_names,
       });
+    }
+    if (url.pathname === "/api/v1/jobs/job-template-validation-1") {
+      assert.equal(url.searchParams.get("user_id"), user.id);
+      return json(res, {
+        job_id: "job-template-validation-1",
+        status: "SUCCEEDED",
+        operation: "template_validate",
+        progress: 100,
+      });
+    }
+    if (url.pathname === "/api/v1/jobs/job-template-validation-1/result") {
+      assert.equal(url.searchParams.get("user_id"), user.id);
+      return json(res, {
+        result: {
+          success: true,
+          summary: { total_rules: 1, passed_rules: 0, failed_rules: 1 },
+          filtered_results: {
+            total_matching_rules: 1,
+            results: [{ rule_name: "async-template-validation", outcome: "Fail" }],
+          },
+        },
+      });
+    }
+    if (url.pathname === "/api/v1/jobs/job-template-tests-1") {
+      assert.equal(url.searchParams.get("user_id"), user.id);
+      return json(res, {
+        job_id: "job-template-tests-1",
+        status: "SUCCEEDED",
+        operation: "template_test",
+        progress: 100,
+      });
+    }
+    if (url.pathname === "/api/v1/jobs/job-template-tests-1/result") {
+      assert.equal(url.searchParams.get("user_id"), user.id);
+      return json(res, {
+        result: {
+          success: true,
+          total_tests: 1,
+          passed_tests: 0,
+          failed_tests: 1,
+          skipped_tests: 0,
+          test_results: [
+            {
+              test_name: "IDs Should Be Derived From ResourceIDs",
+              test_category: "security",
+              passed: false,
+              severity: "error",
+              message: "One resource id is not derived from resourceId().",
+              recommendation: "Use resourceId() for resource identifiers.",
+              duration_ms: 18,
+              file_path: "azuredeploy.json",
+            },
+          ],
+        },
+      });
+    }
+    if (url.pathname === "/api/v1/arm-template/test" && req.method === "POST") {
+      assert.equal(url.searchParams.get("user_id"), user.id);
+      const payload = JSON.parse(body || "{}");
+      assert.equal(payload.template.resources[0].name, "sttest001");
+      assert.equal(payload.parameter_file.parameters.location.value, "eastus2");
+      assert.deepEqual(payload.include_tests, ["IDs Should Be Derived From ResourceIDs"]);
+      return json(
+        res,
+        {
+          message: "Template test job submitted",
+          job: {
+            job_id: "job-template-tests-1",
+            status: "QUEUED",
+            operation: "template_test",
+          },
+        },
+        202,
+      );
     }
     if (url.pathname === "/api/v1/rule/rules/search" && req.method === "GET") {
       assert.equal(url.searchParams.get("query"), "public network");
@@ -392,7 +513,21 @@ test("mcp serve initializes, lists tools, and returns strict JSON-RPC stdout", a
     assert(names.includes("projects_export_diagram"));
     assert(names.includes("projects_graph_insights"));
     assert(names.includes("template_validate"));
+    assert(names.includes("template_test"));
     assert(names.includes("rules_search"));
+    const templateValidate = listed.result.tools.find(
+      (tool: any) => tool.name === "template_validate",
+    );
+    assert.equal(templateValidate.inputSchema.properties.ruleId.type, "string");
+    assert.deepEqual(templateValidate.inputSchema.properties.ruleNames.oneOf[1], {
+      type: "array",
+      items: { type: "string" },
+    });
+    assert.equal(templateValidate.inputSchema.properties.wait.type, "boolean");
+    assert.equal(
+      templateValidate.inputSchema.properties.waitTimeoutMs.type,
+      "number",
+    );
     assert(!names.includes("projects.exportDiagram"));
     assert(!names.includes("projects.diagramImage"));
     assert(names.includes("reports_run"));
@@ -533,6 +668,53 @@ test("mcp agent_profiles_run uses canonical Agent Profile id", async () => {
   }
 });
 
+test("mcp agent_profiles_list and get fall back to bundled profiles when backend requires authentication", async () => {
+  const backend = await startBackend({ agentProfilesStatus: 401 });
+  const mcp = await startMcp(["--base-url", backend.baseUrl]);
+  try {
+    await initialize(mcp);
+
+    mcp.send({
+      jsonrpc: "2.0",
+      id: 2,
+      method: "tools/call",
+      params: {
+        name: "agent_profiles_list",
+        arguments: {},
+      },
+    });
+    const listed = await mcp.read();
+    assert.equal(listed.id, 2);
+    assert.equal(listed.result.isError, false);
+    assert.deepEqual(
+      listed.result.structuredContent.data.profiles.map((profile: any) => profile.id),
+      ["architecture", "cost", "triage", "remediation"],
+    );
+
+    mcp.send({
+      jsonrpc: "2.0",
+      id: 3,
+      method: "tools/call",
+      params: {
+        name: "agent_profiles_get",
+        arguments: { profileId: "architecture" },
+      },
+    });
+    const shown = await mcp.read();
+    assert.equal(shown.id, 3);
+    assert.equal(shown.result.isError, false);
+    assert.equal(shown.result.structuredContent.data.profile.id, "architecture");
+    assert.equal(
+      shown.result.structuredContent.data.profile.display_name,
+      "Architecture",
+    );
+  } finally {
+    const closed = await mcp.close();
+    assert.equal(closed.exitCode, 0, closed.stderr);
+    await backend.close();
+  }
+});
+
 test("mcp serve accepts legacy Content-Length framed clients", async () => {
   const mcp = await startMcp([], { transport: "content-length" });
   try {
@@ -609,6 +791,7 @@ test("mcp serve filters tools by safety toolset", async () => {
       "reports_download",
       "projects_export_diagram",
       "template_validate",
+      "template_test",
       "template_parse",
       "credentials_create",
       "credentials_revoke",
@@ -713,6 +896,7 @@ test("mcp serve exposes CloudEval resources and prompts", async () => {
     assert(capabilityPayload.mcp.tools.includes("projects_export_diagram"));
     assert(capabilityPayload.mcp.tools.includes("projects_graph_insights"));
     assert(capabilityPayload.mcp.tools.includes("template_validate"));
+    assert(capabilityPayload.mcp.tools.includes("template_test"));
     assert(capabilityPayload.mcp.tools.includes("rules_search"));
     assert(capabilityPayload.mcp.tools.includes("recipes_list"));
     assert(capabilityPayload.mcp.tools.includes("recipes_run"));
@@ -986,6 +1170,8 @@ test("mcp server exposes graph intelligence and generic validation tools", async
           templatePath,
           parametersPath,
           failedOnly: true,
+          ruleId: "storage-public-access",
+          ruleNames: ["storage-encryption"],
         },
       },
     });
@@ -997,6 +1183,74 @@ test("mcp server exposes graph intelligence and generic validation tools", async
       "validate template",
     );
     assert.equal(validationResponse.result.structuredContent.data.summary.failed_rules, 1);
+    assert.deepEqual(
+      validationResponse.result.structuredContent.data.requested_rule_names,
+      ["storage-public-access", "storage-encryption"],
+    );
+
+    mcp.send({
+      jsonrpc: "2.0",
+      id: 33,
+      method: "tools/call",
+      params: {
+        name: "template_validate",
+        arguments: {
+          templatePath,
+          parametersPath,
+          ruleId: "async-template-validation",
+          wait: true,
+          pollIntervalMs: 10,
+          waitTimeoutMs: 5000,
+        },
+      },
+    });
+    const waitedValidationResponse = await mcp.read();
+    assert.equal(waitedValidationResponse.id, 33);
+    assert.equal(waitedValidationResponse.result.isError, false);
+    assert.equal(
+      waitedValidationResponse.result.structuredContent.data.jobId,
+      "job-template-validation-1",
+    );
+    assert.equal(
+      waitedValidationResponse.result.structuredContent.data.status.status,
+      "SUCCEEDED",
+    );
+    assert.equal(
+      waitedValidationResponse.result.structuredContent.data.result.summary.failed_rules,
+      1,
+    );
+
+    mcp.send({
+      jsonrpc: "2.0",
+      id: 34,
+      method: "tools/call",
+      params: {
+        name: "template_test",
+        arguments: {
+          templatePath,
+          parametersPath,
+          includeTests: ["IDs Should Be Derived From ResourceIDs"],
+          wait: true,
+          pollIntervalMs: 10,
+          waitTimeoutMs: 5000,
+        },
+      },
+    });
+    const templateTestResponse = await mcp.read();
+    assert.equal(templateTestResponse.id, 34);
+    assert.equal(templateTestResponse.result.isError, false);
+    assert.equal(
+      templateTestResponse.result.structuredContent.command,
+      "validate tests",
+    );
+    assert.equal(
+      templateTestResponse.result.structuredContent.data.summary.failed_tests,
+      1,
+    );
+    assert.equal(
+      templateTestResponse.result.structuredContent.data.details[0].test_name,
+      "IDs Should Be Derived From ResourceIDs",
+    );
 
     mcp.send({
       jsonrpc: "2.0",

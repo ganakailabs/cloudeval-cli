@@ -113,7 +113,10 @@ Profile. When `agents run` omits a prompt, the CLI uses a starter prompt for
 the selected project source and profile mode: template or live sync, ask or
 agent. The choice is deterministic for automation. Profile runs send only
 `agent_profile_id`; CloudEval applies profile instructions, planning lens, and
-response defaults on the backend.
+response defaults on the backend. `agents list` and `agents show` first try the
+backend profile catalog; if the profile catalog endpoint requires sign-in or is
+not available, they fall back to the bundled public catalog so discovery still
+works. `agents run` still requires authenticated backend access.
 
 Run `cloudeval <command> --help` for exact flags.
 

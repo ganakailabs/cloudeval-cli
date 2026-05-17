@@ -225,6 +225,7 @@ const startBackend = async (
   options: {
     models?: Array<Record<string, unknown>>;
     authMeStatus?: number;
+    agentProfilesStatus?: number;
     authUser?: typeof user;
     projects?: (typeof project)[];
   } = {},
@@ -370,10 +371,40 @@ const startBackend = async (
       });
     }
     if (url.pathname === "/api/v1/agent-profiles") {
+      if (options.agentProfilesStatus) {
+        return json(
+          res,
+          {
+            error: "Authentication required for this endpoint",
+            code: "AUTH_REQUIRED_PUBLIC",
+            requiresAuth: true,
+            signInUrl: "/auth?callbackUrl=%2Fplayground",
+            method: "GET",
+            path: "/api/v1/agent-profiles",
+          },
+          options.agentProfilesStatus,
+        );
+      }
       return json(res, { profiles: [agentProfile] });
     }
-    if (url.pathname === "/api/v1/agent-profiles/cost") {
-      return json(res, { profile: agentProfile });
+    if (url.pathname.startsWith("/api/v1/agent-profiles/")) {
+      if (options.agentProfilesStatus) {
+        return json(
+          res,
+          {
+            error: "Authentication required for this endpoint",
+            code: "AUTH_REQUIRED_PUBLIC",
+            requiresAuth: true,
+            signInUrl: "/auth?callbackUrl=%2Fplayground",
+            method: "GET",
+            path: "/api/v1/agent-profiles/cost",
+          },
+          options.agentProfilesStatus,
+        );
+      }
+      if (url.pathname === "/api/v1/agent-profiles/cost") {
+        return json(res, { profile: agentProfile });
+      }
     }
     if (url.pathname === `/api/v1/projects/user/${authUser.id}`) {
       return json(res, [
@@ -2514,6 +2545,77 @@ test("agents list and show do not require authentication", async () => {
     assert.deepEqual(
       profileRequests.map((request) => request.authorization),
       [undefined, undefined],
+    );
+  } finally {
+    await backend.close();
+  }
+});
+
+test("agents list and show fall back to bundled profiles when backend requires authentication", async () => {
+  const backend = await startBackend({ agentProfilesStatus: 401 });
+  try {
+    const list = parseJson(
+      await runCli([
+        "agents",
+        "list",
+        "--base-url",
+        backend.baseUrl,
+        "--format",
+        "json",
+        "--non-interactive",
+      ]),
+    );
+    assert.deepEqual(
+      list.data.profiles.map((profile: any) => profile.id),
+      ["architecture", "cost", "triage", "remediation"],
+    );
+    assert.equal(list.data.profiles[0].display_name, "Architecture");
+
+    const show = parseJson(
+      await runCli([
+        "agents",
+        "show",
+        "remediation",
+        "--base-url",
+        backend.baseUrl,
+        "--format",
+        "json",
+        "--non-interactive",
+      ]),
+    );
+    assert.equal(show.data.profile.id, "remediation");
+    assert.equal(show.data.profile.display_name, "Remediation");
+
+    const profileRequests = backend.requests.filter((request) =>
+      request.path.startsWith("/api/v1/agent-profiles"),
+    );
+    assert.equal(profileRequests.length, 2);
+    assert.deepEqual(
+      profileRequests.map((request) => request.authorization),
+      [undefined, undefined],
+    );
+  } finally {
+    await backend.close();
+  }
+});
+
+test("agents list falls back to bundled profiles when backend catalog route is missing", async () => {
+  const backend = await startBackend({ agentProfilesStatus: 404 });
+  try {
+    const list = parseJson(
+      await runCli([
+        "agents",
+        "list",
+        "--base-url",
+        backend.baseUrl,
+        "--format",
+        "json",
+        "--non-interactive",
+      ]),
+    );
+    assert.deepEqual(
+      list.data.profiles.map((profile: any) => profile.id),
+      ["architecture", "cost", "triage", "remediation"],
     );
   } finally {
     await backend.close();

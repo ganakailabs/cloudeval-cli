@@ -61,7 +61,11 @@ const json = (res: http.ServerResponse, value: unknown, status = 200) => {
   res.end(JSON.stringify(value));
 };
 
-const startBackend = async () => {
+const startBackend = async (
+  options: {
+    agentProfilesStatus?: number;
+  } = {},
+) => {
   const requests: Array<{
     path: string;
     query: URLSearchParams;
@@ -82,10 +86,34 @@ const startBackend = async () => {
       return json(res, user);
     }
     if (url.pathname === "/api/v1/agent-profiles") {
+      if (options.agentProfilesStatus) {
+        return json(
+          res,
+          {
+            error: "Authentication required for this endpoint",
+            code: "AUTH_REQUIRED_PUBLIC",
+            requiresAuth: true,
+          },
+          options.agentProfilesStatus,
+        );
+      }
       return json(res, { profiles: [agentProfile] });
     }
-    if (url.pathname === "/api/v1/agent-profiles/cost") {
-      return json(res, { profile: agentProfile });
+    if (url.pathname.startsWith("/api/v1/agent-profiles/")) {
+      if (options.agentProfilesStatus) {
+        return json(
+          res,
+          {
+            error: "Authentication required for this endpoint",
+            code: "AUTH_REQUIRED_PUBLIC",
+            requiresAuth: true,
+          },
+          options.agentProfilesStatus,
+        );
+      }
+      if (url.pathname === "/api/v1/agent-profiles/cost") {
+        return json(res, { profile: agentProfile });
+      }
     }
     if (url.pathname === `/api/v1/projects/user/${user.id}`) {
       return json(res, [project]);
@@ -466,6 +494,53 @@ test("mcp agent_profiles_run uses canonical Agent Profile id", async () => {
     const payload = JSON.parse(streamRequest.body);
     assert.equal(payload.agent_profile_id, "cost");
     assert.equal(payload.input.agent_profile_id, "cost");
+  } finally {
+    const closed = await mcp.close();
+    assert.equal(closed.exitCode, 0, closed.stderr);
+    await backend.close();
+  }
+});
+
+test("mcp agent_profiles_list and get fall back to bundled profiles when backend requires authentication", async () => {
+  const backend = await startBackend({ agentProfilesStatus: 401 });
+  const mcp = await startMcp(["--base-url", backend.baseUrl]);
+  try {
+    await initialize(mcp);
+
+    mcp.send({
+      jsonrpc: "2.0",
+      id: 2,
+      method: "tools/call",
+      params: {
+        name: "agent_profiles_list",
+        arguments: {},
+      },
+    });
+    const listed = await mcp.read();
+    assert.equal(listed.id, 2);
+    assert.equal(listed.result.isError, false);
+    assert.deepEqual(
+      listed.result.structuredContent.data.profiles.map((profile: any) => profile.id),
+      ["architecture", "cost", "triage", "remediation"],
+    );
+
+    mcp.send({
+      jsonrpc: "2.0",
+      id: 3,
+      method: "tools/call",
+      params: {
+        name: "agent_profiles_get",
+        arguments: { profileId: "architecture" },
+      },
+    });
+    const shown = await mcp.read();
+    assert.equal(shown.id, 3);
+    assert.equal(shown.result.isError, false);
+    assert.equal(shown.result.structuredContent.data.profile.id, "architecture");
+    assert.equal(
+      shown.result.structuredContent.data.profile.display_name,
+      "Architecture",
+    );
   } finally {
     const closed = await mcp.close();
     assert.equal(closed.exitCode, 0, closed.stderr);

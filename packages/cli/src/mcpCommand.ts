@@ -3,6 +3,10 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import type { Command } from "commander";
 import {
+  getBundledAgentProfile,
+  getBundledAgentProfiles,
+} from "@cloudeval/shared";
+import {
   buildFrontendUrl,
   openExternalUrl,
   resolveFrontendBaseUrl,
@@ -1953,6 +1957,44 @@ const starterPromptForProject = (profile: any, project: any): string =>
   profile.starter_prompts?.[projectStarterPromptType(project)]?.trim() ||
   profile.starter_prompt;
 
+const listProfilesForDiscovery = async (
+  core: typeof import("@cloudeval/core"),
+  baseUrl: string,
+) => {
+  try {
+    return await core.listAgentProfiles({
+      baseUrl,
+    });
+  } catch (error) {
+    if (core.isAgentProfileDiscoveryFallbackError(error)) {
+      return { profiles: getBundledAgentProfiles() };
+    }
+    throw error;
+  }
+};
+
+const getProfileForDiscovery = async (
+  core: typeof import("@cloudeval/core"),
+  baseUrl: string,
+  profileId: string,
+) => {
+  try {
+    return await core.getAgentProfile({
+      baseUrl,
+      profileId,
+    });
+  } catch (error) {
+    if (core.isAgentProfileDiscoveryFallbackError(error)) {
+      const profile = getBundledAgentProfile(profileId);
+      if (!profile) {
+        throw new Error(`Unknown Agent Profile "${profileId}".`);
+      }
+      return { profile };
+    }
+    throw error;
+  }
+};
+
 const assertModelAvailable = async (
   config: InvocationConfig,
   token: string,
@@ -2273,9 +2315,7 @@ const buildToolHandlers = (
   handlers.set("agent_profiles_list", async (args) => {
     const config = await resolveInvocationConfig(serverOptions, args);
     const core = await import("@cloudeval/core");
-    const data = await core.listAgentProfiles({
-      baseUrl: config.baseUrl,
-    });
+    const data = await listProfilesForDiscovery(core, config.baseUrl);
     return withEnvelope({
       command: "agents list",
       data,
@@ -2289,10 +2329,7 @@ const buildToolHandlers = (
     }
     const config = await resolveInvocationConfig(serverOptions, args);
     const core = await import("@cloudeval/core");
-    const data = await core.getAgentProfile({
-      baseUrl: config.baseUrl,
-      profileId,
-    });
+    const data = await getProfileForDiscovery(core, config.baseUrl, profileId);
     return withEnvelope({
       command: "agents show",
       data,

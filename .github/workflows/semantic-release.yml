@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  id-token: write
 
 jobs:
   release:
@@ -25,6 +26,8 @@ jobs:
           cache: pnpm
       - name: Install deps
         run: pnpm install
+      - name: Test npm package metadata
+        run: pnpm test:npm-package
       - name: Release
         id: semantic
         uses: cycjimmy/semantic-release-action@v4
@@ -32,6 +35,8 @@ jobs:
           semantic_version: 23
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: "true"
 
   upload-binaries:
     needs: release
@@ -69,13 +74,19 @@ jobs:
           cache: pnpm
       - uses: oven-sh/setup-bun@v2.2.0
         with:
-          bun-version: latest
+          bun-version: "1.3.3"
       - name: Install deps
         run: pnpm install --frozen-lockfile
+      - name: Test npm package metadata
+        run: pnpm test:npm-package
       - name: Test CLI
         run: pnpm -C packages/cli test
       - name: Lint CLI
         run: pnpm -C packages/cli lint
+      - name: Audit production licenses
+        run: |
+          pnpm license:artifacts
+          pnpm license:audit
       - name: Build workspace deps
         run: |
           pnpm --filter @cloudeval/shared build
@@ -98,6 +109,10 @@ jobs:
           if [ "${{ matrix.platform }}-${{ matrix.arch }}" != "linux-x64" ]; then
             rm -f packages/cli/dist/bin/yoga.wasm
           fi
+      - name: Copy license artifacts
+        shell: bash
+        run: |
+          cp LICENSE NOTICE THIRD_PARTY_NOTICES.md sbom.spdx.json packages/cli/dist/bin/
       - name: Create compressed assets
         shell: bash
         run: |

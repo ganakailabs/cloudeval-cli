@@ -2,6 +2,7 @@
   "name": "cloudeval-cli-monorepo",
   "version": "0.17.6",
   "private": true,
+  "license": "SEE LICENSE IN LICENSE",
   "packageManager": "pnpm@9.12.0",
   "engines": {
     "node": ">=20"
@@ -9,8 +10,12 @@
   "scripts": {
     "build": "pnpm -r build",
     "lint": "pnpm -r --workspace-concurrency=1 --if-present lint",
-    "test": "bash scripts/install-onboarding.test.sh && pnpm -r --workspace-concurrency=1 --if-present test",
+    "test": "node --test scripts/npm-package-metadata.test.mjs && bash scripts/install-onboarding.test.sh && pnpm -r --workspace-concurrency=1 --if-present test",
+    "test:npm-package": "node --test scripts/npm-package-metadata.test.mjs",
     "test:installer": "bash scripts/install-onboarding.test.sh",
+    "license:artifacts": "node scripts/generate-license-artifacts.mjs",
+    "license:check": "node scripts/generate-license-artifacts.mjs --check",
+    "license:audit": "node scripts/license-audit.mjs",
     "security:scan": "bash scripts/security-scan.sh",
     "smoke:release:real": "bash scripts/smoke-release-real-backend.sh",
     "smoke:readonly:real": "bash scripts/smoke-readonly-real-backend.sh"
@@ -31,6 +36,7 @@
     "@semantic-release/commit-analyzer": "^11.1.0",
     "@semantic-release/git": "^10.0.1",
     "@semantic-release/github": "^10.0.7",
+    "@semantic-release/npm": "^12.0.2",
     "@semantic-release/release-notes-generator": "^12.1.0",
     "conventional-changelog-conventionalcommits": "^7.0.2",
     "semantic-release": "^23.0.8",

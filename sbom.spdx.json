@@ -1,0 +1,1627 @@
+{
+  "spdxVersion": "SPDX-2.3",
+  "dataLicense": "CC0-1.0",
+  "SPDXID": "SPDXRef-DOCUMENT",
+  "name": "CloudEval CLI production dependency SBOM",
+  "documentNamespace": "https://github.com/ganakailabs/cloudeval-cli/sbom/2026-05-17T00:00:00.000Z",
+  "creationInfo": {
+    "created": "2026-05-17T00:00:00.000Z",
+    "creators": [
+      "Tool: scripts/generate-license-artifacts.mjs"
+    ]
+  },
+  "packages": [
+    {
+      "SPDXID": "SPDXRef-Package-CloudEval-CLI",
+      "name": "CloudEval CLI",
+      "versionInfo": "0.17.6",
+      "downloadLocation": "https://github.com/ganakailabs/cloudeval-cli",
+      "filesAnalyzed": false,
+      "licenseConcluded": "LicenseRef-CloudEval-CLI",
+      "licenseDeclared": "LicenseRef-CloudEval-CLI",
+      "copyrightText": "Copyright (c) 2026 Ganak AI Labs. All rights reserved."
+    },
+    {
+      "SPDXID": "SPDXRef-Package--alcalzone-ansi-tokenize-0.1.3",
+      "name": "@alcalzone/ansi-tokenize",
+      "versionInfo": "0.1.3",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "AlCalzone",
+      "summary": "Efficiently modify strings containing ANSI escape codes"
+    },
+    {
+      "SPDXID": "SPDXRef-Package--colors-colors-1.5.0",
+      "name": "@colors/colors",
+      "versionInfo": "1.5.0",
+      "downloadLocation": "https://github.com/DABH/colors.js",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "DABH",
+      "summary": "get colors in your node.js console"
+    },
+    {
+      "SPDXID": "SPDXRef-Package--sindresorhus-is-4.6.0",
+      "name": "@sindresorhus/is",
+      "versionInfo": "4.6.0",
+      "downloadLocation": "https://github.com/sindresorhus/is#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Sindre Sorhus",
+      "summary": "Type check values"
+    },
+    {
+      "SPDXID": "SPDXRef-Package--types-prop-types-15.7.15",
+      "name": "@types/prop-types",
+      "versionInfo": "15.7.15",
+      "downloadLocation": "https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/prop-types",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "summary": "TypeScript definitions for prop-types"
+    },
+    {
+      "SPDXID": "SPDXRef-Package--types-react-18.3.27",
+      "name": "@types/react",
+      "versionInfo": "18.3.27",
+      "downloadLocation": "https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/react",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "summary": "TypeScript definitions for react"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-ansi-escapes-6.2.1",
+      "name": "ansi-escapes",
+      "versionInfo": "6.2.1",
+      "downloadLocation": "https://github.com/sindresorhus/ansi-escapes#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Sindre Sorhus",
+      "summary": "ANSI escape codes for manipulating the terminal"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-ansi-escapes-7.2.0",
+      "name": "ansi-escapes",
+      "versionInfo": "7.2.0",
+      "downloadLocation": "https://github.com/sindresorhus/ansi-escapes#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Sindre Sorhus",
+      "summary": "ANSI escape codes for manipulating the terminal"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-ansi-regex-5.0.1",
+      "name": "ansi-regex",
+      "versionInfo": "5.0.1",
+      "downloadLocation": "https://github.com/chalk/ansi-regex#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Sindre Sorhus",
+      "summary": "Regular expression for matching ANSI escape codes"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-ansi-regex-6.2.2",
+      "name": "ansi-regex",
+      "versionInfo": "6.2.2",
+      "downloadLocation": "https://github.com/chalk/ansi-regex#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Sindre Sorhus",
+      "summary": "Regular expression for matching ANSI escape codes"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-ansi-styles-4.3.0",
+      "name": "ansi-styles",
+      "versionInfo": "4.3.0",
+      "downloadLocation": "https://github.com/chalk/ansi-styles#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Sindre Sorhus",
+      "summary": "ANSI escape codes for styling strings in the terminal"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-ansi-styles-6.2.3",
+      "name": "ansi-styles",
+      "versionInfo": "6.2.3",
+      "downloadLocation": "https://github.com/chalk/ansi-styles#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Sindre Sorhus",
+      "summary": "ANSI escape codes for styling strings in the terminal"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-any-promise-1.3.0",
+      "name": "any-promise",
+      "versionInfo": "1.3.0",
+      "downloadLocation": "http://github.com/kevinbeaty/any-promise",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Kevin Beaty",
+      "summary": "Resolve any installed ES6 compatible promise"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-asciichart-1.5.25",
+      "name": "asciichart",
+      "versionInfo": "1.5.25",
+      "downloadLocation": "https://github.com/kroitor/asciichart",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Igor Kroitor",
+      "summary": "Nice-looking lightweight console ASCII line charts ╭┈╯ with no dependencies"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-auto-bind-5.0.1",
+      "name": "auto-bind",
+      "versionInfo": "5.0.1",
+      "downloadLocation": "https://github.com/sindresorhus/auto-bind#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Sindre Sorhus",
+      "summary": "Automatically bind methods to their class instance"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-chalk-4.1.2",
+      "name": "chalk",
+      "versionInfo": "4.1.2",
+      "downloadLocation": "https://github.com/chalk/chalk#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "summary": "Terminal string styling done right"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-chalk-5.6.2",
+      "name": "chalk",
+      "versionInfo": "5.6.2",
+      "downloadLocation": "https://github.com/chalk/chalk#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "summary": "Terminal string styling done right"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-char-regex-1.0.2",
+      "name": "char-regex",
+      "versionInfo": "1.0.2",
+      "downloadLocation": "https://github.com/Richienb/char-regex#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Richie Bendall",
+      "summary": "A regex to match any full character, considering weird character ranges."
+    },
+    {
+      "SPDXID": "SPDXRef-Package-ci-info-3.9.0",
+      "name": "ci-info",
+      "versionInfo": "3.9.0",
+      "downloadLocation": "https://github.com/watson/ci-info",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Thomas Watson Steen",
+      "summary": "Get details about the current Continuous Integration environment"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-cli-boxes-3.0.0",
+      "name": "cli-boxes",
+      "versionInfo": "3.0.0",
+      "downloadLocation": "https://github.com/sindresorhus/cli-boxes#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Sindre Sorhus",
+      "summary": "Boxes for use in the terminal"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-cli-cursor-4.0.0",
+      "name": "cli-cursor",
+      "versionInfo": "4.0.0",
+      "downloadLocation": "https://github.com/sindresorhus/cli-cursor#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Sindre Sorhus",
+      "summary": "Toggle the CLI cursor"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-cli-highlight-2.1.11",
+      "name": "cli-highlight",
+      "versionInfo": "2.1.11",
+      "downloadLocation": "https://github.com/felixfbecker/cli-highlight#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "ISC",
+      "licenseDeclared": "ISC",
+      "copyrightText": "Felix Becker",
+      "summary": "Syntax highlighting in your terminal"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-cli-spinners-2.9.2",
+      "name": "cli-spinners",
+      "versionInfo": "2.9.2",
+      "downloadLocation": "https://github.com/sindresorhus/cli-spinners#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Sindre Sorhus",
+      "summary": "Spinners for use in the terminal"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-cli-table3-0.6.5",
+      "name": "cli-table3",
+      "versionInfo": "0.6.5",
+      "downloadLocation": "https://github.com/cli-table/cli-table3",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "James Talmage",
+      "summary": "Pretty unicode tables for the command line. Based on the original cli-table."
+    },
+    {
+      "SPDXID": "SPDXRef-Package-cli-truncate-3.1.0",
+      "name": "cli-truncate",
+      "versionInfo": "3.1.0",
+      "downloadLocation": "https://github.com/sindresorhus/cli-truncate#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Sindre Sorhus",
+      "summary": "Truncate a string to a specific width in the terminal"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-cliui-7.0.4",
+      "name": "cliui",
+      "versionInfo": "7.0.4",
+      "downloadLocation": "https://github.com/yargs/cliui#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "ISC",
+      "licenseDeclared": "ISC",
+      "copyrightText": "Ben Coe",
+      "summary": "easily create complex multi-column command-line-interfaces"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-code-excerpt-4.0.0",
+      "name": "code-excerpt",
+      "versionInfo": "4.0.0",
+      "downloadLocation": "https://github.com/vadimdemedes/code-excerpt#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "vdemedes",
+      "summary": "Extract code excerpts"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-color-convert-2.0.1",
+      "name": "color-convert",
+      "versionInfo": "2.0.1",
+      "downloadLocation": "https://github.com/Qix-/color-convert#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Heather Arthur",
+      "summary": "Plain color conversion functions"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-color-name-1.1.4",
+      "name": "color-name",
+      "versionInfo": "1.1.4",
+      "downloadLocation": "https://github.com/colorjs/color-name",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "DY",
+      "summary": "A list of color names and its values"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-commander-12.1.0",
+      "name": "commander",
+      "versionInfo": "12.1.0",
+      "downloadLocation": "https://github.com/tj/commander.js#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "TJ Holowaychuk",
+      "summary": "the complete solution for node.js command-line programs"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-convert-to-spaces-2.0.1",
+      "name": "convert-to-spaces",
+      "versionInfo": "2.0.1",
+      "downloadLocation": "https://github.com/vadimdemedes/convert-to-spaces#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Vadim Demedes",
+      "summary": "Convert tabs to spaces in a string"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-csstype-3.2.3",
+      "name": "csstype",
+      "versionInfo": "3.2.3",
+      "downloadLocation": "https://github.com/frenic/csstype#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Fredrik Nicol",
+      "summary": "Strict TypeScript and Flow types for style based on MDN data"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-eastasianwidth-0.2.0",
+      "name": "eastasianwidth",
+      "versionInfo": "0.2.0",
+      "downloadLocation": "https://github.com/komagata/eastasianwidth#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Masaki Komagata",
+      "summary": "Get East Asian Width from a character."
+    },
+    {
+      "SPDXID": "SPDXRef-Package-emoji-regex-8.0.0",
+      "name": "emoji-regex",
+      "versionInfo": "8.0.0",
+      "downloadLocation": "https://mths.be/emoji-regex",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Mathias Bynens",
+      "summary": "A regular expression to match all Emoji-only symbols as per the Unicode Standard."
+    },
+    {
+      "SPDXID": "SPDXRef-Package-emoji-regex-9.2.2",
+      "name": "emoji-regex",
+      "versionInfo": "9.2.2",
+      "downloadLocation": "https://mths.be/emoji-regex",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Mathias Bynens",
+      "summary": "A regular expression to match all Emoji-only symbols as per the Unicode Standard."
+    },
+    {
+      "SPDXID": "SPDXRef-Package-emojilib-2.4.0",
+      "name": "emojilib",
+      "versionInfo": "2.4.0",
+      "downloadLocation": "https://github.com/muan/emojilib#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Mu-An Chiou",
+      "summary": "Emoji keyword library."
+    },
+    {
+      "SPDXID": "SPDXRef-Package-environment-1.1.0",
+      "name": "environment",
+      "versionInfo": "1.1.0",
+      "downloadLocation": "https://github.com/sindresorhus/environment#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Sindre Sorhus",
+      "summary": "Check which JavaScript environment your code is running in at runtime: browser, Node.js, Bun, etc"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-escalade-3.2.0",
+      "name": "escalade",
+      "versionInfo": "3.2.0",
+      "downloadLocation": "https://github.com/lukeed/escalade#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Luke Edwards",
+      "summary": "A tiny (183B to 210B) and fast utility to ascend parent directories"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-escape-string-regexp-2.0.0",
+      "name": "escape-string-regexp",
+      "versionInfo": "2.0.0",
+      "downloadLocation": "https://github.com/sindresorhus/escape-string-regexp#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Sindre Sorhus",
+      "summary": "Escape RegExp special characters"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-get-caller-file-2.0.5",
+      "name": "get-caller-file",
+      "versionInfo": "2.0.5",
+      "downloadLocation": "https://github.com/stefanpenner/get-caller-file#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "ISC",
+      "licenseDeclared": "ISC",
+      "copyrightText": "Stefan Penner",
+      "summary": ""
+    },
+    {
+      "SPDXID": "SPDXRef-Package-has-flag-4.0.0",
+      "name": "has-flag",
+      "versionInfo": "4.0.0",
+      "downloadLocation": "https://github.com/sindresorhus/has-flag#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Sindre Sorhus",
+      "summary": "Check if argv has a specific flag"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-highlight.js-10.7.3",
+      "name": "highlight.js",
+      "versionInfo": "10.7.3",
+      "downloadLocation": "https://highlightjs.org/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "BSD-3-Clause",
+      "licenseDeclared": "BSD-3-Clause",
+      "copyrightText": "Ivan Sagalaev",
+      "summary": "Syntax highlighting with language autodetection."
+    },
+    {
+      "SPDXID": "SPDXRef-Package-indent-string-5.0.0",
+      "name": "indent-string",
+      "versionInfo": "5.0.0",
+      "downloadLocation": "https://github.com/sindresorhus/indent-string#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Sindre Sorhus",
+      "summary": "Indent each line in a string"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-ink-scroll-view-0.3.6",
+      "name": "ink-scroll-view",
+      "versionInfo": "0.3.6",
+      "downloadLocation": "https://www.byteland.app/opensource/ink-scroll-view",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "ByteLand Technology",
+      "summary": "A ScrollView component for Ink CLI applications"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-ink-spinner-4.0.3",
+      "name": "ink-spinner",
+      "versionInfo": "4.0.3",
+      "downloadLocation": "https://github.com/vadimdemedes/ink-spinner#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Vadim Demedes",
+      "summary": "Spinner component for Ink"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-ink-syntax-highlight-2.0.2",
+      "name": "ink-syntax-highlight",
+      "versionInfo": "2.0.2",
+      "downloadLocation": "https://github.com/vsashyn/ink-syntax-highlight#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Vitalii Sashyn",
+      "summary": "Synax highlight component for Ink"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-ink-text-input-5.0.1",
+      "name": "ink-text-input",
+      "versionInfo": "5.0.1",
+      "downloadLocation": "https://github.com/vadimdemedes/ink-text-input#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Vadim Demedes",
+      "summary": "Text input component for Ink"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-ink-4.4.1",
+      "name": "ink",
+      "versionInfo": "4.4.1",
+      "downloadLocation": "https://github.com/vadimdemedes/ink#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Vadim Demedes",
+      "summary": "React for CLI"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-is-ci-3.0.1",
+      "name": "is-ci",
+      "versionInfo": "3.0.1",
+      "downloadLocation": "https://github.com/watson/is-ci",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Thomas Watson Steen",
+      "summary": "Detect if the current environment is a CI server"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-is-fullwidth-code-point-3.0.0",
+      "name": "is-fullwidth-code-point",
+      "versionInfo": "3.0.0",
+      "downloadLocation": "https://github.com/sindresorhus/is-fullwidth-code-point#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Sindre Sorhus",
+      "summary": "Check if the character represented by a given Unicode code point is fullwidth"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-is-fullwidth-code-point-4.0.0",
+      "name": "is-fullwidth-code-point",
+      "versionInfo": "4.0.0",
+      "downloadLocation": "https://github.com/sindresorhus/is-fullwidth-code-point#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Sindre Sorhus",
+      "summary": "Check if the character represented by a given Unicode code point is fullwidth"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-is-lower-case-2.0.2",
+      "name": "is-lower-case",
+      "versionInfo": "2.0.2",
+      "downloadLocation": "https://github.com/blakeembrey/change-case/tree/master/packages/is-lower-case#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Blake Embrey",
+      "summary": "Returns `true` if the string is lower case only"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-is-upper-case-2.0.2",
+      "name": "is-upper-case",
+      "versionInfo": "2.0.2",
+      "downloadLocation": "https://github.com/blakeembrey/change-case/tree/master/packages/is-upper-case#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Blake Embrey",
+      "summary": "Returns `true` if the string is upper case only."
+    },
+    {
+      "SPDXID": "SPDXRef-Package-js-tokens-4.0.0",
+      "name": "js-tokens",
+      "versionInfo": "4.0.0",
+      "downloadLocation": "https://github.com/lydell/js-tokens#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Simon Lydell",
+      "summary": "A regex that tokenizes JavaScript."
+    },
+    {
+      "SPDXID": "SPDXRef-Package-lodash-4.18.1",
+      "name": "lodash",
+      "versionInfo": "4.18.1",
+      "downloadLocation": "https://lodash.com/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "John-David Dalton",
+      "summary": "Lodash modular utilities."
+    },
+    {
+      "SPDXID": "SPDXRef-Package-loose-envify-1.4.0",
+      "name": "loose-envify",
+      "versionInfo": "1.4.0",
+      "downloadLocation": "https://github.com/zertosh/loose-envify",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Andres Suarez",
+      "summary": "Fast (and loose) selective `process.env` replacer using js-tokens instead of an AST"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-marked-terminal-7.3.0",
+      "name": "marked-terminal",
+      "versionInfo": "7.3.0",
+      "downloadLocation": "https://github.com/mikaelbr/marked-terminal",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Mikael Brevik",
+      "summary": "A custom render for marked to output to the Terminal"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-marked-17.0.1",
+      "name": "marked",
+      "versionInfo": "17.0.1",
+      "downloadLocation": "https://marked.js.org",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Christopher Jeffrey",
+      "summary": "A markdown parser built for speed"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-mimic-fn-2.1.0",
+      "name": "mimic-fn",
+      "versionInfo": "2.1.0",
+      "downloadLocation": "https://github.com/sindresorhus/mimic-fn#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Sindre Sorhus",
+      "summary": "Make a function mimic another one"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-mz-2.7.0",
+      "name": "mz",
+      "versionInfo": "2.7.0",
+      "downloadLocation": "https://github.com/normalize/mz#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Jonathan Ong",
+      "summary": "modernize node.js to current ECMAScript standards"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-node-emoji-2.2.0",
+      "name": "node-emoji",
+      "versionInfo": "2.2.0",
+      "downloadLocation": "https://github.com/omnidan/node-emoji#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Daniel Bugl",
+      "summary": "Friendly emoji lookups and parsing utilities for Node.js. 💖"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-object-assign-4.1.1",
+      "name": "object-assign",
+      "versionInfo": "4.1.1",
+      "downloadLocation": "https://github.com/sindresorhus/object-assign#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Sindre Sorhus",
+      "summary": "ES2015 `Object.assign()` ponyfill"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-onetime-5.1.2",
+      "name": "onetime",
+      "versionInfo": "5.1.2",
+      "downloadLocation": "https://github.com/sindresorhus/onetime#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Sindre Sorhus",
+      "summary": "Ensure a function is only called once"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-parse5-htmlparser2-tree-adapter-6.0.1",
+      "name": "parse5-htmlparser2-tree-adapter",
+      "versionInfo": "6.0.1",
+      "downloadLocation": "https://github.com/inikulin/parse5",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Ivan Nikulin",
+      "summary": "htmlparser2 tree adapter for parse5."
+    },
+    {
+      "SPDXID": "SPDXRef-Package-parse5-5.1.1",
+      "name": "parse5",
+      "versionInfo": "5.1.1",
+      "downloadLocation": "https://github.com/inikulin/parse5",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Ivan Nikulin",
+      "summary": "HTML parser and serializer."
+    },
+    {
+      "SPDXID": "SPDXRef-Package-parse5-6.0.1",
+      "name": "parse5",
+      "versionInfo": "6.0.1",
+      "downloadLocation": "https://github.com/inikulin/parse5",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Ivan Nikulin",
+      "summary": "HTML parser and serializer."
+    },
+    {
+      "SPDXID": "SPDXRef-Package-patch-console-2.0.0",
+      "name": "patch-console",
+      "versionInfo": "2.0.0",
+      "downloadLocation": "https://github.com/vadimdemedes/patch-console#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "vdemedes",
+      "summary": "Patch console methods to intercept output"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-react-devtools-core-4.28.5",
+      "name": "react-devtools-core",
+      "versionInfo": "4.28.5",
+      "downloadLocation": "https://github.com/facebook/react#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "summary": "Use react-devtools outside of the browser"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-react-reconciler-0.29.2",
+      "name": "react-reconciler",
+      "versionInfo": "0.29.2",
+      "downloadLocation": "https://reactjs.org/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "summary": "React package for creating custom renderers."
+    },
+    {
+      "SPDXID": "SPDXRef-Package-react-18.3.1",
+      "name": "react",
+      "versionInfo": "18.3.1",
+      "downloadLocation": "https://reactjs.org/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "summary": "React is a JavaScript library for building user interfaces."
+    },
+    {
+      "SPDXID": "SPDXRef-Package-require-directory-2.1.1",
+      "name": "require-directory",
+      "versionInfo": "2.1.1",
+      "downloadLocation": "https://github.com/troygoode/node-require-directory/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Troy Goode",
+      "summary": "Recursively iterates over specified directory, require()'ing each file, and returning a nested hash structure containing those modules."
+    },
+    {
+      "SPDXID": "SPDXRef-Package-restore-cursor-4.0.0",
+      "name": "restore-cursor",
+      "versionInfo": "4.0.0",
+      "downloadLocation": "https://github.com/sindresorhus/restore-cursor#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Sindre Sorhus",
+      "summary": "Gracefully restore the CLI cursor on exit"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-scheduler-0.23.2",
+      "name": "scheduler",
+      "versionInfo": "0.23.2",
+      "downloadLocation": "https://reactjs.org/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "summary": "Cooperative scheduler for the browser environment."
+    },
+    {
+      "SPDXID": "SPDXRef-Package-shell-quote-1.8.3",
+      "name": "shell-quote",
+      "versionInfo": "1.8.3",
+      "downloadLocation": "https://github.com/ljharb/shell-quote",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "James Halliday",
+      "summary": "quote and parse shell commands"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-signal-exit-3.0.7",
+      "name": "signal-exit",
+      "versionInfo": "3.0.7",
+      "downloadLocation": "https://github.com/tapjs/signal-exit",
+      "filesAnalyzed": false,
+      "licenseConcluded": "ISC",
+      "licenseDeclared": "ISC",
+      "copyrightText": "Ben Coe",
+      "summary": "when you want to fire an event no matter how a process exits."
+    },
+    {
+      "SPDXID": "SPDXRef-Package-skin-tone-2.0.0",
+      "name": "skin-tone",
+      "versionInfo": "2.0.0",
+      "downloadLocation": "https://github.com/sindresorhus/skin-tone#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Sindre Sorhus",
+      "summary": "Change the skin tone of an emoji 👌👌🏻👌🏼👌🏽👌🏾👌🏿"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-slice-ansi-5.0.0",
+      "name": "slice-ansi",
+      "versionInfo": "5.0.0",
+      "downloadLocation": "https://github.com/chalk/slice-ansi#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "summary": "Slice a string with ANSI escape codes"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-slice-ansi-6.0.0",
+      "name": "slice-ansi",
+      "versionInfo": "6.0.0",
+      "downloadLocation": "https://github.com/chalk/slice-ansi#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "summary": "Slice a string with ANSI escape codes"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-sql.js-1.14.1",
+      "name": "sql.js",
+      "versionInfo": "1.14.1",
+      "downloadLocation": "http://github.com/sql-js/sql.js",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "summary": "SQLite library with support for opening and writing databases, prepared statements, and more. This SQLite library is in pure javascript (compiled with emscripten)."
+    },
+    {
+      "SPDXID": "SPDXRef-Package-stack-utils-2.0.6",
+      "name": "stack-utils",
+      "versionInfo": "2.0.6",
+      "downloadLocation": "https://github.com/tapjs/stack-utils#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "James Talmage",
+      "summary": "Captures and cleans stack traces"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-string-width-4.2.3",
+      "name": "string-width",
+      "versionInfo": "4.2.3",
+      "downloadLocation": "https://github.com/sindresorhus/string-width#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Sindre Sorhus",
+      "summary": "Get the visual width of a string - the number of columns required to display it"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-string-width-5.1.2",
+      "name": "string-width",
+      "versionInfo": "5.1.2",
+      "downloadLocation": "https://github.com/sindresorhus/string-width#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Sindre Sorhus",
+      "summary": "Get the visual width of a string - the number of columns required to display it"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-strip-ansi-6.0.1",
+      "name": "strip-ansi",
+      "versionInfo": "6.0.1",
+      "downloadLocation": "https://github.com/chalk/strip-ansi#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Sindre Sorhus",
+      "summary": "Strip ANSI escape codes from a string"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-strip-ansi-7.1.2",
+      "name": "strip-ansi",
+      "versionInfo": "7.1.2",
+      "downloadLocation": "https://github.com/chalk/strip-ansi#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Sindre Sorhus",
+      "summary": "Strip ANSI escape codes from a string"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-supports-color-7.2.0",
+      "name": "supports-color",
+      "versionInfo": "7.2.0",
+      "downloadLocation": "https://github.com/chalk/supports-color#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Sindre Sorhus",
+      "summary": "Detect whether a terminal supports color"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-supports-hyperlinks-3.2.0",
+      "name": "supports-hyperlinks",
+      "versionInfo": "3.2.0",
+      "downloadLocation": "https://github.com/chalk/supports-hyperlinks#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "summary": "Detect whether a terminal supports hyperlinks"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-thenify-all-1.6.0",
+      "name": "thenify-all",
+      "versionInfo": "1.6.0",
+      "downloadLocation": "https://github.com/thenables/thenify-all#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Jonathan Ong",
+      "summary": "Promisifies all the selected functions in an object"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-thenify-3.3.1",
+      "name": "thenify",
+      "versionInfo": "3.3.1",
+      "downloadLocation": "https://github.com/thenables/thenify#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Jonathan Ong",
+      "summary": "Promisify a callback-based function"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-tslib-2.8.1",
+      "name": "tslib",
+      "versionInfo": "2.8.1",
+      "downloadLocation": "https://www.typescriptlang.org/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "0BSD",
+      "licenseDeclared": "0BSD",
+      "copyrightText": "Microsoft Corp.",
+      "summary": "Runtime library for TypeScript helper functions"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-type-fest-0.12.0",
+      "name": "type-fest",
+      "versionInfo": "0.12.0",
+      "downloadLocation": "https://github.com/sindresorhus/type-fest#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "(MIT OR CC0-1.0)",
+      "licenseDeclared": "(MIT OR CC0-1.0)",
+      "copyrightText": "Sindre Sorhus",
+      "summary": "A collection of essential TypeScript types"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-type-fest-3.13.1",
+      "name": "type-fest",
+      "versionInfo": "3.13.1",
+      "downloadLocation": "https://github.com/sindresorhus/type-fest#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "(MIT OR CC0-1.0)",
+      "licenseDeclared": "(MIT OR CC0-1.0)",
+      "copyrightText": "Sindre Sorhus",
+      "summary": "A collection of essential TypeScript types"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-unicode-emoji-modifier-base-1.0.0",
+      "name": "unicode-emoji-modifier-base",
+      "versionInfo": "1.0.0",
+      "downloadLocation": "https://github.com/mathiasbynens/unicode-emoji-modifier-base",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Mathias Bynens",
+      "summary": "The set of Unicode symbols that can serve as a base for emoji modifiers, i.e. those with the `Emoji_Modifier_Base` property set to `Yes`."
+    },
+    {
+      "SPDXID": "SPDXRef-Package-widest-line-4.0.1",
+      "name": "widest-line",
+      "versionInfo": "4.0.1",
+      "downloadLocation": "https://github.com/sindresorhus/widest-line#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Sindre Sorhus",
+      "summary": "Get the visual width of the widest line in a string - the number of columns required to display it"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-wrap-ansi-7.0.0",
+      "name": "wrap-ansi",
+      "versionInfo": "7.0.0",
+      "downloadLocation": "https://github.com/chalk/wrap-ansi#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Sindre Sorhus",
+      "summary": "Wordwrap a string with ANSI escape codes"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-wrap-ansi-8.1.0",
+      "name": "wrap-ansi",
+      "versionInfo": "8.1.0",
+      "downloadLocation": "https://github.com/chalk/wrap-ansi#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Sindre Sorhus",
+      "summary": "Wordwrap a string with ANSI escape codes"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-ws-7.5.10",
+      "name": "ws",
+      "versionInfo": "7.5.10",
+      "downloadLocation": "https://github.com/websockets/ws",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Einar Otto Stangvik",
+      "summary": "Simple to use, blazing fast and thoroughly tested websocket client and server for Node.js"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-ws-8.18.3",
+      "name": "ws",
+      "versionInfo": "8.18.3",
+      "downloadLocation": "https://github.com/websockets/ws",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Einar Otto Stangvik",
+      "summary": "Simple to use, blazing fast and thoroughly tested websocket client and server for Node.js"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-y18n-5.0.8",
+      "name": "y18n",
+      "versionInfo": "5.0.8",
+      "downloadLocation": "https://github.com/yargs/y18n",
+      "filesAnalyzed": false,
+      "licenseConcluded": "ISC",
+      "licenseDeclared": "ISC",
+      "copyrightText": "Ben Coe",
+      "summary": "the bare-bones internationalization library used by yargs"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-yargs-parser-20.2.9",
+      "name": "yargs-parser",
+      "versionInfo": "20.2.9",
+      "downloadLocation": "https://github.com/yargs/yargs-parser#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "ISC",
+      "licenseDeclared": "ISC",
+      "copyrightText": "Ben Coe",
+      "summary": "the mighty option parser used by yargs"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-yargs-16.2.0",
+      "name": "yargs",
+      "versionInfo": "16.2.0",
+      "downloadLocation": "https://yargs.js.org/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "summary": "yargs the modern, pirate-themed, successor to optimist."
+    },
+    {
+      "SPDXID": "SPDXRef-Package-yoga-wasm-web-0.3.3",
+      "name": "yoga-wasm-web",
+      "versionInfo": "0.3.3",
+      "downloadLocation": "https://github.com/shuding/yoga-wasm-web#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "summary": ""
+    }
+  ],
+  "relationships": [
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--alcalzone-ansi-tokenize-0.1.3"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--colors-colors-1.5.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--sindresorhus-is-4.6.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--types-prop-types-15.7.15"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--types-react-18.3.27"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-ansi-escapes-6.2.1"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-ansi-escapes-7.2.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-ansi-regex-5.0.1"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-ansi-regex-6.2.2"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-ansi-styles-4.3.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-ansi-styles-6.2.3"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-any-promise-1.3.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-asciichart-1.5.25"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-auto-bind-5.0.1"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-chalk-4.1.2"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-chalk-5.6.2"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-char-regex-1.0.2"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-ci-info-3.9.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-cli-boxes-3.0.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-cli-cursor-4.0.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-cli-highlight-2.1.11"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-cli-spinners-2.9.2"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-cli-table3-0.6.5"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-cli-truncate-3.1.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-cliui-7.0.4"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-code-excerpt-4.0.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-color-convert-2.0.1"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-color-name-1.1.4"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-commander-12.1.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-convert-to-spaces-2.0.1"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-csstype-3.2.3"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-eastasianwidth-0.2.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-emoji-regex-8.0.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-emoji-regex-9.2.2"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-emojilib-2.4.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-environment-1.1.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-escalade-3.2.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-escape-string-regexp-2.0.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-get-caller-file-2.0.5"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-has-flag-4.0.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-highlight.js-10.7.3"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-indent-string-5.0.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-ink-scroll-view-0.3.6"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-ink-spinner-4.0.3"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-ink-syntax-highlight-2.0.2"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-ink-text-input-5.0.1"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-ink-4.4.1"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-is-ci-3.0.1"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-is-fullwidth-code-point-3.0.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-is-fullwidth-code-point-4.0.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-is-lower-case-2.0.2"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-is-upper-case-2.0.2"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-js-tokens-4.0.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-lodash-4.18.1"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-loose-envify-1.4.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-marked-terminal-7.3.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-marked-17.0.1"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-mimic-fn-2.1.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-mz-2.7.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-node-emoji-2.2.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-object-assign-4.1.1"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-onetime-5.1.2"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-parse5-htmlparser2-tree-adapter-6.0.1"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-parse5-5.1.1"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-parse5-6.0.1"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-patch-console-2.0.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-react-devtools-core-4.28.5"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-react-reconciler-0.29.2"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-react-18.3.1"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-require-directory-2.1.1"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-restore-cursor-4.0.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-scheduler-0.23.2"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-shell-quote-1.8.3"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-signal-exit-3.0.7"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-skin-tone-2.0.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-slice-ansi-5.0.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-slice-ansi-6.0.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-sql.js-1.14.1"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-stack-utils-2.0.6"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-string-width-4.2.3"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-string-width-5.1.2"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-strip-ansi-6.0.1"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-strip-ansi-7.1.2"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-supports-color-7.2.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-supports-hyperlinks-3.2.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-thenify-all-1.6.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-thenify-3.3.1"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-tslib-2.8.1"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-type-fest-0.12.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-type-fest-3.13.1"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-unicode-emoji-modifier-base-1.0.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-widest-line-4.0.1"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-wrap-ansi-7.0.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-wrap-ansi-8.1.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-ws-7.5.10"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-ws-8.18.3"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-y18n-5.0.8"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-yargs-parser-20.2.9"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-yargs-16.2.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-yoga-wasm-web-0.3.3"
+    }
+  ]
+}

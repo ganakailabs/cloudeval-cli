@@ -220,9 +220,29 @@ for workflow in "$ROOT_DIR/.github/workflows/semantic-release.yml" "$ROOT_DIR/.g
     echo "release workflow is missing compressed asset generation: $workflow" >&2
     exit 1
   fi
+  if ! grep -q "Audit production licenses" "$workflow"; then
+    echo "release workflow is missing production license audit: $workflow" >&2
+    exit 1
+  fi
+  if ! grep -q "THIRD_PARTY_NOTICES.md sbom.spdx.json" "$workflow"; then
+    echo "release workflow is missing license artifact upload prep: $workflow" >&2
+    exit 1
+  fi
 done
 
 echo "ok - release workflows publish compressed assets"
+
+if ! grep -q 'License Notices' "$ROOT_DIR/scripts/install.sh" || ! grep -q 'THIRD_PARTY_NOTICES.md' "$ROOT_DIR/scripts/install.sh"; then
+  echo "installer should download license notices alongside binary assets" >&2
+  exit 1
+fi
+
+if ! grep -q 'raw.githubusercontent.com/ganakailabs/cloudeval-cli/${COMMIT_SHA}/scripts/install.sh' "$ROOT_DIR/docs/install.sh"; then
+  echo "docs/install.sh should fetch scripts/install.sh from the resolved main commit" >&2
+  exit 1
+fi
+
+echo "ok - installer and release workflows handle license notices"
 
 package_aliases="$(
   node -e 'const pkg = require(process.argv[1]); console.log(Object.keys(pkg.bin || {}).sort().join(" "));' \

@@ -28,6 +28,20 @@ pnpm smoke:release:real
 
 If `pnpm` is not on your `PATH`, run the shell script directly.
 
+## npm package smoke
+
+Before publishing `cloudeval-cli` to npm, verify the package manifest and dry-run
+the exact tarball:
+
+```bash
+pnpm test:npm-package
+(cd packages/cli && npm pack --dry-run)
+```
+
+The dry-run must include `dist`, `README.md`, `LICENSE`, `NOTICE`,
+`THIRD_PARTY_NOTICES.md`, and `sbom.spdx.json`. The package should expose the
+`cloudeval`, `eva`, and `cloud` binaries from `dist/cli.js`.
+
 ## Defaults
 
 The script uses the public CloudEval FQDN by default:
@@ -53,6 +67,9 @@ The smoke script verifies:
 - The installer downloads the CLI binary and `yoga.wasm`, preferring compressed
   assets when the release provides them and falling back to raw assets.
 - The installer validates release checksums.
+- The installer downloads `LICENSE`, `NOTICE`, `THIRD_PARTY_NOTICES.md`, and
+  `sbom.spdx.json` into `~/.local/share/cloudeval/licenses` when the release
+  provides them.
 - The installer creates `~/.local/bin/cloudeval`.
 - The installer creates the `eva` and `cloud` aliases on non-Windows platforms.
 - The installer prints optional agent and credential setup guidance without

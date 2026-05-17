@@ -26,7 +26,6 @@ export default defineConfig({
   ],
   external: [
     "ink",
-    "ink-big-text",
     "ink-scroll-view",
     "ink-text-input",
     "ink-spinner",
@@ -41,7 +40,6 @@ export default defineConfig({
     options.platform = "node";
   },
 });
-
 
 
 

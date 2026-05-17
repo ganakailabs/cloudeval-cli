@@ -22,7 +22,6 @@ export default defineConfig({
     "ink",
     "react",
     "commander",
-    "ink-big-text",
     "ink-scroll-view",
     "ink-text-input",
     "ink-spinner",

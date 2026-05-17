@@ -1,6 +1,8 @@
 {
   "name": "@cloudeval/shared",
   "version": "0.1.0",
+  "private": true,
+  "license": "SEE LICENSE IN ../../LICENSE",
   "type": "module",
   "main": "dist/index.js",
   "module": "dist/index.js",

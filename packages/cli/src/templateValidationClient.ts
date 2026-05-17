@@ -23,6 +23,13 @@ export type AuthenticatedTemplateRequest = {
   userId: string;
 };
 
+export type TemplateValidationWaitResult = {
+  submitted: unknown;
+  jobId: string;
+  status: unknown;
+  result: unknown;
+};
+
 export const readJsonFile = async (filePath: string): Promise<unknown> => {
   const text = await fs.readFile(filePath, "utf8");
   try {
@@ -82,6 +89,116 @@ export const validateTemplate = async (
       userId: input.userId,
     }),
   });
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const recordValue = (value: unknown): Record<string, unknown> | undefined =>
+  value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
+
+const stringField = (
+  value: Record<string, unknown> | undefined,
+  field: string,
+): string | undefined => {
+  const raw = value?.[field];
+  return typeof raw === "string" && raw.trim() ? raw : undefined;
+};
+
+const extractJobId = (value: unknown): string | undefined => {
+  const record = recordValue(value);
+  const job = recordValue(record?.job);
+  const data = recordValue(record?.data);
+  const dataJob = recordValue(data?.job);
+  return (
+    stringField(job, "job_id") ??
+    stringField(job, "jobId") ??
+    stringField(record, "job_id") ??
+    stringField(record, "jobId") ??
+    stringField(dataJob, "job_id") ??
+    stringField(dataJob, "jobId")
+  );
+};
+
+const normalizedStatus = (value: unknown): string =>
+  String(recordValue(value)?.status ?? "").trim().toLowerCase();
+
+const isTerminalJobStatus = (value: unknown): boolean =>
+  [
+    "completed",
+    "succeeded",
+    "failed",
+    "error",
+    "cancelled",
+    "canceled",
+    "dead_lettered",
+  ].includes(normalizedStatus(value));
+
+const isSuccessfulJobStatus = (value: unknown): boolean =>
+  ["completed", "succeeded"].includes(normalizedStatus(value));
+
+export const getTemplateValidationJobStatus = async (
+  input: AuthenticatedTemplateRequest & { jobId: string },
+): Promise<unknown> =>
+  fetchCloudEvalJson({
+    baseUrl: input.baseUrl,
+    authToken: input.authToken,
+    path: `/jobs/${encodeURIComponent(input.jobId)}`,
+    query: { user_id: input.userId },
+  });
+
+export const getTemplateValidationJobResult = async (
+  input: AuthenticatedTemplateRequest & { jobId: string },
+): Promise<unknown> =>
+  fetchCloudEvalJson({
+    baseUrl: input.baseUrl,
+    authToken: input.authToken,
+    path: `/jobs/${encodeURIComponent(input.jobId)}/result`,
+    query: { user_id: input.userId },
+  });
+
+export const waitForTemplateValidationResult = async (
+  input: AuthenticatedTemplateRequest & {
+    submitted: unknown;
+    pollIntervalMs?: number;
+    waitTimeoutMs?: number;
+  },
+): Promise<unknown> => {
+  const jobId = extractJobId(input.submitted);
+  if (!jobId) {
+    return input.submitted;
+  }
+
+  const waitTimeoutMs = Math.max(1, input.waitTimeoutMs ?? 600_000);
+  const pollIntervalMs = Math.max(500, input.pollIntervalMs ?? 2500);
+  const deadline = Date.now() + waitTimeoutMs;
+  let status: unknown;
+  for (;;) {
+    status = await getTemplateValidationJobStatus({ ...input, jobId });
+    if (isTerminalJobStatus(status)) {
+      break;
+    }
+    if (Date.now() >= deadline) {
+      throw new Error(
+        `Template validation job ${jobId} did not finish within ${waitTimeoutMs}ms.`,
+      );
+    }
+    await sleep(Math.min(pollIntervalMs, Math.max(1, deadline - Date.now())));
+  }
+
+  if (!isSuccessfulJobStatus(status)) {
+    throw new Error(
+      `Template validation job ${jobId} ended with status ${normalizedStatus(status) || "unknown"}.`,
+    );
+  }
+
+  return {
+    submitted: input.submitted,
+    jobId,
+    status,
+    result: await getTemplateValidationJobResult({ ...input, jobId }),
+  } satisfies TemplateValidationWaitResult;
+};
 
 export const parseTemplate = async (
   input: AuthenticatedTemplateRequest &

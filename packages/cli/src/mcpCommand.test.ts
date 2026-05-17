@@ -185,6 +185,20 @@ const startBackend = async (
       const payload = JSON.parse(body || "{}");
       assert.equal(payload.template.resources[0].name, "sttest001");
       assert.equal(payload.parameter_file.parameters.location.value, "eastus2");
+      if (payload.options.rule_names?.includes("async-template-validation")) {
+        return json(
+          res,
+          {
+            message: "Template validation job submitted",
+            job: {
+              job_id: "job-template-validation-1",
+              status: "QUEUED",
+              operation: "template_validate",
+            },
+          },
+          202,
+        );
+      }
       assert.deepEqual(payload.options.rule_names, [
         "storage-public-access",
         "storage-encryption",
@@ -193,6 +207,26 @@ const startBackend = async (
         success: true,
         summary: { total_rules: 1, passed_rules: 0, failed_rules: 1 },
         requested_rule_names: payload.options.rule_names,
+      });
+    }
+    if (url.pathname === "/api/v1/jobs/job-template-validation-1") {
+      assert.equal(url.searchParams.get("user_id"), user.id);
+      return json(res, {
+        job_id: "job-template-validation-1",
+        status: "SUCCEEDED",
+        operation: "template_validate",
+        progress: 100,
+      });
+    }
+    if (url.pathname === "/api/v1/jobs/job-template-validation-1/result") {
+      assert.equal(url.searchParams.get("user_id"), user.id);
+      return json(res, {
+        success: true,
+        summary: { total_rules: 1, passed_rules: 0, failed_rules: 1 },
+        filtered_results: {
+          total_matching_rules: 1,
+          results: [{ rule_name: "async-template-validation", outcome: "Fail" }],
+        },
       });
     }
     if (url.pathname === "/api/v1/rule/rules/search" && req.method === "GET") {
@@ -434,6 +468,11 @@ test("mcp serve initializes, lists tools, and returns strict JSON-RPC stdout", a
       type: "array",
       items: { type: "string" },
     });
+    assert.equal(templateValidate.inputSchema.properties.wait.type, "boolean");
+    assert.equal(
+      templateValidate.inputSchema.properties.waitTimeoutMs.type,
+      "number",
+    );
     assert(!names.includes("projects.exportDiagram"));
     assert(!names.includes("projects.diagramImage"));
     assert(names.includes("reports_run"));
@@ -1090,6 +1129,38 @@ test("mcp server exposes graph intelligence and generic validation tools", async
     assert.deepEqual(
       validationResponse.result.structuredContent.data.requested_rule_names,
       ["storage-public-access", "storage-encryption"],
+    );
+
+    mcp.send({
+      jsonrpc: "2.0",
+      id: 33,
+      method: "tools/call",
+      params: {
+        name: "template_validate",
+        arguments: {
+          templatePath,
+          parametersPath,
+          ruleId: "async-template-validation",
+          wait: true,
+          pollIntervalMs: 10,
+          waitTimeoutMs: 5000,
+        },
+      },
+    });
+    const waitedValidationResponse = await mcp.read();
+    assert.equal(waitedValidationResponse.id, 33);
+    assert.equal(waitedValidationResponse.result.isError, false);
+    assert.equal(
+      waitedValidationResponse.result.structuredContent.data.jobId,
+      "job-template-validation-1",
+    );
+    assert.equal(
+      waitedValidationResponse.result.structuredContent.data.status.status,
+      "SUCCEEDED",
+    );
+    assert.equal(
+      waitedValidationResponse.result.structuredContent.data.result.summary.failed_rules,
+      1,
     );
 
     mcp.send({

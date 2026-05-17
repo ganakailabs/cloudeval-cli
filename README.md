@@ -88,7 +88,7 @@ cloudeval agents run cost --project <project-id> --format json
 cloudeval recipes list
 cloudeval projects list
 cloudeval projects graph insights <project-id> --focus impact --resource <resource-id> --format json
-cloudeval validate template --template-file template.json --parameters-file parameters.json --rule <check-id> --format json
+cloudeval validate template --template-file template.json --parameters-file parameters.json --rule <check-id> --wait --wait-timeout 600000 --format json
 cloudeval rules search "public network" --format json
 cloudeval reports list
 cloudeval capabilities --format json

@@ -72,6 +72,7 @@ import {
   parseTemplate,
   searchRules,
   validateTemplate,
+  waitForTemplateValidationResult,
 } from "./templateValidationClient.js";
 import { warnIfAccessKeyFromCliOption } from "./authGuard.js";
 
@@ -1265,6 +1266,19 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
         maxResults: { type: "number", description: "Maximum validation results." },
         projectId: projectIdProperty,
         saveReport: { type: "boolean", default: false },
+        wait: {
+          type: "boolean",
+          description: "Poll an async validation job until results are ready.",
+          default: false,
+        },
+        pollIntervalMs: {
+          type: "number",
+          description: "Polling interval when wait is true.",
+        },
+        waitTimeoutMs: {
+          type: "number",
+          description: "Maximum time to wait when wait is true.",
+        },
       },
       ["templatePath"],
     ),
@@ -2977,7 +2991,7 @@ const buildToolHandlers = (
       ...(ruleId ? [ruleId] : []),
       ...(arrayValue(args.ruleNames) ?? []),
     ]));
-    const data = await validateTemplate({
+    const submitted = await validateTemplate({
       baseUrl: config.baseUrl,
       authToken: auth.token,
       userId: auth.user!.id,
@@ -2992,6 +3006,16 @@ const buildToolHandlers = (
       projectId: stringValue(args.projectId) ?? config.defaultProjectId,
       saveReport: booleanValue(args.saveReport),
     });
+    const data = booleanValue(args.wait)
+      ? await waitForTemplateValidationResult({
+          baseUrl: config.baseUrl,
+          authToken: auth.token,
+          userId: auth.user!.id,
+          submitted,
+          pollIntervalMs: numberValue(args.pollIntervalMs),
+          waitTimeoutMs: numberValue(args.waitTimeoutMs),
+        })
+      : submitted;
     return withEnvelope({ command: "validate template", data });
   });
 

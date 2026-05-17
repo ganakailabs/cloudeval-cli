@@ -7,7 +7,11 @@ import {
   type AuthGuardOptions,
 } from "./authGuard.js";
 import { writeFormattedOutput, type MachineOutputFormat } from "./outputFormatter.js";
-import { parseTemplate, validateTemplate } from "./templateValidationClient.js";
+import {
+  parseTemplate,
+  validateTemplate,
+  waitForTemplateValidationResult,
+} from "./templateValidationClient.js";
 
 export interface RegisterValidateCommandOptions extends AuthGuardDeps {
   defaultBaseUrl: string;
@@ -26,6 +30,9 @@ type ValidateOptions = AuthGuardOptions & {
   maxResults?: string;
   project?: string;
   saveReport?: boolean;
+  wait?: boolean;
+  pollInterval?: string;
+  waitTimeout?: string;
   location?: string;
 };
 
@@ -39,13 +46,16 @@ const addCommon = <T extends Command>(
     .option("--format <format>", "Output format: text, json, ndjson, markdown", "text")
     .option("--output <file>", "Output file") as T;
 
-const parsePositiveInteger = (value?: string): number | undefined => {
+const parsePositiveInteger = (
+  value?: string,
+  optionName = "--max-results",
+): number | undefined => {
   if (!value) {
     return undefined;
   }
   const parsed = Number(value);
   if (!Number.isInteger(parsed) || parsed < 1) {
-    throw new Error("--max-results must be a positive integer.");
+    throw new Error(`${optionName} must be a positive integer.`);
   }
   return parsed;
 };
@@ -79,10 +89,13 @@ export const registerValidateCommand = (
     .option("--max-results <count>", "Maximum validation results")
     .option("--project <id>", "Project id for saved validation results")
     .option("--save-report", "Persist validation results when a project is provided", false)
+    .option("--wait", "Poll an async validation job until results are ready", false)
+    .option("--poll-interval <ms>", "Polling interval when --wait is set", "2500")
+    .option("--wait-timeout <ms>", "Maximum time to wait when --wait is set", "600000")
     .action(async (options: ValidateOptions, command) => {
       try {
         const context = requireAuthUser(await resolveAuthContext(options, command, deps));
-        const data = await validateTemplate({
+        const submitted = await validateTemplate({
           baseUrl: context.baseUrl,
           authToken: context.token,
           userId: context.user.id,
@@ -97,6 +110,22 @@ export const registerValidateCommand = (
           projectId: options.project,
           saveReport: options.saveReport,
         });
+        const data = options.wait
+          ? await waitForTemplateValidationResult({
+              baseUrl: context.baseUrl,
+              authToken: context.token,
+              userId: context.user.id,
+              submitted,
+              pollIntervalMs: parsePositiveInteger(
+                options.pollInterval,
+                "--poll-interval",
+              ),
+              waitTimeoutMs: parsePositiveInteger(
+                options.waitTimeout,
+                "--wait-timeout",
+              ),
+            })
+          : submitted;
         await writeFormattedOutput({
           command: "validate template",
           data,

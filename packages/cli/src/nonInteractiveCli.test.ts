@@ -736,6 +736,26 @@ const startBackend = async (
         progress: 100,
       });
     }
+    if (url.pathname === "/api/v1/jobs/job-template-validation-1") {
+      assert.equal(url.searchParams.get("user_id"), user.id);
+      return json(res, {
+        job_id: "job-template-validation-1",
+        status: "SUCCEEDED",
+        operation: "template_validate",
+        progress: 100,
+      });
+    }
+    if (url.pathname === "/api/v1/jobs/job-template-validation-1/result") {
+      assert.equal(url.searchParams.get("user_id"), user.id);
+      return json(res, {
+        success: true,
+        summary: { total_rules: 1, passed_rules: 0, failed_rules: 1 },
+        filtered_results: {
+          total_matching_rules: 1,
+          results: [{ rule_name: "async-template-validation", outcome: "Fail" }],
+        },
+      });
+    }
     if (
       url.pathname === "/api/v1/rule/template/validate" &&
       req.method === "POST"
@@ -750,6 +770,20 @@ const startBackend = async (
       const selectedRules = Array.isArray(payload.options.rule_names)
         ? payload.options.rule_names
         : [];
+      if (selectedRules.includes("async-template-validation")) {
+        return json(
+          res,
+          {
+            message: "Template validation job submitted",
+            job: {
+              job_id: "job-template-validation-1",
+              status: "QUEUED",
+              operation: "template_validate",
+            },
+          },
+          202,
+        );
+      }
       return json(res, {
         success: true,
         summary:
@@ -2508,6 +2542,28 @@ test("template validation, parsing, and rule catalog commands use generic public
       "storage-public-access",
       "storage-encryption",
     ]);
+
+    const waitedValidationResult = await runCli([
+      "validate",
+      "template",
+      "--template-file",
+      templatePath,
+      "--parameters-file",
+      parametersPath,
+      "--rule",
+      "async-template-validation",
+      "--wait",
+      "--poll-interval",
+      "10",
+      "--wait-timeout",
+      "5000",
+      ...common,
+    ]);
+    const waitedValidation = parseJson(waitedValidationResult);
+    assert.equal(waitedValidation.command, "validate template");
+    assert.equal(waitedValidation.data.jobId, "job-template-validation-1");
+    assert.equal(waitedValidation.data.status.status, "SUCCEEDED");
+    assert.equal(waitedValidation.data.result.summary.failed_rules, 1);
 
     const validationWithoutParamsResult = await runCli([
       "validate",

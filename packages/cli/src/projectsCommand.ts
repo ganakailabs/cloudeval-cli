@@ -25,6 +25,13 @@ import {
   normalizeProjectDiagramImageLayout,
   resolveProjectDiagramImageFrontendUrl,
 } from "./projectDiagramImage.js";
+import {
+  getProjectGraph,
+  getProjectGraphDiff,
+  getProjectGraphInsights,
+  getProjectGraphTimeline,
+  listProjectSyncRuns,
+} from "./graphClient.js";
 
 export interface RegisterProjectsCommandOptions extends AuthGuardDeps {
   defaultBaseUrl: string;
@@ -48,6 +55,17 @@ type DiagramImageCommandOptions = AuthGuardOptions & {
   public?: boolean;
   syncVersion?: string;
   json?: boolean;
+};
+
+type GraphCommandOptions = CommonOptions & {
+  syncVersion?: string;
+  asOf?: string;
+  includeDiff?: boolean;
+  from?: string;
+  to?: string;
+  focus?: string;
+  resource?: string;
+  limit?: string;
 };
 
 const addCommon = <T extends Command>(command: T): T =>
@@ -214,6 +232,144 @@ const listProjectsForContext = async (
     return core.getProjects(context.baseUrl, context.token, context.user.id);
   }
   return core.getAccessibleProjects(context.baseUrl, context.token);
+};
+
+const parseLimit = (value: string | undefined): number | undefined => {
+  if (!value) {
+    return undefined;
+  }
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 1) {
+    throw new Error("--limit must be a positive integer.");
+  }
+  return parsed;
+};
+
+const resolveGraphAuth = async (
+  options: AuthGuardOptions,
+  command: Command,
+  deps: RegisterProjectsCommandOptions
+) => {
+  const parentOptions = (command.parent?.opts?.() ?? {}) as AuthGuardOptions;
+  const mergedOptions: AuthGuardOptions = {
+    ...options,
+    baseUrl: options.baseUrl || parentOptions.baseUrl,
+    accessKey: options.accessKey || parentOptions.accessKey,
+    accessKeyStdin: options.accessKeyStdin || parentOptions.accessKeyStdin,
+    nonInteractive: options.nonInteractive || parentOptions.nonInteractive,
+  };
+  return requireAuthUser(await resolveAuthContext(mergedOptions, command, deps));
+};
+
+const writeProjectGraphOutput = async (
+  command: string,
+  data: unknown,
+  options: GraphCommandOptions
+) =>
+  writeFormattedOutput({
+    command,
+    data,
+    format: options.format,
+    output: options.output,
+  });
+
+const configureGraphCommands = (
+  projects: Command,
+  deps: RegisterProjectsCommandOptions
+) => {
+  const graph = addCommon(
+    addAuthOptions(
+      projects
+        .command("graph")
+        .description("Inspect project graph intelligence")
+        .argument("<target>", "Project id, or one of: get, timeline, diff, insights, sync-runs")
+        .argument("[id]", "Project id when using a graph action"),
+      deps.defaultBaseUrl
+    )
+  )
+    .option("--sync-version <version>", "Optional project sync version")
+    .option("--as-of <timestamp>", "Replay graph as of a timestamp")
+    .option("--include-diff", "Include diff metadata when available", false)
+    .option("--limit <count>", "Maximum runs to return", "20")
+    .option("--from <version>", "Baseline sync version")
+    .option("--to <version>", "Target sync version")
+    .option("--focus <focus>", "Insight focus: overview, impact, critical-paths, security, cost, changes", "overview")
+    .option("--resource <id>", "Resource id for impact analysis");
+
+  graph.action(async (target: string, id: string | undefined, options: GraphCommandOptions, command) => {
+    const actions = new Set(["get", "show", "timeline", "diff", "insights", "sync-runs"]);
+    const action = actions.has(target) ? target : "get";
+    const projectId = actions.has(target) ? id : target;
+    if (!projectId) {
+      command.help({ error: true });
+      return;
+    }
+    const resolvedProjectId = projectId;
+    try {
+      const context = await resolveGraphAuth(options, command, deps);
+      if (action === "timeline") {
+        const data = await getProjectGraphTimeline({
+          baseUrl: context.baseUrl,
+          authToken: context.token,
+          userId: context.user.id,
+          projectId: resolvedProjectId,
+          limit: parseLimit(options.limit),
+        });
+        await writeProjectGraphOutput("projects graph timeline", data, options);
+        return;
+      }
+      if (action === "diff") {
+        const data = await getProjectGraphDiff({
+          baseUrl: context.baseUrl,
+          authToken: context.token,
+          userId: context.user.id,
+          projectId: resolvedProjectId,
+          fromSyncVersion: options.from,
+          toSyncVersion: options.to,
+        });
+        await writeProjectGraphOutput("projects graph diff", data, options);
+        return;
+      }
+      if (action === "insights") {
+        const data = await getProjectGraphInsights({
+          baseUrl: context.baseUrl,
+          authToken: context.token,
+          userId: context.user.id,
+          projectId: resolvedProjectId,
+          focus: options.focus,
+          resourceId: options.resource,
+          syncVersion: options.syncVersion,
+          limit: parseLimit(options.limit),
+        });
+        await writeProjectGraphOutput("projects graph insights", data, options);
+        return;
+      }
+      if (action === "sync-runs") {
+        const data = await listProjectSyncRuns({
+          baseUrl: context.baseUrl,
+          authToken: context.token,
+          userId: context.user.id,
+          projectId: resolvedProjectId,
+          limit: parseLimit(options.limit),
+        });
+        await writeProjectGraphOutput("projects graph sync-runs", data, options);
+        return;
+      }
+      const data = await getProjectGraph({
+        baseUrl: context.baseUrl,
+        authToken: context.token,
+        userId: context.user.id,
+        projectId: resolvedProjectId,
+        syncVersion: options.syncVersion,
+        asOf: options.asOf,
+        includeDiff: options.includeDiff,
+      });
+      await writeProjectGraphOutput("projects graph", data, options);
+    } catch (error: any) {
+      console.error(`Failed to fetch project graph: ${error?.message ?? "Unknown error"}`);
+      process.exit(1);
+    }
+  });
 };
 
 const configureDiagramExportCommand = (
@@ -429,6 +585,8 @@ export const registerProjectsCommand = (
       .argument("<id>", "Project id"),
     deps
   );
+
+  configureGraphCommands(projects, deps);
 
   addCommon(addAuthOptions(projects.command("create").description("Create a quick template project"), deps.defaultBaseUrl))
     .option("--template-url <url>", "Template URL")

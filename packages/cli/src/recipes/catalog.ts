@@ -18,6 +18,10 @@ export type RecipeId =
   | "cloudeval-cli-onboarding-check"
   | "cloudeval-frontend-workspace-links"
   | "cloudeval-diagram-export"
+  | "cloudeval-graph-drift-watch"
+  | "cloudeval-impact-analysis"
+  | "cloudeval-template-preflight"
+  | "cloudeval-template-release-gate"
   | "cloudeval-architecture-diagram-export"
   | "cloudeval-dependency-diagram-export"
   | "cloudeval-mcp-setup";
@@ -36,6 +40,7 @@ export type RecipeCategory =
   | "frontend"
   | "diagnostics"
   | "visualizations"
+  | "validation"
   | "mcp";
 
 export type RecipeMode = "ask" | "agent" | "guide";
@@ -713,6 +718,144 @@ export const recipes: Recipe[] = [
     ],
     failureHandling: [
       "Require an explicit output path before writing files.",
+    ],
+  },
+  {
+    id: "cloudeval-graph-drift-watch",
+    title: "Graph Drift Watch",
+    description:
+      "Review recent graph sync runs and compare retained topology snapshots for material changes.",
+    category: "projects",
+    skill: "cloudeval-graph-intelligence",
+    mode: "guide",
+    inputs: [{ name: "projectId", description: "CloudEval project id.", required: true }],
+    commands: [
+      "cloudeval projects graph sync-runs <project-id> --format json",
+      "cloudeval projects graph timeline <project-id> --format json",
+      "cloudeval projects graph diff <project-id> --from <sync-version> --to <sync-version> --format json",
+    ],
+    mcpTools: [
+      "projects_graph_sync_runs",
+      "projects_graph_timeline",
+      "projects_graph_diff",
+    ],
+    safety: {
+      requiresAuth: true,
+      consumesCredits: false,
+      writesLocalFile: false,
+      mayExposeSensitiveData: true,
+      mutation: "none",
+    },
+    expectedOutput: [
+      "Recent sync runs",
+      "Changed resource summary",
+      "Snapshot versions to investigate",
+    ],
+    failureHandling: [
+      "If no retained baseline exists, run a fresh project sync before expecting a diff.",
+    ],
+  },
+  {
+    id: "cloudeval-impact-analysis",
+    title: "Impact Analysis",
+    description:
+      "Inspect graph intelligence for resource impact, critical paths, security, and cost lenses.",
+    category: "projects",
+    skill: "cloudeval-graph-intelligence",
+    mode: "guide",
+    inputs: [
+      { name: "projectId", description: "CloudEval project id.", required: true },
+      { name: "resourceId", description: "Resource id for impact-focused analysis." },
+    ],
+    commands: [
+      "cloudeval projects graph insights <project-id> --focus overview --format json",
+      "cloudeval projects graph insights <project-id> --focus impact --resource <resource-id> --format json",
+      "cloudeval projects graph insights <project-id> --focus critical-paths --format json",
+    ],
+    mcpTools: ["projects_graph_insights", "projects_graph_get"],
+    safety: {
+      requiresAuth: true,
+      consumesCredits: false,
+      writesLocalFile: false,
+      mayExposeSensitiveData: true,
+      mutation: "none",
+    },
+    expectedOutput: [
+      "Graph insight summaries",
+      "Resource impact evidence",
+      "Critical path and risk signals",
+    ],
+    failureHandling: [
+      "Use `projects graph <project-id> --format json` to inspect resource ids before running impact analysis.",
+    ],
+  },
+  {
+    id: "cloudeval-template-preflight",
+    title: "Template Preflight",
+    description:
+      "Validate and parse a cloud template before creating a project or promoting changes.",
+    category: "validation",
+    skill: "cloudeval-template-validation",
+    mode: "guide",
+    inputs: [
+      { name: "templateFile", description: "Local template JSON file.", required: true },
+      { name: "parametersFile", description: "Optional local parameters JSON file." },
+    ],
+    commands: [
+      "cloudeval validate parse --template-file <template.json> --parameters-file <parameters.json> --format json",
+      "cloudeval validate template --template-file <template.json> --parameters-file <parameters.json> --failed-only --format json",
+      "cloudeval rules search \"public network\" --format json",
+    ],
+    mcpTools: ["template_parse", "template_validate", "rules_search"],
+    safety: {
+      requiresAuth: true,
+      consumesCredits: true,
+      writesLocalFile: false,
+      mayExposeSensitiveData: true,
+      mutation: "none",
+    },
+    expectedOutput: [
+      "Parsed resource inventory",
+      "Validation summary",
+      "Failed checks with recommended fixes",
+    ],
+    failureHandling: [
+      "`--parameters-file` is accepted by parse and validate but remains optional.",
+      "Keep template and parameters files local unless the user explicitly asks to share them.",
+    ],
+  },
+  {
+    id: "cloudeval-template-release-gate",
+    title: "Template Release Gate",
+    description:
+      "Use generic validation checks as an automation gate for cloud template changes.",
+    category: "validation",
+    skill: "cloudeval-template-validation",
+    mode: "guide",
+    inputs: [
+      { name: "templateFile", description: "Local template JSON file.", required: true },
+      { name: "parametersFile", description: "Optional local parameters JSON file." },
+    ],
+    commands: [
+      "cloudeval validate template --template-file <template.json> --parameters-file <parameters.json> --min-severity Warning --failed-only --format json",
+      "cloudeval rules categories --format json",
+      "cloudeval rules show <rule-id> --format json",
+    ],
+    mcpTools: ["template_validate", "rules_categories", "rules_get"],
+    safety: {
+      requiresAuth: true,
+      consumesCredits: true,
+      writesLocalFile: false,
+      mayExposeSensitiveData: true,
+      mutation: "none",
+    },
+    expectedOutput: [
+      "Gate pass/fail evidence",
+      "Failed check count",
+      "Rule details for remediation context",
+    ],
+    failureHandling: [
+      "Fail the gate on high-severity or policy-selected failed checks, not on parser warnings alone.",
     ],
   },
   {

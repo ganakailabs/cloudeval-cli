@@ -59,6 +59,20 @@ import {
   normalizeProjectDiagramImageLayout,
   resolveProjectDiagramImageFrontendUrl,
 } from "./projectDiagramImage.js";
+import {
+  getProjectGraph,
+  getProjectGraphDiff,
+  getProjectGraphInsights,
+  getProjectGraphTimeline,
+  listProjectSyncRuns,
+} from "./graphClient.js";
+import {
+  getRule,
+  getRuleCategories,
+  parseTemplate,
+  searchRules,
+  validateTemplate,
+} from "./templateValidationClient.js";
 import { warnIfAccessKeyFromCliOption } from "./authGuard.js";
 
 type JsonValue =
@@ -167,7 +181,14 @@ type ReportRunType = "cost" | "waf" | "architecture" | "unit-tests" | "all";
 type DownloadReportType = "cost" | "waf" | "architecture" | "all";
 type ReportView = "raw" | "parsed" | "formatted";
 type BillingGranularity = "hour" | "day" | "month";
-type McpToolsetName = "all" | "readonly" | "projects" | "reports" | "billing";
+type McpToolsetName =
+  | "all"
+  | "readonly"
+  | "projects"
+  | "reports"
+  | "billing"
+  | "graph"
+  | "validation";
 
 const MCP_PROTOCOL_VERSION = "2025-06-18";
 const SUPPORTED_PROTOCOL_VERSIONS = ["2025-06-18", "2025-03-26", "2024-11-05"];
@@ -222,6 +243,16 @@ const projectIdProperty = {
   type: "string",
   description:
     "CloudEval project id. Defaults to active profile defaultProjectId, then Playground/first project where supported.",
+};
+
+const templatePathProperty = {
+  type: "string",
+  description: "Local cloud template JSON file path.",
+};
+
+const parametersPathProperty = {
+  type: "string",
+  description: "Optional local parameters JSON file path.",
 };
 
 const makeInputSchema = (
@@ -449,6 +480,102 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
       openWorldHint: true,
       requiresAuth: true,
       writesLocalFile: true,
+      mayExposeSensitiveData: true,
+    },
+  },
+  {
+    name: "projects_graph_get",
+    title: "Get Project Graph",
+    description: "Fetch project graph nodes and relationships for automation.",
+    inputSchema: makeInputSchema({
+      projectId: projectIdProperty,
+      syncVersion: { type: "string", description: "Optional sync version." },
+      asOf: { type: "string", description: "Optional replay timestamp." },
+      includeDiff: { type: "boolean", default: false },
+    }),
+    outputSchema: envelopeSchema,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: true,
+      requiresAuth: true,
+      mayExposeSensitiveData: true,
+    },
+  },
+  {
+    name: "projects_graph_timeline",
+    title: "Project Graph Timeline",
+    description: "List retained graph snapshots for a project.",
+    inputSchema: makeInputSchema({
+      projectId: projectIdProperty,
+      limit: { type: "number", default: 20 },
+    }),
+    outputSchema: envelopeSchema,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: true,
+      requiresAuth: true,
+      mayExposeSensitiveData: true,
+    },
+  },
+  {
+    name: "projects_graph_diff",
+    title: "Project Graph Diff",
+    description: "Compare two retained project graph snapshots.",
+    inputSchema: makeInputSchema({
+      projectId: projectIdProperty,
+      fromSyncVersion: { type: "string", description: "Baseline sync version." },
+      toSyncVersion: { type: "string", description: "Target sync version." },
+    }),
+    outputSchema: envelopeSchema,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: true,
+      requiresAuth: true,
+      mayExposeSensitiveData: true,
+    },
+  },
+  {
+    name: "projects_graph_insights",
+    title: "Project Graph Insights",
+    description:
+      "Fetch graph intelligence for overview, impact, critical paths, security, cost, or changes.",
+    inputSchema: makeInputSchema({
+      projectId: projectIdProperty,
+      focus: {
+        type: "string",
+        enum: ["overview", "impact", "critical-paths", "security", "cost", "changes"],
+        default: "overview",
+      },
+      resourceId: { type: "string", description: "Resource id for impact analysis." },
+      syncVersion: { type: "string", description: "Optional sync version." },
+      limit: { type: "number", default: 10 },
+    }),
+    outputSchema: envelopeSchema,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: true,
+      requiresAuth: true,
+      mayExposeSensitiveData: true,
+    },
+  },
+  {
+    name: "projects_graph_sync_runs",
+    title: "Project Graph Sync Runs",
+    description: "List recent graph-producing sync runs for a project.",
+    inputSchema: makeInputSchema({
+      projectId: projectIdProperty,
+      limit: { type: "number", default: 20 },
+    }),
+    outputSchema: envelopeSchema,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: true,
+      requiresAuth: true,
       mayExposeSensitiveData: true,
     },
   },
@@ -1111,6 +1238,109 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
     },
   },
   {
+    name: "template_validate",
+    title: "Validate Template",
+    description:
+      "Validate a local cloud template JSON file. Parameters files are accepted but optional.",
+    inputSchema: makeInputSchema(
+      {
+        templatePath: templatePathProperty,
+        parametersPath: parametersPathProperty,
+        failedOnly: { type: "boolean", default: false },
+        category: { type: "string", description: "Validation category filter." },
+        pillar: { type: "string", description: "Architecture pillar filter." },
+        minSeverity: { type: "string", description: "Minimum severity level." },
+        maxResults: { type: "number", description: "Maximum validation results." },
+        projectId: projectIdProperty,
+        saveReport: { type: "boolean", default: false },
+      },
+      ["templatePath"],
+    ),
+    outputSchema: envelopeSchema,
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      openWorldHint: true,
+      requiresAuth: true,
+      consumesCredits: true,
+      mayExposeSensitiveData: true,
+    },
+  },
+  {
+    name: "template_parse",
+    title: "Parse Template",
+    description:
+      "Parse a local cloud template JSON file. Parameters files are accepted but optional.",
+    inputSchema: makeInputSchema(
+      {
+        templatePath: templatePathProperty,
+        parametersPath: parametersPathProperty,
+        location: { type: "string", description: "Default location for resolved resources." },
+      },
+      ["templatePath"],
+    ),
+    outputSchema: envelopeSchema,
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      openWorldHint: true,
+      requiresAuth: true,
+      consumesCredits: true,
+      mayExposeSensitiveData: true,
+    },
+  },
+  {
+    name: "rules_categories",
+    title: "Rule Categories",
+    description: "List cloud validation check categories.",
+    inputSchema: makeInputSchema({}),
+    outputSchema: envelopeSchema,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: true,
+      requiresAuth: true,
+    },
+  },
+  {
+    name: "rules_search",
+    title: "Search Rules",
+    description: "Search cloud validation checks.",
+    inputSchema: makeInputSchema(
+      {
+        query: { type: "string", description: "Search query." },
+        category: { type: "string", description: "Category filter." },
+        pillar: { type: "string", description: "Architecture pillar filter." },
+      },
+      ["query"],
+    ),
+    outputSchema: envelopeSchema,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: true,
+      requiresAuth: true,
+    },
+  },
+  {
+    name: "rules_get",
+    title: "Get Rule",
+    description: "Show one cloud validation check by id.",
+    inputSchema: makeInputSchema(
+      {
+        ruleId: { type: "string", description: "Validation check id." },
+      },
+      ["ruleId"],
+    ),
+    outputSchema: envelopeSchema,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: true,
+      requiresAuth: true,
+    },
+  },
+  {
     name: "billing_summary",
     title: "Billing Summary",
     description:
@@ -1371,6 +1601,11 @@ const MCP_TOOL_ALIASES: Record<string, string> = {
   "agentProfiles.run": "agent_profiles_run",
   "projects.exportDiagram": "projects_export_diagram",
   "projects.diagramImage": "projects_export_diagram",
+  "projects.graph": "projects_graph_get",
+  "projects.graphTimeline": "projects_graph_timeline",
+  "projects.graphDiff": "projects_graph_diff",
+  "projects.graphInsights": "projects_graph_insights",
+  "projects.graphSyncRuns": "projects_graph_sync_runs",
   "connections.list": "connections_list",
   "connections.get": "connections_get",
   "reports.list": "reports_list",
@@ -1380,6 +1615,11 @@ const MCP_TOOL_ALIASES: Record<string, string> = {
   "reports.rules": "reports_rules",
   "reports.run": "reports_run",
   "reports.download": "reports_download",
+  "template.validate": "template_validate",
+  "template.parse": "template_parse",
+  "rules.categories": "rules_categories",
+  "rules.search": "rules_search",
+  "rules.get": "rules_get",
   "billing.summary": "billing_summary",
   "billing.usage": "billing_usage",
   "billing.ledger": "billing_ledger",
@@ -1419,6 +1659,11 @@ const MCP_TOOLSETS: Record<McpToolsetName, readonly string[]> = {
     "agent_profiles_get",
     "projects_list",
     "projects_get",
+    "projects_graph_get",
+    "projects_graph_timeline",
+    "projects_graph_diff",
+    "projects_graph_insights",
+    "projects_graph_sync_runs",
     "connections_list",
     "connections_get",
     "reports_list",
@@ -1426,6 +1671,9 @@ const MCP_TOOLSETS: Record<McpToolsetName, readonly string[]> = {
     "reports_cost",
     "reports_waf",
     "reports_rules",
+    "rules_categories",
+    "rules_search",
+    "rules_get",
     "billing_summary",
     "billing_usage",
     "billing_ledger",
@@ -1459,6 +1707,11 @@ const MCP_TOOLSETS: Record<McpToolsetName, readonly string[]> = {
     "connections_list",
     "connections_get",
     "projects_export_diagram",
+    "projects_graph_get",
+    "projects_graph_timeline",
+    "projects_graph_diff",
+    "projects_graph_insights",
+    "projects_graph_sync_runs",
     "recipes_list",
     "recipes_get",
     "open_url",
@@ -1489,6 +1742,28 @@ const MCP_TOOLSETS: Record<McpToolsetName, readonly string[]> = {
     "billing_notifications",
     "billing_topup_checkout",
     "open_url",
+  ],
+  graph: [
+    "capabilities_get",
+    "projects_list",
+    "projects_get",
+    "projects_graph_get",
+    "projects_graph_timeline",
+    "projects_graph_diff",
+    "projects_graph_insights",
+    "projects_graph_sync_runs",
+    "recipes_list",
+    "recipes_get",
+  ],
+  validation: [
+    "capabilities_get",
+    "template_validate",
+    "template_parse",
+    "rules_categories",
+    "rules_search",
+    "rules_get",
+    "recipes_list",
+    "recipes_get",
   ],
 };
 
@@ -2585,6 +2860,182 @@ const buildToolHandlers = (
       frontendUrl: result.url,
       filesWritten,
     });
+  });
+
+  handlers.set("projects_graph_get", async (args) => {
+    const config = await resolveInvocationConfig(serverOptions, args);
+    const auth = await resolveAuth(config, { requireUser: true });
+    const projectId = stringValue(args.projectId) ?? config.defaultProjectId;
+    if (!projectId) {
+      throw new Error("projectId is required.");
+    }
+    const data = await getProjectGraph({
+      baseUrl: config.baseUrl,
+      authToken: auth.token,
+      userId: auth.user!.id,
+      projectId,
+      syncVersion: stringValue(args.syncVersion),
+      asOf: stringValue(args.asOf),
+      includeDiff: booleanValue(args.includeDiff),
+    });
+    return withEnvelope({ command: "projects graph", data });
+  });
+
+  handlers.set("projects_graph_timeline", async (args) => {
+    const config = await resolveInvocationConfig(serverOptions, args);
+    const auth = await resolveAuth(config, { requireUser: true });
+    const projectId = stringValue(args.projectId) ?? config.defaultProjectId;
+    if (!projectId) {
+      throw new Error("projectId is required.");
+    }
+    const data = await getProjectGraphTimeline({
+      baseUrl: config.baseUrl,
+      authToken: auth.token,
+      userId: auth.user!.id,
+      projectId,
+      limit: numberValue(args.limit),
+    });
+    return withEnvelope({ command: "projects graph timeline", data });
+  });
+
+  handlers.set("projects_graph_diff", async (args) => {
+    const config = await resolveInvocationConfig(serverOptions, args);
+    const auth = await resolveAuth(config, { requireUser: true });
+    const projectId = stringValue(args.projectId) ?? config.defaultProjectId;
+    if (!projectId) {
+      throw new Error("projectId is required.");
+    }
+    const data = await getProjectGraphDiff({
+      baseUrl: config.baseUrl,
+      authToken: auth.token,
+      userId: auth.user!.id,
+      projectId,
+      fromSyncVersion: stringValue(args.fromSyncVersion),
+      toSyncVersion: stringValue(args.toSyncVersion),
+    });
+    return withEnvelope({ command: "projects graph diff", data });
+  });
+
+  handlers.set("projects_graph_insights", async (args) => {
+    const config = await resolveInvocationConfig(serverOptions, args);
+    const auth = await resolveAuth(config, { requireUser: true });
+    const projectId = stringValue(args.projectId) ?? config.defaultProjectId;
+    if (!projectId) {
+      throw new Error("projectId is required.");
+    }
+    const data = await getProjectGraphInsights({
+      baseUrl: config.baseUrl,
+      authToken: auth.token,
+      userId: auth.user!.id,
+      projectId,
+      focus: stringValue(args.focus),
+      resourceId: stringValue(args.resourceId),
+      syncVersion: stringValue(args.syncVersion),
+      limit: numberValue(args.limit),
+    });
+    return withEnvelope({ command: "projects graph insights", data });
+  });
+
+  handlers.set("projects_graph_sync_runs", async (args) => {
+    const config = await resolveInvocationConfig(serverOptions, args);
+    const auth = await resolveAuth(config, { requireUser: true });
+    const projectId = stringValue(args.projectId) ?? config.defaultProjectId;
+    if (!projectId) {
+      throw new Error("projectId is required.");
+    }
+    const data = await listProjectSyncRuns({
+      baseUrl: config.baseUrl,
+      authToken: auth.token,
+      userId: auth.user!.id,
+      projectId,
+      limit: numberValue(args.limit),
+    });
+    return withEnvelope({ command: "projects graph sync-runs", data });
+  });
+
+  handlers.set("template_validate", async (args) => {
+    const config = await resolveInvocationConfig(serverOptions, args);
+    const auth = await resolveAuth(config, { requireUser: true });
+    const templatePath = stringValue(args.templatePath);
+    if (!templatePath) {
+      throw new Error("templatePath is required.");
+    }
+    const data = await validateTemplate({
+      baseUrl: config.baseUrl,
+      authToken: auth.token,
+      userId: auth.user!.id,
+      templatePath,
+      parametersPath: stringValue(args.parametersPath),
+      failedOnly: booleanValue(args.failedOnly),
+      category: stringValue(args.category),
+      pillar: stringValue(args.pillar),
+      minSeverity: stringValue(args.minSeverity),
+      maxResults: numberValue(args.maxResults),
+      projectId: stringValue(args.projectId) ?? config.defaultProjectId,
+      saveReport: booleanValue(args.saveReport),
+    });
+    return withEnvelope({ command: "validate template", data });
+  });
+
+  handlers.set("template_parse", async (args) => {
+    const config = await resolveInvocationConfig(serverOptions, args);
+    const auth = await resolveAuth(config, { requireUser: true });
+    const templatePath = stringValue(args.templatePath);
+    if (!templatePath) {
+      throw new Error("templatePath is required.");
+    }
+    const data = await parseTemplate({
+      baseUrl: config.baseUrl,
+      authToken: auth.token,
+      userId: auth.user!.id,
+      templatePath,
+      parametersPath: stringValue(args.parametersPath),
+      location: stringValue(args.location),
+      returnAll: true,
+    });
+    return withEnvelope({ command: "validate parse", data });
+  });
+
+  handlers.set("rules_categories", async (args) => {
+    const config = await resolveInvocationConfig(serverOptions, args);
+    const auth = await resolveAuth(config);
+    const data = await getRuleCategories({
+      baseUrl: config.baseUrl,
+      authToken: auth.token,
+    });
+    return withEnvelope({ command: "rules categories", data });
+  });
+
+  handlers.set("rules_search", async (args) => {
+    const query = stringValue(args.query);
+    if (!query) {
+      throw new Error("query is required.");
+    }
+    const config = await resolveInvocationConfig(serverOptions, args);
+    const auth = await resolveAuth(config);
+    const data = await searchRules({
+      baseUrl: config.baseUrl,
+      authToken: auth.token,
+      query,
+      category: stringValue(args.category),
+      pillar: stringValue(args.pillar),
+    });
+    return withEnvelope({ command: "rules search", data });
+  });
+
+  handlers.set("rules_get", async (args) => {
+    const ruleId = stringValue(args.ruleId);
+    if (!ruleId) {
+      throw new Error("ruleId is required.");
+    }
+    const config = await resolveInvocationConfig(serverOptions, args);
+    const auth = await resolveAuth(config);
+    const data = await getRule({
+      baseUrl: config.baseUrl,
+      authToken: auth.token,
+      ruleId,
+    });
+    return withEnvelope({ command: "rules show", data });
   });
 
   handlers.set("ask", async (args) => {

@@ -13,7 +13,8 @@ export type CliDomain =
   | "sessions"
   | "models"
   | "setup"
-  | "mcp";
+  | "mcp"
+  | "validation";
 
 export interface CliCommandMetadata {
   name: string;
@@ -257,6 +258,11 @@ export const cliCommands: CliCommandMetadata[] = [
       "open",
       "create",
       "export-diagram",
+      "graph",
+      "timeline",
+      "diff",
+      "insights",
+      "sync-runs",
       "--template-url",
       "--template-file",
       "--parameters-file",
@@ -269,6 +275,13 @@ export const cliCommands: CliCommandMetadata[] = [
       "--headers-output",
       "--public",
       "--sync-version",
+      "--as-of",
+      "--include-diff",
+      "--from",
+      "--to",
+      "--focus",
+      "--resource",
+      "--limit",
       "--json",
       ...outputOptions,
       ...authOptions,
@@ -281,7 +294,53 @@ export const cliCommands: CliCommandMetadata[] = [
       "projects open",
       "projects create",
       "projects export-diagram",
+      "projects graph",
+      "projects graph timeline",
+      "projects graph diff",
+      "projects graph insights",
+      "projects graph sync-runs",
     ],
+  },
+  {
+    name: "validate",
+    description: "Validate and parse cloud templates",
+    domain: "validation",
+    options: [
+      "template",
+      "parse",
+      "--template-file",
+      "--parameters-file",
+      "--failed-only",
+      "--category",
+      "--pillar",
+      "--min-severity",
+      "--max-results",
+      "--project",
+      "--save-report",
+      "--location",
+      ...outputOptions,
+      ...authOptions,
+      "--profile",
+      "--help",
+    ],
+    workflows: ["validate template", "validate parse"],
+  },
+  {
+    name: "rules",
+    description: "Browse cloud validation checks",
+    domain: "validation",
+    options: [
+      "categories",
+      "search",
+      "show",
+      "--category",
+      "--pillar",
+      ...outputOptions,
+      ...authOptions,
+      "--profile",
+      "--help",
+    ],
+    workflows: ["rules categories", "rules search", "rules show"],
   },
   {
     name: "credentials",

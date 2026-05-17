@@ -39,6 +39,31 @@ const connection = {
   type: "template",
 };
 
+const templateFixture = {
+  $schema:
+    "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  contentVersion: "1.0.0.0",
+  parameters: {
+    location: { type: "string", defaultValue: "eastus" },
+  },
+  resources: [
+    {
+      type: "Microsoft.Storage/storageAccounts",
+      apiVersion: "2022-09-01",
+      name: "sttest001",
+      location: "[parameters('location')]",
+      sku: { name: "Standard_LRS" },
+      kind: "StorageV2",
+    },
+  ],
+};
+
+const parameterFileFixture = {
+  parameters: {
+    location: { value: "eastus2" },
+  },
+};
+
 const credentialTemplate = {
   id: "ci",
   name: "GitHub Actions CI",
@@ -463,6 +488,93 @@ const startBackend = async (
       res.end(format === "svg" ? "<svg>mock</svg>" : "mock-image-bytes");
       return;
     }
+    if (
+      url.pathname === `/api/v1/projects/${project.id}/sync-runs` &&
+      req.method === "GET"
+    ) {
+      assert.equal(req.headers.authorization, "Bearer test-token");
+      assert.equal(url.searchParams.get("user_id"), user.id);
+      return json(res, {
+        project_id: project.id,
+        active_sync_version: "sync-2",
+        timeline_available: true,
+        runs: [
+          {
+            sync_version: "sync-2",
+            last_modified: "2026-05-17T00:00:00.000Z",
+            changed: true,
+          },
+          {
+            sync_version: "sync-1",
+            last_modified: "2026-05-16T00:00:00.000Z",
+            changed: true,
+          },
+        ],
+      });
+    }
+    if (
+      url.pathname === `/api/v1/projects/${project.id}/graph/timeline` &&
+      req.method === "GET"
+    ) {
+      assert.equal(req.headers.authorization, "Bearer test-token");
+      assert.equal(url.searchParams.get("user_id"), user.id);
+      return json(res, {
+        project_id: project.id,
+        active_sync_version: "sync-2",
+        timeline_available: true,
+        runs: [{ sync_version: "sync-2", change_summary: { added: 1 } }],
+      });
+    }
+    if (
+      url.pathname === `/api/v1/projects/${project.id}/graph/diff` &&
+      req.method === "GET"
+    ) {
+      assert.equal(req.headers.authorization, "Bearer test-token");
+      assert.equal(url.searchParams.get("user_id"), user.id);
+      assert.equal(url.searchParams.get("from"), "sync-1");
+      assert.equal(url.searchParams.get("to"), "sync-2");
+      return json(res, {
+        project_id: project.id,
+        from_sync_version: "sync-1",
+        to_sync_version: "sync-2",
+        summary: { added: 1, removed: 0, changed: 2 },
+        diff: { nodes_added: ["storage-new"], nodes_changed: ["vm-1"] },
+      });
+    }
+    if (
+      url.pathname === `/api/v1/projects/${project.id}/graph/insights` &&
+      req.method === "GET"
+    ) {
+      assert.equal(req.headers.authorization, "Bearer test-token");
+      assert.equal(url.searchParams.get("user_id"), user.id);
+      assert.equal(url.searchParams.get("focus"), "blast_radius");
+      assert.equal(url.searchParams.get("resource_id"), "vm-1");
+      return json(res, {
+        project_id: project.id,
+        focus: "blast_radius",
+        sync_version: "sync-2",
+        insights: [
+          {
+            resource_id: "vm-1",
+            title: "VM dependency impact",
+            severity: "medium",
+            affected_resources: 3,
+          },
+        ],
+      });
+    }
+    if (
+      url.pathname === `/api/v1/projects/${project.id}/graph` &&
+      req.method === "GET"
+    ) {
+      assert.equal(req.headers.authorization, "Bearer test-token");
+      assert.equal(url.searchParams.get("user_id"), user.id);
+      return json(res, {
+        project_id: project.id,
+        nodes: [{ id: "vm-1", type: "Microsoft.Compute/virtualMachines" }],
+        edges: [],
+      });
+    }
     if (url.pathname === "/api/v1/connection/" && req.method === "POST") {
       return json(
         res,
@@ -622,6 +734,95 @@ const startBackend = async (
         job_id: "job-cost-1",
         status: "completed",
         progress: 100,
+      });
+    }
+    if (
+      url.pathname === "/api/v1/rule/template/validate" &&
+      req.method === "POST"
+    ) {
+      assert.equal(url.searchParams.get("user_id"), user.id);
+      const payload = JSON.parse(body || "{}");
+      assert.equal(payload.template.resources[0].type, "Microsoft.Storage/storageAccounts");
+      if (payload.parameter_file !== undefined) {
+        assert.equal(payload.parameter_file.parameters.location.value, "eastus2");
+      }
+      assert.equal(typeof payload.options.include_only_failed, "boolean");
+      return json(res, {
+        success: true,
+        summary: { total_rules: 12, passed_rules: 10, failed_rules: 2 },
+        filtered_results: {
+          total_matching_rules: 2,
+          results: [
+            {
+              rule_name: "storage-public-access",
+              outcome: "Fail",
+              level: "Warning",
+              target_name: "sttest001",
+            },
+          ],
+        },
+      });
+    }
+    if (url.pathname === "/api/v1/arm-template/parse" && req.method === "POST") {
+      assert.equal(url.searchParams.get("user_id"), user.id);
+      const payload = JSON.parse(body || "{}");
+      assert.equal(payload.template.resources[0].name, "sttest001");
+      if (payload.parameter_file !== undefined) {
+        assert.equal(payload.parameter_file.parameters.location.value, "eastus2");
+      }
+      return json(res, {
+        success: true,
+        resource_count: 1,
+        resources: [
+          {
+            type: "Microsoft.Storage/storageAccounts",
+            name: "sttest001",
+            apiVersion: "2022-09-01",
+            location: "eastus",
+          },
+        ],
+      });
+    }
+    if (url.pathname === "/api/v1/rule/rules/categories" && req.method === "GET") {
+      return json(res, {
+        success: true,
+        total_categories: 1,
+        categories: {
+          security: {
+            display_name: "Security",
+            rule_count: 1,
+            rules: [{ rule_name: "storage-public-access", severity: "Warning" }],
+          },
+        },
+      });
+    }
+    if (url.pathname === "/api/v1/rule/rules/search" && req.method === "GET") {
+      assert.equal(url.searchParams.get("query"), "public network");
+      return json(res, {
+        success: true,
+        total_results: 1,
+        results: [
+          {
+            rule_name: "storage-public-access",
+            display_name: "Restrict public access",
+            severity: "Warning",
+            category: "security",
+          },
+        ],
+      });
+    }
+    if (
+      url.pathname === "/api/v1/rule/rules/storage-public-access" &&
+      req.method === "GET"
+    ) {
+      return json(res, {
+        success: true,
+        rule: {
+          rule_name: "storage-public-access",
+          display_name: "Restrict public access",
+          severity: "Warning",
+          category: "security",
+        },
       });
     }
     if (url.pathname === "/api/v1/billing/config") {
@@ -928,6 +1129,9 @@ test("non-interactive discovery commands are machine-readable", async () => {
       "recipes run",
       "reports download",
       "projects create",
+      "projects graph insights",
+      "validate template",
+      "rules search",
       "credentials create",
       "mcp serve",
     ].every((command) =>
@@ -2184,6 +2388,166 @@ test("project creation, project reads, output files, and stdin access key work n
       await fs.readFile(legacyImageOutput, "utf8"),
       "mock-image-bytes",
     );
+  } finally {
+    await fs.rm(outputDir, { recursive: true, force: true });
+    await backend.close();
+  }
+});
+
+test("project graph commands expose graph intelligence for automation", async () => {
+  const backend = await startBackend();
+  const common = [
+    "--base-url",
+    backend.baseUrl,
+    "--access-key",
+    "test-token",
+    "--format",
+    "json",
+    "--non-interactive",
+  ];
+  try {
+    const graph = parseJson(
+      await runCli(["projects", "graph", "project-main", ...common]),
+    );
+    assert.equal(graph.command, "projects graph");
+    assert.equal(graph.data.nodes[0].id, "vm-1");
+
+    const syncRuns = parseJson(
+      await runCli(["projects", "graph", "sync-runs", "project-main", ...common]),
+    );
+    assert.equal(syncRuns.command, "projects graph sync-runs");
+    assert.equal(syncRuns.data.active_sync_version, "sync-2");
+
+    const diff = parseJson(
+      await runCli([
+        "projects",
+        "graph",
+        "diff",
+        "project-main",
+        "--from",
+        "sync-1",
+        "--to",
+        "sync-2",
+        ...common,
+      ]),
+    );
+    assert.equal(diff.command, "projects graph diff");
+    assert.deepEqual(diff.data.summary, { added: 1, removed: 0, changed: 2 });
+
+    const insights = parseJson(
+      await runCli([
+        "projects",
+        "graph",
+        "insights",
+        "project-main",
+        "--focus",
+        "impact",
+        "--resource",
+        "vm-1",
+        ...common,
+      ]),
+    );
+    assert.equal(insights.command, "projects graph insights");
+    assert.equal(insights.data.insights[0].affected_resources, 3);
+  } finally {
+    await backend.close();
+  }
+});
+
+test("template validation, parsing, and rule catalog commands use generic public names", async () => {
+  const backend = await startBackend();
+  const outputDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "cloudeval-template-"),
+  );
+  const templatePath = path.join(outputDir, "template.json");
+  const parametersPath = path.join(outputDir, "parameters.json");
+  const common = [
+    "--base-url",
+    backend.baseUrl,
+    "--access-key",
+    "test-token",
+    "--format",
+    "json",
+    "--non-interactive",
+  ];
+  try {
+    await fs.writeFile(templatePath, JSON.stringify(templateFixture), "utf8");
+    await fs.writeFile(parametersPath, JSON.stringify(parameterFileFixture), "utf8");
+
+    const validationResult = await runCli([
+        "validate",
+        "template",
+        "--template-file",
+        templatePath,
+        "--parameters-file",
+        parametersPath,
+        "--failed-only",
+        "--min-severity",
+        "Warning",
+        ...common,
+      ]);
+    const validation = parseJson(validationResult);
+    assert.equal(validation.command, "validate template");
+    assert.equal(validation.data.summary.failed_rules, 2);
+
+    const validationWithoutParamsResult = await runCli([
+      "validate",
+      "template",
+      "--template-file",
+      templatePath,
+      ...common,
+    ]);
+    const validationWithoutParams = parseJson(validationWithoutParamsResult);
+    assert.equal(validationWithoutParams.command, "validate template");
+    assert.equal(validationWithoutParams.data.summary.failed_rules, 2);
+
+    const parseResult = await runCli([
+        "validate",
+        "parse",
+        "--template-file",
+        templatePath,
+        ...common,
+      ]);
+    const parsed = parseJson(parseResult);
+    assert.equal(parsed.command, "validate parse");
+    assert.equal(parsed.data.resource_count, 1);
+
+    const parseWithParamsResult = await runCli([
+      "validate",
+      "parse",
+      "--template-file",
+      templatePath,
+      "--parameters-file",
+      parametersPath,
+      ...common,
+    ]);
+    const parsedWithParams = parseJson(parseWithParamsResult);
+    assert.equal(parsedWithParams.command, "validate parse");
+    assert.equal(parsedWithParams.data.resource_count, 1);
+
+    const categories = parseJson(
+      await runCli(["rules", "categories", ...common]),
+    );
+    assert.equal(categories.command, "rules categories");
+    assert.equal(categories.data.categories.security.rule_count, 1);
+
+    const search = parseJson(
+      await runCli(["rules", "search", "public network", ...common]),
+    );
+    assert.equal(search.command, "rules search");
+    assert.equal(search.data.results[0].rule_name, "storage-public-access");
+
+    const show = parseJson(
+      await runCli(["rules", "show", "storage-public-access", ...common]),
+    );
+    assert.equal(show.command, "rules show");
+    assert.equal(show.data.rule.rule_name, "storage-public-access");
+
+    const internalEngineLabels = [/P[S]Rule/i, /A[R]M TTK/i];
+    for (const label of internalEngineLabels) {
+      assert.doesNotMatch(validationResult.stdout, label);
+      assert.doesNotMatch(parseResult.stdout, label);
+    }
   } finally {
     await fs.rm(outputDir, { recursive: true, force: true });
     await backend.close();

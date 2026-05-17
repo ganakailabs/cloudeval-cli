@@ -22,6 +22,8 @@ import { registerBillingCommands } from "./billingCommand.js";
 import { registerCapabilitiesCommand } from "./agentCapabilities.js";
 import { registerCredentialsCommand, registerIdentityCommand } from "./credentialsCommand.js";
 import { registerAgentsCommand } from "./agentsCommand.js";
+import { registerValidateCommand } from "./validateCommand.js";
+import { registerRulesCommand } from "./rulesCommand.js";
 import { registerConfigCommand } from "./configCommand.js";
 import { registerDiagnosticsCommands } from "./diagnosticsCommand.js";
 import { registerModelsCommand } from "./modelsCommand.js";
@@ -724,6 +726,20 @@ registerProjectsCommand(program, {
 });
 
 registerConnectionsCommand(program, {
+  defaultBaseUrl: DEFAULT_BASE_URL,
+  resolveBaseUrl,
+  readStdinValue,
+  isHeadlessEnvironment,
+});
+
+registerValidateCommand(program, {
+  defaultBaseUrl: DEFAULT_BASE_URL,
+  resolveBaseUrl,
+  readStdinValue,
+  isHeadlessEnvironment,
+});
+
+registerRulesCommand(program, {
   defaultBaseUrl: DEFAULT_BASE_URL,
   resolveBaseUrl,
   readStdinValue,

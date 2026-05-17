@@ -26,6 +26,28 @@ const project = {
   type: "template",
 };
 
+const templateFixture = {
+  $schema:
+    "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  contentVersion: "1.0.0.0",
+  resources: [
+    {
+      type: "Microsoft.Storage/storageAccounts",
+      apiVersion: "2022-09-01",
+      name: "sttest001",
+      location: "eastus",
+      sku: { name: "Standard_LRS" },
+      kind: "StorageV2",
+    },
+  ],
+};
+
+const parameterFileFixture = {
+  parameters: {
+    location: { value: "eastus2" },
+  },
+};
+
 const agentProfile = {
   id: "cost",
   display_name: "Cost",
@@ -112,6 +134,41 @@ const startBackend = async () => {
       });
       res.end("<svg>mcp</svg>");
       return;
+    }
+    if (
+      url.pathname === `/api/v1/projects/${project.id}/graph/insights` &&
+      req.method === "GET"
+    ) {
+      assert.equal(req.headers.authorization, "Bearer test-token");
+      assert.equal(url.searchParams.get("user_id"), user.id);
+      assert.equal(url.searchParams.get("focus"), "blast_radius");
+      assert.equal(url.searchParams.get("resource_id"), "vm-1");
+      return json(res, {
+        project_id: project.id,
+        focus: "blast_radius",
+        insights: [{ resource_id: "vm-1", affected_resources: 3 }],
+      });
+    }
+    if (
+      url.pathname === "/api/v1/rule/template/validate" &&
+      req.method === "POST"
+    ) {
+      assert.equal(url.searchParams.get("user_id"), user.id);
+      const payload = JSON.parse(body || "{}");
+      assert.equal(payload.template.resources[0].name, "sttest001");
+      assert.equal(payload.parameter_file.parameters.location.value, "eastus2");
+      return json(res, {
+        success: true,
+        summary: { total_rules: 1, passed_rules: 0, failed_rules: 1 },
+      });
+    }
+    if (url.pathname === "/api/v1/rule/rules/search" && req.method === "GET") {
+      assert.equal(url.searchParams.get("query"), "public network");
+      return json(res, {
+        success: true,
+        total_results: 1,
+        results: [{ rule_name: "storage-public-access" }],
+      });
     }
     return json(res, { detail: `Unhandled ${req.method} ${url.pathname}` }, 404);
   });
@@ -333,6 +390,9 @@ test("mcp serve initializes, lists tools, and returns strict JSON-RPC stdout", a
     assert(names.includes("ask"));
     assert(names.includes("projects_list"));
     assert(names.includes("projects_export_diagram"));
+    assert(names.includes("projects_graph_insights"));
+    assert(names.includes("template_validate"));
+    assert(names.includes("rules_search"));
     assert(!names.includes("projects.exportDiagram"));
     assert(!names.includes("projects.diagramImage"));
     assert(names.includes("reports_run"));
@@ -500,6 +560,11 @@ test("mcp serve filters tools by safety toolset", async () => {
       "capabilities_get",
       "projects_list",
       "projects_get",
+      "projects_graph_get",
+      "projects_graph_timeline",
+      "projects_graph_diff",
+      "projects_graph_insights",
+      "projects_graph_sync_runs",
       "connections_list",
       "connections_get",
       "reports_list",
@@ -507,6 +572,9 @@ test("mcp serve filters tools by safety toolset", async () => {
       "reports_cost",
       "reports_waf",
       "reports_rules",
+      "rules_categories",
+      "rules_search",
+      "rules_get",
       "billing_summary",
       "billing_usage",
       "billing_ledger",
@@ -540,6 +608,8 @@ test("mcp serve filters tools by safety toolset", async () => {
       "reports_run",
       "reports_download",
       "projects_export_diagram",
+      "template_validate",
+      "template_parse",
       "credentials_create",
       "credentials_revoke",
       "billing_topup_checkout",
@@ -641,6 +711,9 @@ test("mcp serve exposes CloudEval resources and prompts", async () => {
     assert.equal(capabilityPayload.cliVersion, packageJson.version);
     assert(capabilityPayload.mcp.tools.includes("projects_list"));
     assert(capabilityPayload.mcp.tools.includes("projects_export_diagram"));
+    assert(capabilityPayload.mcp.tools.includes("projects_graph_insights"));
+    assert(capabilityPayload.mcp.tools.includes("template_validate"));
+    assert(capabilityPayload.mcp.tools.includes("rules_search"));
     assert(capabilityPayload.mcp.tools.includes("recipes_list"));
     assert(capabilityPayload.mcp.tools.includes("recipes_run"));
     assert(!capabilityPayload.mcp.tools.includes("projects.exportDiagram"));
@@ -853,6 +926,95 @@ test("mcp tools can call authenticated CloudEval APIs without stdin credentials"
       "projects export-diagram",
     );
     assert.equal(await fs.readFile(legacyOutputPath, "utf8"), "<svg>mcp</svg>");
+  } finally {
+    const closed = await mcp.close();
+    assert.equal(closed.exitCode, 0, closed.stderr);
+    await fs.rm(outputDir, { recursive: true, force: true });
+    await backend.close();
+  }
+});
+
+test("mcp server exposes graph intelligence and generic validation tools", async () => {
+  const backend = await startBackend();
+  const outputDir = await fs.mkdtemp(path.join(os.tmpdir(), "cloudeval-mcp-validation-"));
+  const templatePath = path.join(outputDir, "template.json");
+  const parametersPath = path.join(outputDir, "parameters.json");
+  await fs.writeFile(templatePath, JSON.stringify(templateFixture), "utf8");
+  await fs.writeFile(parametersPath, JSON.stringify(parameterFileFixture), "utf8");
+
+  const mcp = await startMcp([
+    "--base-url",
+    backend.baseUrl,
+    "--access-key",
+    "test-token",
+  ]);
+  try {
+    await initialize(mcp);
+
+    mcp.send({
+      jsonrpc: "2.0",
+      id: 2,
+      method: "tools/call",
+      params: {
+        name: "projects_graph_insights",
+        arguments: {
+          projectId: "project-main",
+          focus: "impact",
+          resourceId: "vm-1",
+        },
+      },
+    });
+    const insightsResponse = await mcp.read();
+    assert.equal(insightsResponse.id, 2);
+    assert.equal(insightsResponse.result.isError, false);
+    assert.equal(
+      insightsResponse.result.structuredContent.command,
+      "projects graph insights",
+    );
+    assert.equal(
+      insightsResponse.result.structuredContent.data.insights[0].affected_resources,
+      3,
+    );
+
+    mcp.send({
+      jsonrpc: "2.0",
+      id: 3,
+      method: "tools/call",
+      params: {
+        name: "template_validate",
+        arguments: {
+          templatePath,
+          parametersPath,
+          failedOnly: true,
+        },
+      },
+    });
+    const validationResponse = await mcp.read();
+    assert.equal(validationResponse.id, 3);
+    assert.equal(validationResponse.result.isError, false);
+    assert.equal(
+      validationResponse.result.structuredContent.command,
+      "validate template",
+    );
+    assert.equal(validationResponse.result.structuredContent.data.summary.failed_rules, 1);
+
+    mcp.send({
+      jsonrpc: "2.0",
+      id: 4,
+      method: "tools/call",
+      params: {
+        name: "rules_search",
+        arguments: { query: "public network" },
+      },
+    });
+    const rulesResponse = await mcp.read();
+    assert.equal(rulesResponse.id, 4);
+    assert.equal(rulesResponse.result.isError, false);
+    assert.equal(rulesResponse.result.structuredContent.command, "rules search");
+    assert.equal(
+      rulesResponse.result.structuredContent.data.results[0].rule_name,
+      "storage-public-access",
+    );
   } finally {
     const closed = await mcp.close();
     assert.equal(closed.exitCode, 0, closed.stderr);

@@ -87,6 +87,9 @@ cloudeval agents list
 cloudeval agents run cost --project <project-id> --format json
 cloudeval recipes list
 cloudeval projects list
+cloudeval projects graph insights <project-id> --focus impact --resource <resource-id> --format json
+cloudeval validate template --template-file template.json --parameters-file parameters.json --format json
+cloudeval rules search "public network" --format json
 cloudeval reports list
 cloudeval capabilities --format json
 cloudeval doctor --deep
@@ -103,6 +106,8 @@ Full docs: [Use the CLI](https://docs.cloudeval.ai/quickstart/use-the-cli.md) an
 | Agent Profiles       | Developer workspace and Chat picker | `cloudeval agents list/show/run`      | `agent_profiles_*` tools  |
 | Reusable workflow    | prompt suggestions                  | `cloudeval recipes list/show/run`     | `recipes_*` tools         |
 | Projects and reports | workspace panels                    | `projects`, `reports`, `open`         | `projects_*`, `reports_*` |
+| Graph intelligence   | project graph views                 | `projects graph ...`                  | `projects_graph_*` tools  |
+| Template validation  | n/a                                 | `validate`, `rules`                   | `template_*`, `rules_*`   |
 | Billing              | billing panel and links             | `billing`, `credits`                  | `billing_*` toolset       |
 | Automation discovery | n/a                                 | `capabilities --format json`          | `capabilities_get`        |
 

@@ -242,6 +242,17 @@ export interface StreamInputPayload {
   settings?: StreamSettings;
   agent_profile_id?: string;
   context?: Array<Record<string, unknown>>;
+  scope?: ChatScope;
+}
+
+export interface ChatScope {
+  mode: "auto" | "global" | "project" | "hybrid";
+  project_id?: string;
+  project_name?: string;
+  candidate_project_ids?: string[];
+  confidence?: number;
+  reason?: string;
+  source?: "client" | "server" | "inferred";
 }
 
 export interface StreamRequestPayload {
@@ -249,7 +260,7 @@ export interface StreamRequestPayload {
   input: StreamInputPayload;
   user: { id: string; name: string };
   message: string;
-  project: {
+  project?: {
     id: string;
     name: string;
     user_id?: string;
@@ -260,6 +271,7 @@ export interface StreamRequestPayload {
   settings?: StreamSettings;
   agent_profile_id?: string;
   context?: Array<Record<string, unknown>>;
+  scope?: ChatScope;
   group_size?: number;
   streaming_mode?: "USER" | "DEBUG";
   hitl_resume?: boolean;

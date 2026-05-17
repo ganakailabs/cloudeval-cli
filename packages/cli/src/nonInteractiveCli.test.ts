@@ -3100,6 +3100,46 @@ test("agents run sends the selected Agent Profile to chat stream", async () => {
   }
 });
 
+test("agents run can use projectless global chat scope", async () => {
+  const backend = await startBackend();
+  try {
+    const result = parseJson(
+      await runCli([
+        "agents",
+        "run",
+        "cost",
+        "summarize portfolio costs",
+        "--scope",
+        "global",
+        "--base-url",
+        backend.baseUrl,
+        "--access-key",
+        "test-token",
+        "--format",
+        "json",
+        "--non-interactive",
+      ]),
+    );
+
+    assert.equal(result.command, "agents run");
+    assert.equal(result.data.scope.mode, "global");
+    assert.equal(result.data.project, undefined);
+
+    const streamRequest = backend.requests.find(
+      (request) => request.path === "/api/v1/chat/stream",
+    );
+    assert(streamRequest);
+    const payload = JSON.parse(streamRequest.body);
+    assert.equal(payload.project, undefined);
+    assert.equal(payload.input.project, undefined);
+    assert.equal(payload.scope.mode, "global");
+    assert.equal(payload.input.scope.mode, "global");
+    assert.equal(payload.agent_profile_id, "cost");
+  } finally {
+    await backend.close();
+  }
+});
+
 test("agents run uses a project-type starter prompt when no prompt is passed", async () => {
   const backend = await startBackend();
   try {
@@ -3537,6 +3577,38 @@ test("agent routes progress, data, errors, and verbose logs to the correct strea
     assert.equal(verboseBody.data.response, "Report summary ready.");
     assert.match(verbose.stderr, /\[VERBOSE\]/);
     assert.doesNotMatch(verbose.stderr, /test-token/);
+
+    const globalScope = await runCli(
+      [
+        "ask",
+        "portfolio",
+        "summary",
+        "--scope",
+        "global",
+        "--base-url",
+        backend.baseUrl,
+        "--access-key-stdin",
+        "--format",
+        "json",
+        "--progress",
+        "none",
+        "--non-interactive",
+      ],
+      { input: "test-token" },
+    );
+    assert.equal(globalScope.exitCode, 0, globalScope.stderr);
+    const globalBody = JSON.parse(globalScope.stdout);
+    assert.equal(globalBody.data.scope.mode, "global");
+    assert.equal(globalBody.data.project, undefined);
+    const globalStreamRequest = backend.requests
+      .filter((request) => request.path === "/api/v1/chat/stream")
+      .at(-1);
+    assert(globalStreamRequest);
+    const globalPayload = JSON.parse(globalStreamRequest.body);
+    assert.equal(globalPayload.project, undefined);
+    assert.equal(globalPayload.input.project, undefined);
+    assert.equal(globalPayload.scope.mode, "global");
+    assert.equal(globalPayload.input.scope.mode, "global");
   } finally {
     await backend.close();
   }

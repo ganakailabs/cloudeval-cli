@@ -954,6 +954,59 @@ test("mcp recipe tools expose catalog and keep recipe runs out of readonly tools
   }
 });
 
+test("mcp ask can use projectless global chat scope", async () => {
+  const backend = await startBackend();
+  const mcp = await startMcp([
+    "--base-url",
+    backend.baseUrl,
+    "--access-key",
+    "test-token",
+  ]);
+  try {
+    await initialize(mcp);
+
+    mcp.send({
+      jsonrpc: "2.0",
+      id: 2,
+      method: "tools/call",
+      params: {
+        name: "ask",
+        arguments: {
+          question: "What should I prioritize across my projects?",
+          scope: "global",
+        },
+      },
+    });
+    const called = await mcp.read();
+    assert.equal(called.id, 2);
+    assert.equal(called.result.isError, false);
+    assert.equal(called.result.structuredContent.command, "ask");
+    assert.equal(called.result.structuredContent.data.scope.mode, "global");
+    assert.equal(called.result.structuredContent.data.project, undefined);
+
+    assert.equal(
+      backend.requests.some(
+        (request) => request.path === `/api/v1/projects/user/${user.id}`,
+      ),
+      false,
+    );
+
+    const streamRequest = backend.requests.find(
+      (request) => request.path === "/api/v1/chat/stream",
+    );
+    assert(streamRequest);
+    const payload = JSON.parse(streamRequest.body);
+    assert.equal(payload.project, undefined);
+    assert.equal(payload.input.project, undefined);
+    assert.equal(payload.scope.mode, "global");
+    assert.equal(payload.input.scope.mode, "global");
+  } finally {
+    const closed = await mcp.close();
+    assert.equal(closed.exitCode, 0, closed.stderr);
+    await backend.close();
+  }
+});
+
 test("mcp tools can call authenticated CloudEval APIs without stdin credentials", async () => {
   const backend = await startBackend();
   const outputDir = await fs.mkdtemp(path.join(os.tmpdir(), "cloudeval-mcp-image-"));

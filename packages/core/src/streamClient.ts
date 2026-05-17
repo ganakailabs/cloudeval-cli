@@ -14,6 +14,7 @@ import {
   ThinkingChunk,
   redactSensitiveText,
 } from "@cloudeval/shared";
+import type { ChatScope } from "@cloudeval/shared";
 import { normalizeApiBase } from "./auth";
 import { withIdempotencyHeader } from "./idempotency";
 
@@ -34,6 +35,7 @@ export interface StreamChatOptions {
   settings?: StreamSettings;
   context?: Array<Record<string, unknown>>;
   agentProfileId?: string;
+  scope?: ChatScope;
   streamingMode?: "USER" | "DEBUG";
   signal?: AbortSignal;
   debug?: boolean;
@@ -48,7 +50,6 @@ export interface StreamChatOptions {
   };
 }
 
-const DEFAULT_PROJECT_TYPE = "sync";
 const RESPONSE_OUTPUT_NODES = new Set([
   "generate_response",
   "handle_social_interaction",
@@ -282,33 +283,30 @@ const buildPayload = (options: StreamChatOptions): StreamRequestPayload => {
     options.project?.user_id && (!options.user.id || options.user.id === "cli-user")
       ? { ...options.user, id: options.project.user_id }
       : options.user;
-  const project: StreamRequestPayload["project"] = options.project ?? {
-    id: "cli-project",
-    name: "CLI Session",
-    user_id: user.id,
-    cloud_provider: "azure",
-    type: DEFAULT_PROJECT_TYPE,
-  };
+  const project: StreamRequestPayload["project"] = options.project;
   const context = options.context ?? [];
   const settings = options.settings;
   const message = options.message;
   const agentProfileId = options.agentProfileId?.trim();
+  const scope = options.scope;
 
   const payload: StreamRequestPayload = {
     thread_id: options.threadId,
     input: {
       messages: [{ role: "user", content: message }],
       user,
-      project,
+      ...(project ? { project } : {}),
       settings,
       ...(agentProfileId ? { agent_profile_id: agentProfileId } : {}),
+      ...(scope ? { scope } : {}),
       context,
     },
     user,
     message,
-    project,
+    ...(project ? { project } : {}),
     settings,
     ...(agentProfileId ? { agent_profile_id: agentProfileId } : {}),
+    ...(scope ? { scope } : {}),
     context,
     group_size: 1,
     streaming_mode: options.streamingMode ?? "USER",

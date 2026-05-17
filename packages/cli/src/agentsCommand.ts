@@ -26,6 +26,7 @@ interface AgentsOptions {
   accessKeyStdin?: boolean;
   nonInteractive?: boolean;
   project?: string;
+  scope?: string;
   model?: string;
   thread?: string;
   format?: MachineOutputFormat;
@@ -37,7 +38,24 @@ interface AgentsOptions {
   printUrl?: boolean;
 }
 
+type AgentChatScopeMode = "auto" | "global" | "project" | "hybrid";
+
 const AGENT_PROFILE_STREAM_IDLE_TIMEOUT_MS = 180_000;
+
+const normalizeAgentChatScope = (value: unknown): AgentChatScopeMode => {
+  const normalized = String(value || "auto").trim().toLowerCase();
+  if (
+    normalized === "auto" ||
+    normalized === "global" ||
+    normalized === "project" ||
+    normalized === "hybrid"
+  ) {
+    return normalized;
+  }
+  throw new Error(
+    `Invalid scope '${String(value)}'. Use one of: auto, global, project, hybrid.`
+  );
+};
 
 const addAgentOutputOptions = <T extends Command>(
   command: T,
@@ -239,6 +257,11 @@ export const registerAgentsCommand = (program: Command, deps: AgentsDeps) => {
     deps
   )
     .option("--project <id>", "Project ID to use")
+    .option(
+      "--scope <mode>",
+      "Chat grounding scope: auto, global, project, hybrid",
+      "auto"
+    )
     .option("--model <name>", "Model override")
     .option("--thread <id>", "Thread id to reuse")
     .option("--progress <mode>", "Progress events: stderr, ndjson, none", "none")
@@ -262,11 +285,36 @@ export const registerAgentsCommand = (program: Command, deps: AgentsDeps) => {
           profileId,
         });
         const profile = profileFromResponse(profileResponse);
-        const projectId = options.project ?? cliConfig.defaultProjectId;
-        const project = await resolveProject(core, auth, projectId);
+        const selectedScope = normalizeAgentChatScope(options.scope);
+        const projectId =
+          selectedScope === "global"
+            ? undefined
+            : options.project ?? cliConfig.defaultProjectId;
+        const project =
+          selectedScope === "global"
+            ? undefined
+            : await resolveProject(core, auth, projectId);
+        const effectiveScope = {
+          mode:
+            selectedScope === "auto"
+              ? project
+                ? "project"
+                : "global"
+              : selectedScope,
+          ...(project
+            ? {
+                project_id: project.id,
+                project_name: project.name,
+              }
+            : {
+                reason: "CLI Agent Profile run did not bind a project.",
+              }),
+        };
         const prompt = promptParts?.length
           ? promptParts.join(" ")
-          : starterPromptForProject(profile, project);
+          : project
+            ? starterPromptForProject(profile, project)
+            : profile.starter_prompt;
         const threadId = options.thread ?? randomUUID();
         const hooksDisabled = options.hooks === false || options.noHooks === true;
         const warnings = await runLocalHooks({
@@ -274,7 +322,7 @@ export const registerAgentsCommand = (program: Command, deps: AgentsDeps) => {
           config: cliConfig,
           profile: cliProfile,
           commandName: "agents run",
-          projectId: project.id,
+          projectId: project?.id,
           agentProfileId: profile.id,
           threadId,
           noHooks: hooksDisabled,
@@ -285,7 +333,7 @@ export const registerAgentsCommand = (program: Command, deps: AgentsDeps) => {
             config: cliConfig,
             profile: cliProfile,
             commandName: "agents run",
-            projectId: project.id,
+            projectId: project?.id,
             agentProfileId: profile.id,
             threadId,
             noHooks: hooksDisabled,
@@ -302,10 +350,11 @@ export const registerAgentsCommand = (program: Command, deps: AgentsDeps) => {
             message: prompt,
             threadId,
             user: {
-              id: project.user_id ?? auth.user?.id ?? "cli-user",
+              id: project?.user_id ?? auth.user?.id ?? "cli-user",
               name: auth.user?.name ?? "You",
             },
             project,
+            scope: effectiveScope,
             settings: {
               ...(options.model ?? cliConfig.model
                 ? { model: options.model ?? cliConfig.model }
@@ -353,7 +402,7 @@ export const registerAgentsCommand = (program: Command, deps: AgentsDeps) => {
             config: cliConfig,
             profile: cliProfile,
             commandName: "agents run",
-            projectId: project.id,
+            projectId: project?.id,
             agentProfileId: profile.id,
             threadId,
             noHooks: hooksDisabled,
@@ -364,7 +413,7 @@ export const registerAgentsCommand = (program: Command, deps: AgentsDeps) => {
             config: cliConfig,
             profile: cliProfile,
             commandName: "agents run",
-            projectId: project.id,
+            projectId: project?.id,
             agentProfileId: profile.id,
             threadId,
             noHooks: hooksDisabled,
@@ -375,7 +424,8 @@ export const registerAgentsCommand = (program: Command, deps: AgentsDeps) => {
             prompt,
             response: finalResponse,
             threadId,
-            project: { id: project.id, name: project.name },
+            ...(project ? { project: { id: project.id, name: project.name } } : {}),
+            scope: effectiveScope,
             frontendUrl,
           };
           if ((options.format ?? "text") === "text" || options.format === "markdown") {
@@ -403,7 +453,7 @@ export const registerAgentsCommand = (program: Command, deps: AgentsDeps) => {
             config: cliConfig,
             profile: cliProfile,
             commandName: "agents run",
-            projectId: project.id,
+            projectId: project?.id,
             agentProfileId: profile.id,
             threadId,
             noHooks: hooksDisabled,
@@ -414,7 +464,7 @@ export const registerAgentsCommand = (program: Command, deps: AgentsDeps) => {
             config: cliConfig,
             profile: cliProfile,
             commandName: "agents run",
-            projectId: project.id,
+            projectId: project?.id,
             agentProfileId: profile.id,
             threadId,
             noHooks: hooksDisabled,

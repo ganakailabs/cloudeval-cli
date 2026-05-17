@@ -5,6 +5,7 @@ import type { Command } from "commander";
 import {
   getBundledAgentProfile,
   getBundledAgentProfiles,
+  type ChatScope,
 } from "@cloudeval/shared";
 import {
   buildFrontendUrl,
@@ -246,6 +247,14 @@ const projectIdProperty = {
     "CloudEval project id. Defaults to active profile defaultProjectId, then Playground/first project where supported.",
 };
 
+const chatScopeProperty = {
+  type: "string",
+  enum: ["auto", "global", "project", "hybrid"],
+  description:
+    "Chat grounding scope. Use global for account-level chat without binding to a project.",
+  default: "auto",
+};
+
 const templatePathProperty = {
   type: "string",
   description: "Local cloud template JSON file path.",
@@ -331,7 +340,7 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
     name: "agent_profiles_run",
     title: "Run Agent Profile",
     description:
-      "Run a CloudEval Agent Profile against a project through the normal chat stream contract.",
+      "Run a CloudEval Agent Profile through the normal chat stream contract, scoped to a project or account-level context.",
     inputSchema: makeInputSchema(
       {
         profileId: {
@@ -344,6 +353,7 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
             "Optional prompt override. Defaults to the profile starter prompt.",
         },
         projectId: projectIdProperty,
+        scope: chatScopeProperty,
         model: {
           type: "string",
           description:
@@ -584,7 +594,7 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
     name: "ask",
     title: "Ask CloudEval",
     description:
-      "Ask CloudEval a one-shot question, optionally scoped to a project and model.",
+      "Ask CloudEval a one-shot question, optionally scoped to a project, account-level context, and model.",
     inputSchema: makeInputSchema(
       {
         question: {
@@ -592,6 +602,7 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
           description: "Question or instruction to send to CloudEval.",
         },
         projectId: projectIdProperty,
+        scope: chatScopeProperty,
         model: {
           type: "string",
           description:
@@ -1987,6 +1998,32 @@ const enumValue = <T extends string>(
     : fallback;
 };
 
+type McpChatScopeMode = ChatScope["mode"];
+
+const chatScopeModes = ["auto", "global", "project", "hybrid"] as const;
+
+const normalizeMcpChatScope = (value: unknown): McpChatScopeMode =>
+  enumValue(value, chatScopeModes, "auto");
+
+const buildMcpChatScope = (
+  selectedScope: McpChatScopeMode,
+  project?: any,
+): ChatScope => {
+  if (project?.id) {
+    return {
+      mode: selectedScope === "hybrid" ? "hybrid" : "project",
+      project_id: project.id,
+      project_name: project.name,
+      source: "client",
+    };
+  }
+  return {
+    mode: "global",
+    reason: "No project selected by MCP tool call.",
+    source: "client",
+  };
+};
+
 const jsonText = (value: unknown): string => JSON.stringify(value, null, 2);
 
 const toToolResult = (envelope: SuccessEnvelope): ToolResult => ({
@@ -2654,10 +2691,18 @@ const buildToolHandlers = (
       throw new Error("Agent Profile response did not include a profile.");
     }
     await assertModelAvailable(config, auth.token);
-    const project = await resolveProject(config, args, auth);
+    const selectedScope = normalizeMcpChatScope(args.scope);
+    const project =
+      selectedScope === "global"
+        ? undefined
+        : await resolveProject(config, args, auth);
+    const scope = buildMcpChatScope(selectedScope, project);
     const threadId = stringValue(args.threadId) ?? randomUUID();
     const prompt =
-      stringValue(args.prompt) ?? starterPromptForProject(profile, project);
+      stringValue(args.prompt) ??
+      (project
+        ? starterPromptForProject(profile, project)
+        : profile.starter_prompt);
     const email = auth.core.extractEmailFromToken(auth.token);
     const userName = getFirstNameForDisplay({
       email: email ?? auth.user?.email,
@@ -2670,10 +2715,11 @@ const buildToolHandlers = (
       message: prompt,
       threadId,
       user: {
-        id: project.user_id ?? auth.user?.id ?? "cli-user",
+        id: project?.user_id ?? auth.user?.id ?? "cli-user",
         name: userName,
       },
       project,
+      scope,
       settings: {
         ...((stringValue(args.model) ?? config.model)
           ? { model: stringValue(args.model) ?? config.model }
@@ -2720,7 +2766,8 @@ const buildToolHandlers = (
         prompt,
         response: finalMessage?.content || responseText,
         threadId,
-        project: { id: project.id, name: project.name },
+        scope,
+        ...(project ? { project: { id: project.id, name: project.name } } : {}),
       },
       frontendUrl,
     });
@@ -3088,7 +3135,12 @@ const buildToolHandlers = (
     const config = await resolveInvocationConfig(serverOptions, args);
     const auth = await resolveAuth(config);
     await assertModelAvailable(config, auth.token);
-    const project = await resolveProject(config, args, auth);
+    const selectedScope = normalizeMcpChatScope(args.scope);
+    const project =
+      selectedScope === "global"
+        ? undefined
+        : await resolveProject(config, args, auth);
+    const scope = buildMcpChatScope(selectedScope, project);
     const threadId = stringValue(args.threadId) ?? randomUUID();
     const mode = enumValue(args.mode, ["ask", "agent"], "ask");
     const email = auth.core.extractEmailFromToken(auth.token);
@@ -3103,10 +3155,11 @@ const buildToolHandlers = (
       message: question,
       threadId,
       user: {
-        id: project.user_id ?? auth.user?.id ?? "cli-user",
+        id: project?.user_id ?? auth.user?.id ?? "cli-user",
         name: userName,
       },
       project,
+      scope,
       settings: {
         ...(config.model ? { model: config.model } : {}),
         mode,
@@ -3149,10 +3202,12 @@ const buildToolHandlers = (
         threadId: chatState.threadId,
         question,
         response: finalResponse,
-        project: {
-          id: project.id,
-          name: project.name,
-        },
+        project: project
+          ? {
+              id: project.id,
+              name: project.name,
+            }
+          : undefined,
         model: config.model,
         profile: config.profile,
       });
@@ -3166,10 +3221,8 @@ const buildToolHandlers = (
         response: finalResponse,
         threadId: chatState.threadId,
         mode,
-        project: {
-          id: project.id,
-          name: project.name,
-        },
+        scope,
+        ...(project ? { project: { id: project.id, name: project.name } } : {}),
       },
       frontendUrl,
       traceId: chatState.traceId,

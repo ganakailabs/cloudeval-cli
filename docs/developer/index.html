@@ -75,8 +75,9 @@ curl -fsSL https://cli.cloudeval.ai/install.sh | CLOUDEVAL_INSTALL_MCP_CLIENTS=c
       <pre><code>cloudeval agents list --format json
 cloudeval agents show cost --format json
 cloudeval agents run cost --project &lt;project-id&gt; --format json
+cloudeval agents run cost --scope global --format json
 cloudeval agents run architecture "Review architecture risks" --project &lt;project-id&gt;</code></pre>
-      <p>When a profile run omits a prompt, the CLI uses a deterministic starter prompt for the selected project source and mode. Local CLI hooks are opt-in and can be bypassed per run with <code>--no-hooks</code>.</p>
+      <p>When a profile run omits a prompt, the CLI uses a deterministic starter prompt for the selected project source and mode. Use <code>--scope global</code> for account-level review without binding to a project; use <code>--project</code> for project-specific report, graph, and remediation work. Local CLI hooks are opt-in and can be bypassed per run with <code>--no-hooks</code>.</p>
 
       <h2>Recipes</h2>
       <p>Recipes are thin wrappers over implemented CloudEval capabilities. They now cover cost, WAF, architecture, reports, project inventory and health, connections, credentials, billing, models, sessions, onboarding, frontend links, MCP setup, and architecture/dependency visualizations. Ask/agent-backed recipes can consume credits. Guide recipes print commands for explicit side effects such as project creation, report or diagram writes, browser opens, checkout flows, credential mutation, or MCP config changes.</p>

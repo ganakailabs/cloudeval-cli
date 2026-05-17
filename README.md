@@ -82,9 +82,11 @@ cloudeval update --yes
 ```bash
 cloudeval                         # Terminal UI
 cloudeval ask "Summarize my cloud risk" --format json
+cloudeval ask "What should I prioritize across my projects?" --scope global --format json
 cloudeval agent "Find cost and architecture risks" --format json
 cloudeval agents list
 cloudeval agents run cost --project <project-id> --format json
+cloudeval agents run cost --scope global --format json
 cloudeval recipes list
 cloudeval projects list
 cloudeval projects graph insights <project-id> --focus impact --resource <resource-id> --format json
@@ -122,6 +124,12 @@ response defaults on the backend. `agents list` and `agents show` first try the
 backend profile catalog; if the profile catalog endpoint requires sign-in or is
 not available, they fall back to the bundled public catalog so discovery still
 works. `agents run` still requires authenticated backend access.
+
+`ask`, `agent`, and `agents run` accept `--scope auto|global|project|hybrid`.
+Use `--scope global` for account-level questions that should not bind the chat
+to a default or first project. Project-specific report, graph, file, and
+remediation drilldowns should still use `--project <project-id>` or
+`--scope project`.
 
 Run `cloudeval <command> --help` for exact flags.
 
@@ -240,6 +248,7 @@ Output contract:
 - machine-readable commands write payloads to stdout;
 - prompts, progress, browser-open messages, and warnings go to stderr;
 - `ask` and `agent` support `--progress none`, `--quiet`, or `--format ndjson --progress ndjson`;
+- `ask`, `agent`, and `agents run` include `scope` in JSON/NDJSON output when an explicit or inferred chat scope is sent; projectless global runs omit the `project` field;
 - with `--non-interactive`, human approval exits with code `6` and returns `HITL_REQUIRED`;
 - `--show-sensitive-ids` shows full account/session-style IDs only on trusted machines. It does not unredact tokens.
 

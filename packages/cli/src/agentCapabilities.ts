@@ -140,6 +140,7 @@ Preferred agent flags:
   --format json
   --non-interactive
   --profile <name>
+  --scope global|project|hybrid|auto
   --print-url --no-open
   --output <file>
 
@@ -152,6 +153,9 @@ Mode-specific commands:
 
 Progress:
   ask/agent show a live stderr loader and reasoning progress bar in interactive terminals, then write the final answer to stdout. In non-TTY logs this falls back to append-only stderr events. Use --progress none or --quiet to suppress progress, or --format ndjson --progress ndjson to stream progress on stdout.
+
+Scope:
+  Use --scope global for account-level chat that should not bind to a default or first project. Use --project <id> or --scope project for report, graph, file, and project-specific remediation work.
 
 Human input:
   Interactive terminals prompt on stderr for CloudEval approval requests and then resume the same thread. With --non-interactive, the command exits 6 and returns HITL_REQUIRED in JSON/NDJSON output.

@@ -71,6 +71,10 @@ The smoke script verifies:
   `cloudeval capabilities --live --format json` are covered by the
   non-interactive mock-backend suite because they require authenticated backend
   credential APIs.
+- `cloudeval ask --scope global` and
+  `cloudeval agents run <profile> --scope global` are covered by the
+  non-interactive mock-backend suite to verify projectless chat scope, JSON
+  output shape, and stream payloads that omit `project`.
 - `cloudeval projects graph ...`, `cloudeval validate ...`, and
   `cloudeval rules ...` are covered by the non-interactive mock-backend suite
   because they require authenticated project/template context. This includes
@@ -288,6 +292,9 @@ The read-only script covers:
   set. It is opt-in so the default read-only run does not consume model tokens.
 - The basic non-interactive `agent` command when `CLOUDEVAL_SMOKE_RUN_AGENT=1`
   is set. It is opt-in for the same token-usage reason as `ask`.
+- Help smoke should include `cloudeval ask --help` and
+  `cloudeval agents run --help`, and both should advertise
+  `--scope <mode>` with `auto`, `global`, `project`, and `hybrid`.
 - The basic non-interactive `recipes run cloudeval-cloud-cost-review` path can be covered with
   the same authenticated project setup; it is token-consuming for ask/agent
   backed recipes. Guide recipes such as `cloudeval-architecture-diagram-export`,

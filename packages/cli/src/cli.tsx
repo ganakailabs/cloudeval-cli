@@ -64,6 +64,7 @@ const STREAM_OUTPUT_NODES = new Set([
   "response_compose",
 ]);
 type CliChatMode = "ask" | "agent";
+type CliChatScopeMode = "auto" | "global" | "project" | "hybrid";
 
 // Verbose logging utility
 let verboseEnabled = false;
@@ -201,6 +202,21 @@ const isOutputRespondingChunk = (chunk: any): boolean =>
   chunk?.type === "responding" &&
   Boolean(chunk.content) &&
   (!chunk.node || STREAM_OUTPUT_NODES.has(chunk.node));
+
+const normalizeChatScopeMode = (value: unknown): CliChatScopeMode => {
+  const normalized = String(value || "auto").trim().toLowerCase();
+  if (
+    normalized === "auto" ||
+    normalized === "global" ||
+    normalized === "project" ||
+    normalized === "hybrid"
+  ) {
+    return normalized;
+  }
+  throw new Error(
+    `Invalid scope '${String(value)}'. Use one of: auto, global, project, hybrid.`
+  );
+};
 
 const progressEventFromChunk = (
   chunk: any,
@@ -1039,6 +1055,11 @@ program
   )
   .option("--access-key-stdin", "Read access key from stdin (recommended for automation)", false)
   .option("--project <id>", "Project ID to use")
+  .option(
+    "--scope <mode>",
+    "Chat grounding scope: auto, global, project, hybrid",
+    "auto"
+  )
   .option("--model <name>", "Model name")
   .option("--thread <id>", "Thread id to reuse")
   .option("--output <file>", "Output file (default: stdout)")
@@ -1064,7 +1085,11 @@ program
     assertSecureBaseUrl(baseUrl);
     const selectedProfile = getActiveConfigProfile(command);
     const cliConfig = await resolveCliConfig(command);
-    const selectedProjectId = options.project ?? cliConfig.defaultProjectId;
+    const selectedScope = normalizeChatScopeMode(options.scope);
+    const selectedProjectId =
+      selectedScope === "global"
+        ? undefined
+        : options.project ?? cliConfig.defaultProjectId;
     const selectedModel = options.model ?? cliConfig.model;
     const selectedFrontendUrl = options.frontendUrl ?? cliConfig.frontendUrl;
     const progressMode = normalizeAskProgressMode(options.progress);
@@ -1090,6 +1115,7 @@ program
         baseUrl,
         hasAccessKey: !!providedAccessKey,
         project: selectedProjectId,
+        scope: selectedScope,
         model: selectedModel,
         mode: selectedMode,
         output: options.output,
@@ -1215,16 +1241,29 @@ program
         normalizeApiBase,
       });
 
-      // Get project
-      verboseLog("Determining project to use");
+      // Get project or account-level scope
+      verboseLog("Determining chat scope");
       progressWriter.write({
         type: "request",
-        step: "project",
-        message: selectedProjectId ? `Using project ${selectedProjectId}` : "Resolving project",
+        step: "scope",
+        message:
+          selectedScope === "global"
+            ? "Using all projects"
+            : selectedProjectId
+              ? `Using project ${selectedProjectId}`
+              : "Resolving project",
       });
       let project: Project | undefined;
       let authenticatedUserId: string | undefined;
-      if (selectedProjectId) {
+      if (selectedScope === "global") {
+        verboseLog("Using projectless global chat scope");
+        try {
+          const userStatus = await checkUserStatus(baseUrl, token);
+          authenticatedUserId = userStatus.user?.id;
+        } catch {
+          // Best effort; stream auth validation will fail safely if this is wrong.
+        }
+      } else if (selectedProjectId) {
         verboseLog("Using provided project ID:", selectedProjectId);
         try {
           const userStatus = await checkUserStatus(baseUrl, token);
@@ -1280,7 +1319,7 @@ program
           // Fallback to default project
         }
 
-      if (!project) {
+        if (!project) {
           process.stderr.write(
             "No project is available for this account. Run `cloudeval chat` to complete onboarding, then retry."
           );
@@ -1300,10 +1339,38 @@ program
 
       // Stream the chat response
       const threadId = options.thread ?? randomUUID();
+      const effectiveScope: {
+        mode: CliChatScopeMode;
+        project_id?: string;
+        project_name?: string;
+        reason?: string;
+      } = {
+        mode:
+          selectedScope === "auto"
+            ? project
+              ? "project"
+              : "global"
+            : selectedScope,
+        ...(project
+          ? {
+              project_id: project.id,
+              project_name: project.name,
+            }
+          : {
+              reason: "CLI request did not bind a project.",
+            }),
+      };
+      const outputProject = project
+        ? {
+            id: project.id,
+            name: project.name,
+          }
+        : undefined;
       verboseLog("Starting chat stream", {
         threadId,
-        projectId: project.id,
-        projectName: project.name,
+        projectId: project?.id,
+        projectName: project?.name,
+        scope: effectiveScope,
         model: selectedModel,
       });
       let chatState: ChatState = { ...initialChatState, threadId };
@@ -1316,7 +1383,11 @@ program
 
       if (options.debug) {
         console.error(`[${commandName}] Question: ${question}`);
-        console.error(`[${commandName}] Project: ${project.id} (${project.name})`);
+        console.error(
+          project
+            ? `[${commandName}] Project: ${project.id} (${project.name})`
+            : `[${commandName}] Scope: ${effectiveScope.mode}`
+        );
         console.error(`[${commandName}] Thread ID: ${threadId}`);
       }
 
@@ -1381,8 +1452,9 @@ program
         messageLength: question.length,
         threadId,
         userName,
-        projectId: project.id,
-        projectName: project.name,
+        projectId: project?.id,
+        projectName: project?.name,
+        scope: effectiveScope,
         settings: streamSettings,
       });
 
@@ -1419,15 +1491,20 @@ program
             step: hitlResume ? "hitl_resume" : "stream",
             message: hitlResume ? "Resuming with human input" : "Sending chat request",
             threadId,
-            projectId: project.id,
+            projectId: project?.id,
+            scope: effectiveScope.mode,
           });
           for await (const chunk of streamChat({
             baseUrl,
             authToken: token,
             message: hitlResume ? "" : question,
             threadId,
-            user: { id: project.user_id ?? authenticatedUserId ?? "cli-user", name: userName },
+            user: {
+              id: project?.user_id ?? authenticatedUserId ?? "cli-user",
+              name: userName,
+            },
             project,
+            scope: effectiveScope,
             settings: streamSettings,
             debug: options.debug,
             completeAfterResponse: true,
@@ -1561,10 +1638,8 @@ program
                 error: { code: "HITL_REQUIRED", message },
                 data: {
                   threadId: chatState.threadId,
-                  project: {
-                    id: project.id,
-                    name: project.name,
-                  },
+                  ...(outputProject ? { project: outputProject } : {}),
+                  scope: effectiveScope,
                   hitl,
                 },
                 frontendUrl,
@@ -1581,7 +1656,12 @@ program
                 ok: false,
                 command: commandName,
                 error: { code: "HITL_REQUIRED", message },
-                data: { threadId: chatState.threadId, project: { id: project.id, name: project.name }, hitl },
+                data: {
+                  threadId: chatState.threadId,
+                  ...(outputProject ? { project: outputProject } : {}),
+                  scope: effectiveScope,
+                  hitl,
+                },
                 frontendUrl,
               });
               await closeOutputStream();
@@ -1640,10 +1720,8 @@ program
             error: { message: noResponseMessage },
             data: {
               threadId: chatState.threadId,
-              project: {
-                id: project.id,
-                name: project.name,
-              },
+              ...(outputProject ? { project: outputProject } : {}),
+              scope: effectiveScope,
             },
             frontendUrl,
           };
@@ -1680,10 +1758,7 @@ program
           threadId: chatState.threadId,
           question,
           response: finalResponse,
-          project: {
-            id: project.id,
-            name: project.name,
-          },
+          project: outputProject,
           model: selectedModel,
           profile: selectedProfile,
         });
@@ -1701,10 +1776,8 @@ program
           data: {
             response: finalResponse,
             threadId: chatState.threadId,
-            project: {
-              id: project.id,
-              name: project.name,
-            },
+            ...(outputProject ? { project: outputProject } : {}),
+            scope: effectiveScope,
           },
           frontendUrl,
         };
@@ -1731,10 +1804,8 @@ program
           data: {
             response: finalResponse,
             threadId: chatState.threadId,
-            project: {
-              id: project.id,
-              name: project.name,
-            },
+            ...(outputProject ? { project: outputProject } : {}),
+            scope: effectiveScope,
           },
           frontendUrl,
         });
@@ -1765,7 +1836,7 @@ program
           config: cliConfig,
           profile: selectedProfile,
           commandName,
-          projectId: project.id,
+          projectId: project?.id,
           threadId: chatState.threadId,
           noHooks: hooksDisabled,
           extra: { ok: true },

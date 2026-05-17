@@ -53,6 +53,39 @@ test("streamChat normalizes the API base URL", async () => {
   }
 });
 
+test("streamChat can send projectless global scope", async () => {
+  const originalFetch = global.fetch;
+  let parsedBody: any;
+
+  global.fetch = async (_input, init) => {
+    parsedBody = JSON.parse(String(init?.body || "{}"));
+    return responseFromText(
+      '{"type":"metadata","thread_id":"thread-global"}\n' +
+        '{"type":"responding","node":"generate_response","content":"ok","status":"completed"}\n',
+    );
+  };
+
+  try {
+    for await (const _chunk of streamChat({
+      baseUrl: "http://127.0.0.1:8787",
+      authToken: "token",
+      message: "summarize all projects",
+      threadId: "thread-global",
+      user: { id: "user-1", name: "User" },
+      scope: { mode: "global" },
+    })) {
+      // consume stream
+    }
+
+    assert.equal(parsedBody.project, undefined);
+    assert.equal(parsedBody.input.project, undefined);
+    assert.deepEqual(parsedBody.scope, { mode: "global" });
+    assert.deepEqual(parsedBody.input.scope, { mode: "global" });
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
 test("streamChat parses SSE data events", async () => {
   const originalFetch = global.fetch;
 

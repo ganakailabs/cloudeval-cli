@@ -15,12 +15,21 @@
     "@semantic-release/release-notes-generator",
     "./scripts/sync-release-version.cjs",
     [
+      "@semantic-release/npm",
+      {
+        "pkgRoot": "packages/cli",
+        "tarballDir": "packages/cli/dist"
+      }
+    ],
+    [
       "@semantic-release/git",
       {
         "assets": [
           "package.json",
           "packages/cli/package.json",
-          "packages/cli/src/version.ts"
+          "packages/cli/src/version.ts",
+          "THIRD_PARTY_NOTICES.md",
+          "sbom.spdx.json"
         ],
         "message": "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
       }

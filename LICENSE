@@ -1,0 +1,78 @@
+CloudEval CLI License
+
+Copyright (c) 2026 Ganak AI Labs. All rights reserved.
+
+This license applies to the CloudEval CLI source code, binaries, installer
+scripts, documentation, examples, and CloudEval-authored assets in this
+repository, except for third-party components that are identified in
+THIRD_PARTY_NOTICES.md or otherwise accompanied by their own license terms.
+
+1. Permitted use
+
+Ganak AI Labs grants you a limited, non-exclusive, non-transferable,
+revocable license to:
+
+- install and run official CloudEval CLI releases to access CloudEval services;
+- use the CLI in your internal development, operations, security, FinOps, and
+  CI/CD workflows;
+- make reasonable internal copies of the CLI for backup, installation, and
+  deployment within your organization; and
+- inspect the source code made available in this repository for evaluation,
+  debugging, interoperability, and contribution review.
+
+2. Restrictions
+
+Except as allowed by this license, a separate written agreement with Ganak AI
+Labs, or applicable law, you may not:
+
+- sell, sublicense, rent, lease, or commercially redistribute the CLI;
+- offer the CLI, modified versions of the CLI, or substantially similar
+  functionality as a hosted service or managed product competing with
+  CloudEval;
+- remove or obscure copyright, license, attribution, trademark, or provenance
+  notices;
+- use CloudEval names, logos, or marks in a way that implies endorsement,
+  sponsorship, or ownership by Ganak AI Labs;
+- bypass usage limits, entitlement checks, billing controls, security controls,
+  or access-key restrictions;
+- reverse engineer, decompile, disassemble, or modify compiled releases except
+  where applicable law expressly permits this restriction to be overridden; or
+- use the CLI for unlawful activity or to violate CloudEval service terms.
+
+3. Contributions
+
+Unless a separate written contributor agreement applies, by submitting a pull
+request, patch, issue comment containing code, documentation, or other
+contribution to this repository, you grant Ganak AI Labs a perpetual,
+worldwide, non-exclusive, royalty-free license to use, reproduce, modify,
+distribute, sublicense, and otherwise exploit that contribution as part of
+CloudEval products and services.
+
+4. Third-party components
+
+Third-party open-source components remain governed by their own licenses.
+Those licenses are not replaced by this CloudEval CLI License. Required
+third-party attributions are listed in THIRD_PARTY_NOTICES.md. If a third-party
+license gives you broader rights for that third-party component, this license
+does not limit those rights for that component.
+
+5. Separate agreements
+
+If you have a signed agreement with Ganak AI Labs or use CloudEval under
+published CloudEval service terms, that agreement or those terms control to the
+extent they conflict with this license.
+
+6. No warranty
+
+THE CLI IS PROVIDED "AS IS" AND "AS AVAILABLE" WITHOUT WARRANTIES OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE, TITLE, NON-INFRINGEMENT, SECURITY, AVAILABILITY, OR
+ACCURACY.
+
+7. Limitation of liability
+
+TO THE MAXIMUM EXTENT PERMITTED BY LAW, GANAK AI LABS WILL NOT BE LIABLE FOR
+ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, EXEMPLARY, OR PUNITIVE
+DAMAGES, OR FOR LOST PROFITS, LOST REVENUE, LOST DATA, BUSINESS INTERRUPTION,
+OR PROCUREMENT OF SUBSTITUTE SERVICES, ARISING FROM OR RELATED TO THE CLI.
+

@@ -1,17 +1,37 @@
 {
   "name": "cloudeval-cli",
   "version": "0.17.6",
-  "private": true,
+  "license": "SEE LICENSE IN LICENSE",
   "type": "module",
+  "description": "CloudEval terminal, automation, and MCP CLI.",
+  "homepage": "https://docs.cloudeval.ai/reference/cli-overview",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ganakailabs/cloudeval-cli.git",
+    "directory": "packages/cli"
+  },
+  "bugs": {
+    "url": "https://github.com/ganakailabs/cloudeval-cli/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "bin": {
     "cloudeval": "dist/cli.js",
     "cloud": "dist/cli.js",
     "eva": "dist/cli.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "README.md",
+    "LICENSE",
+    "NOTICE",
+    "THIRD_PARTY_NOTICES.md",
+    "sbom.spdx.json"
   ],
   "scripts": {
+    "prepack": "node ../../scripts/prepare-npm-package.mjs",
+    "postpack": "node ../../scripts/cleanup-npm-package.mjs",
     "build": "pnpm -C ../shared build && pnpm -C ../core build && tsup",
     "build:standalone": "tsup --minify",
     "build:executable": "pnpm build:executable-bundle && pnpm exec pkg dist/cli.executable.js --targets node18-macos-x64,node18-macos-arm64,node18-linux-x64,node18-linux-arm64,node18-win-x64 --output dist/bin/cloudeval && node scripts/alias-executables.js",
@@ -35,7 +55,6 @@
     "cli-highlight": "^2.1.11",
     "commander": "^12.1.0",
     "ink": "^4.4.1",
-    "ink-big-text": "^2.0.0",
     "ink-scroll-view": "^0.3.6",
     "ink-spinner": "^4.0.0",
     "ink-syntax-highlight": "^2.0.2",

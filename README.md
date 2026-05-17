@@ -31,6 +31,13 @@ macOS, Linux, WSL2, and Git Bash on Windows:
 curl -fsSL https://cli.cloudeval.ai/install.sh | bash
 ```
 
+Node.js 20+ users can also install from npm:
+
+```bash
+npm install -g cloudeval-cli
+cloudeval --help
+```
+
 Then reload your shell and sign in:
 
 ```bash
@@ -287,6 +294,8 @@ Run checks:
 ```bash
 pnpm lint
 pnpm test
+pnpm test:npm-package
+(cd packages/cli && npm pack --dry-run)
 pnpm -C packages/cli test:cli:noninteractive
 pnpm security:scan
 ```
@@ -301,4 +310,9 @@ pnpm security:scan
 
 ## License
 
-See [LICENSE](LICENSE).
+CloudEval CLI is proprietary software provided under the [CloudEval CLI License](LICENSE).
+Production third-party package attribution is tracked in
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md), with a release SBOM in
+[sbom.spdx.json](sbom.spdx.json). Published installer releases also download
+these notice files under `~/.local/share/cloudeval/licenses`. The release
+policy is documented in [License compliance](docs/license-compliance.md).

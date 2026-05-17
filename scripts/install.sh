@@ -473,6 +473,20 @@ download_verified_asset() {
   chmod "$mode" "$dest"
 }
 
+download_optional_notice_asset() {
+  local asset="$1"
+  local dest="$2"
+
+  if download_verified_asset "$asset" "$dest" "0644"; then
+    echo -e "${GREEN}✓ Downloaded ${asset}${NC}"
+    return 0
+  fi
+
+  rm -f "$dest"
+  echo -e "${YELLOW}⚠ Could not download ${asset}; continuing install. Check the release page for license notices.${NC}" >&2
+  return 0
+}
+
 resolve_release_version() {
   if [ "$VERSION" != "latest" ]; then
     echo "$VERSION"
@@ -842,6 +856,7 @@ fi
 DEST_DIR="${HOME}/.local/bin"
 DEST="${DEST_DIR}/${BIN_NAME}${EXT}"
 YOGA_DEST="${DEST_DIR}/yoga.wasm"
+LICENSE_DIR="${HOME}/.local/share/cloudeval/licenses"
 RESOLVED_VERSION="$(resolve_release_version)"
 
 echo -e "${BLUE}Installation Details:${NC}"
@@ -852,6 +867,7 @@ echo -e "  Binary Asset: ${GREEN}${BIN}${NC}"
 echo -e "  Install Directory: ${GREEN}${DEST_DIR}${NC}"
 echo -e "  Executable: ${GREEN}${DEST}${NC}"
 echo -e "  Yoga Runtime: ${GREEN}${YOGA_DEST}${NC}"
+echo -e "  License Notices: ${GREEN}${LICENSE_DIR}${NC}"
 if [ "$OS" != "win" ]; then
   echo -e "  Aliases: ${GREEN}${DEST_DIR}/eva -> ${DEST}${NC}, ${GREEN}${DEST_DIR}/cloud -> ${DEST}${NC}"
 fi
@@ -908,6 +924,14 @@ if ! download_verified_asset "yoga.wasm" "$YOGA_DEST" "0644"; then
   exit 1
 fi
 echo -e "${GREEN}✓ Downloaded yoga.wasm${NC}"
+
+echo ""
+echo -e "${BLUE}Downloading license notices...${NC}"
+mkdir -p "$LICENSE_DIR"
+download_optional_notice_asset "LICENSE" "${LICENSE_DIR}/LICENSE"
+download_optional_notice_asset "NOTICE" "${LICENSE_DIR}/NOTICE"
+download_optional_notice_asset "THIRD_PARTY_NOTICES.md" "${LICENSE_DIR}/THIRD_PARTY_NOTICES.md"
+download_optional_notice_asset "sbom.spdx.json" "${LICENSE_DIR}/sbom.spdx.json"
 
 if [ "$OS" != "win" ]; then
   echo ""

@@ -18,7 +18,7 @@ const run = (args) => {
 run(["license:artifacts"]);
 run(["--filter", "@cloudeval/shared", "build"]);
 run(["--filter", "@cloudeval/core", "build"]);
-run(["--filter", "cloudeval-cli", "build"]);
+run(["--filter", "@ganakailabs/cloudeval-cli", "build"]);
 
 for (const file of ["LICENSE", "NOTICE", "THIRD_PARTY_NOTICES.md", "sbom.spdx.json"]) {
   const source = path.join(repoRoot, file);

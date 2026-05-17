@@ -30,8 +30,8 @@ If `pnpm` is not on your `PATH`, run the shell script directly.
 
 ## npm package smoke
 
-Before publishing `cloudeval-cli` to npm, verify the package manifest and dry-run
-the exact tarball:
+Before publishing `@ganakailabs/cloudeval-cli` to npm, verify the package
+manifest and dry-run the exact tarball:
 
 ```bash
 pnpm test:npm-package

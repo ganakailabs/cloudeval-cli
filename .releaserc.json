@@ -15,13 +15,6 @@
     "@semantic-release/release-notes-generator",
     "./scripts/sync-release-version.cjs",
     [
-      "@semantic-release/npm",
-      {
-        "pkgRoot": "packages/cli",
-        "tarballDir": "packages/cli/dist"
-      }
-    ],
-    [
       "@semantic-release/git",
       {
         "assets": [

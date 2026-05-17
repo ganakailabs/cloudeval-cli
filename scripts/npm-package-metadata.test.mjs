@@ -64,30 +64,21 @@ test("public install docs use the scoped npm package name", () => {
   assert.doesNotMatch(cliReadme, /npm install -g cloudeval-cli\b/);
 });
 
-test("semantic-release publishes the CLI package to npm before GitHub assets", () => {
+test("semantic-release owns GitHub release assets while npm publishing stays manual", () => {
   const releaseConfig = readJson(".releaserc.json");
-  const rootPkg = readJson("package.json");
   const plugins = releaseConfig.plugins;
   const pluginNames = plugins.map((plugin) => (Array.isArray(plugin) ? plugin[0] : plugin));
 
-  assert.ok(pluginNames.includes("@semantic-release/npm"));
+  assert.ok(!pluginNames.includes("@semantic-release/npm"));
   assert.ok(
     pluginNames.indexOf("./scripts/sync-release-version.cjs") <
-      pluginNames.indexOf("@semantic-release/npm"),
-    "release version sync runs before npm publish",
+      pluginNames.indexOf("@semantic-release/git"),
+    "release version sync runs before release commit",
   );
   assert.ok(
-    pluginNames.indexOf("@semantic-release/npm") < pluginNames.indexOf("@semantic-release/github"),
-    "npm publish runs before GitHub release publication",
+    pluginNames.indexOf("@semantic-release/git") < pluginNames.indexOf("@semantic-release/github"),
+    "release commit runs before GitHub release publication",
   );
-
-  const npmPlugin = plugins.find(
-    (plugin) => Array.isArray(plugin) && plugin[0] === "@semantic-release/npm",
-  );
-  assert.deepEqual(npmPlugin?.[1], {
-    pkgRoot: "packages/cli",
-    tarballDir: "packages/cli/dist",
-  });
 
   const gitPlugin = plugins.find(
     (plugin) => Array.isArray(plugin) && plugin[0] === "@semantic-release/git",
@@ -101,21 +92,17 @@ test("semantic-release publishes the CLI package to npm before GitHub assets", (
   ]) {
     assert.ok(gitPlugin?.[1]?.assets?.includes(asset), `${asset} is committed by release`);
   }
-
-  assert.match(rootPkg.devDependencies["@semantic-release/npm"], /^\^13\./);
-  assert.match(rootPkg.pnpm?.overrides?.["@semantic-release/npm"], /^13\./);
 });
 
-test("semantic-release workflow is configured for npm trusted publishing", () => {
+test("semantic-release workflow does not require npm publishing credentials", () => {
   const workflow = readFileSync(
     path.join(repoRoot, ".github/workflows/semantic-release.yml"),
     "utf8",
   );
   const runner = readFileSync(path.join(repoRoot, "scripts/run-semantic-release.mjs"), "utf8");
 
-  assert.match(workflow, /id-token:\s*write/);
-  assert.match(workflow, /node-version:\s*22\.14\.0/);
-  assert.match(workflow, /npm install -g npm@\^11\.10\.0/);
+  assert.doesNotMatch(workflow, /id-token:\s*write/);
+  assert.doesNotMatch(workflow, /npm install -g npm@\^11\.10\.0/);
   assert.match(workflow, /node scripts\/run-semantic-release\.mjs/);
   assert.doesNotMatch(workflow, /cycjimmy\/semantic-release-action/);
   assert.doesNotMatch(workflow, /NPM_TOKEN/);

@@ -103,6 +103,7 @@ test("semantic-release publishes the CLI package to npm before GitHub assets", (
   }
 
   assert.match(rootPkg.devDependencies["@semantic-release/npm"], /^\^13\./);
+  assert.match(rootPkg.pnpm?.overrides?.["@semantic-release/npm"], /^13\./);
 });
 
 test("semantic-release workflow is configured for npm trusted publishing", () => {

@@ -23,6 +23,7 @@
   },
   "pnpm": {
     "overrides": {
+      "@semantic-release/npm": "13.1.5",
       "handlebars": "4.7.9",
       "lodash": "4.18.1",
       "lodash-es": "4.18.1",

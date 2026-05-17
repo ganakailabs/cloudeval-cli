@@ -17,6 +17,7 @@
     "license:check": "node scripts/generate-license-artifacts.mjs --check",
     "license:audit": "node scripts/license-audit.mjs",
     "security:scan": "bash scripts/security-scan.sh",
+    "prepublishOnly": "node scripts/prevent-root-npm-publish.mjs",
     "smoke:release:real": "bash scripts/smoke-release-real-backend.sh",
     "smoke:readonly:real": "bash scripts/smoke-readonly-real-backend.sh"
   },

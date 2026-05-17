@@ -35,6 +35,19 @@ test("CLI package is publishable to npm with required public artifacts", () => {
   }
 });
 
+test("monorepo root refuses accidental npm publish attempts", () => {
+  const pkg = readJson("package.json");
+  const guardScript = readFileSync(
+    path.join(repoRoot, "scripts/prevent-root-npm-publish.mjs"),
+    "utf8",
+  );
+
+  assert.equal(pkg.private, true);
+  assert.equal(pkg.scripts.prepublishOnly, "node scripts/prevent-root-npm-publish.mjs");
+  assert.match(guardScript, /packages\/cli/);
+  assert.match(guardScript, /npm publish --access public --provenance/);
+});
+
 test("semantic-release publishes the CLI package to npm before GitHub assets", () => {
   const releaseConfig = readJson(".releaserc.json");
   const plugins = releaseConfig.plugins;

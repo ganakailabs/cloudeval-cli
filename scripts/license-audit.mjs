@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, "..");
-const pnpmBin = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
+const useShell = process.platform === "win32";
 
 const requiredFiles = [
   "LICENSE",
@@ -31,9 +31,10 @@ const deniedLicensePatterns = [
 ];
 
 const run = (args) =>
-  execFileSync(pnpmBin, args, {
+  execFileSync("pnpm", args, {
     cwd: repoRoot,
     encoding: "utf8",
+    shell: useShell,
     stdio: ["ignore", "pipe", "pipe"],
   });
 

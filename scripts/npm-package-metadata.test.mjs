@@ -132,7 +132,8 @@ test("release helper scripts can spawn pnpm on Windows runners", () => {
     "scripts/prepare-npm-package.mjs",
   ]) {
     const content = readFileSync(path.join(repoRoot, script), "utf8");
-    assert.match(content, /process\.platform === "win32" \? "pnpm\.cmd" : "pnpm"/);
-    assert.match(content, /execFileSync\(pnpmBin,/);
+    assert.match(content, /const useShell = process\.platform === "win32"/);
+    assert.match(content, /execFileSync\("pnpm",/);
+    assert.match(content, /shell: useShell/);
   }
 });

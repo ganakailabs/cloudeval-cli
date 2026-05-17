@@ -116,3 +116,18 @@ test("semantic-release workflow is configured for npm trusted publishing", () =>
   assert.match(workflow, /npm install -g npm@\^11\.10\.0/);
   assert.doesNotMatch(workflow, /NPM_TOKEN/);
 });
+
+test("manual npm publish workflow uses trusted publishing without tokens", () => {
+  const workflow = readFileSync(
+    path.join(repoRoot, ".github/workflows/npm-publish.yml"),
+    "utf8",
+  );
+
+  assert.match(workflow, /workflow_dispatch:/);
+  assert.match(workflow, /id-token:\s*write/);
+  assert.match(workflow, /node-version:\s*22\.14\.0/);
+  assert.match(workflow, /npm install -g npm@\^11\.10\.0/);
+  assert.match(workflow, /npm publish --access public/);
+  assert.doesNotMatch(workflow, /NPM_TOKEN/);
+  assert.doesNotMatch(workflow, /NODE_AUTH_TOKEN/);
+});

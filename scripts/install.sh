@@ -902,7 +902,7 @@ if ! download_verified_asset "$BIN" "$DEST" "0755"; then
   echo -e "  3. Install dependencies:"
   echo -e "     ${GREEN}pnpm install${NC}"
   echo -e "  4. Build executable:"
-  echo -e "     ${GREEN}pnpm --filter cloudeval-cli build:executable:current${NC}"
+  echo -e "     ${GREEN}pnpm --filter @ganakailabs/cloudeval-cli build:executable:current${NC}"
   echo -e "  5. Copy to your PATH:"
   echo -e "     ${GREEN}cp packages/cli/dist/bin/cloudeval ${DEST_DIR}/${BIN_NAME}${NC}"
   echo -e "     ${GREEN}cp packages/cli/dist/bin/yoga.wasm ${DEST_DIR}/yoga.wasm${NC}"

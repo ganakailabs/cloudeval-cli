@@ -34,7 +34,7 @@ curl -fsSL https://cli.cloudeval.ai/install.sh | bash
 Node.js 20+ users can also install from npm:
 
 ```bash
-npm install -g cloudeval-cli
+npm install -g @ganakailabs/cloudeval-cli
 cloudeval --help
 ```
 
@@ -277,7 +277,7 @@ pnpm -C packages/cli dev --help
 Build a standalone binary for the current OS:
 
 ```bash
-pnpm --filter cloudeval-cli build:executable:current
+pnpm --filter @ganakailabs/cloudeval-cli build:executable:current
 ./packages/cli/dist/bin/cloudeval --help
 ```
 

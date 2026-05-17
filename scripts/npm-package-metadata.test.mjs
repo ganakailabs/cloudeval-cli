@@ -13,7 +13,7 @@ const readJson = (relativePath) =>
 test("CLI package is publishable to npm with required public artifacts", () => {
   const pkg = readJson("packages/cli/package.json");
 
-  assert.equal(pkg.name, "cloudeval-cli");
+  assert.equal(pkg.name, "@ganakailabs/cloudeval-cli");
   assert.equal(pkg.private, undefined);
   assert.equal(pkg.license, "SEE LICENSE IN LICENSE");
   assert.deepEqual(pkg.publishConfig, { access: "public" });
@@ -45,11 +45,28 @@ test("monorepo root refuses accidental npm publish attempts", () => {
   assert.equal(pkg.private, true);
   assert.equal(pkg.scripts.prepublishOnly, "node scripts/prevent-root-npm-publish.mjs");
   assert.match(guardScript, /packages\/cli/);
-  assert.match(guardScript, /npm publish --access public --provenance/);
+  assert.match(guardScript, /@ganakailabs\/cloudeval-cli/);
+  assert.match(guardScript, /npm publish --access public/);
+});
+
+test("public install docs use the scoped npm package name", () => {
+  const rootReadme = readFileSync(path.join(repoRoot, "README.md"), "utf8");
+  const cliReadme = readFileSync(path.join(repoRoot, "packages/cli/README.md"), "utf8");
+  const releaseSmokeDocs = readFileSync(
+    path.join(repoRoot, "docs/release-smoke-tests.md"),
+    "utf8",
+  );
+
+  for (const content of [rootReadme, cliReadme, releaseSmokeDocs]) {
+    assert.match(content, /@ganakailabs\/cloudeval-cli/);
+  }
+  assert.doesNotMatch(rootReadme, /npm install -g cloudeval-cli\b/);
+  assert.doesNotMatch(cliReadme, /npm install -g cloudeval-cli\b/);
 });
 
 test("semantic-release publishes the CLI package to npm before GitHub assets", () => {
   const releaseConfig = readJson(".releaserc.json");
+  const rootPkg = readJson("package.json");
   const plugins = releaseConfig.plugins;
   const pluginNames = plugins.map((plugin) => (Array.isArray(plugin) ? plugin[0] : plugin));
 
@@ -84,4 +101,18 @@ test("semantic-release publishes the CLI package to npm before GitHub assets", (
   ]) {
     assert.ok(gitPlugin?.[1]?.assets?.includes(asset), `${asset} is committed by release`);
   }
+
+  assert.match(rootPkg.devDependencies["@semantic-release/npm"], /^\^13\./);
+});
+
+test("semantic-release workflow is configured for npm trusted publishing", () => {
+  const workflow = readFileSync(
+    path.join(repoRoot, ".github/workflows/semantic-release.yml"),
+    "utf8",
+  );
+
+  assert.match(workflow, /id-token:\s*write/);
+  assert.match(workflow, /node-version:\s*22\.14\.0/);
+  assert.match(workflow, /npm install -g npm@\^11\.10\.0/);
+  assert.doesNotMatch(workflow, /NPM_TOKEN/);
 });

@@ -1,5 +1,5 @@
 {
-  "name": "cloudeval-cli",
+  "name": "@ganakailabs/cloudeval-cli",
   "version": "0.17.6",
   "license": "SEE LICENSE IN LICENSE",
   "type": "module",

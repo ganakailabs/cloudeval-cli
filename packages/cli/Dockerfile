@@ -19,7 +19,7 @@ COPY packages ./packages
 COPY tsconfig.base.json ./
 
 # Build the CLI
-RUN pnpm --filter cloudeval-cli build:standalone
+RUN pnpm --filter @ganakailabs/cloudeval-cli build:standalone
 
 # Final stage - minimal runtime
 FROM node:20-alpine
@@ -36,7 +36,6 @@ RUN chmod +x dist/cli.js
 
 ENTRYPOINT ["node", "dist/cli.js"]
 CMD ["chat", "--help"]
-
 
 
 

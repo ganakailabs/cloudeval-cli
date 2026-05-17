@@ -3,7 +3,7 @@
 Terminal, automation, and MCP tooling for CloudEval.
 
 ```bash
-npm install -g cloudeval-cli
+npm install -g @ganakailabs/cloudeval-cli
 cloudeval --help
 ```
 

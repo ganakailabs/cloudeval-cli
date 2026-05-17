@@ -124,3 +124,15 @@ test("manual npm publish workflow uses trusted publishing without tokens", () =>
   assert.doesNotMatch(workflow, /NPM_TOKEN/);
   assert.doesNotMatch(workflow, /NODE_AUTH_TOKEN/);
 });
+
+test("release helper scripts can spawn pnpm on Windows runners", () => {
+  for (const script of [
+    "scripts/generate-license-artifacts.mjs",
+    "scripts/license-audit.mjs",
+    "scripts/prepare-npm-package.mjs",
+  ]) {
+    const content = readFileSync(path.join(repoRoot, script), "utf8");
+    assert.match(content, /process\.platform === "win32" \? "pnpm\.cmd" : "pnpm"/);
+    assert.match(content, /execFileSync\(pnpmBin,/);
+  }
+});

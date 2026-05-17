@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, "..");
 const checkOnly = process.argv.includes("--check");
+const pnpmBin = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 const cliPackage = JSON.parse(readFileSync(path.join(repoRoot, "packages/cli/package.json"), "utf8"));
 const generatedAt =
   process.env.CLOUDEVAL_LICENSE_GENERATED_AT ||
@@ -15,7 +16,7 @@ const generatedAt =
     : "2026-05-17T00:00:00.000Z");
 
 const run = (args) =>
-  execFileSync("pnpm", args, {
+  execFileSync(pnpmBin, args, {
     cwd: repoRoot,
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],

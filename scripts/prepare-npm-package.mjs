@@ -7,9 +7,10 @@ import { fileURLToPath } from "node:url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, "..");
 const cliRoot = path.join(repoRoot, "packages", "cli");
+const pnpmBin = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 
 const run = (args) => {
-  execFileSync("pnpm", args, {
+  execFileSync(pnpmBin, args, {
     cwd: repoRoot,
     stdio: "inherit",
   });

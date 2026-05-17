@@ -60,6 +60,69 @@ const credential = {
   last_used_at: "2026-05-08T00:00:00.000Z",
 };
 
+const agentProfile = {
+  id: "cost",
+  display_name: "Cost",
+  description:
+    "Reviews project cost drivers, waste signals, and practical optimization opportunities.",
+  personality: "Commercially pragmatic, specific, and action-oriented.",
+  accent_key: "emerald",
+  icon_key: "wallet",
+  default_mode: "agent",
+  starter_prompt: "Review live Azure sync cost posture.",
+  starter_prompts: {
+    template: "Review ARM/Bicep template cost risk.",
+    sync: "Review live Azure sync cost posture.",
+  },
+  starter_prompt_variants: [
+    {
+      id: "cost-template-agent-a",
+      project_source: "template",
+      mode: "agent",
+      text: "Review template cost evidence and next validation step.",
+      weight: 1,
+    },
+    {
+      id: "cost-template-agent-b",
+      project_source: "template",
+      mode: "agent",
+      text: "Find one expensive template choice and a safe savings action.",
+      weight: 1,
+    },
+    {
+      id: "cost-template-ask-a",
+      project_source: "template",
+      mode: "ask",
+      text: "Summarize one template cost risk.",
+      weight: 1,
+    },
+    {
+      id: "cost-sync-agent-a",
+      project_source: "sync",
+      mode: "agent",
+      text: "Review live cost signals and savings evidence.",
+      weight: 1,
+    },
+  ],
+  default_settings: {
+    mode: "agent",
+    response_length: "Detailed",
+    technicality: "Expert",
+    reasoning_effort: "medium",
+    max_tools: 12,
+    max_tools_per_type: 6,
+    enable_judge: true,
+    enable_hitl: true,
+  },
+  required_capabilities: [
+    "projects:read",
+    "reports:read",
+    "billing:read",
+    "ask:run",
+  ],
+  allowed_toolsets: ["projects", "reports", "connections", "billing"],
+};
+
 const costReport = {
   id: "cost-current",
   kind: "cost",
@@ -70,9 +133,17 @@ const costReport = {
   parsed: {
     totalSpend: { amount: 42, currency: "USD", changePercent: 3 },
     estimatedSavings: { amount: 7, currency: "USD", percentOfSpend: 16.6 },
-    serviceGroups: [{ name: "Compute", amount: 30, currency: "USD", changePercent: 2 }],
+    serviceGroups: [
+      { name: "Compute", amount: 30, currency: "USD", changePercent: 2 },
+    ],
     recommendations: [
-      { id: "rec-1", title: "Rightsize VM", monthlySavings: 7, currency: "USD", risk: "low" },
+      {
+        id: "rec-1",
+        title: "Rightsize VM",
+        monthlySavings: 7,
+        currency: "USD",
+        risk: "low",
+      },
     ],
     anomalies: [],
     budgets: [],
@@ -81,7 +152,9 @@ const costReport = {
   formatted: {
     title: "Cost Report",
     summary: "Current spend is $42.",
-    sections: [{ id: "summary", title: "Summary", markdown: "Spend is controlled." }],
+    sections: [
+      { id: "summary", title: "Summary", markdown: "Spend is controlled." },
+    ],
   },
 };
 
@@ -95,9 +168,23 @@ const wafReport = {
   parsed: {
     score: {
       overall: 91,
-      pillars: [{ id: "security", label: "Security", score: 91, passed: 9, warned: 1, failed: 0 }],
+      pillars: [
+        {
+          id: "security",
+          label: "Security",
+          score: 91,
+          passed: 9,
+          warned: 1,
+          failed: 0,
+        },
+      ],
     },
-    counts: { passed: 9, highRisk: 0, mediumRisk: 1, evidenceCoveragePercent: 95 },
+    counts: {
+      passed: 9,
+      highRisk: 0,
+      mediumRisk: 1,
+      evidenceCoveragePercent: 95,
+    },
     rules: [
       {
         id: "SEC-1",
@@ -111,7 +198,13 @@ const wafReport = {
   formatted: {
     title: "WAF Report",
     summary: "Architecture is mostly healthy.",
-    sections: [{ id: "security", title: "Security", markdown: "Review identity posture." }],
+    sections: [
+      {
+        id: "security",
+        title: "Security",
+        markdown: "Review identity posture.",
+      },
+    ],
   },
 };
 
@@ -133,8 +226,8 @@ const startBackend = async (
     models?: Array<Record<string, unknown>>;
     authMeStatus?: number;
     authUser?: typeof user;
-    projects?: typeof project[];
-  } = {}
+    projects?: (typeof project)[];
+  } = {},
 ) => {
   const requests: RecordedRequest[] = [];
   const createdProjects: any[] = [];
@@ -192,7 +285,11 @@ const startBackend = async (
       return json(res, {
         product: "CloudEval",
         auth: { supports: ["oauth_device_flow", "access_key", "mcp_stdio"] },
-        current_identity: { type: "user", id: authUser.id, email: authUser.email },
+        current_identity: {
+          type: "user",
+          id: authUser.id,
+          email: authUser.email,
+        },
         allowed_tools: [
           {
             name: "reports.run",
@@ -205,10 +302,14 @@ const startBackend = async (
       });
     }
     if (
-      (url.pathname === "/api/v1/projects" || url.pathname === "/api/v1/projects/") &&
+      (url.pathname === "/api/v1/projects" ||
+        url.pathname === "/api/v1/projects/") &&
       req.method === "GET"
     ) {
-      return json(res, [...(options.projects ?? [project]), ...createdProjects]);
+      return json(res, [
+        ...(options.projects ?? [project]),
+        ...createdProjects,
+      ]);
     }
     if (url.pathname === "/api/v1/credential-templates") {
       return json(res, { templates: [credentialTemplate] });
@@ -223,16 +324,20 @@ const startBackend = async (
       assert.equal(payload.template, "ci");
       assert.equal(payload.name, "github-actions-prod");
       assert.equal(payload.project_id, project.id);
-      return json(res, {
-        credential: {
-          ...credential,
-          id: "cred-created",
-          name: payload.name,
-          expires_at: "2026-08-07T00:00:00.000Z",
+      return json(
+        res,
+        {
+          credential: {
+            ...credential,
+            id: "cred-created",
+            name: payload.name,
+            expires_at: "2026-08-07T00:00:00.000Z",
+          },
+          access_key: "cev_test_ak_01JTEST_createdsecret",
+          project_id: payload.project_id,
         },
-        access_key: "cev_test_ak_01JTEST_createdsecret",
-        project_id: payload.project_id,
-      }, 201);
+        201,
+      );
     }
     if (url.pathname === "/api/v1/credentials/cred-main") {
       return json(res, {
@@ -240,7 +345,10 @@ const startBackend = async (
         audit_events: [{ id: "aud-1", event_type: "credential.used" }],
       });
     }
-    if (url.pathname === "/api/v1/credentials/cred-main/revoke" && req.method === "POST") {
+    if (
+      url.pathname === "/api/v1/credentials/cred-main/revoke" &&
+      req.method === "POST"
+    ) {
       assert.equal(req.headers["idempotency-key"], "idem-revoke-1");
       const payload = JSON.parse(body || "{}");
       assert.equal(payload.reason, "rotated");
@@ -261,33 +369,46 @@ const startBackend = async (
         ],
       });
     }
+    if (url.pathname === "/api/v1/agent-profiles") {
+      return json(res, { profiles: [agentProfile] });
+    }
+    if (url.pathname === "/api/v1/agent-profiles/cost") {
+      return json(res, { profile: agentProfile });
+    }
     if (url.pathname === `/api/v1/projects/user/${authUser.id}`) {
-      return json(res, [...(options.projects ?? [project]), ...createdProjects]);
+      return json(res, [
+        ...(options.projects ?? [project]),
+        ...createdProjects,
+      ]);
     }
     if (url.pathname === "/api/v1/onboard/quick" && req.method === "POST") {
       const payload = JSON.parse(body || "{}");
       assert.equal(payload.email, authUser.email);
-      return json(res, {
-        user: {
-          ...authUser,
-          preferences: {
-            ...(authUser.preferences ?? {}),
-            onboarding: {
-              ...((authUser.preferences ?? {}).onboarding ?? {}),
-              completedAt: "2026-05-09T00:00:00.000Z",
+      return json(
+        res,
+        {
+          user: {
+            ...authUser,
+            preferences: {
+              ...(authUser.preferences ?? {}),
+              onboarding: {
+                ...((authUser.preferences ?? {}).onboarding ?? {}),
+                completedAt: "2026-05-09T00:00:00.000Z",
+              },
             },
           },
+          playground_project: project,
+          default_connection: connection,
+          onboarding_completed_at: "2026-05-09T00:00:00.000Z",
+          setup_jobs: [
+            { operation: "connection_template_sync", status: "background" },
+            { operation: "project_template_blob_sync", status: "background" },
+            { operation: "project_reports_autogen", status: "background" },
+          ],
+          next_steps: [],
         },
-        playground_project: project,
-        default_connection: connection,
-        onboarding_completed_at: "2026-05-09T00:00:00.000Z",
-        setup_jobs: [
-          { operation: "connection_template_sync", status: "background" },
-          { operation: "project_template_blob_sync", status: "background" },
-          { operation: "project_reports_autogen", status: "background" },
-        ],
-        next_steps: [],
-      }, 201);
+        201,
+      );
     }
     if (url.pathname === `/api/projects/${project.id}/diagram-image`) {
       const format = url.searchParams.get("format") || "png";
@@ -312,7 +433,15 @@ const startBackend = async (
       return;
     }
     if (url.pathname === "/api/v1/connection/" && req.method === "POST") {
-      return json(res, { ...connection, id: "conn-created", sync_status: { status: "queued" } }, 201);
+      return json(
+        res,
+        {
+          ...connection,
+          id: "conn-created",
+          sync_status: { status: "queued" },
+        },
+        201,
+      );
     }
     if (url.pathname === "/api/v1/projects/" && req.method === "POST") {
       const payload = JSON.parse(body || "{}");
@@ -387,34 +516,82 @@ const startBackend = async (
       return json(res, costReport);
     }
     if (url.pathname === `/api/v1/cost-reports/${project.id}/full`) {
-      return json(res, { raw: costReport.raw, parsed: costReport.parsed, formatted: costReport.formatted });
-    }
-    if (url.pathname === `/api/v1/well-architected-reports/${project.id}/full`) {
-      return json(res, { raw: wafReport.raw, parsed: wafReport.parsed, formatted: wafReport.formatted });
-    }
-    if (url.pathname === `/api/v1/cost-reports/${project.id}/regenerate` && req.method === "POST") {
       return json(res, {
-        message: "Cost report regeneration job submitted",
-        job: { job_id: "job-cost-1", status: "submitted", operation: "cost_report_regenerate" },
-        project_id: project.id,
-      }, 202);
+        raw: costReport.raw,
+        parsed: costReport.parsed,
+        formatted: costReport.formatted,
+      });
     }
-    if (url.pathname === `/api/v1/well-architected-reports/${project.id}/regenerate` && req.method === "POST") {
+    if (
+      url.pathname === `/api/v1/well-architected-reports/${project.id}/full`
+    ) {
       return json(res, {
-        message: "Well-Architected report regeneration job submitted",
-        job: { job_id: "job-waf-1", status: "submitted", operation: "waf_report_regenerate" },
-        project_id: project.id,
-      }, 202);
+        raw: wafReport.raw,
+        parsed: wafReport.parsed,
+        formatted: wafReport.formatted,
+      });
     }
-    if (url.pathname === `/api/v1/reports/${project.id}/unit-tests/regenerate` && req.method === "POST") {
-      return json(res, {
-        message: "Unit test report regeneration job submitted",
-        job: { job_id: "job-tests-1", status: "submitted", operation: "run_unit_tests" },
-        project_id: project.id,
-      }, 202);
+    if (
+      url.pathname === `/api/v1/cost-reports/${project.id}/regenerate` &&
+      req.method === "POST"
+    ) {
+      return json(
+        res,
+        {
+          message: "Cost report regeneration job submitted",
+          job: {
+            job_id: "job-cost-1",
+            status: "submitted",
+            operation: "cost_report_regenerate",
+          },
+          project_id: project.id,
+        },
+        202,
+      );
+    }
+    if (
+      url.pathname ===
+        `/api/v1/well-architected-reports/${project.id}/regenerate` &&
+      req.method === "POST"
+    ) {
+      return json(
+        res,
+        {
+          message: "Well-Architected report regeneration job submitted",
+          job: {
+            job_id: "job-waf-1",
+            status: "submitted",
+            operation: "waf_report_regenerate",
+          },
+          project_id: project.id,
+        },
+        202,
+      );
+    }
+    if (
+      url.pathname === `/api/v1/reports/${project.id}/unit-tests/regenerate` &&
+      req.method === "POST"
+    ) {
+      return json(
+        res,
+        {
+          message: "Unit test report regeneration job submitted",
+          job: {
+            job_id: "job-tests-1",
+            status: "submitted",
+            operation: "run_unit_tests",
+          },
+          project_id: project.id,
+        },
+        202,
+      );
     }
     if (url.pathname === "/api/v1/jobs/job-cost-1") {
-      return json(res, { job_id: "job-cost-1", status: "completed", progress: 100 });
+      return json(res, {
+        job_id: "job-cost-1",
+        status: "completed",
+        progress: 100,
+      });
     }
     if (url.pathname === "/api/v1/billing/config") {
       return json(res, { plans: [{ id: "free", name: "Free", price_usd: 0 }] });
@@ -423,7 +600,11 @@ const startBackend = async (
       return json(res, {
         data: {
           plan: { id: "free", name: "Free", price_usd: 0 },
-          balance: { credits_total: 150, credits_used: 10, credits_remaining: 140 },
+          balance: {
+            credits_total: 150,
+            credits_used: 10,
+            credits_remaining: 140,
+          },
         },
       });
     }
@@ -434,7 +615,10 @@ const startBackend = async (
       return json(res, { total_events: 2, total_credits: 3, buckets: [] });
     }
     if (url.pathname === "/api/v1/billing/usage/ledger") {
-      return json(res, { items: [{ id: "usage-1", credits: 1 }], next_cursor: null });
+      return json(res, {
+        items: [{ id: "usage-1", credits: 1 }],
+        next_cursor: null,
+      });
     }
     if (url.pathname === "/api/v1/billing/subscription/billing-info") {
       return json(res, { invoices: [{ id: "inv-1", amount_due: 0 }] });
@@ -453,7 +637,10 @@ const startBackend = async (
         ],
       });
     }
-    if (url.pathname === "/api/v1/billing/checkout/session/top-up" && req.method === "POST") {
+    if (
+      url.pathname === "/api/v1/billing/checkout/session/top-up" &&
+      req.method === "POST"
+    ) {
       return json(res, {
         session_id: "cs_topup_1",
         flow_type: "top_up",
@@ -461,14 +648,17 @@ const startBackend = async (
         expires_at: "2026-05-04T03:00:00",
         checkout_mode: "standard_checkout",
         checkout_url: null,
-        launcher_url: "https://app.example.test/app/subscription/checkout-launcher?session_id=cs_topup_1",
+        launcher_url:
+          "https://app.example.test/app/subscription/checkout-launcher?session_id=cs_topup_1",
         resolved_currency: "USD",
         display_amount_major: 9,
         payment_methods: { card: true },
       });
     }
     if (url.pathname === "/api/v1/billing/notifications") {
-      return json(res, { notifications: [{ id: "note-1", type: "credit_low" }] });
+      return json(res, {
+        notifications: [{ id: "note-1", type: "credit_low" }],
+      });
     }
     if (url.pathname === "/api/v1/chat/stream" && req.method === "POST") {
       const payload = JSON.parse(body || "{}");
@@ -476,46 +666,81 @@ const startBackend = async (
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache",
       });
-      res.write(`data: ${JSON.stringify({ type: "metadata", thread_id: "thread-test", trace_id: "trace-test" })}\n\n`);
+      res.write(
+        `data: ${JSON.stringify({ type: "metadata", thread_id: "thread-test", trace_id: "trace-test" })}\n\n`,
+      );
       const message = String(payload.message ?? "");
       if (message.includes("empty agent result")) {
-        res.write(`data: ${JSON.stringify({ type: "thinking", node: "load_reports", status: "streaming", description: "Loading cost reports" })}\n\n`);
-        res.write(`data: ${JSON.stringify({ type: "thinking", node: "load_reports", status: "completed", description: "Loaded cost reports" })}\n\n`);
-        res.write(`data: ${JSON.stringify({ type: "thinking", node: "end", status: "completed", description: "Finished without answer content" })}\n\n`);
-      } else if (message.includes("thinking progress")) {
-        res.write(`data: ${JSON.stringify({ type: "thinking", node: "load_reports", status: "streaming", description: "Loading cost reports" })}\n\n`);
-        res.write(`data: ${JSON.stringify({ type: "thinking", node: "load_reports", status: "completed", description: "Loaded cost reports" })}\n\n`);
-        res.write(`data: ${JSON.stringify({ type: "responding", node: "response_compose", content: "Report summary ready.", status: "completed" })}\n\n`);
+        res.write(
+          `data: ${JSON.stringify({ type: "thinking", node: "load_reports", status: "streaming", description: "Loading cost reports" })}\n\n`,
+        );
+        res.write(
+          `data: ${JSON.stringify({ type: "thinking", node: "load_reports", status: "completed", description: "Loaded cost reports" })}\n\n`,
+        );
+        res.write(
+          `data: ${JSON.stringify({ type: "thinking", node: "end", status: "completed", description: "Finished without answer content" })}\n\n`,
+        );
+      } else if (
+        message.includes("thinking progress") ||
+        message.includes("Review ARM/Bicep template cost risk.")
+      ) {
+        res.write(
+          `data: ${JSON.stringify({ type: "thinking", node: "load_reports", status: "streaming", description: "Loading cost reports" })}\n\n`,
+        );
+        res.write(
+          `data: ${JSON.stringify({ type: "thinking", node: "load_reports", status: "completed", description: "Loaded cost reports" })}\n\n`,
+        );
+        res.write(
+          `data: ${JSON.stringify({ type: "responding", node: "response_compose", content: "Report summary ready.", status: "completed" })}\n\n`,
+        );
       } else if (message.includes("hitl approval")) {
-        res.write(`data: ${JSON.stringify({ type: "thinking", node: "prepare_response", status: "streaming", description: "Prepare response" })}\n\n`);
-        res.write(`data: ${JSON.stringify({
-          type: "hitl_request",
-          questions: [{
-            id: "approval_0",
-            text: "Should I proceed with running Regenerate cost report?",
-            options: [
-              { id: "approve", label: "Approve", recommended: true },
-              { id: "reject", label: "Reject" },
+        res.write(
+          `data: ${JSON.stringify({ type: "thinking", node: "prepare_response", status: "streaming", description: "Prepare response" })}\n\n`,
+        );
+        res.write(
+          `data: ${JSON.stringify({
+            type: "hitl_request",
+            questions: [
+              {
+                id: "approval_0",
+                text: "Should I proceed with running Regenerate cost report?",
+                options: [
+                  { id: "approve", label: "Approve", recommended: true },
+                  { id: "reject", label: "Reject" },
+                ],
+                recommended_option_id: "approve",
+              },
             ],
-            recommended_option_id: "approve",
-          }],
-          checkpoint_id: "ckpt-cost-1",
-          pending_intent_id: "approval_0",
-          run_id: "run-cost-1",
-          langsmith_trace_id: "trace-cost-1",
-        })}\n\n`);
-        res.write(`data: ${JSON.stringify({ type: "thinking", node: "end", status: "completed", description: "Waiting for approval" })}\n\n`);
+            checkpoint_id: "ckpt-cost-1",
+            pending_intent_id: "approval_0",
+            run_id: "run-cost-1",
+            langsmith_trace_id: "trace-cost-1",
+          })}\n\n`,
+        );
+        res.write(
+          `data: ${JSON.stringify({ type: "thinking", node: "end", status: "completed", description: "Waiting for approval" })}\n\n`,
+        );
       } else if (message.includes("duplicate chunks")) {
-        res.write(`data: ${JSON.stringify({ type: "responding", node: "generate_response", content: "Mock duplicate answer." })}\n\n`);
-        res.write(`data: ${JSON.stringify({ type: "responding", node: "generate_response", content: "Mock duplicate answer." })}\n\n`);
+        res.write(
+          `data: ${JSON.stringify({ type: "responding", node: "generate_response", content: "Mock duplicate answer." })}\n\n`,
+        );
+        res.write(
+          `data: ${JSON.stringify({ type: "responding", node: "generate_response", content: "Mock duplicate answer." })}\n\n`,
+        );
       } else {
-        res.write(`data: ${JSON.stringify({ type: "responding", node: "generate_response", content: "Mock answer from Cloudeval AI." })}\n\n`);
+        res.write(
+          `data: ${JSON.stringify({ type: "responding", node: "generate_response", content: "Mock answer from Cloudeval AI." })}\n\n`,
+        );
       }
       res.write("data: [DONE]\n\n");
       return res.end();
     }
 
-    return json(res, { detail: `Unhandled ${req.method} ${url.pathname}` }, 404);
+    return json(
+      res,
+      { detail: `Unhandled ${req.method} ${url.pathname}` },
+      404,
+    );
   });
 
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -524,7 +749,10 @@ const startBackend = async (
   return {
     baseUrl: `http://127.0.0.1:${address.port}/api/v1`,
     requests,
-    close: () => new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve())),
+    close: () =>
+      new Promise<void>((resolve, reject) =>
+        server.close((error) => (error ? reject(error) : resolve())),
+      ),
   };
 };
 
@@ -541,9 +769,17 @@ const cliInvocation = () => {
 
 const runCli = async (
   args: string[],
-  options: { input?: string; env?: Record<string, string>; timeoutMs?: number; home?: string; cwd?: string } = {}
+  options: {
+    input?: string;
+    env?: Record<string, string>;
+    timeoutMs?: number;
+    home?: string;
+    cwd?: string;
+  } = {},
 ) => {
-  const home = options.home ?? await fs.mkdtemp(path.join(os.tmpdir(), "cloudeval-cli-test-home-"));
+  const home =
+    options.home ??
+    (await fs.mkdtemp(path.join(os.tmpdir(), "cloudeval-cli-test-home-")));
   const { command, prefix } = cliInvocation();
   const child = spawn(command, [...prefix, ...args], {
     cwd: options.cwd ?? path.resolve("."),
@@ -570,8 +806,13 @@ const runCli = async (
   child.stdout.on("data", (chunk) => stdout.push(Buffer.from(chunk)));
   child.stderr.on("data", (chunk) => stderr.push(Buffer.from(chunk)));
 
-  const timeout = setTimeout(() => child.kill("SIGKILL"), options.timeoutMs ?? 20_000);
-  const exitCode = await new Promise<number | null>((resolve) => child.on("exit", resolve));
+  const timeout = setTimeout(
+    () => child.kill("SIGKILL"),
+    options.timeoutMs ?? 20_000,
+  );
+  const exitCode = await new Promise<number | null>((resolve) =>
+    child.on("exit", resolve),
+  );
   clearTimeout(timeout);
   if (!options.home) {
     await fs.rm(home, { recursive: true, force: true });
@@ -596,7 +837,9 @@ const parseJsonError = (result: Awaited<ReturnType<typeof runCli>>) => {
 };
 
 const bumpPatchVersion = (version: string): string => {
-  const [major = "0", minor = "0", patch = "0"] = version.replace(/^v/i, "").split(".");
+  const [major = "0", minor = "0", patch = "0"] = version
+    .replace(/^v/i, "")
+    .split(".");
   return `${Number(major)}.${Number(minor)}.${Number(patch.split("-")[0]) + 1}`;
 };
 
@@ -618,12 +861,16 @@ const startUpdateServer = async (latestVersion: string) => {
         [
           "#!/usr/bin/env bash",
           "set -euo pipefail",
-          "printf '%s\\n' \"$1\" > \"$CLOUDEVAL_UPDATE_TEST_MARKER\"",
+          'printf \'%s\\n\' "$1" > "$CLOUDEVAL_UPDATE_TEST_MARKER"',
           "",
-        ].join("\n")
+        ].join("\n"),
       );
     }
-    return json(res, { detail: `Unhandled ${req.method} ${url.pathname}` }, 404);
+    return json(
+      res,
+      { detail: `Unhandled ${req.method} ${url.pathname}` },
+      404,
+    );
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const address = server.address();
@@ -631,18 +878,31 @@ const startUpdateServer = async (latestVersion: string) => {
   return {
     baseUrl: `http://127.0.0.1:${address.port}`,
     requests,
-    close: () => new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve())),
+    close: () =>
+      new Promise<void>((resolve, reject) =>
+        server.close((error) => (error ? reject(error) : resolve())),
+      ),
   };
 };
 
 test("non-interactive discovery commands are machine-readable", async () => {
-  const capabilities = parseJson(await runCli(["capabilities", "--format", "json"]));
+  const capabilities = parseJson(
+    await runCli(["capabilities", "--format", "json"]),
+  );
   assert.equal(capabilities.ok, true);
   assert.deepEqual(
-    ["ask", "agent", "recipes run", "reports download", "projects create", "credentials create", "mcp serve"].every((command) =>
-      JSON.stringify(capabilities.data.domains).includes(command)
+    [
+      "ask",
+      "agent",
+      "recipes run",
+      "reports download",
+      "projects create",
+      "credentials create",
+      "mcp serve",
+    ].every((command) =>
+      JSON.stringify(capabilities.data.domains).includes(command),
     ),
-    true
+    true,
   );
 
   const completion = await runCli(["completion", "zsh"]);
@@ -667,37 +927,55 @@ test("recipes commands list, show, and run implemented CloudEval workflows", asy
     assert.match(table.stdout, /cloudeval-cloud-cost-review/);
     assert.doesNotMatch(table.stdout.toLowerCase(), /terraform/);
 
-    const listed = parseJson(await runCli(["recipes", "list", "--format", "json"]));
+    const listed = parseJson(
+      await runCli(["recipes", "list", "--format", "json"]),
+    );
     assert.equal(listed.command, "recipes list");
-    assert.equal(listed.data.recipes.some((recipe: any) => recipe.id === "cloudeval-well-architected-framework-review"), true);
+    assert.equal(
+      listed.data.recipes.some(
+        (recipe: any) =>
+          recipe.id === "cloudeval-well-architected-framework-review",
+      ),
+      true,
+    );
 
-    const shown = await runCli(["recipes", "show", "cloudeval-cloud-cost-review", "--format", "markdown"]);
+    const shown = await runCli([
+      "recipes",
+      "show",
+      "cloudeval-cloud-cost-review",
+      "--format",
+      "markdown",
+    ]);
     assert.equal(shown.exitCode, 0, shown.stderr);
     assert.match(shown.stdout, /^# Cost Review/m);
     assert.match(shown.stdout, /cloudeval reports list --project/);
 
-    const run = parseJson(await runCli([
-      "recipes",
-      "run",
-      "cloudeval-cloud-cost-review",
-      "--base-url",
-      backend.baseUrl,
-      "--access-key",
-      "test-token",
-      "--project",
-      "project-main",
-      "--format",
-      "json",
-      "--progress",
-      "none",
-      "--non-interactive",
-    ]));
+    const run = parseJson(
+      await runCli([
+        "recipes",
+        "run",
+        "cloudeval-cloud-cost-review",
+        "--base-url",
+        backend.baseUrl,
+        "--access-key",
+        "test-token",
+        "--project",
+        "project-main",
+        "--format",
+        "json",
+        "--progress",
+        "none",
+        "--non-interactive",
+      ]),
+    );
     assert.equal(run.command, "recipes run");
     assert.equal(run.data.recipeId, "cloudeval-cloud-cost-review");
     assert.equal(run.data.mode, "ask");
     assert.equal(run.data.response, "Mock answer from Cloudeval AI.");
 
-    const streamRequest = backend.requests.find((request) => request.path === "/api/v1/chat/stream");
+    const streamRequest = backend.requests.find(
+      (request) => request.path === "/api/v1/chat/stream",
+    );
     assert(streamRequest);
     const payload = JSON.parse(streamRequest.body);
     assert.match(payload.message, /CloudEval cost review/);
@@ -715,15 +993,25 @@ test("recipes commands list, show, and run implemented CloudEval workflows", asy
 test("credentials, identity, and live capabilities commands call credential APIs", async () => {
   const backend = await startBackend();
   try {
-    const common = ["--base-url", backend.baseUrl, "--access-key", "test-token", "--format", "json", "--non-interactive"];
+    const common = [
+      "--base-url",
+      backend.baseUrl,
+      "--access-key",
+      "test-token",
+      "--format",
+      "json",
+      "--non-interactive",
+    ];
 
-    const templates = parseJson(await runCli(["credentials", "templates", ...common]));
+    const templates = parseJson(
+      await runCli(["credentials", "templates", ...common]),
+    );
     assert.equal(templates.command, "credentials templates");
     assert.equal(templates.data.templates[0].id, "ci");
 
-	    const created = await runCli([
-	      "credentials",
-	      "create",
+    const created = await runCli([
+      "credentials",
+      "create",
       "--base-url",
       backend.baseUrl,
       "--access-key",
@@ -742,142 +1030,188 @@ test("credentials, identity, and live capabilities commands call credential APIs
       "github-actions",
       "--non-interactive",
     ]);
-	    assert.equal(created.exitCode, 0, created.stderr);
-	    assert.match(created.stdout, /^CLOUDEVAL_ACCESS_KEY: cev_test_ak_01JTEST_createdsecret/m);
-	    assert.match(created.stdout, /^CLOUDEVAL_PROJECT_ID: project-main/m);
+    assert.equal(created.exitCode, 0, created.stderr);
+    assert.match(
+      created.stdout,
+      /^CLOUDEVAL_ACCESS_KEY: cev_test_ak_01JTEST_createdsecret/m,
+    );
+    assert.match(created.stdout, /^CLOUDEVAL_PROJECT_ID: project-main/m);
 
-	    const outputDir = await fs.mkdtemp(path.join(os.tmpdir(), "cloudeval-credential-output-"));
-	    const githubActionsOutput = path.join(outputDir, "github-actions.yml");
-	    const jsonOutput = path.join(outputDir, "credential.json");
-	    try {
-	      await fs.writeFile(githubActionsOutput, "old\n", { mode: 0o644 });
-	      await fs.chmod(githubActionsOutput, 0o644);
-	      const written = await runCli([
-	        "credentials",
-	        "create",
-	        "--base-url",
-	        backend.baseUrl,
-	        "--access-key",
-	        "test-token",
-	        "--template",
-	        "ci",
-	        "--name",
-	        "github-actions-prod",
-	        "--project",
-	        "project-main",
-	        "--expires",
-	        "90d",
-	        "--idempotency-key",
-	        "idem-create-1",
-	        "--format",
-	        "github-actions",
-	        "--output",
-	        githubActionsOutput,
-	        "--non-interactive",
-	      ]);
-	      assert.equal(written.exitCode, 0, written.stderr);
-	      assert.match(
-	        await fs.readFile(githubActionsOutput, "utf8"),
-	        /^CLOUDEVAL_ACCESS_KEY: cev_test_ak_01JTEST_createdsecret/m
-	      );
-	      if (process.platform !== "win32") {
-	        assert.equal((await fs.stat(githubActionsOutput)).mode & 0o777, 0o600);
-	      }
+    const outputDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), "cloudeval-credential-output-"),
+    );
+    const githubActionsOutput = path.join(outputDir, "github-actions.yml");
+    const jsonOutput = path.join(outputDir, "credential.json");
+    try {
+      await fs.writeFile(githubActionsOutput, "old\n", { mode: 0o644 });
+      await fs.chmod(githubActionsOutput, 0o644);
+      const written = await runCli([
+        "credentials",
+        "create",
+        "--base-url",
+        backend.baseUrl,
+        "--access-key",
+        "test-token",
+        "--template",
+        "ci",
+        "--name",
+        "github-actions-prod",
+        "--project",
+        "project-main",
+        "--expires",
+        "90d",
+        "--idempotency-key",
+        "idem-create-1",
+        "--format",
+        "github-actions",
+        "--output",
+        githubActionsOutput,
+        "--non-interactive",
+      ]);
+      assert.equal(written.exitCode, 0, written.stderr);
+      assert.match(
+        await fs.readFile(githubActionsOutput, "utf8"),
+        /^CLOUDEVAL_ACCESS_KEY: cev_test_ak_01JTEST_createdsecret/m,
+      );
+      if (process.platform !== "win32") {
+        assert.equal((await fs.stat(githubActionsOutput)).mode & 0o777, 0o600);
+      }
 
-	      await fs.writeFile(jsonOutput, "old\n", { mode: 0o644 });
-	      await fs.chmod(jsonOutput, 0o644);
-	      const jsonWritten = await runCli([
-	        "credentials",
-	        "create",
-	        "--base-url",
-	        backend.baseUrl,
-	        "--access-key",
-	        "test-token",
-	        "--template",
-	        "ci",
-	        "--name",
-	        "github-actions-prod",
-	        "--project",
-	        "project-main",
-	        "--expires",
-	        "90d",
-	        "--idempotency-key",
-	        "idem-create-1",
-	        "--format",
-	        "json",
-	        "--output",
-	        jsonOutput,
-	        "--non-interactive",
-	      ]);
-	      assert.equal(jsonWritten.exitCode, 0, jsonWritten.stderr);
-	      assert.match(
-	        await fs.readFile(jsonOutput, "utf8"),
-	        /cev_test_ak_01JTEST_createdsecret/
-	      );
-	      if (process.platform !== "win32") {
-	        assert.equal((await fs.stat(jsonOutput)).mode & 0o777, 0o600);
-	      }
-	    } finally {
-	      await fs.rm(outputDir, { recursive: true, force: true });
-	    }
+      await fs.writeFile(jsonOutput, "old\n", { mode: 0o644 });
+      await fs.chmod(jsonOutput, 0o644);
+      const jsonWritten = await runCli([
+        "credentials",
+        "create",
+        "--base-url",
+        backend.baseUrl,
+        "--access-key",
+        "test-token",
+        "--template",
+        "ci",
+        "--name",
+        "github-actions-prod",
+        "--project",
+        "project-main",
+        "--expires",
+        "90d",
+        "--idempotency-key",
+        "idem-create-1",
+        "--format",
+        "json",
+        "--output",
+        jsonOutput,
+        "--non-interactive",
+      ]);
+      assert.equal(jsonWritten.exitCode, 0, jsonWritten.stderr);
+      assert.match(
+        await fs.readFile(jsonOutput, "utf8"),
+        /cev_test_ak_01JTEST_createdsecret/,
+      );
+      if (process.platform !== "win32") {
+        assert.equal((await fs.stat(jsonOutput)).mode & 0o777, 0o600);
+      }
+    } finally {
+      await fs.rm(outputDir, { recursive: true, force: true });
+    }
 
-	    const list = parseJson(await runCli(["credentials", "list", ...common, "--project", "project-main"]));
+    const list = parseJson(
+      await runCli([
+        "credentials",
+        "list",
+        ...common,
+        "--project",
+        "project-main",
+      ]),
+    );
     assert.equal(list.command, "credentials list");
     assert.equal(list.data.credentials[0].key_prefix, "cev_test_ak_01JTEST");
-    assert.equal(JSON.stringify(list.data), JSON.stringify(list.data).replace("createdsecret", ""));
+    assert.equal(
+      JSON.stringify(list.data),
+      JSON.stringify(list.data).replace("createdsecret", ""),
+    );
 
-    const inspected = parseJson(await runCli(["credentials", "inspect", "cred-main", ...common]));
+    const inspected = parseJson(
+      await runCli(["credentials", "inspect", "cred-main", ...common]),
+    );
     assert.equal(inspected.data.credential.id, "cred-main");
     assert.equal(inspected.data.audit_events[0].event_type, "credential.used");
 
-    const revoked = parseJson(await runCli([
-      "credentials",
-      "revoke",
-      "cred-main",
-      "--base-url",
-      backend.baseUrl,
-      "--access-key",
-      "test-token",
-      "--reason",
-      "rotated",
-      "--idempotency-key",
-      "idem-revoke-1",
-      "--format",
-      "json",
-      "--non-interactive",
-    ]));
+    const revoked = parseJson(
+      await runCli([
+        "credentials",
+        "revoke",
+        "cred-main",
+        "--base-url",
+        backend.baseUrl,
+        "--access-key",
+        "test-token",
+        "--reason",
+        "rotated",
+        "--idempotency-key",
+        "idem-revoke-1",
+        "--format",
+        "json",
+        "--non-interactive",
+      ]),
+    );
     assert.equal(revoked.data.credential.status, "revoked");
 
     const identity = parseJson(await runCli(["identity", ...common]));
     assert.equal(identity.command, "identity");
     assert.equal(identity.data.identity.email, user.email);
-    assert.equal(identity.data.capabilities.includes("credentials:manage"), true);
+    assert.equal(
+      identity.data.capabilities.includes("credentials:manage"),
+      true,
+    );
 
-    const liveCapabilities = parseJson(await runCli(["capabilities", "--live", ...common]));
+    const liveCapabilities = parseJson(
+      await runCli(["capabilities", "--live", ...common]),
+    );
     assert.equal(liveCapabilities.command, "capabilities");
     assert.equal(liveCapabilities.data.live.current_identity.email, user.email);
-    assert.equal(liveCapabilities.data.live.allowed_tools[0].name, "reports.run");
+    assert.equal(
+      liveCapabilities.data.live.allowed_tools[0].name,
+      "reports.run",
+    );
   } finally {
     await backend.close();
   }
 });
 
 test("legacy API key flags and environment variables fail with beta migration message", async () => {
-  const flag = await runCli(["projects", "list", "--api-key", "old-token", "--non-interactive"]);
+  const flag = await runCli([
+    "projects",
+    "list",
+    "--api-key",
+    "old-token",
+    "--non-interactive",
+  ]);
   assert.notEqual(flag.exitCode, 0);
-  assert.match(flag.stderr, /API key auth was renamed in beta\. Use --access-key or CLOUDEVAL_ACCESS_KEY\./);
+  assert.match(
+    flag.stderr,
+    /API key auth was renamed in beta\. Use --access-key or CLOUDEVAL_ACCESS_KEY\./,
+  );
 
-  const stdinFlag = await runCli(["projects", "list", "--api-key-stdin", "--non-interactive"], {
-    input: "old-token\n",
-  });
+  const stdinFlag = await runCli(
+    ["projects", "list", "--api-key-stdin", "--non-interactive"],
+    {
+      input: "old-token\n",
+    },
+  );
   assert.notEqual(stdinFlag.exitCode, 0);
-  assert.match(stdinFlag.stderr, /API key auth was renamed in beta\. Use --access-key or CLOUDEVAL_ACCESS_KEY\./);
+  assert.match(
+    stdinFlag.stderr,
+    /API key auth was renamed in beta\. Use --access-key or CLOUDEVAL_ACCESS_KEY\./,
+  );
 
   const envResult = await runCli(["status", "--format", "json"], {
     env: { CLOUDEVAL_API_KEY: "old-token" },
   });
   assert.notEqual(envResult.exitCode, 0);
-  assert.match(envResult.stderr, /API key auth was renamed in beta\. Use --access-key or CLOUDEVAL_ACCESS_KEY\./);
+  assert.match(
+    envResult.stderr,
+    /API key auth was renamed in beta\. Use --access-key or CLOUDEVAL_ACCESS_KEY\./,
+  );
 });
 
 test("explicit --access-key warns without echoing the secret", async () => {
@@ -895,19 +1229,25 @@ test("explicit --access-key warns without echoing the secret", async () => {
       "--non-interactive",
     ]);
     assert.equal(result.exitCode, 0, result.stderr);
-    assert.match(result.stderr, /--access-key can leak via shell history\/process listing/);
+    assert.match(
+      result.stderr,
+      /--access-key can leak via shell history\/process listing/,
+    );
     assert.doesNotMatch(result.stderr, /test-token/);
 
-    const stdinResult = await runCli([
-      "projects",
-      "list",
-      "--base-url",
-      backend.baseUrl,
-      "--access-key-stdin",
-      "--format",
-      "json",
-      "--non-interactive",
-    ], { input: "test-token\n" });
+    const stdinResult = await runCli(
+      [
+        "projects",
+        "list",
+        "--base-url",
+        backend.baseUrl,
+        "--access-key-stdin",
+        "--format",
+        "json",
+        "--non-interactive",
+      ],
+      { input: "test-token\n" },
+    );
     assert.equal(stdinResult.exitCode, 0, stdinResult.stderr);
     assert.equal(stdinResult.stderr, "");
   } finally {
@@ -916,9 +1256,13 @@ test("explicit --access-key warns without echoing the secret", async () => {
 });
 
 test("completion install and uninstall manages shell script path", async () => {
-  const home = await fs.mkdtemp(path.join(os.tmpdir(), "cloudeval-cli-completion-home-"));
+  const home = await fs.mkdtemp(
+    path.join(os.tmpdir(), "cloudeval-cli-completion-home-"),
+  );
   try {
-    const install = await runCli(["completion", "install", "--shell", "bash"], { home });
+    const install = await runCli(["completion", "install", "--shell", "bash"], {
+      home,
+    });
     assert.equal(install.exitCode, 0, install.stderr);
     assert.match(install.stdout, /Installed bash completion/);
     const installedPath = path.join(
@@ -927,11 +1271,17 @@ test("completion install and uninstall manages shell script path", async () => {
       "share",
       "bash-completion",
       "completions",
-      "cloudeval"
+      "cloudeval",
     );
-    assert.match(await fs.readFile(installedPath, "utf8"), /_cloudeval_completion/);
+    assert.match(
+      await fs.readFile(installedPath, "utf8"),
+      /_cloudeval_completion/,
+    );
 
-    const uninstall = await runCli(["completion", "uninstall", "--shell", "bash"], { home });
+    const uninstall = await runCli(
+      ["completion", "uninstall", "--shell", "bash"],
+      { home },
+    );
     assert.equal(uninstall.exitCode, 0, uninstall.stderr);
     assert.match(uninstall.stdout, /Removed bash completion/);
     await assert.rejects(fs.readFile(installedPath, "utf8"), /ENOENT/);
@@ -942,7 +1292,9 @@ test("completion install and uninstall manages shell script path", async () => {
 
 test("update command text output is a human summary, not a field/value table", async () => {
   const server = await startUpdateServer(CLI_VERSION);
-  const home = await fs.mkdtemp(path.join(os.tmpdir(), "cloudeval-cli-update-home-"));
+  const home = await fs.mkdtemp(
+    path.join(os.tmpdir(), "cloudeval-cli-update-home-"),
+  );
   try {
     const result = await runCli(["update"], {
       home,
@@ -966,7 +1318,9 @@ test("update command text output is a human summary, not a field/value table", a
 test("update command checks and installs latest release non-interactively", async () => {
   const latestVersion = bumpPatchVersion(CLI_VERSION);
   const server = await startUpdateServer(latestVersion);
-  const home = await fs.mkdtemp(path.join(os.tmpdir(), "cloudeval-cli-update-home-"));
+  const home = await fs.mkdtemp(
+    path.join(os.tmpdir(), "cloudeval-cli-update-home-"),
+  );
   const marker = path.join(home, "updated-version.txt");
   const env = {
     CLOUDEVAL_UPDATE_CHECK_URL: `${server.baseUrl}/latest`,
@@ -975,17 +1329,24 @@ test("update command checks and installs latest release non-interactively", asyn
   };
 
   try {
-    const check = parseJson(await runCli(["update", "--check", "--format", "json"], { home, env }));
+    const check = parseJson(
+      await runCli(["update", "--check", "--format", "json"], { home, env }),
+    );
     assert.equal(check.data.action, "available");
     assert.equal(check.data.currentVersion, CLI_VERSION);
     assert.equal(check.data.latestVersion, latestVersion);
     assert.equal(check.data.updateAvailable, true);
     await assert.rejects(fs.readFile(marker, "utf8"), /ENOENT/);
 
-    const updated = parseJson(await runCli(["update", "--yes", "--format", "json"], { home, env }));
+    const updated = parseJson(
+      await runCli(["update", "--yes", "--format", "json"], { home, env }),
+    );
     assert.equal(updated.data.action, "updated");
     assert.equal(updated.data.latestTag, `v${latestVersion}`);
-    assert.equal((await fs.readFile(marker, "utf8")).trim(), `v${latestVersion}`);
+    assert.equal(
+      (await fs.readFile(marker, "utf8")).trim(),
+      `v${latestVersion}`,
+    );
     assert.deepEqual(server.requests, ["/latest", "/latest", "/install.sh"]);
   } finally {
     await server.close();
@@ -995,79 +1356,135 @@ test("update command checks and installs latest release non-interactively", asyn
 
 test("phase one and two local commands are agent-safe and profile-aware", async () => {
   const backend = await startBackend();
-  const home = await fs.mkdtemp(path.join(os.tmpdir(), "cloudeval-cli-phase12-home-"));
+  const home = await fs.mkdtemp(
+    path.join(os.tmpdir(), "cloudeval-cli-phase12-home-"),
+  );
   try {
-    const setup = parseJson(await runCli([
-      "setup",
-      "--non-interactive",
-      "--base-url",
-      backend.baseUrl,
-      "--frontend-url",
-      "https://app.example.test",
-      "--project",
-      "project-main",
-      "--model",
-      "gpt-5-mini",
-      "--mode",
-      "agent",
-      "--profile",
-      "agent",
-      "--format",
-      "json",
-    ], { home }));
+    const setup = parseJson(
+      await runCli(
+        [
+          "setup",
+          "--non-interactive",
+          "--base-url",
+          backend.baseUrl,
+          "--frontend-url",
+          "https://app.example.test",
+          "--project",
+          "project-main",
+          "--model",
+          "gpt-5-mini",
+          "--mode",
+          "agent",
+          "--profile",
+          "agent",
+          "--format",
+          "json",
+        ],
+        { home },
+      ),
+    );
     assert.equal(setup.command, "setup");
     assert.equal(setup.data.config.baseUrl, backend.baseUrl);
     assert.equal(setup.data.config.defaultProjectId, "project-main");
     assert.equal(setup.data.config.mode, "agent");
 
-    const config = parseJson(await runCli(["config", "show", "--profile", "agent", "--format", "json"], { home }));
+    const config = parseJson(
+      await runCli(
+        ["config", "show", "--profile", "agent", "--format", "json"],
+        { home },
+      ),
+    );
     assert.equal(config.command, "config show");
     assert.equal(config.data.baseUrl, backend.baseUrl);
     assert.equal(config.data.model, "gpt-5-mini");
     assert.equal(config.data.mode, "agent");
 
-    const modeDefault = parseJson(await runCli(["config", "get", "mode", "--profile", "agent", "--format", "json"], { home }));
+    const modeDefault = parseJson(
+      await runCli(
+        ["config", "get", "mode", "--profile", "agent", "--format", "json"],
+        { home },
+      ),
+    );
     assert.equal(modeDefault.data.value, "agent");
 
-    const configPath = await runCli(["config", "path", "--profile", "agent"], { home });
+    const configPath = await runCli(["config", "path", "--profile", "agent"], {
+      home,
+    });
     assert.equal(configPath.exitCode, 0, configPath.stderr);
     assert.match(configPath.stdout, /settings\.json/);
 
-    const modelDefault = parseJson(await runCli(["models", "default", "get", "--profile", "agent", "--format", "json"], { home }));
+    const modelDefault = parseJson(
+      await runCli(
+        ["models", "default", "get", "--profile", "agent", "--format", "json"],
+        { home },
+      ),
+    );
     assert.equal(modelDefault.data.model, "gpt-5-mini");
 
-    const models = parseJson(await runCli([
-      "models",
-      "list",
-      "--access-key",
-      "test-token",
-      "--profile",
-      "agent",
-      "--format",
-      "json",
-    ], { home }));
+    const models = parseJson(
+      await runCli(
+        [
+          "models",
+          "list",
+          "--access-key",
+          "test-token",
+          "--profile",
+          "agent",
+          "--format",
+          "json",
+        ],
+        { home },
+      ),
+    );
     assert.equal(models.command, "models list");
     assert.equal(models.data.models[1].id, "gpt-5-mini");
 
-    const status = parseJson(await runCli(["status", "--profile", "agent", "--format", "json"], { home }));
+    const status = parseJson(
+      await runCli(["status", "--profile", "agent", "--format", "json"], {
+        home,
+      }),
+    );
     assert.equal(status.command, "status");
     assert.equal(status.data.baseUrl, backend.baseUrl);
     assert.equal(status.data.auth.authenticated, false);
 
-    const doctor = parseJson(await runCli(["doctor", "--profile", "agent", "--format", "json"], { home }));
+    const doctor = parseJson(
+      await runCli(["doctor", "--profile", "agent", "--format", "json"], {
+        home,
+      }),
+    );
     assert.equal(doctor.command, "doctor");
     assert.equal(doctor.data.ok, true);
-    assert.equal(doctor.data.checks.some((check: any) => check.id === "base-url-secure"), true);
+    assert.equal(
+      doctor.data.checks.some((check: any) => check.id === "base-url-secure"),
+      true,
+    );
 
-    const mcpDoctor = parseJson(await runCli(["doctor", "--profile", "agent", "--mcp", "--format", "json"], { home }));
+    const mcpDoctor = parseJson(
+      await runCli(
+        ["doctor", "--profile", "agent", "--mcp", "--format", "json"],
+        { home },
+      ),
+    );
     assert.equal(mcpDoctor.command, "doctor");
     assert.equal(mcpDoctor.data.ok, true);
-    assert.equal(mcpDoctor.data.checks.some((check: any) => check.id === "mcp-tools-list"), true);
+    assert.equal(
+      mcpDoctor.data.checks.some((check: any) => check.id === "mcp-tools-list"),
+      true,
+    );
     assert.equal(mcpDoctor.data.mcp.toolsets.includes("readonly"), true);
 
-    const capabilities = parseJson(await runCli(["capabilities", "--format", "json"], { home }));
-    assert.equal(JSON.stringify(capabilities.data.domains).includes("doctor"), true);
-    assert.equal(JSON.stringify(capabilities.data.domains).includes("sessions list"), true);
+    const capabilities = parseJson(
+      await runCli(["capabilities", "--format", "json"], { home }),
+    );
+    assert.equal(
+      JSON.stringify(capabilities.data.domains).includes("doctor"),
+      true,
+    );
+    assert.equal(
+      JSON.stringify(capabilities.data.domains).includes("sessions list"),
+      true,
+    );
   } finally {
     await fs.rm(home, { recursive: true, force: true });
     await backend.close();
@@ -1079,40 +1496,55 @@ test("mcp status and setup helpers are machine-readable", async () => {
   assert.equal(status.command, "mcp status");
   assert.equal(status.data.protocolVersion, "2025-06-18");
   assert.equal(status.data.toolsets.includes("readonly"), true);
-  assert.equal(status.data.resources.includes("cloudeval://capabilities"), true);
-  assert.equal(status.data.prompts.includes("cloudeval-cloud-cost-review"), true);
+  assert.equal(
+    status.data.resources.includes("cloudeval://capabilities"),
+    true,
+  );
+  assert.equal(
+    status.data.prompts.includes("cloudeval-cloud-cost-review"),
+    true,
+  );
   assert.equal(status.data.setupClients.includes("generic"), true);
   assert.equal(status.data.setupClients.includes("vscode"), true);
 
-  const setup = parseJson(await runCli([
-    "mcp",
-    "setup",
-    "codex",
-    "--dry-run",
-    "--command",
-    "/usr/local/bin/cloudeval",
-    "--toolset",
-    "readonly",
-    "--format",
-    "json",
-  ]));
+  const setup = parseJson(
+    await runCli([
+      "mcp",
+      "setup",
+      "codex",
+      "--dry-run",
+      "--command",
+      "/usr/local/bin/cloudeval",
+      "--toolset",
+      "readonly",
+      "--format",
+      "json",
+    ]),
+  );
   assert.equal(setup.command, "mcp setup");
   assert.equal(setup.data.client, "codex");
-  assert.deepEqual(setup.data.server.args, ["mcp", "serve", "--toolset", "readonly"]);
-  assert.match(setup.data.instructions[0], /codex mcp add cloudeval/);
-
-  const genericSetup = parseJson(await runCli([
+  assert.deepEqual(setup.data.server.args, [
     "mcp",
-    "setup",
-    "generic",
-    "--dry-run",
-    "--command",
-    "cloudeval",
+    "serve",
     "--toolset",
     "readonly",
-    "--format",
-    "json",
-  ]));
+  ]);
+  assert.match(setup.data.instructions[0], /codex mcp add cloudeval/);
+
+  const genericSetup = parseJson(
+    await runCli([
+      "mcp",
+      "setup",
+      "generic",
+      "--dry-run",
+      "--command",
+      "cloudeval",
+      "--toolset",
+      "readonly",
+      "--format",
+      "json",
+    ]),
+  );
   assert.equal(genericSetup.command, "mcp setup");
   assert.equal(genericSetup.data.client, "generic");
   assert.equal(genericSetup.data.configPath, undefined);
@@ -1124,22 +1556,32 @@ test("mcp status and setup helpers are machine-readable", async () => {
       },
     },
   });
-  assert.match(genericSetup.data.instructions[0], /Copy the shown mcpServers\.cloudeval entry/);
+  assert.match(
+    genericSetup.data.instructions[0],
+    /Copy the shown mcpServers\.cloudeval entry/,
+  );
 
-  const vscodeHome = await fs.mkdtemp(path.join(os.tmpdir(), "cloudeval-cli-vscode-mcp-home-"));
+  const vscodeHome = await fs.mkdtemp(
+    path.join(os.tmpdir(), "cloudeval-cli-vscode-mcp-home-"),
+  );
   try {
-    const vscodeSetup = parseJson(await runCli([
-      "mcp",
-      "setup",
-      "vscode",
-      "--dry-run",
-      "--command",
-      "/usr/local/bin/cloudeval",
-      "--toolset",
-      "readonly",
-      "--format",
-      "json",
-    ], { home: vscodeHome, cwd: vscodeHome }));
+    const vscodeSetup = parseJson(
+      await runCli(
+        [
+          "mcp",
+          "setup",
+          "vscode",
+          "--dry-run",
+          "--command",
+          "/usr/local/bin/cloudeval",
+          "--toolset",
+          "readonly",
+          "--format",
+          "json",
+        ],
+        { home: vscodeHome, cwd: vscodeHome },
+      ),
+    );
     assert.equal(vscodeSetup.command, "mcp setup");
     assert.equal(vscodeSetup.data.client, "vscode");
     assert.match(vscodeSetup.data.configPath, /\.vscode\/mcp\.json$/);
@@ -1160,24 +1602,35 @@ test("mcp status and setup helpers are machine-readable", async () => {
 });
 
 test("mcp setup human output is readable and avoids generic field tables", async () => {
-  const home = await fs.mkdtemp(path.join(os.tmpdir(), "cloudeval-cli-mcp-human-home-"));
+  const home = await fs.mkdtemp(
+    path.join(os.tmpdir(), "cloudeval-cli-mcp-human-home-"),
+  );
   try {
-    const result = await runCli([
-      "mcp",
-      "setup",
-      "claude",
-      "--command",
-      "/usr/local/bin/cloudeval",
-      "--toolset",
-      "readonly",
-    ], { home });
+    const result = await runCli(
+      [
+        "mcp",
+        "setup",
+        "claude",
+        "--command",
+        "/usr/local/bin/cloudeval",
+        "--toolset",
+        "readonly",
+      ],
+      { home },
+    );
 
     assert.equal(result.exitCode, 0, result.stderr);
     assert.match(result.stdout, /^CloudEval MCP setup\n/);
     assert.match(result.stdout, /Client: Claude/);
     assert.match(result.stdout, /Status: wrote config/);
-    assert.match(result.stdout, /Command: \/usr\/local\/bin\/cloudeval mcp serve --toolset readonly/);
-    assert.match(result.stdout, /Restart Claude Desktop to load the CloudEval MCP server/);
+    assert.match(
+      result.stdout,
+      /Command: \/usr\/local\/bin\/cloudeval mcp serve --toolset readonly/,
+    );
+    assert.match(
+      result.stdout,
+      /Restart Claude Desktop to load the CloudEval MCP server/,
+    );
     assert.doesNotMatch(result.stdout, /Merge the shown/);
     assert.doesNotMatch(result.stdout, /^Field\s+Value/m);
   } finally {
@@ -1188,11 +1641,22 @@ test("mcp setup human output is readable and avoids generic field tables", async
 test("auth status is non-interactive and respects explicit base url", async () => {
   const backend = await startBackend();
   try {
-    const result = await runCli(["auth", "status", "--base-url", backend.baseUrl]);
+    const result = await runCli([
+      "auth",
+      "status",
+      "--base-url",
+      backend.baseUrl,
+    ]);
     assert.equal(result.exitCode, 0, result.stderr);
     assert.match(result.stdout, /^Field\s+Value/m);
     assert.match(result.stdout, /^Authenticated\s+no$/m);
-    assert.match(result.stdout, new RegExp(`^CLI API URL\\s+${backend.baseUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "m"));
+    assert.match(
+      result.stdout,
+      new RegExp(
+        `^CLI API URL\\s+${backend.baseUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`,
+        "m",
+      ),
+    );
   } finally {
     await backend.close();
   }
@@ -1200,7 +1664,9 @@ test("auth status is non-interactive and respects explicit base url", async () =
 
 test("auth status redacts stored account and session ids unless explicitly requested", async () => {
   const backend = await startBackend();
-  const home = await fs.mkdtemp(path.join(os.tmpdir(), "cloudeval-cli-auth-status-home-"));
+  const home = await fs.mkdtemp(
+    path.join(os.tmpdir(), "cloudeval-cli-auth-status-home-"),
+  );
   const configDir = path.join(home, ".config", "cloudeval");
   const sessionId = "63da1973-e92a-4d2e-8d01-4d8e131b3f21";
   const accountId = "5ed935a4-0814-4099-8b10-f6ef9ea74ff4";
@@ -1218,41 +1684,47 @@ test("auth status redacts stored account and session ids unless explicitly reque
           accountId,
         },
         null,
-        2
-      )
+        2,
+      ),
     );
     await fs.writeFile(
       path.join(configDir, "secrets.json"),
-      JSON.stringify({ "access-token": "test-token" }, null, 2)
+      JSON.stringify({ "access-token": "test-token" }, null, 2),
     );
 
-    const textResult = await runCli(["auth", "status", "--base-url", backend.baseUrl], { home });
+    const textResult = await runCli(
+      ["auth", "status", "--base-url", backend.baseUrl],
+      { home },
+    );
     assert.equal(textResult.exitCode, 0, textResult.stderr);
     assert.doesNotMatch(textResult.stdout, new RegExp(sessionId));
     assert.doesNotMatch(textResult.stdout, new RegExp(accountId));
     assert.match(textResult.stdout, /^Session ID\s+63da\.\.\.3f21$/m);
     assert.match(textResult.stdout, /^Account ID\s+5ed9\.\.\.4ff4$/m);
 
-    const jsonResult = parseJson(await runCli([
-      "auth",
-      "status",
-      "--base-url",
-      backend.baseUrl,
-      "--format",
-      "json",
-    ], { home }));
+    const jsonResult = parseJson(
+      await runCli(
+        ["auth", "status", "--base-url", backend.baseUrl, "--format", "json"],
+        { home },
+      ),
+    );
     assert.equal(jsonResult.data.sessionId, "63da...3f21");
     assert.equal(jsonResult.data.accountId, "5ed9...4ff4");
 
-    const fullJsonResult = parseJson(await runCli([
-      "auth",
-      "status",
-      "--base-url",
-      backend.baseUrl,
-      "--format",
-      "json",
-      "--show-sensitive-ids",
-    ], { home }));
+    const fullJsonResult = parseJson(
+      await runCli(
+        [
+          "auth",
+          "status",
+          "--base-url",
+          backend.baseUrl,
+          "--format",
+          "json",
+          "--show-sensitive-ids",
+        ],
+        { home },
+      ),
+    );
     assert.equal(fullJsonResult.data.sessionId, sessionId);
     assert.equal(fullJsonResult.data.accountId, accountId);
   } finally {
@@ -1268,7 +1740,13 @@ test("status human output is a readable summary instead of formatter tables", as
     assert.equal(result.exitCode, 0, result.stderr);
     assert.match(result.stdout, /^CloudEval CLI Status$/m);
     assert.match(result.stdout, /^Profile:\s+default$/m);
-    assert.match(result.stdout, new RegExp(`^Base URL:\\s+${backend.baseUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "m"));
+    assert.match(
+      result.stdout,
+      new RegExp(
+        `^Base URL:\\s+${backend.baseUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`,
+        "m",
+      ),
+    );
     assert.match(result.stdout, /^Auth:\s+(signed in|signed out)$/m);
     assert.doesNotMatch(result.stdout, /^Field\s+Value$/m);
     assert.doesNotMatch(result.stdout, /^-+\s+-+$/m);
@@ -1279,7 +1757,9 @@ test("status human output is a readable summary instead of formatter tables", as
 
 test("auth-gated project commands clear backend-rejected stored auth", async () => {
   const backend = await startBackend({ authMeStatus: 401 });
-  const home = await fs.mkdtemp(path.join(os.tmpdir(), "cloudeval-cli-rejected-auth-"));
+  const home = await fs.mkdtemp(
+    path.join(os.tmpdir(), "cloudeval-cli-rejected-auth-"),
+  );
   const configDir = path.join(home, ".config", "cloudeval");
   const configPath = path.join(configDir, "config.json");
   const secretsPath = path.join(configDir, "secrets.json");
@@ -1295,8 +1775,8 @@ test("auth-gated project commands clear backend-rejected stored auth", async () 
           baseUrl: backend.baseUrl,
         },
         null,
-        2
-      )
+        2,
+      ),
     );
     await fs.writeFile(
       secretsPath,
@@ -1305,23 +1785,29 @@ test("auth-gated project commands clear backend-rejected stored auth", async () 
           "access-token": "backend-rejected-token",
         },
         null,
-        2
-      )
+        2,
+      ),
     );
 
-    const result = await runCli([
-      "projects",
-      "list",
-      "--base-url",
-      backend.baseUrl,
-      "--format",
-      "json",
-      "--non-interactive",
-    ], { home });
+    const result = await runCli(
+      [
+        "projects",
+        "list",
+        "--base-url",
+        backend.baseUrl,
+        "--format",
+        "json",
+        "--non-interactive",
+      ],
+      { home },
+    );
 
     assert.notEqual(result.exitCode, 0);
     assert.match(result.stderr, /Run `cloudeval login` and retry/);
-    assert.match(result.stderr, /Stored authentication was rejected by CloudEval/);
+    assert.match(
+      result.stderr,
+      /Stored authentication was rejected by CloudEval/,
+    );
     await assert.rejects(fs.stat(configPath), { code: "ENOENT" });
     assert.deepEqual(JSON.parse(await fs.readFile(secretsPath, "utf8")), {});
   } finally {
@@ -1339,15 +1825,15 @@ test("headless login runs quick Playground onboarding for device-created users",
     authUser: incompleteUser,
     projects: [],
   });
-  const home = await fs.mkdtemp(path.join(os.tmpdir(), "cloudeval-cli-login-home-"));
+  const home = await fs.mkdtemp(
+    path.join(os.tmpdir(), "cloudeval-cli-login-home-"),
+  );
 
   try {
-    const result = await runCli([
-      "login",
-      "--base-url",
-      backend.baseUrl,
-      "--headless",
-    ], { home, timeoutMs: 15_000 });
+    const result = await runCli(
+      ["login", "--base-url", backend.baseUrl, "--headless"],
+      { home, timeoutMs: 15_000 },
+    );
 
     assert.equal(result.exitCode, 0, result.stderr);
     assert.match(result.stdout, /Authentication successful\. Session saved\./);
@@ -1356,9 +1842,12 @@ test("headless login runs quick Playground onboarding for device-created users",
     assert.match(result.stdout, /Login successful/);
 
     const quickRequest = backend.requests.find(
-      (request) => request.path === "/api/v1/onboard/quick"
+      (request) => request.path === "/api/v1/onboard/quick",
     );
-    assert.ok(quickRequest, "login should call /onboard/quick after device auth");
+    assert.ok(
+      quickRequest,
+      "login should call /onboard/quick after device auth",
+    );
     assert.equal(quickRequest.authorization, "Bearer test-token");
     const body = JSON.parse(quickRequest.body || "{}");
     assert.equal(body.email, user.email);
@@ -1371,44 +1860,54 @@ test("headless login runs quick Playground onboarding for device-created users",
 
 test("project creation, project reads, output files, and stdin access key work non-interactively", async () => {
   const backend = await startBackend();
-  const outputDir = await fs.mkdtemp(path.join(os.tmpdir(), "cloudeval-project-output-"));
+  const outputDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "cloudeval-project-output-"),
+  );
   try {
-    const create = parseJson(await runCli([
-      "projects",
-      "create",
-      "--base-url",
-      backend.baseUrl,
-      "--access-key",
-      "test-token",
-      "--template-url",
-      "https://github.com/Azure/azure-quickstart-templates/blob/main/quickstarts/microsoft.compute/vm-simple-linux/azuredeploy.json",
-      "--name",
-      "CLI Created Project",
-      "--description",
-      "Created by non-interactive test",
-      "--provider",
-      "azure",
-      "--format",
-      "json",
-      "--frontend-url",
-      "https://app.example.test",
-      "--no-open",
-    ]));
+    const create = parseJson(
+      await runCli([
+        "projects",
+        "create",
+        "--base-url",
+        backend.baseUrl,
+        "--access-key",
+        "test-token",
+        "--template-url",
+        "https://github.com/Azure/azure-quickstart-templates/blob/main/quickstarts/microsoft.compute/vm-simple-linux/azuredeploy.json",
+        "--name",
+        "CLI Created Project",
+        "--description",
+        "Created by non-interactive test",
+        "--provider",
+        "azure",
+        "--format",
+        "json",
+        "--frontend-url",
+        "https://app.example.test",
+        "--no-open",
+      ]),
+    );
     assert.equal(create.command, "projects create");
     assert.equal(create.data.project.id, "project-created");
     assert.equal(create.data.connection.id, "conn-created");
-    assert.match(create.frontendUrl, /https:\/\/app\.example\.test\/app\/projects\/project-created/);
+    assert.match(
+      create.frontendUrl,
+      /https:\/\/app\.example\.test\/app\/projects\/project-created/,
+    );
 
-    const list = await runCli([
-      "projects",
-      "list",
-      "--base-url",
-      backend.baseUrl,
-      "--access-key-stdin",
-      "--format",
-      "ndjson",
-      "--non-interactive",
-    ], { input: "stdin-token\n" });
+    const list = await runCli(
+      [
+        "projects",
+        "list",
+        "--base-url",
+        backend.baseUrl,
+        "--access-key-stdin",
+        "--format",
+        "ndjson",
+        "--non-interactive",
+      ],
+      { input: "stdin-token\n" },
+    );
     assert.equal(list.exitCode, 0, list.stderr);
     assert.match(list.stdout, /"id":"project-main"/);
 
@@ -1424,31 +1923,36 @@ test("project creation, project reads, output files, and stdin access key work n
       "--non-interactive",
     ]);
     assert.equal(textList.exitCode, 0, textList.stderr);
-    assert.match(textList.stdout, /^ID\s+Name\s+Provider\s+Source\s+Status\s+Updated/m);
+    assert.match(
+      textList.stdout,
+      /^ID\s+Name\s+Provider\s+Source\s+Status\s+Updated/m,
+    );
     assert.match(textList.stdout, /project-main\s+Playground\s+azure/);
     assert.doesNotMatch(textList.stdout, /dashboard:/);
     assert.doesNotMatch(textList.stdout, /reports:/);
 
-    const serviceList = parseJson(await runCli([
-      "projects",
-      "list",
-      "--base-url",
-      backend.baseUrl,
-      "--access-key",
-      "cev_test_ak_01JSERVICE_secret",
-      "--format",
-      "json",
-      "--non-interactive",
-    ]));
+    const serviceList = parseJson(
+      await runCli([
+        "projects",
+        "list",
+        "--base-url",
+        backend.baseUrl,
+        "--access-key",
+        "cev_test_ak_01JSERVICE_secret",
+        "--format",
+        "json",
+        "--non-interactive",
+      ]),
+    );
     assert.equal(serviceList.command, "projects list");
     assert.equal(serviceList.data[0].id, "project-main");
     assert.ok(
       backend.requests.some(
         (request) =>
           request.path === "/api/v1/projects/" &&
-          request.authorization === "Bearer cev_test_ak_01JSERVICE_secret"
+          request.authorization === "Bearer cev_test_ak_01JSERVICE_secret",
       ),
-      "service-account access keys should list projects through the scoped collection endpoint"
+      "service-account access keys should list projects through the scoped collection endpoint",
     );
 
     const output = path.join(outputDir, "project.json");
@@ -1471,18 +1975,20 @@ test("project creation, project reads, output files, and stdin access key work n
     const saved = JSON.parse(await fs.readFile(output, "utf8"));
     assert.equal(saved.data.id, "project-main");
 
-    const serviceGet = parseJson(await runCli([
-      "projects",
-      "get",
-      "project-main",
-      "--base-url",
-      backend.baseUrl,
-      "--access-key",
-      "cev_test_ak_01JSERVICE_secret",
-      "--format",
-      "json",
-      "--non-interactive",
-    ]));
+    const serviceGet = parseJson(
+      await runCli([
+        "projects",
+        "get",
+        "project-main",
+        "--base-url",
+        backend.baseUrl,
+        "--access-key",
+        "cev_test_ak_01JSERVICE_secret",
+        "--format",
+        "json",
+        "--non-interactive",
+      ]),
+    );
     assert.equal(serviceGet.command, "projects get");
     assert.equal(serviceGet.data.id, "project-main");
 
@@ -1490,7 +1996,10 @@ test("project creation, project reads, output files, and stdin access key work n
     const imageOutput = path.join(outputDir, "architecture.png");
     const headersOutput = path.join(outputDir, "architecture.headers");
     const relativeImageOutput = path.relative(path.resolve("."), imageOutput);
-    const relativeHeadersOutput = path.relative(path.resolve("."), headersOutput);
+    const relativeHeadersOutput = path.relative(
+      path.resolve("."),
+      headersOutput,
+    );
     const image = await runCli([
       "projects",
       "export-diagram",
@@ -1516,7 +2025,9 @@ test("project creation, project reads, output files, and stdin access key work n
     assert.equal(image.exitCode, 0, image.stderr);
     assert.match(
       image.stdout,
-      new RegExp(`Downloaded architecture diagram to ${imageOutput.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`)
+      new RegExp(
+        `Downloaded architecture diagram to ${imageOutput.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`,
+      ),
     );
     assert.equal(await fs.readFile(imageOutput, "utf8"), "mock-image-bytes");
     const imageHeaders = await fs.readFile(headersOutput, "utf8");
@@ -1535,7 +2046,8 @@ test("project creation, project reads, output files, and stdin access key work n
     );
 
     const missingImageRequestsBefore = backend.requests.filter(
-      (request) => request.path === "/api/projects/missing-project/diagram-image",
+      (request) =>
+        request.path === "/api/projects/missing-project/diagram-image",
     ).length;
     const missingImage = await runCli([
       "projects",
@@ -1561,7 +2073,8 @@ test("project creation, project reads, output files, and stdin access key work n
     assert.match(missingImage.stderr, /Project missing-project was not found/);
     assert.equal(
       backend.requests.filter(
-        (request) => request.path === "/api/projects/missing-project/diagram-image",
+        (request) =>
+          request.path === "/api/projects/missing-project/diagram-image",
       ).length,
       missingImageRequestsBefore,
     );
@@ -1589,7 +2102,10 @@ test("project creation, project reads, output files, and stdin access key work n
       "--non-interactive",
     ]);
     assert.equal(publicImage.exitCode, 0, publicImage.stderr);
-    assert.equal(await fs.readFile(publicImageOutput, "utf8"), "<svg>mock</svg>");
+    assert.equal(
+      await fs.readFile(publicImageOutput, "utf8"),
+      "<svg>mock</svg>",
+    );
     const publicImagePayload = JSON.parse(publicImage.stdout);
     assert.equal(publicImagePayload.data.output, publicImageOutput);
     assert.equal(publicImagePayload.data.headersOutput, publicHeadersOutput);
@@ -1633,7 +2149,10 @@ test("project creation, project reads, output files, and stdin access key work n
       "--non-interactive",
     ]);
     assert.equal(legacyImage.exitCode, 0, legacyImage.stderr);
-    assert.equal(await fs.readFile(legacyImageOutput, "utf8"), "mock-image-bytes");
+    assert.equal(
+      await fs.readFile(legacyImageOutput, "utf8"),
+      "mock-image-bytes",
+    );
   } finally {
     await fs.rm(outputDir, { recursive: true, force: true });
     await backend.close();
@@ -1643,17 +2162,19 @@ test("project creation, project reads, output files, and stdin access key work n
 test("connections and frontend deeplinks run without opening browsers", async () => {
   const backend = await startBackend();
   try {
-    const list = parseJson(await runCli([
-      "connections",
-      "list",
-      "--base-url",
-      backend.baseUrl,
-      "--access-key",
-      "test-token",
-      "--format",
-      "json",
-      "--non-interactive",
-    ]));
+    const list = parseJson(
+      await runCli([
+        "connections",
+        "list",
+        "--base-url",
+        backend.baseUrl,
+        "--access-key",
+        "test-token",
+        "--format",
+        "json",
+        "--non-interactive",
+      ]),
+    );
     assert.equal(list.data[0].id, "conn-main");
 
     const open = await runCli([
@@ -1674,7 +2195,10 @@ test("connections and frontend deeplinks run without opening browsers", async ()
       "--no-open",
     ]);
     assert.equal(open.exitCode, 0, open.stderr);
-    assert.match(open.stdout, /https:\/\/app\.example\.test\/app\/projects\/project-main/);
+    assert.match(
+      open.stdout,
+      /https:\/\/app\.example\.test\/app\/projects\/project-main/,
+    );
     assert.match(open.stdout, /view=both/);
     assert.match(open.stdout, /layout=dependency/);
   } finally {
@@ -1684,61 +2208,113 @@ test("connections and frontend deeplinks run without opening browsers", async ()
 
 test("report list, show, cost, waf, rules, and download commands return report data", async () => {
   const backend = await startBackend();
-  const outputDir = await fs.mkdtemp(path.join(os.tmpdir(), "cloudeval-report-output-"));
+  const outputDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "cloudeval-report-output-"),
+  );
   try {
-    const common = ["--base-url", backend.baseUrl, "--access-key", "test-token", "--project", "project-main", "--non-interactive"];
+    const common = [
+      "--base-url",
+      backend.baseUrl,
+      "--access-key",
+      "test-token",
+      "--project",
+      "project-main",
+      "--non-interactive",
+    ];
 
-    const list = await runCli(["reports", "list", ...common, "--kind", "all", "--format", "json"]);
+    const list = await runCli([
+      "reports",
+      "list",
+      ...common,
+      "--kind",
+      "all",
+      "--format",
+      "json",
+    ]);
     assert.equal(list.exitCode, 0, list.stderr);
     const listed = JSON.parse(list.stdout);
     assert.equal(listed.length, 2);
     assert.equal(listed[0].id, "cost-current");
 
-    const shown = parseJson(await runCli(["reports", "show", "cost-current", ...common, "--format", "json", "--parsed"]));
+    const shown = parseJson(
+      await runCli([
+        "reports",
+        "show",
+        "cost-current",
+        ...common,
+        "--format",
+        "json",
+        "--parsed",
+      ]),
+    );
     assert.equal(shown.totalSpend.amount, 42);
 
-    const cost = await runCli(["reports", "cost", ...common, "--period", "30d", "--format", "markdown", "--formatted"]);
+    const cost = await runCli([
+      "reports",
+      "cost",
+      ...common,
+      "--period",
+      "30d",
+      "--format",
+      "markdown",
+      "--formatted",
+    ]);
     assert.equal(cost.exitCode, 0, cost.stderr);
     assert.match(cost.stdout, /# Cost Report/);
 
-    const waf = await runCli(["reports", "waf", ...common, "--severity", "medium", "--format", "json", "--parsed"]);
+    const waf = await runCli([
+      "reports",
+      "waf",
+      ...common,
+      "--severity",
+      "medium",
+      "--format",
+      "json",
+      "--parsed",
+    ]);
     assert.equal(waf.exitCode, 0, waf.stderr);
     assert.equal(JSON.parse(waf.stdout).score.overall, 91);
 
-    const rules = parseJson(await runCli(["reports", "rules", ...common, "--format", "json"]));
+    const rules = parseJson(
+      await runCli(["reports", "rules", ...common, "--format", "json"]),
+    );
     assert.equal(rules.command, "reports rules");
     assert.equal(rules.data[0].id, "SEC-1");
 
-    const run = parseJson(await runCli([
-      "reports",
-      "run",
-      ...common,
-      "--type",
-      "cost",
-      "--format",
-      "json",
-      "--no-open",
-    ]));
+    const run = parseJson(
+      await runCli([
+        "reports",
+        "run",
+        ...common,
+        "--type",
+        "cost",
+        "--format",
+        "json",
+        "--no-open",
+      ]),
+    );
     assert.equal(run.command, "reports run");
     assert.equal(run.data.projectId, "project-main");
     assert.deepEqual(run.data.jobs, ["job-cost-1"]);
 
-    const download = parseJson(await runCli([
-      "reports",
-      "download",
-      ...common,
-      "--type",
-      "all",
-      "--view",
-      "raw",
-      "--output",
-      outputDir,
-      "--format",
-      "json",
-      "--frontend-url",
-      "https://app.example.test",
-      "--no-open",
-    ]));
+    const download = parseJson(
+      await runCli([
+        "reports",
+        "download",
+        ...common,
+        "--type",
+        "all",
+        "--view",
+        "raw",
+        "--output",
+        outputDir,
+        "--format",
+        "json",
+        "--frontend-url",
+        "https://app.example.test",
+        "--no-open",
+      ]),
+    );
     assert.equal(download.command, "reports download");
     assert.equal(download.data.filesWritten.length, 2);
     assert.deepEqual((await fs.readdir(outputDir)).sort(), [
@@ -1754,7 +2330,15 @@ test("report list, show, cost, waf, rules, and download commands return report d
 test("billing and credits commands are non-interactive and JSON-safe", async () => {
   const backend = await startBackend();
   try {
-    const common = ["--base-url", backend.baseUrl, "--access-key", "test-token", "--format", "json", "--non-interactive"];
+    const common = [
+      "--base-url",
+      backend.baseUrl,
+      "--access-key",
+      "test-token",
+      "--format",
+      "json",
+      "--non-interactive",
+    ];
     const credits = parseJson(await runCli(["credits", ...common]));
     assert.equal(credits.command, "credits");
     assert.equal(credits.data.entitlement.plan.id, "free");
@@ -1762,10 +2346,22 @@ test("billing and credits commands are non-interactive and JSON-safe", async () 
     const summary = parseJson(await runCli(["billing", "summary", ...common]));
     assert.equal(summary.data.subscriptionStatus.status, "active");
 
-    const usage = parseJson(await runCli(["billing", "usage", ...common, "--range", "7d", "--granularity", "day"]));
+    const usage = parseJson(
+      await runCli([
+        "billing",
+        "usage",
+        ...common,
+        "--range",
+        "7d",
+        "--granularity",
+        "day",
+      ]),
+    );
     assert.equal(usage.data.total_events, 2);
 
-    const ledger = parseJson(await runCli(["billing", "ledger", ...common, "--limit", "5"]));
+    const ledger = parseJson(
+      await runCli(["billing", "ledger", ...common, "--limit", "5"]),
+    );
     assert.equal(ledger.data.items[0].id, "usage-1");
 
     const plans = parseJson(await runCli(["billing", "plans", ...common]));
@@ -1774,49 +2370,53 @@ test("billing and credits commands are non-interactive and JSON-safe", async () 
     const topups = parseJson(await runCli(["billing", "topups", ...common]));
     assert.equal(topups.data.packs[0].id, "starter");
 
-    const checkout = parseJson(await runCli([
-      "billing",
-      "topup",
-      "starter",
-      ...common,
-      "--currency",
-      "USD",
-      "--country-code",
-      "US",
-      "--frontend-url",
-      "https://app.example.test",
-      "--no-open",
-    ]));
+    const checkout = parseJson(
+      await runCli([
+        "billing",
+        "topup",
+        "starter",
+        ...common,
+        "--currency",
+        "USD",
+        "--country-code",
+        "US",
+        "--frontend-url",
+        "https://app.example.test",
+        "--no-open",
+      ]),
+    );
     assert.equal(checkout.command, "billing topup");
     assert.equal(checkout.data.packId, "starter");
     assert.equal(checkout.data.session.session_id, "cs_t...up_1");
     assert.equal(
       checkout.data.checkoutUrl,
-      "https://app.example.test/app/subscription/checkout-launcher?session_id=cs_t...up_1"
+      "https://app.example.test/app/subscription/checkout-launcher?session_id=cs_t...up_1",
     );
 
-    const fullCheckout = parseJson(await runCli([
-      "--show-sensitive-ids",
-      "billing",
-      "topup",
-      "starter",
-      ...common,
-      "--currency",
-      "USD",
-      "--country-code",
-      "US",
-      "--frontend-url",
-      "https://app.example.test",
-      "--no-open",
-    ]));
+    const fullCheckout = parseJson(
+      await runCli([
+        "--show-sensitive-ids",
+        "billing",
+        "topup",
+        "starter",
+        ...common,
+        "--currency",
+        "USD",
+        "--country-code",
+        "US",
+        "--frontend-url",
+        "https://app.example.test",
+        "--no-open",
+      ]),
+    );
     assert.equal(fullCheckout.data.session.session_id, "cs_topup_1");
     assert.equal(
       fullCheckout.data.checkoutUrl,
-      "https://app.example.test/app/subscription/checkout-launcher?session_id=cs_topup_1"
+      "https://app.example.test/app/subscription/checkout-launcher?session_id=cs_topup_1",
     );
 
     const checkoutRequest = backend.requests.find(
-      (request) => request.path === "/api/v1/billing/checkout/session/top-up"
+      (request) => request.path === "/api/v1/billing/checkout/session/top-up",
     );
     assert(checkoutRequest);
     assert.equal(checkoutRequest.method, "POST");
@@ -1834,7 +2434,13 @@ test("billing and credits commands are non-interactive and JSON-safe", async () 
 test("default human output uses tables for list-style authenticated commands", async () => {
   const backend = await startBackend();
   try {
-    const common = ["--base-url", backend.baseUrl, "--access-key", "test-token", "--non-interactive"];
+    const common = [
+      "--base-url",
+      backend.baseUrl,
+      "--access-key",
+      "test-token",
+      "--non-interactive",
+    ];
 
     const reports = await runCli(["reports", "list", ...common]);
     assert.equal(reports.exitCode, 0, reports.stderr);
@@ -1856,7 +2462,13 @@ test("default human output uses tables for list-style authenticated commands", a
     assert.match(plans.stdout, /^ID\s+Name\s+Price\s+Credits/m);
     assert.doesNotMatch(plans.stdout, /^plans: \[/m);
 
-    const ledger = await runCli(["billing", "ledger", ...common, "--limit", "5"]);
+    const ledger = await runCli([
+      "billing",
+      "ledger",
+      ...common,
+      "--limit",
+      "5",
+    ]);
     assert.equal(ledger.exitCode, 0, ledger.stderr);
     assert.match(ledger.stdout, /^ID\s+Action\s+Outcome\s+Credits/m);
     assert.doesNotMatch(ledger.stdout, /^items: \[/m);
@@ -1865,13 +2477,144 @@ test("default human output uses tables for list-style authenticated commands", a
   }
 });
 
+test("agents list and show do not require authentication", async () => {
+  const backend = await startBackend();
+  try {
+    const list = parseJson(
+      await runCli([
+        "agents",
+        "list",
+        "--base-url",
+        backend.baseUrl,
+        "--format",
+        "json",
+        "--non-interactive",
+      ]),
+    );
+    assert.equal(list.data.profiles[0].display_name, "Cost");
+
+    const show = parseJson(
+      await runCli([
+        "agents",
+        "show",
+        "cost",
+        "--base-url",
+        backend.baseUrl,
+        "--format",
+        "json",
+        "--non-interactive",
+      ]),
+    );
+    assert.equal(show.data.profile.id, "cost");
+
+    const profileRequests = backend.requests.filter((request) =>
+      request.path.startsWith("/api/v1/agent-profiles"),
+    );
+    assert.equal(profileRequests.length, 2);
+    assert.deepEqual(
+      profileRequests.map((request) => request.authorization),
+      [undefined, undefined],
+    );
+  } finally {
+    await backend.close();
+  }
+});
+
+test("agents run sends the selected Agent Profile to chat stream", async () => {
+  const backend = await startBackend();
+  try {
+    const result = parseJson(
+      await runCli([
+        "agents",
+        "run",
+        "cost",
+        "thinking progress",
+        "--project",
+        "project-main",
+        "--base-url",
+        backend.baseUrl,
+        "--access-key",
+        "test-token",
+        "--format",
+        "json",
+        "--non-interactive",
+      ]),
+    );
+
+    assert.equal(result.command, "agents run");
+    assert.equal(result.data.profile.display_name, "Cost");
+    assert.equal(result.data.response, "Report summary ready.");
+
+    const streamRequest = backend.requests.find(
+      (request) => request.path === "/api/v1/chat/stream",
+    );
+    assert(streamRequest);
+    const payload = JSON.parse(streamRequest.body);
+    assert.equal(payload.agent_profile_id, "cost");
+    assert.equal(payload.input.agent_profile_id, "cost");
+    assert.equal(payload.settings.mode, "agent");
+    assert.equal(streamRequest.authorization, "Bearer test-token");
+  } finally {
+    await backend.close();
+  }
+});
+
+test("agents run uses a project-type starter prompt when no prompt is passed", async () => {
+  const backend = await startBackend();
+  try {
+    const result = parseJson(
+      await runCli([
+        "agents",
+        "run",
+        "cost",
+        "--project",
+        "project-main",
+        "--base-url",
+        backend.baseUrl,
+        "--access-key",
+        "test-token",
+        "--format",
+        "json",
+        "--non-interactive",
+      ]),
+    );
+
+    assert.equal(
+      result.data.prompt,
+      "Review template cost evidence and next validation step.",
+    );
+
+    const streamRequest = backend.requests.find(
+      (request) => request.path === "/api/v1/chat/stream",
+    );
+    assert(streamRequest);
+    const payload = JSON.parse(streamRequest.body);
+    assert.equal(
+      payload.message,
+      "Review template cost evidence and next validation step.",
+    );
+  } finally {
+    await backend.close();
+  }
+});
+
 test("billing auth failures preserve JSON output", async () => {
-  const plans = parseJsonError(await runCli(["billing", "plans", "--format", "json", "--non-interactive"]));
+  const plans = parseJsonError(
+    await runCli(["billing", "plans", "--format", "json", "--non-interactive"]),
+  );
   assert.equal(plans.ok, false);
   assert.equal(plans.command, "billing plans");
   assert.match(plans.error.message, /No authentication available/);
 
-  const topups = parseJsonError(await runCli(["billing", "topups", "--format", "json", "--non-interactive"]));
+  const topups = parseJsonError(
+    await runCli([
+      "billing",
+      "topups",
+      "--format",
+      "json",
+      "--non-interactive",
+    ]),
+  );
   assert.equal(topups.ok, false);
   assert.equal(topups.command, "billing topups");
   assert.match(topups.error.message, /No authentication available/);
@@ -1879,58 +2622,86 @@ test("billing auth failures preserve JSON output", async () => {
 
 test("ask streams a single answer non-interactively with selected project and model", async () => {
   const backend = await startBackend();
-  const home = await fs.mkdtemp(path.join(os.tmpdir(), "cloudeval-cli-session-home-"));
+  const home = await fs.mkdtemp(
+    path.join(os.tmpdir(), "cloudeval-cli-session-home-"),
+  );
   try {
-    const answer = parseJson(await runCli([
-      "ask",
-      "What can you do?",
-      "--base-url",
-      backend.baseUrl,
-      "--access-key",
-      "test-token",
-      "--project",
-      "project-main",
-      "--model",
-      "gpt-5-mini",
-      "--thread",
-      "thread-reuse",
-      "--format",
-      "json",
-      "--non-interactive",
-      "--print-url",
-      "--no-open",
-      "--frontend-url",
-      "https://app.example.test",
-    ], { home }));
+    const answer = parseJson(
+      await runCli(
+        [
+          "ask",
+          "What can you do?",
+          "--base-url",
+          backend.baseUrl,
+          "--access-key",
+          "test-token",
+          "--project",
+          "project-main",
+          "--model",
+          "gpt-5-mini",
+          "--thread",
+          "thread-reuse",
+          "--format",
+          "json",
+          "--non-interactive",
+          "--print-url",
+          "--no-open",
+          "--frontend-url",
+          "https://app.example.test",
+        ],
+        { home },
+      ),
+    );
     assert.equal(answer.command, "ask");
     assert.equal(answer.data.response, "Mock answer from Cloudeval AI.");
     assert.equal(answer.data.project.id, "project-main");
 
-    const sessions = parseJson(await runCli(["sessions", "list", "--format", "json"], { home }));
+    const sessions = parseJson(
+      await runCli(["sessions", "list", "--format", "json"], { home }),
+    );
     assert.equal(sessions.command, "sessions list");
     assert.equal(sessions.data[0].threadId, answer.data.threadId);
     assert.equal(sessions.data[0].projectId, "project-main");
 
-    const session = parseJson(await runCli(["sessions", "get", answer.data.threadId, "--format", "json"], { home }));
+    const session = parseJson(
+      await runCli(
+        ["sessions", "get", answer.data.threadId, "--format", "json"],
+        { home },
+      ),
+    );
     assert.equal(session.data.messages[0].role, "user");
-    assert.equal(session.data.messages.at(-1).content, "Mock answer from Cloudeval AI.");
+    assert.equal(
+      session.data.messages.at(-1).content,
+      "Mock answer from Cloudeval AI.",
+    );
 
-    const search = parseJson(await runCli(["sessions", "search", "Mock answer", "--format", "json"], { home }));
+    const search = parseJson(
+      await runCli(["sessions", "search", "Mock answer", "--format", "json"], {
+        home,
+      }),
+    );
     assert.equal(search.command, "sessions search");
     assert.equal(search.data[0].threadId, answer.data.threadId);
 
-    const renamed = parseJson(await runCli([
-      "sessions",
-      "rename",
-      answer.data.threadId,
-      "Reusable thread",
-      "--format",
-      "json",
-    ], { home }));
+    const renamed = parseJson(
+      await runCli(
+        [
+          "sessions",
+          "rename",
+          answer.data.threadId,
+          "Reusable thread",
+          "--format",
+          "json",
+        ],
+        { home },
+      ),
+    );
     assert.equal(renamed.command, "sessions rename");
     assert.equal(renamed.data.title, "Reusable thread");
 
-    const streamRequest = backend.requests.find((request) => request.path === "/api/v1/chat/stream");
+    const streamRequest = backend.requests.find(
+      (request) => request.path === "/api/v1/chat/stream",
+    );
     assert(streamRequest);
     const payload = JSON.parse(streamRequest.body);
     assert.equal(payload.thread_id, "thread-reuse");
@@ -1946,38 +2717,49 @@ test("ask streams a single answer non-interactively with selected project and mo
 
 test("agent streams a task non-interactively with agent mode settings", async () => {
   const backend = await startBackend();
-  const home = await fs.mkdtemp(path.join(os.tmpdir(), "cloudeval-cli-agent-home-"));
+  const home = await fs.mkdtemp(
+    path.join(os.tmpdir(), "cloudeval-cli-agent-home-"),
+  );
   try {
-    const answer = parseJson(await runCli([
-      "agent",
-      "review",
-      "cloud",
-      "risks",
-      "--base-url",
-      backend.baseUrl,
-      "--access-key",
-      "test-token",
-      "--project",
-      "project-main",
-      "--model",
-      "gpt-5-mini",
-      "--format",
-      "json",
-      "--non-interactive",
-      "--progress",
-      "none",
-    ], { home }));
+    const answer = parseJson(
+      await runCli(
+        [
+          "agent",
+          "review",
+          "cloud",
+          "risks",
+          "--base-url",
+          backend.baseUrl,
+          "--access-key",
+          "test-token",
+          "--project",
+          "project-main",
+          "--model",
+          "gpt-5-mini",
+          "--format",
+          "json",
+          "--non-interactive",
+          "--progress",
+          "none",
+        ],
+        { home },
+      ),
+    );
 
     assert.equal(answer.command, "agent");
     assert.equal(answer.data.response, "Mock answer from Cloudeval AI.");
     assert.equal(answer.data.project.id, "project-main");
 
-    const streamRequest = backend.requests.find((request) => request.path === "/api/v1/chat/stream");
+    const streamRequest = backend.requests.find(
+      (request) => request.path === "/api/v1/chat/stream",
+    );
     assert(streamRequest);
     const payload = JSON.parse(streamRequest.body);
     assert.equal(payload.message, "review cloud risks");
     assert.equal(payload.settings.model, "gpt-5-mini");
     assert.equal(payload.settings.mode, "agent");
+    assert.equal(payload.agent_profile_id, undefined);
+    assert.equal(payload.input.agent_profile_id, undefined);
     assert.equal(streamRequest.authorization, "Bearer test-token");
   } finally {
     await fs.rm(home, { recursive: true, force: true });
@@ -2039,21 +2821,24 @@ test("agent prints thinking progress and fails clearly when no final answer is r
 test("agent reports HITL approval requests instead of an empty final response", async () => {
   const backend = await startBackend();
   try {
-    const json = await runCli([
-      "agent",
-      "hitl",
-      "approval",
-      "--base-url",
-      backend.baseUrl,
-      "--access-key-stdin",
-      "--project",
-      "project-main",
-      "--format",
-      "json",
-      "--progress",
-      "none",
-      "--non-interactive",
-    ], { input: "test-token" });
+    const json = await runCli(
+      [
+        "agent",
+        "hitl",
+        "approval",
+        "--base-url",
+        backend.baseUrl,
+        "--access-key-stdin",
+        "--project",
+        "project-main",
+        "--format",
+        "json",
+        "--progress",
+        "none",
+        "--non-interactive",
+      ],
+      { input: "test-token" },
+    );
 
     assert.equal(json.exitCode, 6);
     assert.equal(json.stderr, "");
@@ -2066,21 +2851,24 @@ test("agent reports HITL approval requests instead of an empty final response", 
     assert.equal(body.data.hitl.questions[0].id, "approval_0");
     assert.equal(body.data.hitl.questions[0].options[0].id, "approve");
 
-    const text = await runCli([
-      "agent",
-      "hitl",
-      "approval",
-      "--base-url",
-      backend.baseUrl,
-      "--access-key-stdin",
-      "--project",
-      "project-main",
-      "--format",
-      "text",
-      "--progress",
-      "stderr",
-      "--non-interactive",
-    ], { input: "test-token" });
+    const text = await runCli(
+      [
+        "agent",
+        "hitl",
+        "approval",
+        "--base-url",
+        backend.baseUrl,
+        "--access-key-stdin",
+        "--project",
+        "project-main",
+        "--format",
+        "text",
+        "--progress",
+        "stderr",
+        "--non-interactive",
+      ],
+      { input: "test-token" },
+    );
 
     assert.equal(text.exitCode, 6);
     assert.equal(text.stdout, "");
@@ -2095,21 +2883,24 @@ test("agent reports HITL approval requests instead of an empty final response", 
 test("agent routes progress, data, errors, and verbose logs to the correct streams", async () => {
   const backend = await startBackend();
   try {
-    const text = await runCli([
-      "agent",
-      "thinking",
-      "progress",
-      "--base-url",
-      backend.baseUrl,
-      "--access-key-stdin",
-      "--project",
-      "project-main",
-      "--format",
-      "text",
-      "--progress",
-      "stderr",
-      "--non-interactive",
-    ], { input: "test-token" });
+    const text = await runCli(
+      [
+        "agent",
+        "thinking",
+        "progress",
+        "--base-url",
+        backend.baseUrl,
+        "--access-key-stdin",
+        "--project",
+        "project-main",
+        "--format",
+        "text",
+        "--progress",
+        "stderr",
+        "--non-interactive",
+      ],
+      { input: "test-token" },
+    );
     assert.equal(text.exitCode, 0, text.stderr);
     assert.equal(text.stdout, "Report summary ready.\n");
     assert.match(text.stderr, /\[auth\] Resolving authentication/);
@@ -2117,75 +2908,88 @@ test("agent routes progress, data, errors, and verbose logs to the correct strea
     assert.doesNotMatch(text.stdout, /\[thinking\]|\[request\]|\[auth\]/);
     assert.doesNotMatch(text.stderr, /Report summary ready\./);
 
-    const ndjson = await runCli([
-      "agent",
-      "thinking",
-      "progress",
-      "--base-url",
-      backend.baseUrl,
-      "--access-key-stdin",
-      "--project",
-      "project-main",
-      "--format",
-      "ndjson",
-      "--progress",
-      "ndjson",
-      "--non-interactive",
-    ], { input: "test-token" });
+    const ndjson = await runCli(
+      [
+        "agent",
+        "thinking",
+        "progress",
+        "--base-url",
+        backend.baseUrl,
+        "--access-key-stdin",
+        "--project",
+        "project-main",
+        "--format",
+        "ndjson",
+        "--progress",
+        "ndjson",
+        "--non-interactive",
+      ],
+      { input: "test-token" },
+    );
     assert.equal(ndjson.exitCode, 0, ndjson.stderr);
     assert.equal(ndjson.stderr, "");
-    const events = ndjson.stdout.trim().split("\n").map((line) => JSON.parse(line));
-    assert.deepEqual(events.map((event) => event.type), [
-      "auth",
-      "request",
-      "request",
-      "thinking",
-      "thinking",
-      "chunk",
-      "result",
-    ]);
-    assert.equal(events.find((event) => event.type === "chunk")?.content, "Report summary ready.");
+    const events = ndjson.stdout
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line));
+    assert.deepEqual(
+      events.map((event) => event.type),
+      ["auth", "request", "request", "thinking", "thinking", "chunk", "result"],
+    );
+    assert.equal(
+      events.find((event) => event.type === "chunk")?.content,
+      "Report summary ready.",
+    );
     assert.equal(events.at(-1).data.response, "Report summary ready.");
 
-    const jsonError = await runCli([
-      "agent",
-      "empty",
-      "agent",
-      "result",
-      "--base-url",
-      backend.baseUrl,
-      "--access-key-stdin",
-      "--project",
-      "project-main",
-      "--format",
-      "json",
-      "--progress",
-      "none",
-      "--non-interactive",
-    ], { input: "test-token" });
+    const jsonError = await runCli(
+      [
+        "agent",
+        "empty",
+        "agent",
+        "result",
+        "--base-url",
+        backend.baseUrl,
+        "--access-key-stdin",
+        "--project",
+        "project-main",
+        "--format",
+        "json",
+        "--progress",
+        "none",
+        "--non-interactive",
+      ],
+      { input: "test-token" },
+    );
     assert.equal(jsonError.exitCode, 1);
     assert.equal(jsonError.stderr, "");
     const jsonErrorBody = JSON.parse(jsonError.stdout);
     assert.equal(jsonErrorBody.ok, false);
     assert.equal(jsonErrorBody.command, "agent");
-    assert.match(jsonErrorBody.error.message, /No final response returned by CloudEval/);
+    assert.match(
+      jsonErrorBody.error.message,
+      /No final response returned by CloudEval/,
+    );
 
-    const verbose = await runCli([
-      "agent",
-      "thinking",
-      "progress",
-      "--base-url",
-      backend.baseUrl,
-      "--access-key-stdin",
-      "--project",
-      "project-main",
-      "--format",
-      "json",
-      "--progress",
-      "none",
-      "--non-interactive",
-      "--verbose",
-    ], { input: "test-token" });
+    const verbose = await runCli(
+      [
+        "agent",
+        "thinking",
+        "progress",
+        "--base-url",
+        backend.baseUrl,
+        "--access-key-stdin",
+        "--project",
+        "project-main",
+        "--format",
+        "json",
+        "--progress",
+        "none",
+        "--non-interactive",
+        "--verbose",
+      ],
+      { input: "test-token" },
+    );
     assert.equal(verbose.exitCode, 0, verbose.stderr);
     const verboseBody = JSON.parse(verbose.stdout);
     assert.equal(verboseBody.ok, true);
@@ -2222,8 +3026,10 @@ test("ask rejects unavailable backend models before opening a chat stream", asyn
     assert.match(result.stderr, /Model 'gpt-5-mini' is not available/);
     assert.match(result.stderr, /gpt-5-nano/);
     assert.equal(
-      backend.requests.some((request) => request.path === "/api/v1/chat/stream"),
-      false
+      backend.requests.some(
+        (request) => request.path === "/api/v1/chat/stream",
+      ),
+      false,
     );
   } finally {
     await backend.close();
@@ -2276,8 +3082,14 @@ test("ask accepts unquoted multi-word text and keeps progress separate from pipe
       "--non-interactive",
     ]);
     assert.equal(ndjson.exitCode, 0, ndjson.stderr);
-    const events = ndjson.stdout.trim().split("\n").map((line) => JSON.parse(line));
-    assert.deepEqual(events.map((event) => event.type), ["auth", "request", "request", "chunk", "result"]);
+    const events = ndjson.stdout
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line));
+    assert.deepEqual(
+      events.map((event) => event.type),
+      ["auth", "request", "request", "chunk", "result"],
+    );
     assert.equal(events.at(-1).data.response, "Mock answer from Cloudeval AI.");
   } finally {
     await backend.close();

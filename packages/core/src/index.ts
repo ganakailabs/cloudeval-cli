@@ -5,6 +5,7 @@ export * from "./reportsClient";
 export * from "./billingClient";
 export * from "./projectClient";
 export * from "./credentialsClient";
+export * from "./agentProfilesClient";
 export * from "@cloudeval/shared";
 
 // Explicitly export project-related functions and types

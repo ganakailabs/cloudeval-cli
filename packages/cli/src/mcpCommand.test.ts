@@ -26,6 +26,28 @@ const project = {
   type: "template",
 };
 
+const agentProfile = {
+  id: "cost",
+  display_name: "Cost",
+  description: "Reviews project cost drivers.",
+  personality: "Commercially pragmatic.",
+  accent_key: "emerald",
+  icon_key: "wallet",
+  default_mode: "agent",
+  starter_prompt: "Review live sync cost risk.",
+  starter_prompts: {
+    template: "Review ARM/Bicep template cost risk.",
+    sync: "Review live sync cost risk.",
+  },
+  required_capabilities: ["projects:read", "reports:read", "billing:read", "ask:run"],
+  default_settings: {
+    mode: "agent",
+    response_length: "Detailed",
+    technicality: "Expert",
+    reasoning_effort: "medium",
+  },
+};
+
 const collectBody = async (req: http.IncomingMessage): Promise<string> => {
   const chunks: Buffer[] = [];
   for await (const chunk of req) {
@@ -40,17 +62,44 @@ const json = (res: http.ServerResponse, value: unknown, status = 200) => {
 };
 
 const startBackend = async () => {
-  const requests: Array<{ path: string; query: URLSearchParams; authorization?: string }> = [];
+  const requests: Array<{
+    path: string;
+    query: URLSearchParams;
+    authorization?: string;
+    body: string;
+  }> = [];
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url ?? "/", "http://127.0.0.1");
-    await collectBody(req);
-    requests.push({ path: url.pathname, query: url.searchParams, authorization: req.headers.authorization });
+    const body = await collectBody(req);
+    requests.push({
+      path: url.pathname,
+      query: url.searchParams,
+      authorization: req.headers.authorization,
+      body,
+    });
 
     if (url.pathname === "/api/v1/auth/me") {
       return json(res, user);
     }
+    if (url.pathname === "/api/v1/agent-profiles") {
+      return json(res, { profiles: [agentProfile] });
+    }
+    if (url.pathname === "/api/v1/agent-profiles/cost") {
+      return json(res, { profile: agentProfile });
+    }
     if (url.pathname === `/api/v1/projects/user/${user.id}`) {
       return json(res, [project]);
+    }
+    if (url.pathname === "/api/v1/chat/stream" && req.method === "POST") {
+      res.writeHead(200, {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+      });
+      res.write(
+        `data: ${JSON.stringify({ type: "responding", node: "response_compose", content: "Cost profile ready.", status: "completed" })}\n\n`,
+      );
+      res.end();
+      return;
     }
     if (url.pathname === `/api/projects/${project.id}/diagram-image`) {
       assert.equal(req.headers.authorization, "Bearer test-token");
@@ -377,6 +426,50 @@ test("mcp serve accepts legacy dotted tool names as call aliases", async () => {
   } finally {
     const closed = await mcp.close();
     assert.equal(closed.exitCode, 0, closed.stderr);
+  }
+});
+
+test("mcp agent_profiles_run uses canonical Agent Profile id", async () => {
+  const backend = await startBackend();
+  const mcp = await startMcp([
+    "--base-url",
+    backend.baseUrl,
+    "--access-key",
+    "test-token",
+  ]);
+  try {
+    await initialize(mcp);
+
+    mcp.send({
+      jsonrpc: "2.0",
+      id: 2,
+      method: "tools/call",
+      params: {
+        name: "agent_profiles_run",
+        arguments: {
+          profileId: "cost",
+          projectId: "project-main",
+          prompt: "thinking progress",
+        },
+      },
+    });
+    const called = await mcp.read();
+    assert.equal(called.id, 2);
+    assert.equal(called.result.isError, false);
+    assert.equal(called.result.structuredContent.data.profile.id, "cost");
+    assert.equal(called.result.structuredContent.data.response, "Cost profile ready.");
+
+    const streamRequest = backend.requests.find(
+      (request) => request.path === "/api/v1/chat/stream",
+    );
+    assert(streamRequest);
+    const payload = JSON.parse(streamRequest.body);
+    assert.equal(payload.agent_profile_id, "cost");
+    assert.equal(payload.input.agent_profile_id, "cost");
+  } finally {
+    const closed = await mcp.close();
+    assert.equal(closed.exitCode, 0, closed.stderr);
+    await backend.close();
   }
 });
 

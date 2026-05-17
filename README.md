@@ -17,11 +17,11 @@ CloudEval CLI turns **ARM templates**, **GitHub-hosted IaC**, and **live Azure c
 
 ## Why Use It
 
-| For | What you get |
-| --- | --- |
-| **Terminal users** | A full TUI with chat, Agent mode, workspace tabs, slash commands, streaming reasoning, and local SQLite session history. |
-| **Automation** | Stable `json`, `ndjson`, `markdown`, and text output; payloads on stdout; progress and prompts on stderr; predictable exit codes. |
-| **Agents and CI** | Scoped access-key credentials, redacted output by default, MCP toolsets, recipes, and machine-readable capability metadata. |
+| For                | What you get                                                                                                                      |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| **Terminal users** | A full TUI with chat, Agent mode, workspace tabs, slash commands, streaming reasoning, and local SQLite session history.          |
+| **Automation**     | Stable `json`, `ndjson`, `markdown`, and text output; payloads on stdout; progress and prompts on stderr; predictable exit codes. |
+| **Agents and CI**  | Scoped access-key credentials, redacted output by default, MCP toolsets, recipes, and machine-readable capability metadata.       |
 
 ## Install
 
@@ -83,6 +83,8 @@ cloudeval update --yes
 cloudeval                         # Terminal UI
 cloudeval ask "Summarize my cloud risk" --format json
 cloudeval agent "Find cost and architecture risks" --format json
+cloudeval agents list
+cloudeval agents run cost --project <project-id> --format json
 cloudeval recipes list
 cloudeval projects list
 cloudeval reports list
@@ -94,14 +96,24 @@ Full docs: [Use the CLI](https://docs.cloudeval.ai/quickstart/use-the-cli.md) an
 
 ## Core Workflows
 
-| Goal | Terminal UI | Script or CI | MCP |
-| --- | --- | --- | --- |
-| Grounded cloud chat | `cloudeval` or `cloudeval chat` | `cloudeval ask "..." --format json` | `ask` |
-| Deeper analysis | Agent mode in the TUI | `cloudeval agent "..." --format json` | planner-style tool flows |
-| Reusable workflow | prompt suggestions | `cloudeval recipes list|show|run` | `recipes_*` tools and prompts |
-| Projects and reports | workspace panels | `projects`, `reports`, `open` | `projects_*`, `reports_*` |
-| Billing | billing panel and links | `billing`, `credits` | `billing_*` toolset |
-| Automation discovery | n/a | `capabilities --format json` | `capabilities_get` |
+| Goal                 | Terminal UI                         | Script or CI                          | MCP                       |
+| -------------------- | ----------------------------------- | ------------------------------------- | ------------------------- |
+| Grounded cloud chat  | `cloudeval` or `cloudeval chat`     | `cloudeval ask "..." --format json`   | `ask`                     |
+| Deeper analysis      | Agent mode in the TUI               | `cloudeval agent "..." --format json` | planner-style tool flows  |
+| Agent Profiles       | Developer workspace and Chat picker | `cloudeval agents list/show/run`      | `agent_profiles_*` tools  |
+| Reusable workflow    | prompt suggestions                  | `cloudeval recipes list/show/run`     | `recipes_*` tools         |
+| Projects and reports | workspace panels                    | `projects`, `reports`, `open`         | `projects_*`, `reports_*` |
+| Billing              | billing panel and links             | `billing`, `credits`                  | `billing_*` toolset       |
+| Automation discovery | n/a                                 | `capabilities --format json`          | `capabilities_get`        |
+
+Agent Profile ids and display names are single-word labels: `architecture`,
+`cost`, `triage`, and `remediation`. The Architecture profile includes the
+Well-Architected review lens, so there is no separate Well-Architected Agent
+Profile. When `agents run` omits a prompt, the CLI uses a starter prompt for
+the selected project source and profile mode: template or live sync, ask or
+agent. The choice is deterministic for automation. Profile runs send only
+`agent_profile_id`; CloudEval applies profile instructions, planning lens, and
+response defaults on the backend.
 
 Run `cloudeval <command> --help` for exact flags.
 
@@ -210,6 +222,7 @@ cloudeval login --headless
 cloudeval auth status
 cloudeval auth status --show-sensitive-ids
 cloudeval help agents
+cloudeval agents list
 ```
 
 Output contract:
@@ -224,14 +237,14 @@ Output contract:
 
 ## Docs
 
-| Link | Purpose |
-| --- | --- |
-| [Use the CLI](https://docs.cloudeval.ai/quickstart/use-the-cli.md) | Install, login, create a project, and ask a grounded question |
-| [CLI command reference](https://docs.cloudeval.ai/reference/cli-command-reference.md) | Full command and flag list |
-| [Terminal UI](https://docs.cloudeval.ai/reference/terminal-ui.md) | TUI navigation and keyboard model |
-| [MCP client setup](https://docs.cloudeval.ai/reference/mcp-client-setup.md) | Codex, Cursor, Claude, VS Code, and generic MCP hosts |
-| [Agent and automation rules](https://docs.cloudeval.ai/reference/agent-and-automation-rules.md) | Safe automation conventions |
-| [Troubleshooting](https://docs.cloudeval.ai/troubleshooting/sign-in-and-onboarding.md) | Sign-in, onboarding, reports, and billing |
+| Link                                                                                            | Purpose                                                       |
+| ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| [Use the CLI](https://docs.cloudeval.ai/quickstart/use-the-cli.md)                              | Install, login, create a project, and ask a grounded question |
+| [CLI command reference](https://docs.cloudeval.ai/reference/cli-command-reference.md)           | Full command and flag list                                    |
+| [Terminal UI](https://docs.cloudeval.ai/reference/terminal-ui.md)                               | TUI navigation and keyboard model                             |
+| [MCP client setup](https://docs.cloudeval.ai/reference/mcp-client-setup.md)                     | Codex, Cursor, Claude, VS Code, and generic MCP hosts         |
+| [Agent and automation rules](https://docs.cloudeval.ai/reference/agent-and-automation-rules.md) | Safe automation conventions                                   |
+| [Troubleshooting](https://docs.cloudeval.ai/troubleshooting/sign-in-and-onboarding.md)          | Sign-in, onboarding, reports, and billing                     |
 
 ## Build From Source
 

@@ -180,6 +180,51 @@ export interface StreamSettings {
   technicality?: string;
 }
 
+export interface AgentProfileDefaultSettings {
+  mode: "ask" | "agent";
+  response_length: string;
+  technicality: string;
+  reasoning_effort: string;
+  max_tools?: number | null;
+  max_tools_per_type?: number | null;
+  enable_judge?: boolean | null;
+  enable_hitl?: boolean | null;
+}
+
+export interface AgentProfileStarterPromptVariant {
+  id: string;
+  project_source: "template" | "sync";
+  mode: "ask" | "agent";
+  text: string;
+  weight?: number | null;
+}
+
+export interface AgentProfile {
+  id: string;
+  display_name: string;
+  description: string;
+  personality: string;
+  accent_key: string;
+  icon_key: string;
+  default_mode: "ask" | "agent";
+  starter_prompt: string;
+  starter_prompts?: Partial<Record<"template" | "sync", string>>;
+  starter_prompt_variants?: AgentProfileStarterPromptVariant[];
+  system_instructions: string;
+  default_settings: AgentProfileDefaultSettings;
+  required_capabilities: string[];
+  allowed_toolsets: string[];
+  output_contract?: Record<string, unknown>;
+}
+
+export interface AgentProfilesListResponse {
+  profiles: AgentProfile[];
+}
+
+export interface AgentProfileResponse {
+  profile: AgentProfile;
+}
+
 export interface StreamInputPayload {
   messages: Array<{
     role: "user" | "assistant";
@@ -195,6 +240,7 @@ export interface StreamInputPayload {
     connection_ids?: string[];
   };
   settings?: StreamSettings;
+  agent_profile_id?: string;
   context?: Array<Record<string, unknown>>;
 }
 
@@ -212,6 +258,7 @@ export interface StreamRequestPayload {
     connection_ids?: string[];
   };
   settings?: StreamSettings;
+  agent_profile_id?: string;
   context?: Array<Record<string, unknown>>;
   group_size?: number;
   streaming_mode?: "USER" | "DEBUG";

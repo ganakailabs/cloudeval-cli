@@ -37,6 +37,7 @@ import {
   estimateBannerRows,
   getPromptInputRowBudget,
   getResponsiveTuiLayout,
+  shouldUseSplitChatLayout,
   truncateForTerminal,
   type TerminalSize,
 } from "./layout.js";
@@ -528,17 +529,19 @@ const estimatePromptPanelRows = ({
   suggestionRows,
   compact,
   hasThinkingSteps,
+  includeControls = true,
 }: {
   inputRows: number;
   suggestionRows: number;
   compact: boolean;
   hasThinkingSteps: boolean;
+  includeControls?: boolean;
 }): number => {
   const outerChromeRows = 4;
   const topHelpRows = suggestionRows > 0 ? 1 : 0;
   const inputBoxRows = inputRows + 3;
   const footerRows =
-    1 + 1 + estimatePromptControlRows({ compact, hasThinkingSteps });
+    1 + 1 + (includeControls ? estimatePromptControlRows({ compact, hasThinkingSteps }) : 0);
   return outerChromeRows + topHelpRows + suggestionRows + inputBoxRows + footerRows;
 };
 
@@ -777,6 +780,68 @@ const PromptControlBar: React.FC<{
         </Box>
       </Box>
     </Box>
+  );
+};
+
+const ChatContextPanel: React.FC<{
+  width: number;
+  focused: TuiControlFocus;
+  selectedProject: ProjectInfo | null;
+  selectedModel: string;
+  selectedMode: ChatMode;
+  hasThinkingSteps: boolean;
+  thinkingExpanded: boolean;
+  thinkingSummary: string;
+  statusText: string;
+  statusColor?: string;
+  busy: boolean;
+  animate: boolean;
+  threadId?: string;
+}> = ({
+  width,
+  focused,
+  selectedProject,
+  selectedModel,
+  selectedMode,
+  hasThinkingSteps,
+  thinkingExpanded,
+  thinkingSummary,
+  statusText,
+  statusColor,
+  busy,
+  animate,
+  threadId,
+}) => {
+  const displayThreadId = threadId
+    ? truncateForTerminal(threadId, Math.max(16, width - 14))
+    : "new thread";
+
+  return (
+    <TitledBox
+      title="Context"
+      borderStyle="round"
+      borderColor={terminalTheme.muted}
+      padding={1}
+      width={width}
+    >
+      <Text dimColor>Thread</Text>
+      <Text wrap="truncate">{displayThreadId}</Text>
+      <PromptControlBar
+        focused={focused}
+        selectedProject={selectedProject}
+        selectedModel={selectedModel}
+        selectedMode={selectedMode}
+        hasThinkingSteps={hasThinkingSteps}
+        thinkingExpanded={thinkingExpanded}
+        thinkingSummary={thinkingSummary}
+        compact
+        terminalColumns={Math.max(24, width - 4)}
+        statusText={statusText}
+        statusColor={statusColor}
+        busy={busy}
+        animate={animate}
+      />
+    </TitledBox>
   );
 };
 
@@ -2090,6 +2155,7 @@ export const App: React.FC<AppProps> = ({
   const promptSuggestionRows = estimatePromptSuggestionRows(
     visiblePromptSuggestions.length
   );
+  const splitChatLayout = shouldUseSplitChatLayout(terminalSize);
   const focusedFollowUpIndex = focusFollowUpIndex(focusedControl);
   const controlFocusOrder = buildControlFocusOrder({
     hasThinkingSteps,
@@ -2125,9 +2191,22 @@ export const App: React.FC<AppProps> = ({
   const scrollHelp = mouseTrackingEnabled
     ? `${keyBindings.mouse} | wheel scroll`
     : keyBindings.scroll;
+  const chatAvailableWidth = Math.max(
+    24,
+    terminalSize.columns - tuiLayout.paddingX * 2
+  );
+  const chatContextPanelWidth = splitChatLayout
+    ? Math.min(44, Math.max(34, Math.floor(chatAvailableWidth * 0.24)))
+    : 0;
+  const chatSplitGap = splitChatLayout ? 1 : 0;
+  const chatThreadPanelWidth = splitChatLayout
+    ? Math.max(60, chatAvailableWidth - chatContextPanelWidth - chatSplitGap)
+    : undefined;
   const threadContentWidth = Math.max(
     24,
-    terminalSize.columns - tuiLayout.paddingX * 2 - 8
+    splitChatLayout
+      ? (chatThreadPanelWidth ?? chatAvailableWidth) - 8
+      : chatAvailableWidth - 8
   );
   const chatThreadHeight = Math.max(1, tuiLayout.threadHeight - bottomControlsRows);
   const activeWorkspacePanelState =
@@ -2174,21 +2253,44 @@ export const App: React.FC<AppProps> = ({
     [terminalSize.columns, tuiLayout.paddingX, workspaceTabStartRow]
   );
   const selectorControlStartRow = useMemo(
-    () => Math.max(1, terminalSize.rows - (tuiLayout.compact ? 7 : 5)),
-    [terminalSize.rows, tuiLayout.compact]
+    () => {
+      if (!splitChatLayout) {
+        return Math.max(1, terminalSize.rows - (tuiLayout.compact ? 7 : 5));
+      }
+      const auxiliaryRows =
+        (isSearching ? 3 : 0) +
+        (queuedMessages.length > 0 ? 4 : 0) +
+        (notice ? 1 : 0) +
+        (errorText ? 5 : 0);
+      return workspaceTabStartRow + 9 + auxiliaryRows;
+    },
+    [
+      errorText,
+      isSearching,
+      notice,
+      queuedMessages.length,
+      splitChatLayout,
+      terminalSize.rows,
+      tuiLayout.compact,
+      workspaceTabStartRow,
+    ]
   );
   const selectorControlHitAreas = useMemo(
     () =>
       getSelectorControlHitAreas({
-        compact: tuiLayout.compact,
+        compact: tuiLayout.compact || splitChatLayout,
         hasThinkingSteps,
         startColumn: tuiLayout.paddingX + 1,
         startRow: selectorControlStartRow,
-        terminalColumns: terminalSize.columns,
+        terminalColumns: splitChatLayout
+          ? tuiLayout.paddingX + chatContextPanelWidth
+          : terminalSize.columns,
       }),
     [
+      chatContextPanelWidth,
       hasThinkingSteps,
       selectorControlStartRow,
+      splitChatLayout,
       terminalSize.columns,
       tuiLayout.compact,
       tuiLayout.paddingX,
@@ -2204,6 +2306,7 @@ export const App: React.FC<AppProps> = ({
             suggestionRows: promptSuggestionRows,
             compact: tuiLayout.compact,
             hasThinkingSteps,
+            includeControls: !splitChatLayout,
           }) +
           1
       ),
@@ -2213,6 +2316,7 @@ export const App: React.FC<AppProps> = ({
       promptSuggestionRows,
       terminalSize.rows,
       tuiLayout.compact,
+      splitChatLayout,
     ]
   );
 
@@ -2770,6 +2874,75 @@ export const App: React.FC<AppProps> = ({
     chatState.status === "tool_running";
   const promptActionIsCancel =
     isBusyStatus(chatState.status) || Boolean(controllerRef.current) || hasCancellableReasoning;
+  const threadPanel = (
+    <TitledBox
+      title="Thread"
+      borderStyle="round"
+      borderColor={terminalTheme.muted}
+      padding={1}
+      width={chatThreadPanelWidth}
+    >
+      <Box flexDirection="row">
+        <Box flexShrink={1} width={threadContentWidth}>
+          <ScrollView
+            ref={scrollViewRef}
+            height={chatThreadHeight}
+            onScroll={(offset) => setScrollOffset(offset)}
+            onContentHeightChange={(height) => {
+              setContentHeight((previousHeight) => {
+                const currentOffset = scrollViewRef.current?.getScrollOffset() ?? 0;
+                const suppressNextAutoScroll = suppressNextAutoScrollRef.current;
+                suppressNextAutoScrollRef.current = false;
+                if (
+                  shouldAutoScrollToBottom({
+                    currentOffset,
+                    previousContentHeight: previousHeight,
+                    viewportHeight,
+                    suppressNextAutoScroll,
+                  })
+                ) {
+                  setTimeout(() => scrollViewRef.current?.scrollToBottom(), 0);
+                }
+                return height;
+              });
+            }}
+            onViewportSizeChange={(size) => setViewportHeight(size.height)}
+          >
+            <Transcript
+              messages={displayedMessages}
+              userName={userName}
+              excludeStreaming={false}
+              expandedThinkingMessageIds={expandedThinkingMessageIds}
+              emptyLabel={isSearching ? "No matching messages." : "Thread is empty."}
+              animate={animationsEnabled}
+            />
+          </ScrollView>
+        </Box>
+        <Scrollbar
+          scrollOffset={scrollOffset}
+          contentHeight={contentHeight}
+          viewportHeight={viewportHeight}
+        />
+      </Box>
+    </TitledBox>
+  );
+  const promptFooterControls = splitChatLayout ? undefined : (
+    <PromptControlBar
+      focused={focusedControl}
+      selectedProject={selectedProject}
+      selectedModel={selectedModel}
+      selectedMode={selectedMode}
+      hasThinkingSteps={hasThinkingSteps}
+      thinkingExpanded={thinkingExpanded}
+      thinkingSummary={thinkingSummary}
+      compact={tuiLayout.compact}
+      terminalColumns={terminalSize.columns}
+      statusText={chatStatusText}
+      statusColor={chatStatusColor}
+      busy={chatBusy}
+      animate={animationsEnabled}
+    />
+  );
 
   if (selectingProject) {
     const items = projects.map((p) => ({
@@ -2915,50 +3088,28 @@ export const App: React.FC<AppProps> = ({
           ) : null}
         </TitledBox>
       ) : null}
-      <TitledBox title="Thread" borderStyle="round" borderColor={terminalTheme.muted} padding={1}>
-        <Box flexDirection="row">
-          <Box flexShrink={1} width={threadContentWidth}>
-            <ScrollView
-              ref={scrollViewRef}
-              height={chatThreadHeight}
-              onScroll={(offset) => setScrollOffset(offset)}
-              onContentHeightChange={(height) => {
-                setContentHeight((previousHeight) => {
-                  const currentOffset = scrollViewRef.current?.getScrollOffset() ?? 0;
-                  const suppressNextAutoScroll = suppressNextAutoScrollRef.current;
-                  suppressNextAutoScrollRef.current = false;
-                  if (
-                    shouldAutoScrollToBottom({
-                      currentOffset,
-                      previousContentHeight: previousHeight,
-                      viewportHeight,
-                      suppressNextAutoScroll,
-                    })
-                  ) {
-                    setTimeout(() => scrollViewRef.current?.scrollToBottom(), 0);
-                  }
-                  return height;
-                });
-              }}
-              onViewportSizeChange={(size) => setViewportHeight(size.height)}
-            >
-              <Transcript
-                messages={displayedMessages}
-                userName={userName}
-                excludeStreaming={false}
-                expandedThinkingMessageIds={expandedThinkingMessageIds}
-                emptyLabel={isSearching ? "No matching messages." : "Thread is empty."}
-                animate={animationsEnabled}
-              />
-            </ScrollView>
-          </Box>
-          <Scrollbar
-            scrollOffset={scrollOffset}
-            contentHeight={contentHeight}
-            viewportHeight={viewportHeight}
+      {splitChatLayout ? (
+        <Box flexDirection="row" columnGap={chatSplitGap}>
+          <ChatContextPanel
+            width={chatContextPanelWidth}
+            focused={focusedControl}
+            selectedProject={selectedProject}
+            selectedModel={selectedModel}
+            selectedMode={selectedMode}
+            hasThinkingSteps={hasThinkingSteps}
+            thinkingExpanded={thinkingExpanded}
+            thinkingSummary={thinkingSummary}
+            statusText={chatStatusText}
+            statusColor={chatStatusColor}
+            busy={chatBusy}
+            animate={animationsEnabled}
+            threadId={chatState.threadId}
           />
+          {threadPanel}
         </Box>
-      </TitledBox>
+      ) : (
+        threadPanel
+      )}
       {chatState.status === "hitl_waiting" && chatState.hitl?.waiting ? (
         <HitlPanel
           hitl={chatState.hitl}
@@ -3058,23 +3209,7 @@ export const App: React.FC<AppProps> = ({
             scrollOffset={promptInputViewport.startRow}
             minInputRows={promptInputRowBudget}
             maxInputRows={promptInputRowBudget}
-            footerControls={
-              <PromptControlBar
-                focused={focusedControl}
-                selectedProject={selectedProject}
-                selectedModel={selectedModel}
-                selectedMode={selectedMode}
-                hasThinkingSteps={hasThinkingSteps}
-                thinkingExpanded={thinkingExpanded}
-                thinkingSummary={thinkingSummary}
-                compact={tuiLayout.compact}
-                terminalColumns={terminalSize.columns}
-                statusText={chatStatusText}
-                statusColor={chatStatusColor}
-                busy={chatBusy}
-                animate={animationsEnabled}
-              />
-            }
+            footerControls={promptFooterControls}
             helpText=""
             actionLabel={promptActionIsCancel ? "ESC to cancel" : "ENTER to send"}
             actionHint={getChatInputHelpText({

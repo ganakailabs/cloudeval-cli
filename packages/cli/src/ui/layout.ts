@@ -106,6 +106,12 @@ export const getPromptInputRowBudget = (size: Partial<TerminalSize>): number => 
   return clamp(Math.floor(rows * 0.22), 8, 16);
 };
 
+export const shouldUseSplitChatLayout = (size: Partial<TerminalSize>): boolean => {
+  const columns = normalizeDimension(size.columns, 100);
+  const rows = normalizeDimension(size.rows, 32);
+  return columns >= 132 && rows >= 40;
+};
+
 export const truncateForTerminal = (value: string, maxLength: number): string => {
   if (maxLength <= 0) {
     return "";

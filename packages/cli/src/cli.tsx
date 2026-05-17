@@ -21,6 +21,7 @@ import { registerConnectionsCommand } from "./connectionsCommand.js";
 import { registerBillingCommands } from "./billingCommand.js";
 import { registerCapabilitiesCommand } from "./agentCapabilities.js";
 import { registerCredentialsCommand, registerIdentityCommand } from "./credentialsCommand.js";
+import { registerAgentsCommand } from "./agentsCommand.js";
 import { registerConfigCommand } from "./configCommand.js";
 import { registerDiagnosticsCommands } from "./diagnosticsCommand.js";
 import { registerModelsCommand } from "./modelsCommand.js";
@@ -49,6 +50,7 @@ import {
 } from "./hitlPrompt.js";
 import { resolveLoginOnboardingMode } from "./loginOnboardingMode.js";
 import { warnIfAccessKeyFromCliOption } from "./authGuard.js";
+import { runLocalHooks, writeHookWarnings } from "./localHooks.js";
 
 const DEFAULT_BASE_URL = getDefaultBaseUrl();
 const ASK_STREAM_IDLE_TIMEOUT_MS = 90_000;
@@ -759,6 +761,13 @@ registerCredentialsCommand(program, {
   isHeadlessEnvironment,
 });
 
+registerAgentsCommand(program, {
+  defaultBaseUrl: DEFAULT_BASE_URL,
+  resolveBaseUrl,
+  readStdinValue,
+  isHeadlessEnvironment,
+});
+
 registerIdentityCommand(program, {
   defaultBaseUrl: DEFAULT_BASE_URL,
   resolveBaseUrl,
@@ -1029,6 +1038,7 @@ program
   .option("--non-interactive", "Disable prompts and browser login", false)
   .option("--debug", "Log raw chunks", false)
   .option("-v, --verbose", "Enable verbose logging", false)
+  .option("--no-hooks", "Disable local CLI hooks for this command")
   .action(async (questionParts, options, command) => {
     const question = Array.isArray(questionParts) ? questionParts.join(" ") : String(questionParts);
     const commandName = command.parent?.args?.[0] === "agent" ? "agent" : "ask";
@@ -1046,6 +1056,7 @@ program
     const jsonOutput = outputFormat === "json";
     const ndjsonOutput = outputFormat === "ndjson";
     const streamTextOutput = outputFormat === "text";
+    const hooksDisabled = options.hooks === false || options.noHooks === true;
 
     let providedAccessKey: string | undefined = options.accessKey;
     if (options.accessKeyStdin) {
@@ -1099,6 +1110,18 @@ program
         output: options.output,
         live: !options.verbose && !options.debug,
       });
+
+      writeHookWarnings(
+        await runLocalHooks({
+          event: "cli.command.before",
+          config: cliConfig,
+          profile: selectedProfile,
+          commandName,
+          projectId: selectedProjectId,
+          threadId: options.thread,
+          noHooks: hooksDisabled,
+        })
+      );
 
       // Get auth token
       verboseLog("Attempting to get authentication token");
@@ -1720,9 +1743,38 @@ program
         }
       }
 
+      writeHookWarnings(
+        await runLocalHooks({
+          event: "cli.command.after",
+          config: cliConfig,
+          profile: selectedProfile,
+          commandName,
+          projectId: project.id,
+          threadId: chatState.threadId,
+          noHooks: hooksDisabled,
+          extra: { ok: true },
+        })
+      );
+
       verboseLog("Command completed successfully");
       process.exit(0);
     } catch (error: any) {
+      try {
+        writeHookWarnings(
+          await runLocalHooks({
+            event: "cli.command.error",
+            config: cliConfig,
+            profile: selectedProfile,
+            commandName,
+            projectId: selectedProjectId,
+            threadId: options.thread,
+            noHooks: hooksDisabled,
+            extra: { error: error?.message },
+          })
+        );
+      } catch {
+        // Keep the original command failure visible.
+      }
       verboseLog("Command failed with error:", {
         message: error.message,
         stack: error.stack,

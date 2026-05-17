@@ -42,6 +42,7 @@ const capabilities = {
     "--base-url",
     "--profile",
     "--show-sensitive-ids",
+    "--no-hooks",
   ],
   exitCodes: {
     success: 0,

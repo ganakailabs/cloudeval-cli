@@ -22,7 +22,7 @@ test("streamChat normalizes the API base URL", async () => {
     requestHeaders = init?.headers as Record<string, string>;
     return responseFromText(
       '{"type":"metadata","thread_id":"thread-1"}\n' +
-        '{"type":"responding","node":"generate_response","content":"hi","status":"completed"}\n'
+        '{"type":"responding","node":"generate_response","content":"hi","status":"completed"}\n',
     );
   };
 
@@ -41,7 +41,10 @@ test("streamChat normalizes the API base URL", async () => {
     assert.equal(requestedUrl, "http://127.0.0.1:8787/api/v1/chat/stream");
     assert.match(requestHeaders["Idempotency-Key"], /^[0-9a-f-]{36}$/);
     assert.match(requestBody, /"input":\{/);
-    assert.match(requestBody, /"messages":\[\{"role":"user","content":"hello"\}\]/);
+    assert.match(
+      requestBody,
+      /"messages":\[\{"role":"user","content":"hello"\}\]/,
+    );
     assert.equal(chunks.length, 2);
     assert.equal(chunks[0]?.type, "metadata");
     assert.equal(chunks[1]?.type, "responding");
@@ -58,7 +61,7 @@ test("streamChat parses SSE data events", async () => {
       'data: {"type":"metadata","thread_id":"thread-2"}\n\n' +
         'data: {"type":"responding","node":"generate_response","content":"hello","status":"streaming"}\n\n' +
         'data: {"type":"responding","node":"generate_response","content":" world","status":"completed"}\n\n' +
-        "data: [DONE]\n\n"
+        "data: [DONE]\n\n",
     );
 
   try {
@@ -94,8 +97,8 @@ test("streamChat stops at SSE DONE even when the socket stays open", async () =>
           controller.enqueue(
             new TextEncoder().encode(
               'data: {"type":"metadata","thread_id":"thread-open"}\n\n' +
-                "data: [DONE]\n\n"
-            )
+                "data: [DONE]\n\n",
+            ),
           );
         },
       }),
@@ -104,7 +107,7 @@ test("streamChat stops at SSE DONE even when the socket stays open", async () =>
         headers: {
           "Content-Type": "text/event-stream",
         },
-      }
+      },
     );
 
   try {
@@ -122,7 +125,7 @@ test("streamChat stops at SSE DONE even when the socket stays open", async () =>
         }
       })(),
       new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("stream did not stop at DONE")), 500)
+        setTimeout(() => reject(new Error("stream did not stop at DONE")), 500),
       ),
     ]);
 
@@ -142,8 +145,8 @@ test("streamChat can finish shortly after the final response chunk", async () =>
         start(controller) {
           controller.enqueue(
             new TextEncoder().encode(
-              'data: {"type":"responding","node":"generate_response","content":"done","status":"completed"}\n\n'
-            )
+              'data: {"type":"responding","node":"generate_response","content":"done","status":"completed"}\n\n',
+            ),
           );
         },
       }),
@@ -152,7 +155,7 @@ test("streamChat can finish shortly after the final response chunk", async () =>
         headers: {
           "Content-Type": "text/event-stream",
         },
-      }
+      },
     );
 
   try {
@@ -172,7 +175,10 @@ test("streamChat can finish shortly after the final response chunk", async () =>
         }
       })(),
       new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("stream did not stop after response")), 500)
+        setTimeout(
+          () => reject(new Error("stream did not stop after response")),
+          500,
+        ),
       ),
     ]);
 
@@ -193,8 +199,8 @@ test("streamChat treats response content idleness as completion", async () => {
         start(controller) {
           controller.enqueue(
             new TextEncoder().encode(
-              'data: {"type":"responding","node":"generate_response","content":"partial response","status":"streaming"}\n\n'
-            )
+              'data: {"type":"responding","node":"generate_response","content":"partial response","status":"streaming"}\n\n',
+            ),
           );
         },
       }),
@@ -203,7 +209,7 @@ test("streamChat treats response content idleness as completion", async () => {
         headers: {
           "Content-Type": "text/event-stream",
         },
-      }
+      },
     );
 
   try {
@@ -223,7 +229,10 @@ test("streamChat treats response content idleness as completion", async () => {
         }
       })(),
       new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("stream did not stop after response idle")), 500)
+        setTimeout(
+          () => reject(new Error("stream did not stop after response idle")),
+          500,
+        ),
       ),
     ]);
 
@@ -249,8 +258,8 @@ test("streamChat can finish shortly after a terminal end chunk without response 
                 'data: {"type":"thinking","node":"end","description":"Finished","status":"completed"}',
                 "",
                 "",
-              ].join("\n")
-            )
+              ].join("\n"),
+            ),
           );
         },
       }),
@@ -259,7 +268,7 @@ test("streamChat can finish shortly after a terminal end chunk without response 
         headers: {
           "Content-Type": "text/event-stream",
         },
-      }
+      },
     );
 
   try {
@@ -279,7 +288,10 @@ test("streamChat can finish shortly after a terminal end chunk without response 
         }
       })(),
       new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("stream did not stop after terminal end")), 500)
+        setTimeout(
+          () => reject(new Error("stream did not stop after terminal end")),
+          500,
+        ),
       ),
     ]);
 
@@ -297,25 +309,24 @@ test("streamChat fails when no stream response arrives before the idle timeout",
   global.fetch = async (_input, init) =>
     new Promise<Response>((_resolve, reject) => {
       const signal = init?.signal as AbortSignal | undefined;
-      signal?.addEventListener("abort", () => reject(new Error("aborted")), { once: true });
+      signal?.addEventListener("abort", () => reject(new Error("aborted")), {
+        once: true,
+      });
     });
 
   try {
-    await assert.rejects(
-      async () => {
-        for await (const _chunk of streamChat({
-          baseUrl: "http://127.0.0.1:8787/api/v1",
-          authToken: "token",
-          message: "hello",
-          threadId: "thread-no-response",
-          user: { id: "user-1", name: "User" },
-          streamIdleTimeoutMs: 25,
-        })) {
-          // drain stream
-        }
-      },
-      /No chat stream response received within 25ms/
-    );
+    await assert.rejects(async () => {
+      for await (const _chunk of streamChat({
+        baseUrl: "http://127.0.0.1:8787/api/v1",
+        authToken: "token",
+        message: "hello",
+        threadId: "thread-no-response",
+        user: { id: "user-1", name: "User" },
+        streamIdleTimeoutMs: 25,
+      })) {
+        // drain stream
+      }
+    }, /No chat stream response received within 25ms/);
   } finally {
     global.fetch = originalFetch;
   }
@@ -336,32 +347,29 @@ test("streamChat fails when no stream data arrives before the idle timeout", asy
         headers: {
           "Content-Type": "text/event-stream",
         },
-      }
+      },
     );
 
   try {
-    await assert.rejects(
-      async () => {
-        await Promise.race([
-          (async () => {
-            for await (const _chunk of streamChat({
-              baseUrl: "http://127.0.0.1:8787/api/v1",
-              authToken: "token",
-              message: "hello",
-              threadId: "thread-no-data",
-              user: { id: "user-1", name: "User" },
-              streamIdleTimeoutMs: 25,
-            })) {
-              // drain stream
-            }
-          })(),
-          new Promise((_, reject) =>
-            setTimeout(() => reject(new Error("stream did not timeout")), 500)
-          ),
-        ]);
-      },
-      /No chat stream data received within 25ms/
-    );
+    await assert.rejects(async () => {
+      await Promise.race([
+        (async () => {
+          for await (const _chunk of streamChat({
+            baseUrl: "http://127.0.0.1:8787/api/v1",
+            authToken: "token",
+            message: "hello",
+            threadId: "thread-no-data",
+            user: { id: "user-1", name: "User" },
+            streamIdleTimeoutMs: 25,
+          })) {
+            // drain stream
+          }
+        })(),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("stream did not timeout")), 500),
+        ),
+      ]);
+    }, /No chat stream data received within 25ms/);
   } finally {
     global.fetch = originalFetch;
   }
@@ -372,7 +380,7 @@ test("streamChat preserves backend fallback error metadata", async () => {
 
   global.fetch = async () =>
     responseFromText(
-      'data: {"type":"responding","node":"response_compose","content":"I ran into an internal error while preparing the response. Please try again.","status":"streaming","source":"error_fallback:internal_error"}\n\n'
+      'data: {"type":"responding","node":"response_compose","content":"I ran into an internal error while preparing the response. Please try again.","status":"streaming","source":"error_fallback:internal_error"}\n\n',
     );
 
   try {
@@ -400,7 +408,7 @@ test("streamChat parses HITL request events", async () => {
 
   global.fetch = async () =>
     responseFromText(
-      'data: {"type":"hitl_request","questions":[{"id":"ask_mode_switch","kind":"mode_switch","text":"Switch to planner mode?","recommended_option_id":"switch_to_planner","options":[{"id":"switch_to_planner","label":"Switch to planner mode","recommended":true},{"id":"stay_in_ask","label":"Stay in Ask mode"}]}],"checkpoint_id":"ckpt-123","pending_intent_id":"ask_mode_switch"}\n\n'
+      'data: {"type":"hitl_request","questions":[{"id":"ask_mode_switch","kind":"mode_switch","text":"Switch to planner mode?","recommended_option_id":"switch_to_planner","options":[{"id":"switch_to_planner","label":"Switch to planner mode","recommended":true},{"id":"stay_in_ask","label":"Stay in Ask mode"}]}],"checkpoint_id":"ckpt-123","pending_intent_id":"ask_mode_switch"}\n\n',
     );
 
   try {
@@ -419,7 +427,10 @@ test("streamChat parses HITL request events", async () => {
     assert.equal(chunks[0]?.type, "hitl_request");
     assert.equal((chunks[0] as any)?.checkpoint_id, "ckpt-123");
     assert.equal((chunks[0] as any)?.questions?.[0]?.id, "ask_mode_switch");
-    assert.equal((chunks[0] as any)?.questions?.[0]?.options?.[0]?.recommended, true);
+    assert.equal(
+      (chunks[0] as any)?.questions?.[0]?.options?.[0]?.recommended,
+      true,
+    );
   } finally {
     global.fetch = originalFetch;
   }
@@ -431,7 +442,9 @@ test("streamChat sends HITL resume payloads like the web client", async () => {
 
   global.fetch = async (_input, init) => {
     requestBody = typeof init?.body === "string" ? init.body : "";
-    return responseFromText('data: {"type":"metadata","thread_id":"thread-hitl"}\n\n');
+    return responseFromText(
+      'data: {"type":"metadata","thread_id":"thread-hitl"}\n\n',
+    );
   };
 
   try {
@@ -443,7 +456,9 @@ test("streamChat sends HITL resume payloads like the web client", async () => {
       user: { id: "user-1", name: "User" },
       hitlResume: {
         checkpointId: "ckpt-123",
-        responses: [{ question_id: "ask_mode_switch", answer: "switch_to_planner" }],
+        responses: [
+          { question_id: "ask_mode_switch", answer: "switch_to_planner" },
+        ],
       },
     } as any)) {
       // drain stream
@@ -466,7 +481,9 @@ test("streamChat uses project user_id for backend payloads when caller keeps cli
 
   global.fetch = async (_input, init) => {
     requestBody = typeof init?.body === "string" ? init.body : "";
-    return responseFromText('data: {"type":"metadata","thread_id":"thread-4"}\n\n');
+    return responseFromText(
+      'data: {"type":"metadata","thread_id":"thread-4"}\n\n',
+    );
   };
 
   try {
@@ -491,6 +508,37 @@ test("streamChat uses project user_id for backend payloads when caller keeps cli
   }
 });
 
+test("streamChat includes agent_profile_id at top level and input level", async () => {
+  const originalFetch = global.fetch;
+  let requestBody = "";
+
+  global.fetch = async (_input, init) => {
+    requestBody = typeof init?.body === "string" ? init.body : "";
+    return responseFromText(
+      'data: {"type":"metadata","thread_id":"thread-profile"}\n\n',
+    );
+  };
+
+  try {
+    for await (const _chunk of streamChat({
+      baseUrl: "http://127.0.0.1:8787",
+      authToken: "token",
+      message: "review",
+      threadId: "thread-profile",
+      user: { id: "user-1", name: "User" },
+      agentProfileId: "cost",
+    })) {
+      // drain stream
+    }
+
+    const payload = JSON.parse(requestBody);
+    assert.equal(payload.agent_profile_id, "cost");
+    assert.equal(payload.input.agent_profile_id, "cost");
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
 test("streamChat includes backend error details on HTTP failures", async () => {
   const originalFetch = global.fetch;
 
@@ -506,24 +554,21 @@ test("streamChat includes backend error details on HTTP failures", async () => {
         status: 403,
         statusText: "Forbidden",
         headers: { "Content-Type": "application/json" },
-      }
+      },
     );
 
   try {
-    await assert.rejects(
-      async () => {
-        for await (const _chunk of streamChat({
-          baseUrl: "http://127.0.0.1:8787/api/v1",
-          authToken: "token",
-          message: "hello",
-          threadId: "thread-error",
-          user: { id: "user-1", name: "User" },
-        })) {
-          // drain stream
-        }
-      },
-      /403 Forbidden.*model_not_available.*gpt-5-mini/s
-    );
+    await assert.rejects(async () => {
+      for await (const _chunk of streamChat({
+        baseUrl: "http://127.0.0.1:8787/api/v1",
+        authToken: "token",
+        message: "hello",
+        threadId: "thread-error",
+        user: { id: "user-1", name: "User" },
+      })) {
+        // drain stream
+      }
+    }, /403 Forbidden.*model_not_available.*gpt-5-mini/s);
   } finally {
     global.fetch = originalFetch;
   }
@@ -592,10 +637,13 @@ test("reduceChunk persists HITL questions and waits for user input", async () =>
   assert.equal(finalState.hitl?.questions[0]?.id, "write_confirm_0");
   assert.equal(finalState.messages.length, 1);
   assert.equal(finalState.messages[0]?.pending, true);
-  assert.equal(finalState.messages[0]?.thinkingSteps?.[0]?.node, "hitl_middleware");
+  assert.equal(
+    finalState.messages[0]?.thinkingSteps?.[0]?.node,
+    "hitl_middleware",
+  );
   assert.equal(
     finalState.messages[0]?.thinkingSteps?.[0]?.hitlQuestions?.[0]?.text,
-    "Should I proceed?"
+    "Should I proceed?",
   );
 });
 
@@ -683,7 +731,7 @@ test("reduceChunk keeps every thinking step status and duration", async () => {
   assert.equal(steps.length, 2);
   assert.deepEqual(
     steps.map((step) => step.node),
-    ["prepare", "inspect_context"]
+    ["prepare", "inspect_context"],
   );
   assert.equal(steps[0]?.status, "completed");
   assert.equal(steps[0]?.startedAt, 1_000);
@@ -709,18 +757,15 @@ test("reduceChunk moves from connecting to thinking when thinking chunks arrive"
       description: "Prepare response",
       status: "streaming",
       receivedAt: 1_000,
-    } as any
+    } as any,
   );
 
   assert.equal(finalState.status, "thinking");
 });
 
 test("completeActiveAssistantMessage closes open reasoning steps after stream completion", async () => {
-  const {
-    reduceChunk,
-    completeActiveAssistantMessage,
-    initialChatState,
-  } = await import("./index");
+  const { reduceChunk, completeActiveAssistantMessage, initialChatState } =
+    await import("./index");
 
   const activeState = [
     {
@@ -759,12 +804,10 @@ test("completeActiveAssistantMessage closes open reasoning steps after stream co
 
   assert.equal(finalState.status, "complete");
   assert.equal(finalState.messages[0]?.pending, false);
-  assert.deepEqual(steps.map((step) => step.status), [
-    "completed",
-    "completed",
-    "completed",
-    "completed",
-  ]);
+  assert.deepEqual(
+    steps.map((step) => step.status),
+    ["completed", "completed", "completed", "completed"],
+  );
   assert.equal(steps[0]?.completedAt, 8_000);
   assert.equal(steps[1]?.completedAt, 8_000);
   assert.equal(steps[2]?.completedAt, 8_000);
@@ -803,7 +846,7 @@ test("reduceChunk closes open thinking steps when the response completes", async
   assert.equal(finalState.messages[0]?.pending, false);
   assert.deepEqual(
     steps.map((step) => step.status),
-    ["completed", "completed"]
+    ["completed", "completed"],
   );
   assert.equal(steps[0]?.completedAt, 3_000);
   assert.equal(steps[0]?.durationMs, 2_000);
@@ -843,7 +886,7 @@ test("reduceChunk marks backend fallback error responses as failed", async () =>
   assert.equal(message?.content, fallbackMessage);
   assert.deepEqual(
     steps.map((step) => step.status),
-    ["completed", "error"]
+    ["completed", "error"],
   );
   assert.equal(steps[1]?.completedAt, 2_000);
 });

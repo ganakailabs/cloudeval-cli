@@ -5,6 +5,26 @@ import type { Command } from "commander";
 import type { MachineOutputFormat } from "./outputFormatter.js";
 
 export type CliMode = "ask" | "agent";
+export type LocalHookEvent =
+  | "cli.command.before"
+  | "cli.command.after"
+  | "cli.command.error"
+  | "agent_profile.run.before"
+  | "agent_profile.run.after"
+  | "agent_profile.run.error";
+
+export interface LocalHookDefinition {
+  id: string;
+  command: string;
+  cwd?: string;
+  timeoutSeconds?: number;
+  continueOnError?: boolean;
+}
+
+export interface LocalHooksConfig {
+  enabled?: boolean;
+  events?: Partial<Record<LocalHookEvent, LocalHookDefinition[]>>;
+}
 
 export interface CliConfig {
   baseUrl?: string;
@@ -13,6 +33,7 @@ export interface CliConfig {
   model?: string;
   mode?: CliMode;
   outputFormat?: MachineOutputFormat;
+  hooks?: LocalHooksConfig;
 }
 
 const CONFIG_PROFILE_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/;

@@ -2,6 +2,7 @@ export type CliDomain =
   | "chat"
   | "reports"
   | "recipes"
+  | "agents"
   | "projects"
   | "connections"
   | "credentials"
@@ -138,6 +139,29 @@ export const cliCommands: CliCommandMetadata[] = [
       "--help",
     ],
     workflows: ["agent"],
+  },
+  {
+    name: "agents",
+    description: "List, inspect, and run CloudEval Agent Profiles",
+    domain: "agents",
+    options: [
+      "list",
+      "show",
+      "run",
+      ...authOptions,
+      "--project",
+      "--model",
+      "--thread",
+      "--format",
+      "--output",
+      "--progress",
+      "--frontend-url",
+      "--print-url",
+      "--no-hooks",
+      "--profile",
+      "--help",
+    ],
+    workflows: ["agents list", "agents show", "agents run"],
   },
   {
     name: "reports",

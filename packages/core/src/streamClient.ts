@@ -33,6 +33,7 @@ export interface StreamChatOptions {
   };
   settings?: StreamSettings;
   context?: Array<Record<string, unknown>>;
+  agentProfileId?: string;
   streamingMode?: "USER" | "DEBUG";
   signal?: AbortSignal;
   debug?: boolean;
@@ -291,6 +292,7 @@ const buildPayload = (options: StreamChatOptions): StreamRequestPayload => {
   const context = options.context ?? [];
   const settings = options.settings;
   const message = options.message;
+  const agentProfileId = options.agentProfileId?.trim();
 
   const payload: StreamRequestPayload = {
     thread_id: options.threadId,
@@ -299,12 +301,14 @@ const buildPayload = (options: StreamChatOptions): StreamRequestPayload => {
       user,
       project,
       settings,
+      ...(agentProfileId ? { agent_profile_id: agentProfileId } : {}),
       context,
     },
     user,
     message,
     project,
     settings,
+    ...(agentProfileId ? { agent_profile_id: agentProfileId } : {}),
     context,
     group_size: 1,
     streaming_mode: options.streamingMode ?? "USER",

@@ -55,6 +55,9 @@ test("estimateBannerRows counts the Welcome row in each banner layout", () => {
 
 test("shouldUseSplitChatLayout only enables the side context on roomy terminals", () => {
   assert.equal(shouldUseSplitChatLayout({ columns: 160, rows: 48 }), true);
+  assert.equal(shouldUseSplitChatLayout({ columns: 132, rows: 40 }), true);
   assert.equal(shouldUseSplitChatLayout({ columns: 120, rows: 48 }), false);
+  assert.equal(shouldUseSplitChatLayout({ columns: 131, rows: 48 }), false);
+  assert.equal(shouldUseSplitChatLayout({ columns: 160, rows: 39 }), false);
   assert.equal(shouldUseSplitChatLayout({ columns: 160, rows: 34 }), false);
 });

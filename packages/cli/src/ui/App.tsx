@@ -3188,7 +3188,7 @@ export const App: React.FC<AppProps> = ({
                 placeholder="Type to filter history..."
             />
           </TitledBox>
-      ) : (
+      ) : activeSelector ? null : (
           <InputBox
             value={input}
             onChange={handlePromptChange}

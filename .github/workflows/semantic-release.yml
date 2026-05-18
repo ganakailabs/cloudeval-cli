@@ -139,4 +139,26 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ needs.release.outputs.tag }}
-        run: gh release upload "$RELEASE_TAG" packages/cli/dist/bin/* --clobber
+        run: |
+          shopt -s nullglob
+          files=(packages/cli/dist/bin/*-${{ matrix.platform }}-${{ matrix.arch }}*)
+
+          if [ "${{ matrix.platform }}-${{ matrix.arch }}" = "linux-x64" ]; then
+            for file in \
+              packages/cli/dist/bin/LICENSE* \
+              packages/cli/dist/bin/NOTICE* \
+              packages/cli/dist/bin/THIRD_PARTY_NOTICES.md* \
+              packages/cli/dist/bin/sbom.spdx.json* \
+              packages/cli/dist/bin/yoga.wasm*
+            do
+              [ -f "$file" ] && files+=("$file")
+            done
+          fi
+
+          if [ "${#files[@]}" -eq 0 ]; then
+            ls -la packages/cli/dist/bin
+            echo "No release assets matched ${{ matrix.platform }}-${{ matrix.arch }}" >&2
+            exit 1
+          fi
+
+          gh release upload "$RELEASE_TAG" "${files[@]}" --clobber

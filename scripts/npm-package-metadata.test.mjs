@@ -110,6 +110,19 @@ test("semantic-release workflow does not require npm publishing credentials", ()
   assert.match(runner, /GITHUB_OUTPUT/);
 });
 
+test("semantic-release binary uploads avoid cross-platform asset races", () => {
+  const workflow = readFileSync(
+    path.join(repoRoot, ".github/workflows/semantic-release.yml"),
+    "utf8",
+  );
+
+  assert.match(workflow, /shopt -s nullglob/);
+  assert.match(workflow, /files=\(packages\/cli\/dist\/bin\/\*-\$\{\{ matrix\.platform \}\}-\$\{\{ matrix\.arch \}\}\*\)/);
+  assert.match(workflow, /matrix\.platform \}\}-\$\{\{ matrix\.arch \}\}" = "linux-x64"/);
+  assert.match(workflow, /packages\/cli\/dist\/bin\/LICENSE\*/);
+  assert.doesNotMatch(workflow, /gh release upload "\$RELEASE_TAG" packages\/cli\/dist\/bin\/\*/);
+});
+
 test("manual npm publish workflow uses trusted publishing without tokens", () => {
   const workflow = readFileSync(
     path.join(repoRoot, ".github/workflows/npm-publish.yml"),

@@ -100,7 +100,6 @@ jobs:
           fi
           cp "$YOGA_WASM" packages/cli/dist/bin/yoga.wasm
           rm -f "$YOGA_WASM"
-          node packages/cli/scripts/alias-executables.js
           if [ "${{ matrix.platform }}-${{ matrix.arch }}" != "linux-x64" ]; then
             rm -f packages/cli/dist/bin/yoga.wasm
           fi
@@ -135,13 +134,14 @@ jobs:
           }
           NODE
       - name: Upload release assets
+        timeout-minutes: 10
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ needs.release.outputs.tag }}
         run: |
           shopt -s nullglob
-          files=(packages/cli/dist/bin/*-${{ matrix.platform }}-${{ matrix.arch }}*)
+          files=(packages/cli/dist/bin/cloudeval-${{ matrix.platform }}-${{ matrix.arch }}*)
 
           if [ "${{ matrix.platform }}-${{ matrix.arch }}" = "linux-x64" ]; then
             for file in \

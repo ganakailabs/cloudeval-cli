@@ -117,9 +117,11 @@ test("semantic-release binary uploads avoid cross-platform asset races", () => {
   );
 
   assert.match(workflow, /shopt -s nullglob/);
-  assert.match(workflow, /files=\(packages\/cli\/dist\/bin\/\*-\$\{\{ matrix\.platform \}\}-\$\{\{ matrix\.arch \}\}\*\)/);
+  assert.match(workflow, /timeout-minutes:\s*10/);
+  assert.match(workflow, /files=\(packages\/cli\/dist\/bin\/cloudeval-\$\{\{ matrix\.platform \}\}-\$\{\{ matrix\.arch \}\}\*\)/);
   assert.match(workflow, /matrix\.platform \}\}-\$\{\{ matrix\.arch \}\}" = "linux-x64"/);
   assert.match(workflow, /packages\/cli\/dist\/bin\/LICENSE\*/);
+  assert.doesNotMatch(workflow, /node packages\/cli\/scripts\/alias-executables\.js/);
   assert.doesNotMatch(workflow, /gh release upload "\$RELEASE_TAG" packages\/cli\/dist\/bin\/\*/);
 });
 

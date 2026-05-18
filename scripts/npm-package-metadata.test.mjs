@@ -15,9 +15,34 @@ test("CLI package is publishable to npm with required public artifacts", () => {
 
   assert.equal(pkg.name, "@ganakailabs/cloudeval-cli");
   assert.equal(pkg.private, undefined);
+  assert.equal(
+    pkg.description,
+    "CloudEval CLI for cloud architecture, cost, report, automation, and MCP workflows.",
+  );
+  assert.equal(pkg.author, "Ganak AI Labs (https://cloudeval.ai)");
   assert.equal(pkg.license, "SEE LICENSE IN LICENSE");
+  assert.deepEqual(pkg.engines, { node: ">=20" });
   assert.deepEqual(pkg.publishConfig, { access: "public" });
   assert.equal(pkg.scripts.prepack, "node ../../scripts/prepare-npm-package.mjs");
+  assert.equal(pkg.homepage, "https://docs.cloudeval.ai/reference/cli-overview");
+  assert.equal(pkg.repository.url, "git+https://github.com/ganakailabs/cloudeval-cli.git");
+  assert.equal(pkg.repository.directory, "packages/cli");
+  assert.equal(pkg.bugs.url, "https://github.com/ganakailabs/cloudeval-cli/issues");
+
+  for (const keyword of [
+    "cloudeval",
+    "azure",
+    "cli",
+    "mcp",
+    "agents",
+    "automation",
+    "iac",
+    "well-architected",
+    "cost",
+    "architecture",
+  ]) {
+    assert.ok(pkg.keywords.includes(keyword), `${keyword} keyword is included`);
+  }
 
   for (const binName of ["cloudeval", "cloud", "eva"]) {
     assert.equal(pkg.bin[binName], "dist/cli.js");
@@ -62,6 +87,10 @@ test("public install docs use the scoped npm package name", () => {
   }
   assert.doesNotMatch(rootReadme, /npm install -g cloudeval-cli\b/);
   assert.doesNotMatch(cliReadme, /npm install -g cloudeval-cli\b/);
+  assert.match(cliReadme, /https:\/\/cloudeval\.ai/);
+  assert.match(cliReadme, /https:\/\/docs\.cloudeval\.ai\/reference\/cli-overview/);
+  assert.match(cliReadme, /https:\/\/github\.com\/ganakailabs\/cloudeval-cli\/issues/);
+  assert.match(cliReadme, /cloudeval agents run cost --project <project-id> --format json/);
 });
 
 test("semantic-release owns GitHub release assets while npm publishing stays manual", () => {

@@ -3,7 +3,23 @@
   "version": "0.18.4",
   "license": "SEE LICENSE IN LICENSE",
   "type": "module",
-  "description": "CloudEval terminal, automation, and MCP CLI.",
+  "description": "CloudEval CLI for cloud architecture, cost, report, automation, and MCP workflows.",
+  "author": "Ganak AI Labs (https://cloudeval.ai)",
+  "keywords": [
+    "cloudeval",
+    "cloud",
+    "azure",
+    "cli",
+    "mcp",
+    "agents",
+    "automation",
+    "iac",
+    "arm-template",
+    "well-architected",
+    "cost",
+    "architecture",
+    "devops"
+  ],
   "homepage": "https://docs.cloudeval.ai/reference/cli-overview",
   "repository": {
     "type": "git",
@@ -20,6 +36,9 @@
     "cloudeval": "dist/cli.js",
     "cloud": "dist/cli.js",
     "eva": "dist/cli.js"
+  },
+  "engines": {
+    "node": ">=20"
   },
   "files": [
     "dist",

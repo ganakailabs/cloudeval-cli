@@ -28,10 +28,19 @@ pnpm smoke:release:real
 
 If `pnpm` is not on your `PATH`, run the shell script directly.
 
-## npm package smoke
+## npm Package Publishing
 
-Before publishing `@ganakailabs/cloudeval-cli` to npm, verify the package
-manifest and dry-run the exact tarball:
+The `Publish npm Package` GitHub Actions workflow publishes
+`@ganakailabs/cloudeval-cli` through npm Trusted Publishing. It runs
+automatically after the `Semantic Release` workflow completes successfully and
+still supports manual `workflow_dispatch` runs as a fallback.
+
+Before publishing, the workflow compares `packages/cli/package.json` with the
+current npm registry version. If that exact version is already published, the
+publish step is skipped.
+
+For local release prep, verify the package manifest and dry-run the exact
+tarball:
 
 ```bash
 pnpm test:npm-package

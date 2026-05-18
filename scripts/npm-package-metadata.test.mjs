@@ -99,7 +99,7 @@ test("public install docs use the scoped npm package name", () => {
   assert.match(cliReadme, /sbom\.spdx\.json/);
 });
 
-test("semantic-release owns GitHub release assets while npm publishing stays manual", () => {
+test("semantic-release owns GitHub release assets while npm publishing stays in trusted workflow", () => {
   const releaseConfig = readJson(".releaserc.json");
   const plugins = releaseConfig.plugins;
   const pluginNames = plugins.map((plugin) => (Array.isArray(plugin) ? plugin[0] : plugin));
@@ -160,16 +160,23 @@ test("semantic-release binary uploads avoid cross-platform asset races", () => {
   assert.doesNotMatch(workflow, /gh release upload "\$RELEASE_TAG" packages\/cli\/dist\/bin\/\*/);
 });
 
-test("manual npm publish workflow uses trusted publishing without tokens", () => {
+test("npm publish workflow auto-runs after release and uses trusted publishing without tokens", () => {
   const workflow = readFileSync(
     path.join(repoRoot, ".github/workflows/npm-publish.yml"),
     "utf8",
   );
 
   assert.match(workflow, /workflow_dispatch:/);
+  assert.match(workflow, /workflow_run:/);
+  assert.match(workflow, /workflows:\s*\["Semantic Release"\]/);
+  assert.match(workflow, /types:\s*\[completed\]/);
+  assert.match(workflow, /github\.event_name == 'workflow_dispatch' \|\| github\.event\.workflow_run\.conclusion == 'success'/);
   assert.match(workflow, /id-token:\s*write/);
   assert.match(workflow, /node-version:\s*22\.14\.0/);
   assert.match(workflow, /npm install -g npm@\^11\.10\.0/);
+  assert.match(workflow, /npm view @ganakailabs\/cloudeval-cli version/);
+  assert.match(workflow, /should_publish=true/);
+  assert.match(workflow, /steps\.publish-needed\.outputs\.should_publish == 'true'/);
   assert.match(workflow, /npm publish --access public/);
   assert.doesNotMatch(workflow, /NPM_TOKEN/);
   assert.doesNotMatch(workflow, /NODE_AUTH_TOKEN/);

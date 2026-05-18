@@ -42,6 +42,17 @@ The dry-run must include `dist`, `README.md`, `LICENSE`, `NOTICE`,
 `THIRD_PARTY_NOTICES.md`, and `sbom.spdx.json`. The package should expose the
 `cloudeval`, `eva`, and `cloud` binaries from `dist/cli.js`.
 
+After installing a package or release in an isolated home, verify the cleanup
+surface without deleting files:
+
+```bash
+cloudeval uninstall --dry-run --format json
+```
+
+`cloudeval uninstall --yes` removes installer-owned files while keeping
+`~/.config/cloudeval`. Add `--remove-config` only for destructive local auth,
+settings, and session cleanup.
+
 ## Defaults
 
 The script uses the public CloudEval FQDN by default:

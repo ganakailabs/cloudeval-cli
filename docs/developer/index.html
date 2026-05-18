@@ -58,6 +58,10 @@
       <p>The installer detects common agent clients and IDEs such as Codex, Claude Desktop, Cursor, and VS Code. Optional setup prompts can run login, configure MCP for <code>detected</code>, <code>all</code>, or selected comma-separated clients, and print access-key commands for automation. Interactive <code>cloudeval update</code> uses the same installer and can ask whether to onboard MCP after updating the binary; <code>cloudeval update --yes</code> stays unattended. Release downloads prefer compressed assets, show compact labeled progress bars in interactive terminals, and use timeout/stall checks so slow CDN transfers fail clearly. On non-Windows platforms, the installer can create <code>eva</code> and <code>cloud</code> aliases. Nothing is written to agent or IDE config unless you approve it.</p>
       <pre><code>curl -fsSL https://cli.cloudeval.ai/install.sh | CLOUDEVAL_INSTALL_AGENT_SETUP=0 bash
 curl -fsSL https://cli.cloudeval.ai/install.sh | CLOUDEVAL_INSTALL_MCP_CLIENTS=codex,cursor bash</code></pre>
+      <p>Use <code>cloudeval uninstall</code> to remove installer-owned local artifacts. Config, sessions, and auth under <code>~/.config/cloudeval</code> are kept unless <code>--remove-config</code> is provided.</p>
+      <pre><code>cloudeval uninstall --dry-run
+cloudeval uninstall --yes
+cloudeval uninstall --yes --remove-config</code></pre>
 
       <h2>Skills</h2>
       <p>Public skill files live in the repository under <code>skills/</code>. They are open-source agent guidance only and do not contain proprietary backend internals, secrets, tenant IDs, account IDs, customer payloads, or private business logic.</p>

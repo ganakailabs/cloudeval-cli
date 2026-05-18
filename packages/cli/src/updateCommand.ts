@@ -461,6 +461,7 @@ export const handleUpdateCommand = async (
 
 const suppressedNudgeCommands = new Set([
   "update",
+  "uninstall",
   "completion",
   "help",
   "capabilities",

@@ -31,6 +31,7 @@ import { registerSessionsCommand } from "./sessionsCommand.js";
 import { registerSetupCommand } from "./setupCommand.js";
 import { registerMcpCommand } from "./mcpCommand.js";
 import { maybeShowUpdateNudge, registerUpdateCommand } from "./updateCommand.js";
+import { registerUninstallCommand } from "./uninstallCommand.js";
 import { buildFrontendUrl, openExternalUrl, resolveFrontendBaseUrl } from "./frontendLinks.js";
 import {
   setShowSensitiveIds,
@@ -803,6 +804,7 @@ registerMcpCommand(program, {
 });
 
 registerUpdateCommand(program);
+registerUninstallCommand(program);
 
 program
   .command("__complete")

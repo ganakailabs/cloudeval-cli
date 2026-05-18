@@ -2,7 +2,7 @@
   "name": "cloudeval-cli-monorepo",
   "version": "0.19.2",
   "private": true,
-  "license": "SEE LICENSE IN LICENSE",
+  "license": "LicenseRef-CloudEval-CLI",
   "packageManager": "pnpm@9.12.0",
   "engines": {
     "node": ">=20"

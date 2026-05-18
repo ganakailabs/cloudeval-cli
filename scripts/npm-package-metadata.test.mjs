@@ -20,7 +20,7 @@ test("CLI package is publishable to npm with required public artifacts", () => {
     "CloudEval CLI for cloud architecture, cost, report, automation, and MCP workflows.",
   );
   assert.equal(pkg.author, "Ganak AI Labs (https://cloudeval.ai)");
-  assert.equal(pkg.license, "SEE LICENSE IN LICENSE");
+  assert.equal(pkg.license, "LicenseRef-CloudEval-CLI");
   assert.deepEqual(pkg.engines, { node: ">=20" });
   assert.deepEqual(pkg.publishConfig, { access: "public" });
   assert.equal(pkg.scripts.prepack, "node ../../scripts/prepare-npm-package.mjs");
@@ -90,6 +90,7 @@ test("public install docs use the scoped npm package name", () => {
   assert.match(cliReadme, /https:\/\/cloudeval\.ai/);
   assert.match(cliReadme, /https:\/\/docs\.cloudeval\.ai\/reference\/cli-overview/);
   assert.match(cliReadme, /https:\/\/github\.com\/ganakailabs\/cloudeval-cli\/issues/);
+  assert.match(cliReadme, /https:\/\/discord\.gg\/tk5dcU2a7T/);
   assert.match(cliReadme, /docs\/assets\/images\/cli\/tui-chat\.png/);
   assert.match(cliReadme, /cloudeval agents run cost --project <project-id> --format json/);
   assert.match(cliReadme, /cloudeval uninstall --yes --remove-config/);

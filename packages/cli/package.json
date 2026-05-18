@@ -1,7 +1,7 @@
 {
   "name": "@ganakailabs/cloudeval-cli",
   "version": "0.19.2",
-  "license": "SEE LICENSE IN LICENSE",
+  "license": "LicenseRef-CloudEval-CLI",
   "type": "module",
   "description": "CloudEval CLI for cloud architecture, cost, report, automation, and MCP workflows.",
   "author": "Ganak AI Labs (https://cloudeval.ai)",

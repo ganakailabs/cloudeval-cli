@@ -9,13 +9,14 @@
   <a href="https://github.com/ganakailabs/cloudeval-cli/releases"><img alt="release" src="https://img.shields.io/github/v/release/ganakailabs/cloudeval-cli?sort=semver&style=flat-square"></a>
   <a href="https://github.com/ganakailabs/cloudeval-cli/blob/main/LICENSE"><img alt="license" src="https://img.shields.io/badge/license-CloudEval%20CLI%20License-blue?style=flat-square"></a>
   <a href="https://docs.cloudeval.ai/reference/cli-overview"><img alt="docs" src="https://img.shields.io/badge/docs-docs.cloudeval.ai-2d6cdf?style=flat-square"></a>
+  <a href="https://discord.gg/tk5dcU2a7T"><img alt="Discord" src="https://img.shields.io/badge/Discord-community-5865F2?style=flat-square&logo=discord&logoColor=white"></a>
 </p>
 
 CloudEval CLI brings CloudEval into your terminal, scripts, and agent tools. It
 supports cloud chat, Agent mode, Agent Profiles, project and report inspection,
 template validation, recipes, local hooks, and MCP server workflows.
 
-[CloudEval](https://cloudeval.ai) | [Docs](https://docs.cloudeval.ai/reference/cli-overview) | [GitHub](https://github.com/ganakailabs/cloudeval-cli) | [Issues](https://github.com/ganakailabs/cloudeval-cli/issues) | [Releases](https://github.com/ganakailabs/cloudeval-cli/releases)
+[CloudEval](https://cloudeval.ai) | [Docs](https://docs.cloudeval.ai/reference/cli-overview) | [GitHub](https://github.com/ganakailabs/cloudeval-cli) | [Discord](https://discord.gg/tk5dcU2a7T) | [Issues](https://github.com/ganakailabs/cloudeval-cli/issues) | [Releases](https://github.com/ganakailabs/cloudeval-cli/releases)
 
 ## Install
 

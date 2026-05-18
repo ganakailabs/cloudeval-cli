@@ -93,6 +93,8 @@
       </section>
 
       <h2>Install and Onboard</h2>
+      <pre><code>npm install -g @ganakailabs/cloudeval-cli</code></pre>
+      <p>Use npm on Node.js 20+ machines. Use the standalone installer when you want release binaries, shell aliases, completions, or optional local agent onboarding.</p>
       <pre><code>curl -fsSL https://cli.cloudeval.ai/install.sh | bash</code></pre>
       <p>The installer detects common agent clients and IDEs such as Codex, Claude Desktop, Cursor, and VS Code. Optional setup prompts detect existing CloudEval MCP config, skip clients that are already configured, run login when approved, configure MCP for missing clients that can be set up automatically, and summarize manual-only clients with a follow-up command. Interactive <code>cloudeval update</code> uses the same installer and can ask whether to onboard MCP after updating the binary; <code>cloudeval update --yes</code> stays unattended. When new MCP capabilities are installed, restart or reload configured MCP clients when you are ready; CloudEval does not restart those apps automatically. Release downloads prefer compressed assets, show compact labeled progress bars in interactive terminals, and use timeout/stall checks so slow CDN transfers fail clearly. On non-Windows platforms, the installer can create <code>eva</code> and <code>cloud</code> aliases. Nothing is written to agent or IDE config unless you approve it.</p>
       <pre><code>curl -fsSL https://cli.cloudeval.ai/install.sh | CLOUDEVAL_INSTALL_AGENT_SETUP=0 bash

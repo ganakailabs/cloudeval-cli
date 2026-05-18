@@ -25,17 +25,18 @@ CloudEval CLI turns **ARM templates**, **GitHub-hosted IaC**, and **live Azure c
 
 ## Install
 
-macOS, Linux, WSL2, and Git Bash on Windows:
-
-```bash
-curl -fsSL https://cli.cloudeval.ai/install.sh | bash
-```
-
-Node.js 20+ users can also install from npm:
+Node.js 20+ users can install from npm:
 
 ```bash
 npm install -g @ganakailabs/cloudeval-cli
 cloudeval --help
+```
+
+macOS, Linux, WSL2, and Git Bash on Windows can also use the standalone
+release installer:
+
+```bash
+curl -fsSL https://cli.cloudeval.ai/install.sh | bash
 ```
 
 Then reload your shell and sign in:
@@ -70,7 +71,6 @@ Useful controls:
 ```bash
 curl -fsSL https://cli.cloudeval.ai/install.sh | CLOUDEVAL_INSTALL_AGENT_SETUP=0 bash
 curl -fsSL https://cli.cloudeval.ai/install.sh | CLOUDEVAL_INSTALL_MCP_CLIENTS=codex,cursor bash
-curl -fsSL https://raw.githubusercontent.com/ganakailabs/cloudeval-cli/main/scripts/install.sh | bash
 ```
 
 Native Windows should use WSL2 or Git Bash. There is no first-party PowerShell installer yet.

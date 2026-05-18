@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/cloudeval-cli-banner.png" alt="Welcome to CloudEval" width="100%">
+  <img src="docs/assets/images/cli/tui-chat.png" alt="CloudEval CLI terminal UI" width="100%">
 </p>
 
 # CloudEval CLI
@@ -60,7 +60,7 @@ The installer:
 - downloads checksum-verified GitHub release assets and installs `cloudeval`;
 - creates the `eva` and `cloud` aliases on non-Windows platforms;
 - can install shell completions for bash, zsh, and fish;
-- can offer concise MCP setup for detected Codex, Claude Desktop, Cursor, and VS Code clients, then print a short summary;
+- can offer concise MCP setup for detected Codex, Claude Desktop, Cursor, and VS Code clients, skipping clients where CloudEval MCP is already configured and avoiding prompts when only manual-only setup remains;
 - explains credential setup but does not create access keys or write secrets into MCP client config;
 - shows compact labeled progress bars in interactive terminals;
 - uses connect/stall timeouts so slow CDN transfers fail clearly.
@@ -83,6 +83,10 @@ Update later with:
 cloudeval update --check
 cloudeval update --yes
 ```
+
+After an update, restart or reload configured MCP clients when you are ready to
+load newly exposed CloudEval tools, resources, or prompts. CloudEval does not
+restart Codex, Claude, Cursor, VS Code, or other MCP hosts automatically.
 
 Uninstall local installer-owned artifacts while keeping CloudEval config,
 sessions, and auth by default:

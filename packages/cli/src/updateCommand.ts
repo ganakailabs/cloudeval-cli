@@ -406,6 +406,9 @@ export const formatUpdateStatusText = (result: UpdateCommandResult): string => {
     lines.push(
       "MCP onboarding: interactive updates can ask to configure Codex, Claude, Cursor, or VS Code after installation."
     );
+    lines.push(
+      "MCP refresh: Restart or reload configured MCP clients when you are ready to load new CloudEval tools. CloudEval does not restart those apps for you."
+    );
   }
 
   return `${lines.join("\n")}\n`;

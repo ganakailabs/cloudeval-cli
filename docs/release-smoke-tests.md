@@ -86,10 +86,16 @@ The smoke script verifies:
 - The installer prints optional agent and credential setup guidance without
   running login, creating credentials, or writing MCP client config in CI.
 - Interactive update/install flows can offer optional MCP onboarding for
-  detected, all, or selected clients; unattended `--yes`/CI flows skip the
-  prompt unless explicitly configured. MCP onboarding keeps per-client output
-  concise and ends with a summary instead of printing full setup tables during
+  missing detected clients, all clients, or selected clients; unattended
+  `--yes`/CI flows skip the prompt unless explicitly configured. MCP onboarding
+  detects existing CloudEval MCP config, skips clients that are already set up,
+  avoids prompts when only manual-only setup remains, keeps per-client output
+  concise, and ends with a summary instead of printing full setup tables during
   installation.
+- Updates and installs never restart MCP clients automatically. When existing
+  CloudEval MCP clients are detected or configured, output tells users to
+  restart or reload those clients when they are ready to load new tools,
+  resources, or prompts.
 - The installed CLI resolves from `PATH`.
 - Release binary version matches the resolved release tag.
 - `cloudeval --help` renders command help.
@@ -157,10 +163,11 @@ smoke runs keep downloads quiet by default, but still inherit the same connect,
 max-time, and stall detection checks.
 
 `CLOUDEVAL_INSTALL_AGENT_SETUP=0` disables installer onboarding. When enabled,
-`CLOUDEVAL_INSTALL_MCP_CLIENTS` can preselect `detected`, `all`, or a
-comma-separated group such as `codex,cursor`. `CLOUDEVAL_INSTALL_AGENT_SETUP_PROMPT=1`
-is used by interactive update flows so the installer can skip install
-confirmation prompts while still asking about optional MCP onboarding.
+`CLOUDEVAL_INSTALL_MCP_CLIENTS` can preselect `detected`, `missing`, `all`, or a
+comma-separated group such as `codex,cursor`; already configured clients are
+skipped. `CLOUDEVAL_INSTALL_AGENT_SETUP_PROMPT=1` is used by interactive update
+flows so the installer can skip install confirmation prompts while still asking
+about optional MCP onboarding.
 
 ## Expected Output
 

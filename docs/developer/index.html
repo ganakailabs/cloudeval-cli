@@ -46,16 +46,55 @@
       a {
         color: #8be6ff;
       }
+      .screenshots {
+        display: grid;
+        gap: 18px;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        margin: 28px 0 6px;
+      }
+      figure {
+        margin: 0;
+      }
+      figure img {
+        border: 1px solid #354125;
+        border-radius: 8px;
+        display: block;
+        height: auto;
+        width: 100%;
+      }
+      figcaption {
+        color: #9ca891;
+        font-size: 13px;
+        margin-top: 8px;
+      }
     </style>
   </head>
   <body>
     <main>
       <h1>Developer Setup</h1>
       <p>CloudEval CLI exposes cloud evaluation workflows to terminals, CI, and agent hosts through normal commands, public skills, reusable recipes, and MCP.</p>
+      <section class="screenshots" aria-label="CloudEval CLI screenshots">
+        <figure>
+          <img src="../assets/images/cli/tui-chat.png" alt="CloudEval terminal chat interface">
+          <figcaption>Terminal chat and Agent mode</figcaption>
+        </figure>
+        <figure>
+          <img src="../assets/images/cli/overview.png" alt="CloudEval terminal overview dashboard">
+          <figcaption>Cloud workspace overview</figcaption>
+        </figure>
+        <figure>
+          <img src="../assets/images/cli/reports.png" alt="CloudEval terminal reports dashboard">
+          <figcaption>Reports and evidence views</figcaption>
+        </figure>
+        <figure>
+          <img src="../assets/images/cli/billing.png" alt="CloudEval terminal billing panel">
+          <figcaption>Billing and usage panel</figcaption>
+        </figure>
+      </section>
 
       <h2>Install and Onboard</h2>
       <pre><code>curl -fsSL https://cli.cloudeval.ai/install.sh | bash</code></pre>
-      <p>The installer detects common agent clients and IDEs such as Codex, Claude Desktop, Cursor, and VS Code. Optional setup prompts can run login, configure MCP for <code>detected</code>, <code>all</code>, or selected comma-separated clients, and print access-key commands for automation. Interactive <code>cloudeval update</code> uses the same installer and can ask whether to onboard MCP after updating the binary; <code>cloudeval update --yes</code> stays unattended. Release downloads prefer compressed assets, show compact labeled progress bars in interactive terminals, and use timeout/stall checks so slow CDN transfers fail clearly. On non-Windows platforms, the installer can create <code>eva</code> and <code>cloud</code> aliases. Nothing is written to agent or IDE config unless you approve it.</p>
+      <p>The installer detects common agent clients and IDEs such as Codex, Claude Desktop, Cursor, and VS Code. Optional setup prompts detect existing CloudEval MCP config, skip clients that are already configured, run login when approved, configure MCP for missing clients that can be set up automatically, and summarize manual-only clients with a follow-up command. Interactive <code>cloudeval update</code> uses the same installer and can ask whether to onboard MCP after updating the binary; <code>cloudeval update --yes</code> stays unattended. When new MCP capabilities are installed, restart or reload configured MCP clients when you are ready; CloudEval does not restart those apps automatically. Release downloads prefer compressed assets, show compact labeled progress bars in interactive terminals, and use timeout/stall checks so slow CDN transfers fail clearly. On non-Windows platforms, the installer can create <code>eva</code> and <code>cloud</code> aliases. Nothing is written to agent or IDE config unless you approve it.</p>
       <pre><code>curl -fsSL https://cli.cloudeval.ai/install.sh | CLOUDEVAL_INSTALL_AGENT_SETUP=0 bash
 curl -fsSL https://cli.cloudeval.ai/install.sh | CLOUDEVAL_INSTALL_MCP_CLIENTS=codex,cursor bash</code></pre>
       <p>Use <code>cloudeval uninstall</code> to remove installer-owned local artifacts. Config, sessions, and auth under <code>~/.config/cloudeval</code> are kept unless <code>--remove-config</code> is provided.</p>

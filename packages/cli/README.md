@@ -1,7 +1,7 @@
 # CloudEval CLI
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/ganakailabs/cloudeval-cli/main/docs/assets/cloudeval-cli-banner.png" alt="CloudEval CLI terminal banner" width="100%">
+  <img src="https://raw.githubusercontent.com/ganakailabs/cloudeval-cli/main/docs/assets/images/cli/tui-chat.png" alt="CloudEval CLI terminal UI" width="100%">
 </p>
 
 <p align="center">
@@ -36,6 +36,13 @@ the shell installer:
 ```bash
 curl -fsSL https://cli.cloudeval.ai/install.sh | bash
 ```
+
+The shell installer can detect Codex, Claude Desktop, Cursor, and VS Code,
+skip clients where CloudEval MCP is already configured, and offer setup only
+for missing clients that can be configured automatically. Manual-only clients
+are summarized with a follow-up command instead of forcing another prompt.
+When a CLI update exposes new MCP capabilities, restart or reload your MCP
+client when you are ready; CloudEval never restarts those apps automatically.
 
 ## Common Commands
 

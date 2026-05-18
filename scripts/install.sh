@@ -553,6 +553,146 @@ supported_mcp_clients() {
   printf '%s\n' "codex claude cursor vscode"
 }
 
+client_list_contains() {
+  local clients="$1"
+  local client="$2"
+  case " $clients " in
+    *" $client "*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+file_has_cloudeval_mcp_server() {
+  local file_path="$1"
+  [ -f "$file_path" ] || return 1
+
+  grep -Eq '^\[mcp_servers\.("?cloudeval"?)\]' "$file_path" 2>/dev/null && return 0
+  grep -Eq '"cloudeval"[[:space:]]*:' "$file_path" 2>/dev/null && return 0
+  return 1
+}
+
+codex_mcp_is_configured() {
+  if command -v codex >/dev/null 2>&1 && codex mcp get cloudeval >/dev/null 2>&1; then
+    return 0
+  fi
+  file_has_cloudeval_mcp_server "$HOME/.codex/config.toml"
+}
+
+cursor_mcp_is_configured() {
+  file_has_cloudeval_mcp_server "$HOME/.cursor/mcp.json"
+}
+
+claude_mcp_is_configured() {
+  file_has_cloudeval_mcp_server "$HOME/Library/Application Support/Claude/claude_desktop_config.json" && return 0
+  file_has_cloudeval_mcp_server "$HOME/.config/Claude/claude_desktop_config.json"
+}
+
+vscode_mcp_is_configured() {
+  local appdata_dir="${APPDATA:-$HOME/AppData/Roaming}"
+
+  file_has_cloudeval_mcp_server "$HOME/Library/Application Support/Code/User/mcp.json" && return 0
+  file_has_cloudeval_mcp_server "$HOME/Library/Application Support/Code - Insiders/User/mcp.json" && return 0
+  file_has_cloudeval_mcp_server "$HOME/.config/Code/User/mcp.json" && return 0
+  file_has_cloudeval_mcp_server "$HOME/.config/Code - Insiders/User/mcp.json" && return 0
+  file_has_cloudeval_mcp_server "$appdata_dir/Code/User/mcp.json" && return 0
+  file_has_cloudeval_mcp_server "$PWD/.vscode/mcp.json"
+}
+
+mcp_client_is_configured() {
+  local client="$1"
+  case "$client" in
+    codex)
+      codex_mcp_is_configured
+      ;;
+    cursor)
+      cursor_mcp_is_configured
+      ;;
+    claude)
+      claude_mcp_is_configured
+      ;;
+    vscode)
+      vscode_mcp_is_configured
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+detect_configured_mcp_clients() {
+  local configured=""
+  local client
+
+  for client in $(supported_mcp_clients); do
+    if mcp_client_is_configured "$client"; then
+      configured="$(append_unique_client "$configured" "$client")"
+    fi
+  done
+
+  printf '%s\n' "$configured"
+}
+
+filter_unconfigured_mcp_clients() {
+  local clients="$1"
+  local configured="$2"
+  local candidates=""
+  local client
+
+  for client in $clients; do
+    if ! client_list_contains "$configured" "$client"; then
+      candidates="$(append_unique_client "$candidates" "$client")"
+    fi
+  done
+
+  printf '%s\n' "$candidates"
+}
+
+mcp_client_can_auto_setup() {
+  local client="$1"
+  case "$client" in
+    codex)
+      command -v codex >/dev/null 2>&1
+      ;;
+    cursor|claude)
+      return 0
+      ;;
+    vscode)
+      command -v code >/dev/null 2>&1
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+filter_auto_setup_mcp_clients() {
+  local clients="$1"
+  local candidates=""
+  local client
+
+  for client in $clients; do
+    if mcp_client_can_auto_setup "$client"; then
+      candidates="$(append_unique_client "$candidates" "$client")"
+    fi
+  done
+
+  printf '%s\n' "$candidates"
+}
+
+filter_manual_setup_mcp_clients() {
+  local clients="$1"
+  local candidates=""
+  local client
+
+  for client in $clients; do
+    if ! mcp_client_can_auto_setup "$client"; then
+      candidates="$(append_unique_client "$candidates" "$client")"
+    fi
+  done
+
+  printf '%s\n' "$candidates"
+}
+
 join_words() {
   local separator="$1"
   shift || true
@@ -578,7 +718,7 @@ normalize_mcp_client_selection() {
       skip|none|no)
         normalized=""
         ;;
-      detected|default)
+      detected|default|missing)
         normalized="$detected"
         ;;
       all)
@@ -651,6 +791,11 @@ setup_mcp_client() {
   esac
 }
 
+print_mcp_restart_notice() {
+  echo -e "  ${YELLOW}Restart or reload configured MCP clients when you are ready to load new CloudEval tools.${NC}"
+  echo -e "  ${MUTED}CloudEval does not restart those apps for you.${NC}"
+}
+
 print_mcp_setup_summary() {
   local configured="$1"
   local manual="$2"
@@ -672,7 +817,7 @@ print_mcp_setup_summary() {
     echo -e "  ${YELLOW}No MCP clients configured.${NC}"
   else
     echo -e "  Toolset: ${GREEN}readonly${NC}"
-    echo -e "  Restart configured clients to load CloudEval tools."
+    print_mcp_restart_notice
   fi
   if [ -n "$manual$failed" ]; then
     echo -e "  Retry: ${GREEN}${BIN_NAME} mcp setup <client> --toolset readonly${NC}"
@@ -692,11 +837,43 @@ run_optional_agent_setup() {
   echo -e "  MCP adds CloudEval tools, recipes, and prompts to Codex, Claude, Cursor, and VS Code."
 
   local detected
+  local configured_existing
+  local setup_candidates
+  local auto_setup_candidates
+  local manual_setup_candidates
   detected="$(detect_mcp_clients)"
+  configured_existing="$(detect_configured_mcp_clients)"
+  setup_candidates="$(filter_unconfigured_mcp_clients "$detected" "$configured_existing")"
+  auto_setup_candidates="$(filter_auto_setup_mcp_clients "$setup_candidates")"
+  manual_setup_candidates="$(filter_manual_setup_mcp_clients "$setup_candidates")"
+
   if [ -n "$detected" ]; then
     echo -e "  Detected: ${GREEN}${detected}${NC}"
   else
     echo -e "  Detected: ${YELLOW}none${NC}"
+  fi
+  if [ -n "$configured_existing" ]; then
+    echo -e "  Already configured: ${GREEN}${configured_existing}${NC}"
+  fi
+  if [ -n "$auto_setup_candidates" ]; then
+    echo -e "  Setup available for: ${GREEN}${auto_setup_candidates}${NC}"
+  fi
+  if [ -n "$manual_setup_candidates" ]; then
+    echo -e "  Manual setup available for: ${YELLOW}${manual_setup_candidates}${NC}"
+  fi
+  if [ -z "$auto_setup_candidates" ] && [ -n "$manual_setup_candidates" ] && [ -z "${CLOUDEVAL_INSTALL_MCP_CLIENTS:-}" ]; then
+    echo -e "  ${YELLOW}Skipping automatic MCP setup prompt because only manual-only clients are missing.${NC}"
+    echo -e "  Later: ${GREEN}${BIN_NAME} mcp setup <client> --toolset readonly${NC}"
+    if [ -n "$configured_existing" ]; then
+      print_mcp_restart_notice
+    fi
+    return 0
+  elif [ -n "$detected" ] && [ -z "${CLOUDEVAL_INSTALL_MCP_CLIENTS:-}" ]; then
+    echo -e "  ${GREEN}✓ MCP already configured for detected clients; skipping setup prompt.${NC}"
+    if [ -n "$configured_existing" ]; then
+      print_mcp_restart_notice
+    fi
+    return 0
   fi
 
   if ! can_prompt_on_tty; then
@@ -704,24 +881,16 @@ run_optional_agent_setup() {
     return 0
   fi
 
-  if [ -z "${CLOUDEVAL_INSTALL_MCP_CLIENTS:-}" ] && ! ask_agent_setup_yes_no "Set up CloudEval MCP for agents and IDEs now?" "n"; then
+  if [ -z "${CLOUDEVAL_INSTALL_MCP_CLIENTS:-}" ] && ! ask_agent_setup_yes_no "Set up CloudEval MCP for missing agents and IDEs now?" "n"; then
     print_agent_setup_next_steps
     return 0
   fi
 
-  if ask_agent_setup_yes_no "Run ${BIN_NAME} login now first?" "n"; then
-    if "$DEST" login; then
-      echo -e "${GREEN}✓ Login completed${NC}"
-    else
-      echo -e "${YELLOW}⚠ Login did not complete. You can rerun: ${BIN_NAME} login${NC}"
-    fi
-  fi
-
   local selected="${CLOUDEVAL_INSTALL_MCP_CLIENTS:-}"
   if [ -z "$selected" ]; then
-    if [ -n "$detected" ]; then
-      read -r -p "$(echo -e "${BLUE}MCP clients? detected/all/codex,cursor/skip [detected]: ${NC}")" selected < /dev/tty || selected=""
-      selected="${selected:-detected}"
+    if [ -n "$auto_setup_candidates" ]; then
+      read -r -p "$(echo -e "${BLUE}MCP clients? missing/all/codex,cursor/skip [missing]: ${NC}")" selected < /dev/tty || selected=""
+      selected="${selected:-missing}"
     else
       read -r -p "$(echo -e "${BLUE}MCP clients? all/codex,cursor/skip [skip]: ${NC}")" selected < /dev/tty || selected=""
       selected="${selected:-skip}"
@@ -729,9 +898,23 @@ run_optional_agent_setup() {
   fi
 
   local normalized
-  normalized="$(normalize_mcp_client_selection "$selected" "$detected")"
+  normalized="$(normalize_mcp_client_selection "$selected" "$auto_setup_candidates")"
+  normalized="$(filter_unconfigured_mcp_clients "$normalized" "$configured_existing")"
   if [ -z "$normalized" ]; then
-    echo -e "${YELLOW}Skipped MCP setup.${NC}"
+    if [ -n "$configured_existing" ]; then
+      echo -e "${GREEN}✓ Selected MCP clients are already configured. No MCP setup changes needed.${NC}"
+      print_mcp_restart_notice
+    else
+      echo -e "${YELLOW}Skipped MCP setup.${NC}"
+    fi
+  fi
+
+  if [ -n "$normalized" ] && ask_agent_setup_yes_no "Run ${BIN_NAME} login now first?" "n"; then
+    if "$DEST" login; then
+      echo -e "${GREEN}✓ Login completed${NC}"
+    else
+      echo -e "${YELLOW}⚠ Login did not complete. You can rerun: ${BIN_NAME} login${NC}"
+    fi
   fi
 
   local client
@@ -769,6 +952,26 @@ BIN_NAME="cloudeval"
 
 if [ "${1:-}" = "--self-test-agent-detection" ]; then
   detect_mcp_clients
+  exit 0
+fi
+
+if [ "${1:-}" = "--self-test-agent-configured" ]; then
+  detect_configured_mcp_clients
+  exit 0
+fi
+
+if [ "${1:-}" = "--self-test-agent-candidates" ]; then
+  filter_unconfigured_mcp_clients "${2:-}" "${3:-}"
+  exit 0
+fi
+
+if [ "${1:-}" = "--self-test-agent-auto-candidates" ]; then
+  filter_auto_setup_mcp_clients "${2:-}"
+  exit 0
+fi
+
+if [ "${1:-}" = "--self-test-agent-manual-candidates" ]; then
+  filter_manual_setup_mcp_clients "${2:-}"
   exit 0
 fi
 

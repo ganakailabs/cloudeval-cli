@@ -67,6 +67,15 @@ for expected in codex claude cursor vscode; do
   esac
 done
 
+selection_missing="$(
+  bash "$ROOT_DIR/scripts/install.sh" --self-test-agent-selection missing "claude vscode"
+)"
+if [ "$selection_missing" != "claude vscode" ]; then
+  echo "missing selection should use the provided setup candidates" >&2
+  echo "selection: $selection_missing" >&2
+  exit 1
+fi
+
 selection_skip="$(
   bash "$ROOT_DIR/scripts/install.sh" --self-test-agent-selection skip "codex cursor"
 )"
@@ -77,6 +86,99 @@ if [ -n "$selection_skip" ]; then
 fi
 
 echo "ok - installer normalizes agent setup selections"
+
+mkdir -p "$TMP_DIR/home/.codex"
+cat >"$TMP_DIR/home/.codex/config.toml" <<'EOF'
+[mcp_servers.cloudeval]
+command = "/tmp/cloudeval"
+args = ["mcp", "serve", "--toolset", "readonly"]
+EOF
+
+mkdir -p "$TMP_DIR/home/.cursor"
+cat >"$TMP_DIR/home/.cursor/mcp.json" <<'EOF'
+{
+  "mcpServers": {
+    "cloudeval": {
+      "command": "/tmp/cloudeval",
+      "args": ["mcp", "serve", "--toolset", "readonly"]
+    }
+  }
+}
+EOF
+
+cat >"$TMP_DIR/home/Library/Application Support/Claude/claude_desktop_config.json" <<'EOF'
+{
+  "mcpServers": {
+    "cloudeval": {
+      "command": "/tmp/cloudeval",
+      "args": ["mcp", "serve", "--toolset", "readonly"]
+    }
+  }
+}
+EOF
+
+mkdir -p "$TMP_DIR/home/Library/Application Support/Code/User"
+cat >"$TMP_DIR/home/Library/Application Support/Code/User/mcp.json" <<'EOF'
+{
+  "servers": {
+    "cloudeval": {
+      "type": "stdio",
+      "command": "/tmp/cloudeval",
+      "args": ["mcp", "serve", "--toolset", "readonly"]
+    }
+  }
+}
+EOF
+
+configured="$(
+  HOME="$TMP_DIR/home" \
+  PATH="$TMP_DIR/bin:/usr/bin:/bin" \
+  bash "$ROOT_DIR/scripts/install.sh" --self-test-agent-configured
+)"
+
+for expected in codex cursor claude vscode; do
+  case " $configured " in
+    *" $expected "*) ;;
+    *)
+      echo "missing configured client: $expected" >&2
+      echo "configured: $configured" >&2
+      exit 1
+      ;;
+  esac
+done
+
+setup_candidates="$(
+  bash "$ROOT_DIR/scripts/install.sh" --self-test-agent-candidates "codex cursor claude vscode" "codex cursor"
+)"
+if [ "$setup_candidates" != "claude vscode" ]; then
+  echo "setup candidates should exclude already configured clients" >&2
+  echo "candidates: $setup_candidates" >&2
+  exit 1
+fi
+
+auto_candidates="$(
+  HOME="$TMP_DIR/home" \
+  PATH="/usr/bin:/bin" \
+  bash "$ROOT_DIR/scripts/install.sh" --self-test-agent-auto-candidates "codex cursor claude vscode"
+)"
+if [ "$auto_candidates" != "cursor claude" ]; then
+  echo "auto setup candidates should exclude Codex without codex and VS Code without code" >&2
+  echo "auto candidates: $auto_candidates" >&2
+  exit 1
+fi
+
+manual_candidates="$(
+  HOME="$TMP_DIR/home" \
+  PATH="/usr/bin:/bin" \
+  bash "$ROOT_DIR/scripts/install.sh" --self-test-agent-manual-candidates "codex cursor claude vscode"
+)"
+if [ "$manual_candidates" != "codex vscode" ]; then
+  echo "manual setup candidates should include Codex without codex and VS Code without code" >&2
+  echo "manual candidates: $manual_candidates" >&2
+  exit 1
+fi
+
+echo "ok - installer detects existing MCP setup and narrows setup candidates"
 
 agent_next_steps="$(
   bash "$ROOT_DIR/scripts/install.sh" --self-test-agent-next-steps
@@ -95,7 +197,7 @@ fi
 mcp_summary="$(
   bash "$ROOT_DIR/scripts/install.sh" --self-test-mcp-summary "codex claude" "vscode" "cursor" "codex claude vscode cursor"
 )"
-for expected in "MCP setup summary" "Configured:" "codex, claude" "Manual:" "vscode" "Failed:" "cursor" "Retry:"; do
+for expected in "MCP setup summary" "Configured:" "codex, claude" "Manual:" "vscode" "Failed:" "cursor" "Retry:" "Restart or reload configured MCP clients when you are ready" "CloudEval does not restart those apps for you"; do
   case "$mcp_summary" in
     *"$expected"*) ;;
     *)

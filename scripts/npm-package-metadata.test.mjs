@@ -90,7 +90,7 @@ test("public install docs use the scoped npm package name", () => {
   assert.match(cliReadme, /https:\/\/cloudeval\.ai/);
   assert.match(cliReadme, /https:\/\/docs\.cloudeval\.ai\/reference\/cli-overview/);
   assert.match(cliReadme, /https:\/\/github\.com\/ganakailabs\/cloudeval-cli\/issues/);
-  assert.match(cliReadme, /cloudeval-cli-banner\.png/);
+  assert.match(cliReadme, /docs\/assets\/images\/cli\/tui-chat\.png/);
   assert.match(cliReadme, /cloudeval agents run cost --project <project-id> --format json/);
   assert.match(cliReadme, /cloudeval uninstall --yes --remove-config/);
   assert.match(cliReadme, /npm uninstall -g @ganakailabs\/cloudeval-cli/);

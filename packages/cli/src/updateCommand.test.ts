@@ -83,6 +83,8 @@ test("formatUpdateStatusText mentions agent onboarding after updates", () => {
   assert.match(text, /Status: updated/);
   assert.match(text, /MCP onboarding/);
   assert.match(text, /Codex, Claude, Cursor, or VS Code/);
+  assert.match(text, /Restart or reload configured MCP clients when you are ready/);
+  assert.match(text, /CloudEval does not restart those apps for you/);
 });
 
 test("runInstaller pipes installer script to bash with the resolved release tag", async () => {

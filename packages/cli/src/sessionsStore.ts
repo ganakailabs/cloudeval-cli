@@ -350,6 +350,23 @@ const ensureSchema = (db: SessionDatabase): void => {
   db.run(
     "CREATE INDEX IF NOT EXISTS idx_session_messages_thread ON session_messages(session_thread_id, message_index)"
   );
+  ensureFtsSchema(db);
+};
+
+const ensureFtsSchema = (db: SessionDatabase): boolean => {
+  try {
+    db.run(`
+      CREATE VIRTUAL TABLE IF NOT EXISTS session_messages_fts USING fts5(
+        thread_id UNINDEXED,
+        title,
+        project,
+        content
+      )
+    `);
+    return true;
+  } catch {
+    return false;
+  }
 };
 
 const optionalString = (value: unknown): string | undefined =>
@@ -477,7 +494,40 @@ const upsertSession = (db: SessionDatabase, session: LocalSession): void => {
         [session.threadId, index, message.role, message.content, message.createdAt]
       );
     });
+    upsertSessionFts(db, session);
   });
+};
+
+const upsertSessionFts = (db: SessionDatabase, session: LocalSession): void => {
+  if (!ensureFtsSchema(db)) {
+    return;
+  }
+  try {
+    db.run("DELETE FROM session_messages_fts WHERE thread_id = ?", [session.threadId]);
+    db.run(
+      `INSERT INTO session_messages_fts (thread_id, title, project, content)
+       VALUES (?, ?, ?, ?)`,
+      [
+        session.threadId,
+        session.title,
+        [session.projectId, session.projectName].filter(Boolean).join(" "),
+        session.messages.map((message) => message.content).join("\n"),
+      ],
+    );
+  } catch {
+    // FTS is an acceleration path only; regular session storage remains authoritative.
+  }
+};
+
+const deleteSessionFts = (db: SessionDatabase, threadId: string): void => {
+  if (!ensureFtsSchema(db)) {
+    return;
+  }
+  try {
+    db.run("DELETE FROM session_messages_fts WHERE thread_id = ?", [threadId]);
+  } catch {
+    // Ignore FTS cleanup failures; the sessions table is authoritative.
+  }
 };
 
 const readLegacySessionFile = async (filePath: string): Promise<LocalSession | null> => {
@@ -640,6 +690,17 @@ export const listSessions = async (limit = 20, profile?: string): Promise<LocalS
       .filter((session): session is LocalSession => Boolean(session));
   });
 
+const listAllSessionsFromDb = (db: SessionDatabase): LocalSession[] => {
+  const rows = db.rows(
+    `SELECT *
+     FROM sessions
+     ORDER BY updated_at DESC`
+  );
+  return rows
+    .map((row) => sessionFromRow(db, row))
+    .filter((session): session is LocalSession => Boolean(session));
+};
+
 export const getSession = async (threadId: string, profile?: string): Promise<LocalSession | null> =>
   withSessionDatabase(profile, (db) => getSessionFromDb(db, threadId));
 
@@ -726,21 +787,84 @@ export const searchSessions = async (
   options: SessionSearchOptions = {}
 ): Promise<SessionSearchResult[]> => {
   const terms = searchTerms(query);
-  const sessions = await exportSessions(options.profile);
-  if (!terms.length) {
-    return sessions
-      .slice(0, Math.max(1, options.limit ?? 20))
-      .map((session) => toSearchResult(session, 0, []));
+  const limit = Math.max(1, options.limit ?? 20);
+  return withSessionDatabase(options.profile, (db) => {
+    const sessions = listAllSessionsFromDb(db);
+    if (!terms.length) {
+      return sessions
+        .slice(0, limit)
+        .map((session) => toSearchResult(session, 0, []));
+    }
+
+    const ftsMatches = searchSessionsWithFts(db, terms, limit * 4);
+    const candidates = ftsMatches?.length ? ftsMatches : sessions;
+    return candidates
+      .map((session) => ({
+        session,
+        score: scoreSession(session, terms),
+      }))
+      .filter((entry) => entry.score > 0)
+      .sort((a, b) => b.score - a.score || b.session.updatedAt.localeCompare(a.session.updatedAt))
+      .slice(0, limit)
+      .map((entry) => toSearchResult(entry.session, entry.score, terms));
+  });
+};
+
+const ftsQueryForTerms = (terms: string[]): string =>
+  terms
+    .map((term) => term.replace(/"/g, ""))
+    .filter(Boolean)
+    .map((term) => `${term}*`)
+    .join(" OR ");
+
+const rebuildFtsIndex = (db: SessionDatabase): void => {
+  if (!ensureFtsSchema(db)) {
+    return;
   }
-  return sessions
-    .map((session) => ({
-      session,
-      score: scoreSession(session, terms),
-    }))
-    .filter((entry) => entry.score > 0)
-    .sort((a, b) => b.score - a.score || b.session.updatedAt.localeCompare(a.session.updatedAt))
-    .slice(0, Math.max(1, options.limit ?? 20))
-    .map((entry) => toSearchResult(entry.session, entry.score, terms));
+  try {
+    const sessionCount = Number(db.rows("SELECT COUNT(*) AS count FROM sessions")[0]?.count ?? 0);
+    const ftsCount = Number(db.rows("SELECT COUNT(*) AS count FROM session_messages_fts")[0]?.count ?? 0);
+    if (ftsCount >= sessionCount) {
+      return;
+    }
+    db.run("DELETE FROM session_messages_fts");
+    for (const session of listAllSessionsFromDb(db)) {
+      upsertSessionFts(db, session);
+    }
+  } catch {
+    // Fall back to in-memory scoring if FTS maintenance is unavailable.
+  }
+};
+
+const searchSessionsWithFts = (
+  db: SessionDatabase,
+  terms: string[],
+  limit: number,
+): LocalSession[] | null => {
+  if (!ensureFtsSchema(db)) {
+    return null;
+  }
+  const query = ftsQueryForTerms(terms);
+  if (!query) {
+    return null;
+  }
+  try {
+    rebuildFtsIndex(db);
+    const rows = db.rows(
+      `SELECT sessions.*
+       FROM session_messages_fts
+       JOIN sessions ON sessions.thread_id = session_messages_fts.thread_id
+       WHERE session_messages_fts MATCH ?
+       ORDER BY bm25(session_messages_fts) ASC, sessions.updated_at DESC
+       LIMIT ?`,
+      [query, limit],
+    );
+    return rows
+      .map((row) => sessionFromRow(db, row))
+      .filter((session): session is LocalSession => Boolean(session));
+  } catch {
+    return null;
+  }
 };
 
 export const resolveSessionReference = async (
@@ -771,6 +895,7 @@ export const deleteSession = async (threadId: string, profile?: string): Promise
     if (!existing) {
       return false;
     }
+    deleteSessionFts(db, threadId);
     db.run("DELETE FROM sessions WHERE thread_id = ?", [threadId]);
     return true;
   });

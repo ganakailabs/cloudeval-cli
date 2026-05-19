@@ -67,7 +67,7 @@ export function SelectPanel<T>({
   const visibleItems = items.slice(windowStart, windowStart + visibleCount);
 
   return (
-    <TitledBox title={title} borderStyle="round" borderColor={terminalTheme.brand} padding={1}>
+    <TitledBox title={title} borderStyle="round" borderColor={terminalTheme.focus} padding={1}>
       {items.length === 0 ? (
         <Text dimColor>No options available.</Text>
       ) : (
@@ -82,9 +82,9 @@ export function SelectPanel<T>({
                 bold={isHighlighted || isSelected}
                 color={
                   isSelected
-                    ? terminalTheme.success
+                    ? terminalTheme.selected
                     : isHighlighted
-                      ? terminalTheme.brand
+                      ? terminalTheme.focus
                       : undefined
                 }
               >

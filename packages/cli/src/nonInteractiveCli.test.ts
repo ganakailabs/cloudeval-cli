@@ -253,11 +253,13 @@ const startBackend = async (
     agentProfilesStatus?: number;
     authUser?: typeof user;
     projects?: (typeof project)[];
+    expireFirstStreamToken?: boolean;
   } = {},
 ) => {
   const requests: RecordedRequest[] = [];
   const createdProjects: any[] = [];
   const authUser = options.authUser ?? user;
+  let expiredStreamResponses = 0;
 
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url ?? "/", "http://127.0.0.1");
@@ -286,6 +288,16 @@ const startBackend = async (
       return json(res, {
         access_token: "test-token",
         refresh_token: "refresh-token",
+        token_type: "Bearer",
+        expires_in: 3600,
+      });
+    }
+    if (url.pathname === "/api/v1/auth/refresh" && req.method === "POST") {
+      const payload = JSON.parse(body || "{}");
+      assert.equal(payload.refresh_token, "refresh-token");
+      return json(res, {
+        access_token: "refreshed-token",
+        refresh_token: "refresh-token-2",
         token_type: "Bearer",
         expires_in: 3600,
       });
@@ -1010,6 +1022,14 @@ const startBackend = async (
       });
     }
     if (url.pathname === "/api/v1/chat/stream" && req.method === "POST") {
+      if (options.expireFirstStreamToken && expiredStreamResponses === 0) {
+        expiredStreamResponses++;
+        return json(
+          res,
+          { detail: "Invalid token: Device token has expired" },
+          401,
+        );
+      }
       const payload = JSON.parse(body || "{}");
       res.writeHead(200, {
         "Content-Type": "text/event-stream",
@@ -1340,6 +1360,34 @@ test("recipes commands list, show, and run implemented CloudEval workflows", asy
   } finally {
     await backend.close();
   }
+});
+
+test("skills commands list, show, doctor, and path expose public skill catalog", async () => {
+  const table = await runCli(["skills", "list"]);
+  assert.equal(table.exitCode, 0, table.stderr);
+  assert.match(table.stdout, /^ID\s+Title\s+Recipes\s+MCP Tools\s+Source/m);
+  assert.match(table.stdout, /cloudeval-template-validation/);
+  assert.match(table.stdout, /cloudeval-graph-intelligence/);
+
+  const listed = parseJson(await runCli(["skills", "list", "--format", "json"]));
+  assert.equal(listed.command, "skills list");
+  assert.equal(
+    listed.data.skills.some((skill: any) => skill.id === "cloudeval-graph-intelligence"),
+    true,
+  );
+
+  const shown = await runCli(["skills", "show", "template-validation"]);
+  assert.equal(shown.exitCode, 0, shown.stderr);
+  assert.match(shown.stdout, /^# CloudEval Template Validation/m);
+  assert.match(shown.stdout, /## Safety Requirements/);
+
+  const doctor = parseJson(await runCli(["skills", "doctor", "--format", "json"]));
+  assert.equal(doctor.command, "skills doctor");
+  assert.equal(doctor.data.ok, true);
+
+  const skillsPath = await runCli(["skills", "path"]);
+  assert.equal(skillsPath.exitCode, 0, skillsPath.stderr);
+  assert.match(skillsPath.stdout, /skills/);
 });
 
 test("credentials, identity, and live capabilities commands call credential APIs", async () => {
@@ -3397,6 +3445,79 @@ test("ask streams a single answer non-interactively with selected project and mo
     assert.equal(payload.settings.model, "gpt-5-mini");
     assert.equal(payload.settings.mode, "ask");
     assert.equal(streamRequest.authorization, "Bearer test-token");
+  } finally {
+    await fs.rm(home, { recursive: true, force: true });
+    await backend.close();
+  }
+});
+
+test("ask refreshes an expired stored device token and retries the stream once", async () => {
+  const backend = await startBackend({ expireFirstStreamToken: true });
+  const home = await fs.mkdtemp(
+    path.join(os.tmpdir(), "cloudeval-cli-expired-stream-token-"),
+  );
+  const configDir = path.join(home, ".config", "cloudeval");
+
+  try {
+    await fs.mkdir(configDir, { recursive: true });
+    await fs.writeFile(
+      path.join(configDir, "config.json"),
+      JSON.stringify(
+        {
+          tokenRef: "access-token",
+          tokenExpiresAt: Date.now() + 3_600_000,
+          refreshTokenRef: "refresh-token",
+          baseUrl: backend.baseUrl,
+        },
+        null,
+        2,
+      ),
+    );
+    await fs.writeFile(
+      path.join(configDir, "secrets.json"),
+      JSON.stringify(
+        {
+          "access-token": "stale-token",
+          "refresh-token": "refresh-token",
+        },
+        null,
+        2,
+      ),
+    );
+
+    const answer = parseJson(
+      await runCli(
+        [
+          "ask",
+          "What can you do?",
+          "--base-url",
+          backend.baseUrl,
+          "--project",
+          "project-main",
+          "--format",
+          "json",
+          "--progress",
+          "none",
+          "--non-interactive",
+          "--no-open",
+        ],
+        { home },
+      ),
+    );
+
+    assert.equal(answer.data.response, "Mock answer from Cloudeval AI.");
+
+    const refreshRequest = backend.requests.find(
+      (request) => request.path === "/api/v1/auth/refresh",
+    );
+    assert(refreshRequest, "stream 401 should trigger token refresh");
+
+    const streamRequests = backend.requests.filter(
+      (request) => request.path === "/api/v1/chat/stream",
+    );
+    assert.equal(streamRequests.length, 2);
+    assert.equal(streamRequests[0]?.authorization, "Bearer stale-token");
+    assert.equal(streamRequests[1]?.authorization, "Bearer refreshed-token");
   } finally {
     await fs.rm(home, { recursive: true, force: true });
     await backend.close();

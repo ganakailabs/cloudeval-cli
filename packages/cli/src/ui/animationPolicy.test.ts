@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { shouldEnableTuiAnimations } from "./animationPolicy.js";
 
-test("TUI animations are disabled by default to avoid idle redraw flicker", () => {
-  assert.equal(shouldEnableTuiAnimations({ env: {} }), false);
+test("TUI animations are enabled by default for active loaders", () => {
+  assert.equal(shouldEnableTuiAnimations({ env: {} }), true);
 });
 
 test("TUI animations can be explicitly enabled", () => {

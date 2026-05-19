@@ -22,6 +22,7 @@ export interface StarterPromptOptions {
 export interface PromptSuggestionOptions extends StarterPromptOptions {
   latestFollowUps: string[];
   messages: PromptMessageContext[];
+  showStarters?: boolean;
 }
 
 export type PromptSuggestionKind = "followup" | "starter" | "none";
@@ -296,10 +297,11 @@ export const getStarterPrompts = ({
 
 export const getPromptSuggestions = ({
   latestFollowUps,
-  messages,
+  messages: _messages,
   mode,
   project,
   limit,
+  showStarters = false,
 }: PromptSuggestionOptions): PromptSuggestions => {
   const followUps = latestFollowUps.map((prompt) => prompt.trim()).filter(Boolean);
   if (followUps.length) {
@@ -310,8 +312,7 @@ export const getPromptSuggestions = ({
     };
   }
 
-  const hasUserMessages = messages.some((message) => message.role === "user");
-  if (!hasUserMessages) {
+  if (showStarters) {
     return {
       kind: "starter",
       label: "Starters",

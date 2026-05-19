@@ -2,7 +2,14 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import "../../runtime/prepareInk";
 import { shouldSubmitInputOnReturn } from "../inputSubmitBehavior";
-import { getFollowUpRowViewport, shouldAnimateInputCursor } from "./InputBox";
+import {
+  getFollowUpRowViewport,
+  getInputCursorGlyph,
+  getInputCursorColor,
+  shouldBlinkPromptCursor,
+  shouldAnimateInputCursor,
+} from "./InputBox";
+import { terminalTheme } from "../theme";
 import { LOADER_FRAME_INTERVAL_MS } from "./Loader";
 import {
   SPINNER_FRAME_INTERVAL_MS,
@@ -25,6 +32,55 @@ test("input cursor stays static by default to avoid idle TUI redraws", () => {
   assert.equal(
     shouldAnimateInputCursor({ disabled: true, blinkCursor: true }),
     false
+  );
+  assert.equal(
+    shouldAnimateInputCursor({ inputActive: false, blinkCursor: true }),
+    false
+  );
+});
+
+test("prompt cursor only blinks while useful to avoid idle TUI flicker", () => {
+  assert.equal(
+    shouldBlinkPromptCursor({ animationsEnabled: true, busy: false }),
+    false
+  );
+  assert.equal(
+    shouldBlinkPromptCursor({ animationsEnabled: true, busy: true }),
+    true
+  );
+  assert.equal(
+    shouldBlinkPromptCursor({
+      animationsEnabled: true,
+      busy: true,
+      selectorOpen: true,
+    }),
+    false
+  );
+  assert.equal(
+    shouldBlinkPromptCursor({
+      animationsEnabled: true,
+      busy: true,
+      inputActive: false,
+    }),
+    false
+  );
+});
+
+test("input cursor alternates colors while blinking", () => {
+  assert.equal(getInputCursorGlyph({ inputActive: true, cursorVisible: true }), "▌");
+  assert.equal(getInputCursorGlyph({ inputActive: true, cursorVisible: false }), "▏");
+  assert.equal(getInputCursorGlyph({ inputActive: false, cursorVisible: true }), " ");
+  assert.equal(
+    getInputCursorColor({ inputActive: true, cursorVisible: true }),
+    terminalTheme.cursor
+  );
+  assert.equal(
+    getInputCursorColor({ inputActive: true, cursorVisible: false }),
+    terminalTheme.accent
+  );
+  assert.equal(
+    getInputCursorColor({ inputActive: false, cursorVisible: true }),
+    terminalTheme.muted
   );
 });
 

@@ -41,6 +41,64 @@ test("getCreditStatus derives visible credit state from entitlement", () => {
   });
 });
 
+test("getCreditStatus preserves reported usage when effective balance is current remaining credits", () => {
+  const status = getCreditStatus({
+    plan: { id: "free", name: "Free", price_usd: 0 },
+    plan_source: "free",
+    balance: {
+      credits_total: 0,
+      credits_used: 24,
+      credits_remaining: 0,
+      credits_total_effective: 101,
+      credits_remaining_effective: 101,
+      top_up_credits_balance: 101,
+    },
+  } as any);
+
+  assert.equal(status?.remaining, 101);
+  assert.equal(status?.used, 24);
+  assert.equal(status?.total, 125);
+  assert.equal(status?.remainingRatio, 101 / 125);
+});
+
+test("getCreditStatus can fold usage-summary credits into stale entitlement balances", () => {
+  const status = getCreditStatus(
+    {
+      plan: { id: "free", name: "Free", price_usd: 0 },
+      plan_source: "free",
+      balance: {
+        credits_total: 0,
+        credits_used: 0,
+        credits_remaining: 0,
+        credits_total_effective: 101,
+        credits_remaining_effective: 101,
+        top_up_credits_balance: 101,
+      },
+    } as any,
+    { reportedUsedCredits: 24 }
+  );
+
+  assert.equal(status?.remaining, 101);
+  assert.equal(status?.used, 24);
+  assert.equal(status?.total, 125);
+  assert.equal(status?.remainingRatio, 101 / 125);
+});
+
+test("getBillingUsageCreditsUsed reads frontend-aligned usage totals", async () => {
+  const { getBillingUsageCreditsUsed } = await import("./billingClient");
+
+  assert.equal(
+    getBillingUsageCreditsUsed({
+      totals: {
+        credits_used: 42,
+        events: 8,
+      },
+    }),
+    42
+  );
+  assert.equal(getBillingUsageCreditsUsed({ total_credits: 12 }), 12);
+});
+
 test("getBillingEntitlement reads frontend-aligned endpoint", async () => {
   const calls: string[] = [];
   const previousFetch = globalThis.fetch;

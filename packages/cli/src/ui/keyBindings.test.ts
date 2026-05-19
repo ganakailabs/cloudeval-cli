@@ -17,15 +17,24 @@ test("getChatInputHelpText stays short and avoids duplicate settings shortcuts",
     isCancelling: false,
     promptCount: 0,
   });
+  const blurredText = getChatInputHelpText({
+    isCancelling: false,
+    inputActive: false,
+    promptCount: 4,
+  });
   const cancellingText = getChatInputHelpText({ isCancelling: true });
 
   assert.equal(
     idleText,
-    "Enter send | Ctrl+J newline | Tab focus | Enter choose | 1-8 tabs | /help"
+    "Enter send/choose | Esc controls | Tab focus | 1-8 tabs | /help"
   );
   assert.equal(
     idleWithoutPromptsText,
-    "Enter send | Ctrl+J newline | Tab focus | /help"
+    "Enter send | Esc controls | Ctrl+J newline | /starter | /help"
+  );
+  assert.equal(
+    blurredText,
+    "Type to edit | Tab/Arrows controls | 1-8 tabs | /help"
   );
   assert.equal(cancellingText, "Esc stop | Ctrl+C quit | /stop | /help");
   assert.ok(idleText.length < 82);

@@ -2,13 +2,44 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   estimateBannerRows,
+  getFramedBodyRows,
+  getMiddleViewportRows,
   getPromptInputRowBudget,
   getResponsiveTuiLayout,
   shouldUseSplitChatLayout,
   truncateForTerminal,
 } from "./layout";
 
-test("getResponsiveTuiLayout keeps the banner visible in cramped terminals with extra panels", () => {
+test("getMiddleViewportRows leaves only remaining rows for scrollable middle content", () => {
+  assert.equal(
+    getMiddleViewportRows(
+      { columns: 160, rows: 42 },
+      { headerRows: 12, footerRows: 10, safetyRows: 0 }
+    ),
+    20
+  );
+  assert.equal(
+    getMiddleViewportRows(
+      { columns: 160, rows: 18 },
+      { headerRows: 12, footerRows: 10, safetyRows: 0 }
+    ),
+    1
+  );
+});
+
+test("getMiddleViewportRows reserves terminal frame safety rows by default", () => {
+  assert.equal(
+    getMiddleViewportRows({ columns: 160, rows: 42 }, { headerRows: 12, footerRows: 10 }),
+    18
+  );
+});
+
+test("getFramedBodyRows keeps scrollable content inside a visible panel frame", () => {
+  assert.equal(getFramedBodyRows(20), 16);
+  assert.equal(getFramedBodyRows(4), 1);
+});
+
+test("getResponsiveTuiLayout shrinks the transcript in cramped terminals with extra panels", () => {
   const layout = getResponsiveTuiLayout(
     { columns: 80, rows: 24 },
     { hasQueue: true, hasError: true }
@@ -16,16 +47,15 @@ test("getResponsiveTuiLayout keeps the banner visible in cramped terminals with 
 
   assert.equal(layout.compact, true);
   assert.equal(layout.showBanner, true);
-  assert.ok(layout.threadHeight >= 4);
-  assert.ok(layout.threadHeight <= 16);
+  assert.equal(layout.threadHeight, 1);
 });
 
-test("getResponsiveTuiLayout keeps the banner visible in normal compact chat windows", () => {
+test("getResponsiveTuiLayout keeps compact chat windows bounded by available height", () => {
   const layout = getResponsiveTuiLayout({ columns: 100, rows: 28 });
 
   assert.equal(layout.compact, true);
   assert.equal(layout.showBanner, true);
-  assert.ok(layout.threadHeight >= 6);
+  assert.equal(layout.threadHeight, 1);
 });
 
 test("getResponsiveTuiLayout keeps more transcript space on large terminals", () => {
@@ -43,8 +73,8 @@ test("truncateForTerminal uses ascii ellipsis and preserves short text", () => {
 
 test("getPromptInputRowBudget uses available terminal height for the prompt", () => {
   assert.equal(getPromptInputRowBudget({ columns: 120, rows: 24 }), 4);
-  assert.equal(getPromptInputRowBudget({ columns: 120, rows: 48 }), 10);
-  assert.equal(getPromptInputRowBudget({ columns: 160, rows: 80 }), 16);
+  assert.equal(getPromptInputRowBudget({ columns: 120, rows: 48 }), 6);
+  assert.equal(getPromptInputRowBudget({ columns: 160, rows: 80 }), 8);
 });
 
 test("estimateBannerRows counts the Welcome row in each banner layout", () => {

@@ -31,7 +31,11 @@ export interface WorkspacePanelLoaderDeps {
   ) => Promise<unknown>;
   getTopUpPacks?: (client: WorkspacePanelLoaderClient) => Promise<unknown>;
   getBillingNotifications?: (client: WorkspacePanelLoaderClient & Record<string, unknown>) => Promise<unknown>;
-  getCreditStatus: (entitlement: any) => unknown;
+  getCreditStatus: (
+    entitlement: any,
+    options?: { reportedUsedCredits?: number | null }
+  ) => unknown;
+  getBillingUsageCreditsUsed?: (summary: unknown) => number | null;
 }
 
 export interface WorkspacePanelLoadInput {
@@ -369,6 +373,11 @@ export const loadWorkspacePanelData = async ({
           granularity: "day",
         }) as Promise<unknown>
       );
+    }
+    if (data.entitlement) {
+      data.creditStatus = deps.getCreditStatus(data.entitlement, {
+        reportedUsedCredits: deps.getBillingUsageCreditsUsed?.(data.usageSummary),
+      });
     }
     if (deps.getBillingUsageLedger) {
       await capture("ledger", "Billing ledger", () =>

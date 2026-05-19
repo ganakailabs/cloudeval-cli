@@ -9,12 +9,11 @@ const truthyEnv = (value?: string): boolean =>
 
 export const shouldEnableTuiAnimations = ({
   disableAnim = false,
-  forceAnim = false,
   env = process.env,
 }: TuiAnimationPolicyOptions = {}): boolean => {
   if (disableAnim || truthyEnv(env.CLOUDEVAL_NO_ANIM)) {
     return false;
   }
 
-  return forceAnim || truthyEnv(env.CLOUDEVAL_ANIM);
+  return true;
 };

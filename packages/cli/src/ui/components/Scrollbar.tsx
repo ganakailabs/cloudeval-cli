@@ -40,7 +40,7 @@ export const Scrollbar: React.FC<ScrollbarProps> = ({
       {scrollbarLines.map((line, idx) => (
         <Text
           key={idx}
-          color={line === "█" ? terminalTheme.brand : terminalTheme.muted}
+          color={line === "█" ? terminalTheme.focus : terminalTheme.muted}
         >
           {line}
         </Text>

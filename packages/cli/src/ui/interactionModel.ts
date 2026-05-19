@@ -1,9 +1,27 @@
-export type SelectorControlKind = "project" | "model" | "mode";
+export type SelectorControlKind = "thread" | "project" | "model" | "mode" | "profile";
 export type SelectorMouseTarget = SelectorControlKind | "thinking";
+export type ChatPanelFocus = "settings" | "thread" | "prompt";
 export type TuiControlFocus =
   | SelectorControlKind
   | "thinking"
+  | "threadPanel"
   | `followup:${number}`;
+
+export interface PromptTextKey {
+  ctrl?: boolean;
+  meta?: boolean;
+  return?: boolean;
+  tab?: boolean;
+  escape?: boolean;
+  upArrow?: boolean;
+  downArrow?: boolean;
+  leftArrow?: boolean;
+  rightArrow?: boolean;
+  pageUp?: boolean;
+  pageDown?: boolean;
+  backspace?: boolean;
+  delete?: boolean;
+}
 
 export interface SelectorControlHitArea {
   target: SelectorMouseTarget;
@@ -13,7 +31,7 @@ export interface SelectorControlHitArea {
   endRow: number;
 }
 
-const selectorControls: SelectorControlKind[] = ["project", "model", "mode"];
+const selectorControls: SelectorControlKind[] = ["thread", "project", "model", "mode", "profile"];
 
 export const buildControlFocusOrder = ({
   hasThinkingSteps,
@@ -24,6 +42,7 @@ export const buildControlFocusOrder = ({
 }): TuiControlFocus[] => [
   ...selectorControls,
   ...(hasThinkingSteps ? (["thinking"] as const) : []),
+  "threadPanel",
   ...Array.from({ length: followUpCount }, (_, index) => `followup:${index}` as const),
 ];
 
@@ -40,6 +59,18 @@ export const focusFollowUpIndex = (
 export const isSelectorControlFocus = (
   focus: TuiControlFocus
 ): focus is SelectorControlKind => selectorControls.includes(focus as SelectorControlKind);
+
+export const chatPanelFocusForControl = (
+  focus: TuiControlFocus
+): ChatPanelFocus => {
+  if (focus === "threadPanel") {
+    return "thread";
+  }
+  if (focusFollowUpIndex(focus) !== undefined) {
+    return "prompt";
+  }
+  return "settings";
+};
 
 export const nextControlFocus = (
   current: TuiControlFocus,
@@ -74,38 +105,56 @@ export const getSelectorControlHitAreas = ({
 }): SelectorControlHitArea[] => {
   const safeTerminalColumns = Math.max(startColumn, terminalColumns);
   if (compact) {
-    const targets: SelectorMouseTarget[] = [
-      ...selectorControls,
-      ...(hasThinkingSteps ? (["thinking"] as const) : []),
+    const compactRows: Array<{ target: SelectorMouseTarget; offset: number }> = [
+      { target: "thread", offset: 1 },
+      { target: "project", offset: 2 },
+      { target: "model", offset: 4 },
+      { target: "mode", offset: 5 },
+      { target: "profile", offset: 6 },
+      ...(hasThinkingSteps ? ([{ target: "thinking", offset: 8 }] as const) : []),
     ];
-    return targets.map((target, index) => ({
+    return compactRows.map(({ target, offset }) => ({
       target,
       startColumn,
       endColumn: safeTerminalColumns,
-      startRow: startRow + index * 3,
-      endRow: startRow + index * 3 + 2,
+      startRow: startRow + offset,
+      endRow: startRow + offset,
     }));
   }
 
   const fixedAreas: SelectorControlHitArea[] = [
     {
-      target: "project",
+      target: "thread",
       startColumn,
       endColumn: Math.min(safeTerminalColumns, startColumn + 27),
       startRow,
       endRow: startRow + 2,
     },
     {
-      target: "model",
+      target: "project",
       startColumn: startColumn + 29,
-      endColumn: Math.min(safeTerminalColumns, startColumn + 51),
+      endColumn: Math.min(safeTerminalColumns, startColumn + 56),
+      startRow,
+      endRow: startRow + 2,
+    },
+    {
+      target: "model",
+      startColumn: startColumn + 58,
+      endColumn: Math.min(safeTerminalColumns, startColumn + 80),
       startRow,
       endRow: startRow + 2,
     },
     {
       target: "mode",
-      startColumn: startColumn + 53,
-      endColumn: Math.min(safeTerminalColumns, startColumn + 71),
+      startColumn: startColumn + 82,
+      endColumn: Math.min(safeTerminalColumns, startColumn + 100),
+      startRow,
+      endRow: startRow + 2,
+    },
+    {
+      target: "profile",
+      startColumn: startColumn + 102,
+      endColumn: Math.min(safeTerminalColumns, startColumn + 124),
       startRow,
       endRow: startRow + 2,
     },
@@ -114,7 +163,7 @@ export const getSelectorControlHitAreas = ({
   if (hasThinkingSteps) {
     fixedAreas.push({
       target: "thinking",
-      startColumn: startColumn + 73,
+      startColumn: startColumn + 126,
       endColumn: safeTerminalColumns,
       startRow,
       endRow: startRow + 2,
@@ -135,3 +184,30 @@ export const selectorControlFromMousePosition = (
       position.y >= area.startRow &&
       position.y <= area.endRow
   )?.target;
+
+export const isPromptTextInput = (
+  input: string,
+  key: PromptTextKey
+): boolean => {
+  if (!input || key.ctrl || key.meta) {
+    return false;
+  }
+
+  if (
+    key.return ||
+    key.tab ||
+    key.escape ||
+    key.upArrow ||
+    key.downArrow ||
+    key.leftArrow ||
+    key.rightArrow ||
+    key.pageUp ||
+    key.pageDown ||
+    key.backspace ||
+    key.delete
+  ) {
+    return false;
+  }
+
+  return input.length > 0;
+};

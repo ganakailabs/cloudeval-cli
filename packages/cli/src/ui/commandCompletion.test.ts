@@ -20,6 +20,18 @@ const context = {
     { label: "Ask", value: "ask" },
     { label: "Agent", value: "agent" },
   ],
+  profiles: [
+    { label: "Profile", value: "" },
+    { label: "Architecture", value: "architecture" },
+    { label: "Cost", value: "cost" },
+    { label: "Triage", value: "triage" },
+    { label: "Remediation", value: "remediation" },
+  ],
+  threads: [
+    { label: "New thread", value: "new" },
+    { label: "Cost review", value: "thread-cost" },
+    { label: "Architecture triage", value: "thread-arch" },
+  ],
 };
 
 test("completePromptInput does not pick a command for lone slash", () => {
@@ -60,6 +72,29 @@ test("resolvePromptCommand keeps bare /mode as selector command", () => {
   });
 });
 
+test("completePromptInput and resolvePromptCommand support agent profile selection", () => {
+  const completion = completePromptInput("/profile c", context);
+
+  assert.equal(completion?.value, "/profile cost");
+  assert.deepEqual(completion?.candidates, ["cost"]);
+  assert.equal(completion?.ghostSuffix, "ost");
+
+  assert.deepEqual(resolvePromptCommand("/profile", context), {
+    type: "openSelector",
+    selector: "profile",
+  });
+  assert.deepEqual(resolvePromptCommand("/profile cost", context), {
+    type: "setProfile",
+    profileId: "cost",
+    label: "Cost",
+  });
+  assert.deepEqual(resolvePromptCommand("/profile default", context), {
+    type: "setProfile",
+    profileId: "",
+    label: "Profile",
+  });
+});
+
 test("resolvePromptCommand supports direct model and mode selection", () => {
   assert.deepEqual(resolvePromptCommand("/model gpt-5-mini", context), {
     type: "setModel",
@@ -80,8 +115,27 @@ test("resolvePromptCommand supports unique project prefix", () => {
   });
 });
 
+test("resolvePromptCommand opens and selects local threads", () => {
+  assert.deepEqual(resolvePromptCommand("/thread", context), {
+    type: "openSelector",
+    selector: "thread",
+  });
+  assert.deepEqual(resolvePromptCommand("/thread cost", context), {
+    type: "setThread",
+    threadId: "thread-cost",
+    label: "Cost review",
+  });
+});
+
 test("resolvePromptCommand supports chat stop aliases", () => {
   assert.deepEqual(resolvePromptCommand("/stop", context), { type: "stopChat" });
   assert.deepEqual(resolvePromptCommand("/cancel", context), { type: "stopChat" });
   assert.deepEqual(resolvePromptCommand("/abort", context), { type: "stopChat" });
+});
+
+test("resolvePromptCommand shows starter selections on demand", () => {
+  assert.equal(completePromptInput("/sta", context)?.value, "/starter");
+  assert.deepEqual(resolvePromptCommand("/starter", context), {
+    type: "showStarters",
+  });
 });

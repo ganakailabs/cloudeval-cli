@@ -2,12 +2,28 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { getPromptSuggestions, getStarterPrompts } from "./promptSuggestions";
 
-test("getPromptSuggestions shows starter prompts when chat opens without messages", () => {
+test("getPromptSuggestions hides starter prompts until requested", () => {
   const suggestions = getPromptSuggestions({
     latestFollowUps: [],
     messages: [],
     mode: "ask",
     project: { id: "playground", name: "Playground", cloud_provider: "azure" },
+  });
+
+  assert.deepEqual(suggestions, {
+    kind: "none",
+    label: "Follow-ups",
+    prompts: [],
+  });
+});
+
+test("getPromptSuggestions shows starter prompts when requested", () => {
+  const suggestions = getPromptSuggestions({
+    latestFollowUps: [],
+    messages: [],
+    mode: "ask",
+    project: { id: "playground", name: "Playground", cloud_provider: "azure" },
+    showStarters: true,
   });
 
   assert.equal(suggestions.kind, "starter");
@@ -44,6 +60,19 @@ test("getPromptSuggestions hides starter prompts after the user sends a message"
     label: "Follow-ups",
     prompts: [],
   });
+});
+
+test("getPromptSuggestions can show starter prompts later on slash command", () => {
+  const suggestions = getPromptSuggestions({
+    latestFollowUps: [],
+    messages: [{ role: "user" }],
+    mode: "ask",
+    project: { id: "playground", name: "Playground" },
+    showStarters: true,
+  });
+
+  assert.equal(suggestions.kind, "starter");
+  assert.equal(suggestions.prompts.length, 4);
 });
 
 test("getStarterPrompts aligns with frontend live agent prompt style", () => {

@@ -429,13 +429,26 @@ export const registerBillingCommands = (
     try {
       const context = requireAuthUser(await resolveAuthContext(options, command, deps));
       const core = await import("@cloudeval/core");
-      const entitlement = await core.getBillingEntitlement({
-        baseUrl: context.baseUrl,
-        authToken: context.token,
+      const range = rangeToDates("30d");
+      const [entitlement, usageSummary] = await Promise.all([
+        core.getBillingEntitlement({
+          baseUrl: context.baseUrl,
+          authToken: context.token,
+        }),
+        core.getBillingUsageSummary({
+          baseUrl: context.baseUrl,
+          authToken: context.token,
+          startAt: range.startAt,
+          endAt: range.endAt,
+          granularity: "day",
+        }).catch(() => null),
+      ]);
+      const usageCreditsUsed = core.getBillingUsageCreditsUsed(usageSummary);
+      const status = core.getCreditStatus(entitlement, {
+        reportedUsedCredits: usageCreditsUsed,
       });
-      const status = core.getCreditStatus(entitlement);
       const url = billingUrl(context, { ...options, tab: "usage" });
-      await write("credits", { status, entitlement }, options, url);
+      await write("credits", { status, entitlement, usageCreditsUsed }, options, url);
       await maybeOpen(url, options);
     } catch (error: any) {
       failBillingCommand("credits", "Failed to show credits", error, options);
@@ -449,14 +462,30 @@ export const registerBillingCommands = (
       try {
         const context = requireAuthUser(await resolveAuthContext(options, command, deps));
         const core = await import("@cloudeval/core");
-        const [entitlement, subscriptionStatus] = await Promise.all([
+        const range = rangeToDates("30d");
+        const [entitlement, subscriptionStatus, usageSummary] = await Promise.all([
           core.getBillingEntitlement({ baseUrl: context.baseUrl, authToken: context.token }),
           core.getSubscriptionStatus({ baseUrl: context.baseUrl, authToken: context.token }),
+          core.getBillingUsageSummary({
+            baseUrl: context.baseUrl,
+            authToken: context.token,
+            startAt: range.startAt,
+            endAt: range.endAt,
+            granularity: "day",
+          }).catch(() => null),
         ]);
+        const usageCreditsUsed = core.getBillingUsageCreditsUsed(usageSummary);
         const url = billingUrl(context, { ...options, tab: "plans" });
         await write(
           "billing summary",
-          { creditStatus: core.getCreditStatus(entitlement), entitlement, subscriptionStatus },
+          {
+            creditStatus: core.getCreditStatus(entitlement, {
+              reportedUsedCredits: usageCreditsUsed,
+            }),
+            entitlement,
+            subscriptionStatus,
+            usageCreditsUsed,
+          },
           options,
           url
         );

@@ -14,6 +14,7 @@ import {
 import { completeCliWords } from "./completionEngine.js";
 import { registerReportsCommand } from "./reports/reportCommand.js";
 import { registerRecipesCommand } from "./recipesCommand.js";
+import { registerSkillsCommand } from "./skillsCommand.js";
 import { getFirstNameForDisplay } from "./ui/userDisplayName.js";
 import { registerOpenCommand } from "./openCommand.js";
 import { registerProjectsCommand } from "./projectsCommand.js";
@@ -714,6 +715,8 @@ registerRecipesCommand(program, {
   isHeadlessEnvironment,
 });
 
+registerSkillsCommand(program);
+
 registerOpenCommand(program, {
   defaultBaseUrl: DEFAULT_BASE_URL,
   resolveBaseUrl,
@@ -893,7 +896,7 @@ program
   .option("--debug", "Log raw chunks", false)
   .option("--health-check", "Enable health check (disabled by default)")
   .option("--no-banner", "Disable ASCII banner")
-  .option("--animate", "Enable TUI animations")
+  .option("--animate", "Enable TUI animations (default)")
   .option("--no-anim", "Disable TUI animations")
   .option("-v, --verbose", "Enable verbose logging", false)
   .action(async (options, command) => {
@@ -904,6 +907,7 @@ program
     ]);
     const baseUrl = await resolveBaseUrl(options, command);
     assertSecureBaseUrl(baseUrl);
+    const selectedProfile = getActiveConfigProfile(command);
     const cliConfig = await resolveCliConfig(command);
     const initialMode = normalizeCliMode(options.mode ?? cliConfig.mode) ?? "ask";
 
@@ -928,6 +932,7 @@ program
         initialMode={initialMode}
         initialTab={options.tab}
         initialProjectId={options.project ?? cliConfig.defaultProjectId}
+        configProfile={selectedProfile}
         frontendUrl={options.frontendUrl ?? cliConfig.frontendUrl}
         debug={options.debug}
         disableBanner={options.banner === false}
@@ -960,7 +965,7 @@ program
   .option("--debug", "Log raw chunks", false)
   .option("--health-check", "Enable health check (disabled by default)")
   .option("--no-banner", "Disable ASCII banner")
-  .option("--animate", "Enable TUI animations")
+  .option("--animate", "Enable TUI animations (default)")
   .option("--no-anim", "Disable TUI animations")
   .option("-v, --verbose", "Enable verbose logging", false)
   .action(async (options, command) => {
@@ -1014,6 +1019,7 @@ program
         model={options.model ?? cliConfig.model}
         initialMode={initialMode}
         initialProjectId={cliConfig.defaultProjectId}
+        configProfile={selectedProfile}
         frontendUrl={cliConfig.frontendUrl}
         debug={options.debug}
         disableBanner={options.banner === false}
@@ -1116,6 +1122,7 @@ program
         extractEmailFromToken,
         initialChatState,
         normalizeApiBase,
+        isExpiredDeviceTokenStreamError,
       } = core;
 
       // Import types - use any to avoid type conflicts for now
@@ -1414,6 +1421,7 @@ program
       try {
         let totalChunkCount = 0;
         let hitlResume: any | undefined;
+        let retriedAfterAuthRefresh = false;
         while (true) {
           let pendingHitlRequest: any | undefined;
           progressWriter.write({
@@ -1423,111 +1431,135 @@ program
             threadId,
             projectId: project.id,
           });
-          for await (const chunk of streamChat({
-            baseUrl,
-            authToken: token,
-            message: hitlResume ? "" : question,
-            threadId,
-            user: { id: project.user_id ?? authenticatedUserId ?? "cli-user", name: userName },
-            project,
-            settings: streamSettings,
-            debug: options.debug,
-            completeAfterResponse: true,
-            responseCompletionGraceMs: 5000,
-            streamIdleTimeoutMs: ASK_STREAM_IDLE_TIMEOUT_MS,
-            hitlResume,
-          })) {
-            totalChunkCount++;
-            if (options.verbose && totalChunkCount % 10 === 0) {
-              verboseLog(`Received ${totalChunkCount} chunks`);
-            }
-            if (options.debug || options.verbose) {
-              verboseLog("Chunk received:", {
-                type: chunk.type,
-                node: (chunk as any).node,
-                hasContent: !!(chunk as any).content,
-                contentLength: (chunk as any).content?.length || 0,
-              });
-            }
-            chatState = reduceChunk(chatState, chunk);
-            writeChunkProgressEvent(progressEventFromChunk(chunk, { verbose: options.verbose }));
-
-            if (chunk.type === "hitl_request") {
-              pendingHitlRequest = chunk;
-              if (ndjsonOutput) {
-                writeAskDataEvent({
-                  type: "hitl_request",
-                  threadId,
-                  checkpointId: (chunk as any).checkpoint_id,
-                  pendingIntentId: (chunk as any).pending_intent_id,
-                  questions: (chunk as any).questions ?? [],
-                  frontendUrl,
-                });
-              }
-              break;
-            }
-
-            // Get the latest assistant message
-            const latestMessage = [...chatState.messages]
-              .reverse()
-              .find((m) => m.role === "assistant");
-
-            if (
-              ndjsonOutput &&
-              chunk.type === "responding" &&
-              chunk.content &&
-              (!chunk.node || STREAM_OUTPUT_NODES.has(chunk.node))
-            ) {
-              writeAskDataEvent({
-                type: "chunk",
-                content: chunk.content,
-                node: chunk.node,
+          while (true) {
+            try {
+              for await (const chunk of streamChat({
+                baseUrl,
+                authToken: token,
+                message: hitlResume ? "" : question,
                 threadId,
-              });
-            }
+                user: { id: project.user_id ?? authenticatedUserId ?? "cli-user", name: userName },
+                project,
+                settings: streamSettings,
+                debug: options.debug,
+                completeAfterResponse: true,
+                responseCompletionGraceMs: 5000,
+                streamIdleTimeoutMs: ASK_STREAM_IDLE_TIMEOUT_MS,
+                hitlResume,
+              })) {
+                totalChunkCount++;
+                if (options.verbose && totalChunkCount % 10 === 0) {
+                  verboseLog(`Received ${totalChunkCount} chunks`);
+                }
+                if (options.debug || options.verbose) {
+                  verboseLog("Chunk received:", {
+                    type: chunk.type,
+                    node: (chunk as any).node,
+                    hasContent: !!(chunk as any).content,
+                    contentLength: (chunk as any).content?.length || 0,
+                  });
+                }
+                chatState = reduceChunk(chatState, chunk);
+                writeChunkProgressEvent(progressEventFromChunk(chunk, { verbose: options.verbose }));
 
-            // Stream responding text in real-time. Some backends send incremental
-            // content and others send cumulative assistant content, so derive the
-            // emitted delta from reducer state to avoid duplicate stdout.
-            if (
-              streamTextOutput &&
-              chunk.type === "responding" &&
-              chunk.content &&
-              (!chunk.node || STREAM_OUTPUT_NODES.has(chunk.node))
-            ) {
-              if (latestMessage?.content) {
-                responseText = latestMessage.content;
-                const delta = responseText.slice(emittedTextLength);
-                if (delta) {
-                  progressWriter.clear();
-                  if (!responseText.slice(0, emittedTextLength).endsWith(delta)) {
-                    outputStream.write(delta);
+                if (chunk.type === "hitl_request") {
+                  pendingHitlRequest = chunk;
+                  if (ndjsonOutput) {
+                    writeAskDataEvent({
+                      type: "hitl_request",
+                      threadId,
+                      checkpointId: (chunk as any).checkpoint_id,
+                      pendingIntentId: (chunk as any).pending_intent_id,
+                      questions: (chunk as any).questions ?? [],
+                      frontendUrl,
+                    });
                   }
-                  emittedTextLength = responseText.length;
+                  break;
+                }
+
+                // Get the latest assistant message
+                const latestMessage = [...chatState.messages]
+                  .reverse()
+                  .find((m) => m.role === "assistant");
+
+                if (
+                  ndjsonOutput &&
+                  chunk.type === "responding" &&
+                  chunk.content &&
+                  (!chunk.node || STREAM_OUTPUT_NODES.has(chunk.node))
+                ) {
+                  writeAskDataEvent({
+                    type: "chunk",
+                    content: chunk.content,
+                    node: chunk.node,
+                    threadId,
+                  });
+                }
+
+                // Stream responding text in real-time. Some backends send incremental
+                // content and others send cumulative assistant content, so derive the
+                // emitted delta from reducer state to avoid duplicate stdout.
+                if (
+                  streamTextOutput &&
+                  chunk.type === "responding" &&
+                  chunk.content &&
+                  (!chunk.node || STREAM_OUTPUT_NODES.has(chunk.node))
+                ) {
+                  if (latestMessage?.content) {
+                    responseText = latestMessage.content;
+                    const delta = responseText.slice(emittedTextLength);
+                    if (delta) {
+                      progressWriter.clear();
+                      if (!responseText.slice(0, emittedTextLength).endsWith(delta)) {
+                        outputStream.write(delta);
+                      }
+                      emittedTextLength = responseText.length;
+                    }
+                  }
+                }
+
+                // Handle errors
+                if (chunk.type === "error") {
+                  const errorMsg = chunk.message || chunk.description || "Unknown error";
+                  verboseLog("Error chunk received:", {
+                    message: errorMsg,
+                    node: (chunk as any).node,
+                    status: (chunk as any).status,
+                    stack: (chunk as any).stacktrace,
+                  });
+                  progressWriter.clear();
+                  if (jsonOutput) {
+                    // For JSON mode, we'll include error in final output
+                    responseText = `Error: ${errorMsg}`;
+                  } else if (ndjsonOutput) {
+                    writeAskDataEvent({ type: "error", error: { message: errorMsg }, threadId });
+                  } else {
+                    // For streaming mode, output error immediately
+                    outputStream.write(`\nError: ${errorMsg}\n`);
+                  }
+                  break;
                 }
               }
-            }
-
-            // Handle errors
-            if (chunk.type === "error") {
-              const errorMsg = chunk.message || chunk.description || "Unknown error";
-              verboseLog("Error chunk received:", {
-                message: errorMsg,
-                node: (chunk as any).node,
-                status: (chunk as any).status,
-                stack: (chunk as any).stacktrace,
-              });
-              progressWriter.clear();
-              if (jsonOutput) {
-                // For JSON mode, we'll include error in final output
-                responseText = `Error: ${errorMsg}`;
-              } else if (ndjsonOutput) {
-                writeAskDataEvent({ type: "error", error: { message: errorMsg }, threadId });
-              } else {
-                // For streaming mode, output error immediately
-                outputStream.write(`\nError: ${errorMsg}\n`);
-              }
               break;
+            } catch (error) {
+              if (
+                !providedAccessKey &&
+                !retriedAfterAuthRefresh &&
+                isExpiredDeviceTokenStreamError(error)
+              ) {
+                retriedAfterAuthRefresh = true;
+                verboseLog("Stored device token expired during stream; refreshing and retrying once");
+                progressWriter.write({
+                  type: "auth",
+                  step: "auth",
+                  message: "Refreshing expired session",
+                  threadId,
+                  projectId: project.id,
+                });
+                token = await getAuthToken({ baseUrl, forceRefresh: true });
+                continue;
+              }
+              throw error;
             }
           }
 

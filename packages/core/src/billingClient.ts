@@ -93,6 +93,11 @@ const CREDIT_LOW_RATIO = 0.1;
 const CREDIT_WARNING_RATIO = 0.25;
 const DEFAULT_FREE_TRIAL_CREDITS_TOTAL = 1000;
 
+const finiteCredit = (value: unknown): number | null => {
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) ? Math.max(numberValue, 0) : null;
+};
+
 const fetchBillingJson = async <T>(
   options: BillingClientOptions,
   path: string,
@@ -262,7 +267,7 @@ const isFreePlan = (plan: BillingPlan | null | undefined): boolean => {
 
 export const getCreditStatus = (
   summary?: BillingEntitlementSummary | null,
-  options?: { creditsPerEvent?: number | null }
+  options?: { creditsPerEvent?: number | null; reportedUsedCredits?: number | null }
 ): CreditStatus | null => {
   if (!summary) {
     return null;
@@ -328,7 +333,7 @@ export const getCreditStatus = (
     0
   );
   const useTrialDisplayTotal = isFreeLikePlan && effectiveTotal <= 0 && trialTotal > 0;
-  const displayTotal = useTrialDisplayTotal ? trialTotal : effectiveTotal;
+  let displayTotal = useTrialDisplayTotal ? trialTotal : effectiveTotal;
   const remainingCandidate =
     useTrialDisplayTotal && (summary.trial_state?.consumed || summary.trial_state?.blocked)
       ? 0
@@ -336,7 +341,17 @@ export const getCreditStatus = (
   const remaining = displayTotal > 0
     ? Math.min(Math.max(remainingCandidate, 0), displayTotal)
     : 0;
-  const used = displayTotal > 0 ? Math.max(displayTotal - remaining, 0) : 0;
+  const derivedUsed = displayTotal > 0 ? Math.max(displayTotal - remaining, 0) : 0;
+  const reportedUsed = Math.max(
+    0,
+    ...[balance.credits_used, balance.credits_used_cycle, options?.reportedUsedCredits]
+      .map(finiteCredit)
+      .filter((value): value is number => value !== null)
+  );
+  const used = Math.max(derivedUsed, reportedUsed);
+  if (!explicitUnlimited && remaining + used > displayTotal) {
+    displayTotal = remaining + used;
+  }
   const remainingRatio = displayTotal > 0 ? remaining / displayTotal : explicitUnlimited ? 1 : 0;
   const creditsPerEvent = options?.creditsPerEvent;
   const messagesRemaining =
@@ -364,4 +379,28 @@ export const getCreditStatus = (
     tone,
     messagesRemaining,
   };
+};
+
+export const getBillingUsageCreditsUsed = (summary?: unknown): number | null => {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
+    return null;
+  }
+  const record = summary as Record<string, unknown>;
+  const totals =
+    record.totals && typeof record.totals === "object" && !Array.isArray(record.totals)
+      ? (record.totals as Record<string, unknown>)
+      : record;
+  const direct = finiteCredit(totals.credits_used ?? totals.total_credits);
+  if (direct !== null) {
+    return direct;
+  }
+  const buckets = Array.isArray(record.buckets) ? record.buckets : [];
+  const bucketTotal = buckets.reduce((sum, bucket) => {
+    if (!bucket || typeof bucket !== "object" || Array.isArray(bucket)) {
+      return sum;
+    }
+    const bucketRecord = bucket as Record<string, unknown>;
+    return sum + (finiteCredit(bucketRecord.credits_used ?? bucketRecord.total_credits) ?? 0);
+  }, 0);
+  return bucketTotal > 0 ? bucketTotal : null;
 };

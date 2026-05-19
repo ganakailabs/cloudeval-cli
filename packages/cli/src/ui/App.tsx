@@ -8,7 +8,11 @@ import { join, resolve } from "node:path";
 import { Banner } from "./components/Banner.js";
 import { Loader } from "./components/Loader.js";
 import { Transcript } from "./components/Transcript.js";
-import { InputBox, getFollowUpRowViewport } from "./components/InputBox.js";
+import {
+  InputBox,
+  getFollowUpRowViewport,
+  shouldBlinkPromptCursor,
+} from "./components/InputBox.js";
 import { Spinner } from "./components/Spinner.js";
 import { Scrollbar } from "./components/Scrollbar.js";
 import { ProjectSelector } from "./components/ProjectSelector.js";
@@ -25,8 +29,10 @@ import { getInputViewport, nextInputScrollOffset } from "./inputViewport.js";
 import { getChatInputHelpText, getTuiKeyBindings } from "./keyBindings.js";
 import {
   buildControlFocusOrder,
+  chatPanelFocusForControl,
   focusFollowUpIndex,
   getSelectorControlHitAreas,
+  isPromptTextInput,
   isSelectorControlFocus,
   nextControlFocus,
   selectorControlFromMousePosition,
@@ -35,6 +41,8 @@ import {
 } from "./interactionModel.js";
 import {
   estimateBannerRows,
+  getFramedBodyRows,
+  getMiddleViewportRows,
   getPromptInputRowBudget,
   getResponsiveTuiLayout,
   shouldUseSplitChatLayout,
@@ -43,6 +51,15 @@ import {
 } from "./layout.js";
 import { shouldAutoScrollToBottom } from "./scrollBehavior.js";
 import { getPromptSuggestions } from "./promptSuggestions.js";
+import {
+  buildThreadSelectItems,
+  localSessionMessagesToChatMessages,
+  remoteThreadMessagesToChatMessages,
+  threadPanelTitle,
+  type RemoteThreadHistory,
+  type RemoteThreadSummary,
+  type ThreadSelectValue,
+} from "./sessionThreads.js";
 import { buildOverviewDashboardModel } from "./overviewDashboard.js";
 import { buildReportsDashboardModel } from "./reportsDashboard.js";
 import {
@@ -67,6 +84,7 @@ import {
   getWorkspaceTabHitAreas,
   nextWorkspaceTab,
   normalizeWorkspaceTab,
+  workspaceTabLabels,
   workspaceTabs,
   workspaceTabFromPosition,
   workspaceTabFromShortcut,
@@ -77,7 +95,9 @@ import {
   initialChatState,
   reduceChunk,
   streamChat,
+  isExpiredDeviceTokenStreamError,
   getAuthToken,
+  getCLIHeaders,
   checkUserStatus,
   getProjects,
   ensurePlaygroundProject,
@@ -93,10 +113,12 @@ import {
   getTopUpPacks,
   getBillingNotifications,
   getCreditStatus,
+  getBillingUsageCreditsUsed,
   listConnections,
   type Project,
 } from "@cloudeval/core";
 import {
+  getBundledAgentProfiles,
   ChatMessage,
   ChatState,
   Chunk,
@@ -107,6 +129,12 @@ import {
 import { Onboarding } from "./components/Onboarding";
 import { getFirstNameForDisplay } from "./userDisplayName.js";
 import { shouldEnableTuiAnimations } from "./animationPolicy.js";
+import {
+  getSession,
+  listSessions,
+  recordSessionTurn,
+  type LocalSession,
+} from "../sessionsStore.js";
 
 export interface AppProps {
   baseUrl: string;
@@ -116,6 +144,7 @@ export interface AppProps {
   initialMode?: ChatMode;
   initialTab?: string;
   initialProjectId?: string;
+  configProfile?: string;
   frontendUrl?: string;
   debug?: boolean;
   disableBanner?: boolean;
@@ -153,7 +182,7 @@ const defaultProject: ProjectInfo = {
 // Use Project type from core (matches frontend)
 type ProjectInfo = Project;
 type ChatMode = "ask" | "agent";
-type SelectorKind = "project" | "model" | "mode" | null;
+type SelectorKind = SelectorControlKind | null;
 type QueuedMessage = { id: string; text: string };
 type BillingHeaderState = BillingSummaryState;
 type WorkspacePanelStateMap = WorkspacePanelDataStore;
@@ -173,8 +202,21 @@ type SendMessageOptions = {
   hitlQuestions?: HitlQuestion[];
 };
 
-const selectorOrder: SelectorControlKind[] = ["project", "model", "mode"];
+const selectorOrder: SelectorControlKind[] = ["thread", "project", "model", "mode", "profile"];
 const dropdownIndicator = "▾";
+const bundledAgentProfiles = getBundledAgentProfiles();
+const agentProfileItems: Array<SelectPanelItem<string>> = [
+  {
+    label: "Profile",
+    value: "",
+    description: "Default CloudEval chat flow without an Agent Profile.",
+  },
+  ...bundledAgentProfiles.map((profile) => ({
+    label: profile.display_name,
+    value: profile.id,
+    description: profile.personality,
+  })),
+];
 
 const workspaceTabDescriptions: Record<WorkspaceTab, string> = {
   chat: "Ask questions, run agent workflows, and inspect project context.",
@@ -213,6 +255,9 @@ const commandNotice = (candidates: string[]): string =>
   candidates.length > 1
     ? `Completions: ${candidates.join(" | ")}`
     : `Completed: ${candidates[0]}`;
+
+const isStarterSlashCommandInput = (value: string): boolean =>
+  /^\/starters?(?:\s*)?$/i.test(value.trim());
 
 const modelNameFromRaw = (raw: any): string | undefined => {
   if (typeof raw === "string") return raw;
@@ -272,8 +317,13 @@ const mergeModelItems = (
 
 const delay = (ms: number) => new Promise((res) => setTimeout(res, ms));
 
-const billingHeaderFromEntitlement = (entitlement: any): BillingHeaderState | null => {
-  const creditStatus = getCreditStatus(entitlement);
+const billingHeaderFromEntitlement = (
+  entitlement: any,
+  usageSummary?: unknown
+): BillingHeaderState | null => {
+  const creditStatus = getCreditStatus(entitlement, {
+    reportedUsedCredits: getBillingUsageCreditsUsed(usageSummary),
+  });
   if (!creditStatus) {
     return null;
   }
@@ -520,8 +570,10 @@ const estimatePromptControlRows = ({
   compact: boolean;
   hasThinkingSteps: boolean;
 }): number => {
-  const selectorCount = selectorOrder.length + (hasThinkingSteps ? 1 : 0);
-  return compact ? selectorCount * 3 : 3;
+  if (compact) {
+    return 2 + selectorOrder.length + 2;
+  }
+  return 3;
 };
 
 const estimatePromptPanelRows = ({
@@ -537,12 +589,11 @@ const estimatePromptPanelRows = ({
   hasThinkingSteps: boolean;
   includeControls?: boolean;
 }): number => {
-  const outerChromeRows = 4;
-  const topHelpRows = suggestionRows > 0 ? 1 : 0;
-  const inputBoxRows = inputRows + 3;
+  const outerChromeRows = 2;
+  const inputRowsWithHint = inputRows + 1;
   const footerRows =
-    1 + 1 + (includeControls ? estimatePromptControlRows({ compact, hasThinkingSteps }) : 0);
-  return outerChromeRows + topHelpRows + suggestionRows + inputBoxRows + footerRows;
+    includeControls ? 1 + estimatePromptControlRows({ compact, hasThinkingSteps }) : 0;
+  return outerChromeRows + suggestionRows + inputRowsWithHint + footerRows;
 };
 
 const useTerminalSize = (): TerminalSize => {
@@ -565,6 +616,17 @@ const isMouseTrackingEnabled = (): boolean => {
 };
 
 const oneLine = (value: string): string => value.replace(/\s+/g, " ").trim();
+
+const collapseRepeatedAssistantText = (value: string): string => {
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.length % 2 !== 0) {
+    return value;
+  }
+  const midpoint = trimmed.length / 2;
+  const first = trimmed.slice(0, midpoint);
+  const second = trimmed.slice(midpoint);
+  return first === second ? first : value;
+};
 
 const enableTerminalMouse = (): (() => void) => {
   if (!process.stdin.isTTY || !process.stdout.isTTY) {
@@ -638,20 +700,30 @@ const summarizeThinkingSteps = (message?: ChatMessage): string => {
 
 const selectorValueText = ({
   kind,
+  selectedThreadTitle,
   selectedProject,
   selectedModel,
   selectedMode,
+  selectedAgentProfileLabel,
 }: {
   kind: SelectorControlKind;
+  selectedThreadTitle: string;
   selectedProject: ProjectInfo | null;
   selectedModel: string;
   selectedMode: ChatMode;
+  selectedAgentProfileLabel: string;
 }) => {
+  if (kind === "thread") {
+    return selectedThreadTitle;
+  }
   if (kind === "project") {
     return selectedProject?.name ?? defaultProject.name;
   }
   if (kind === "model") {
     return selectedModel || "auto";
+  }
+  if (kind === "profile") {
+    return selectedAgentProfileLabel;
   }
   return selectedMode;
 };
@@ -695,9 +767,11 @@ const QueuePanel: React.FC<{
 
 const PromptControlBar: React.FC<{
   focused: TuiControlFocus;
+  selectedThreadTitle: string;
   selectedProject: ProjectInfo | null;
   selectedModel: string;
   selectedMode: ChatMode;
+  selectedAgentProfileLabel: string;
   hasThinkingSteps: boolean;
   thinkingExpanded: boolean;
   thinkingSummary: string;
@@ -709,9 +783,11 @@ const PromptControlBar: React.FC<{
   animate: boolean;
 }> = ({
   focused,
+  selectedThreadTitle,
   selectedProject,
   selectedModel,
   selectedMode,
+  selectedAgentProfileLabel,
   hasThinkingSteps,
   thinkingExpanded,
   thinkingSummary,
@@ -723,6 +799,74 @@ const PromptControlBar: React.FC<{
   animate,
 }) => {
   const controlGap = compact ? 0 : 1;
+  const compactGroups: Array<{
+    label: string;
+    controls: SelectorControlKind[];
+  }> = [
+    { label: "Session", controls: ["thread", "project"] },
+    { label: "Run", controls: ["model", "mode", "profile"] },
+  ];
+  const showActivity = hasThinkingSteps || busy || statusText !== "Idle";
+  if (compact) {
+    return (
+      <Box flexDirection="column" gap={0}>
+        {compactGroups.map((group, index) => (
+          <Box
+            key={group.label}
+            flexDirection="column"
+            gap={0}
+            marginTop={index === 0 ? 0 : 1}
+          >
+            <Text dimColor>{group.label}</Text>
+            {group.controls.map((kind) => {
+              const isFocused = focused === kind;
+              const label = kind.charAt(0).toUpperCase() + kind.slice(1);
+              const rawValue = selectorValueText({
+                kind,
+                selectedThreadTitle,
+                selectedProject,
+                selectedModel,
+                selectedMode,
+                selectedAgentProfileLabel,
+              });
+              const valueLimit = Math.max(14, terminalColumns - label.length - 8);
+              const value = truncateForTerminal(rawValue, valueLimit);
+              return (
+                <Text
+                  key={kind}
+                  color={isFocused ? terminalTheme.focus : undefined}
+                  bold={isFocused}
+                  wrap="truncate"
+                >
+                  {isFocused ? raisedButtonStyle.activeMarker : raisedButtonStyle.inactiveMarker}{" "}
+                  {label} [{value}] {dropdownIndicator}
+                </Text>
+              );
+            })}
+          </Box>
+        ))}
+        {showActivity ? (
+          <Box flexDirection="column" gap={0} marginTop={1}>
+            <Text dimColor>Activity</Text>
+            {hasThinkingSteps ? (
+              <Text
+                color={focused === "thinking" ? terminalTheme.focus : undefined}
+                bold={focused === "thinking"}
+                wrap="truncate"
+              >
+                {focused === "thinking" ? raisedButtonStyle.activeMarker : raisedButtonStyle.inactiveMarker}{" "}
+                Reasoning: {thinkingExpanded ? "open" : thinkingSummary}
+              </Text>
+            ) : null}
+            <Box flexDirection="row" gap={1}>
+              {busy ? <Spinner type="line" animate={animate} /> : null}
+              <Text color={statusColor}>{statusText}</Text>
+            </Box>
+          </Box>
+        ) : null}
+      </Box>
+    );
+  }
   return (
     <Box flexDirection="column" gap={0}>
       <Text dimColor>Settings</Text>
@@ -732,9 +876,11 @@ const PromptControlBar: React.FC<{
           const label = kind.charAt(0).toUpperCase() + kind.slice(1);
           const rawValue = selectorValueText({
             kind,
+            selectedThreadTitle,
             selectedProject,
             selectedModel,
             selectedMode,
+            selectedAgentProfileLabel,
           });
           const valueLimit = compact
             ? Math.max(18, terminalColumns - label.length - 8)
@@ -746,10 +892,10 @@ const PromptControlBar: React.FC<{
             <Box
               key={kind}
               borderStyle={raisedButtonStyle.border}
-              borderColor={isFocused ? terminalTheme.brand : terminalTheme.muted}
+              borderColor={isFocused ? terminalTheme.focus : terminalTheme.muted}
               paddingX={1}
             >
-              <Text color={isFocused ? terminalTheme.brand : undefined} bold={isFocused}>
+              <Text color={isFocused ? terminalTheme.focus : undefined} bold={isFocused}>
                 {isFocused ? raisedButtonStyle.activeMarker : raisedButtonStyle.inactiveMarker}{" "}
                 {label} [{value}] {dropdownIndicator}
               </Text>
@@ -760,11 +906,11 @@ const PromptControlBar: React.FC<{
         {hasThinkingSteps ? (
           <Box
             borderStyle={raisedButtonStyle.border}
-            borderColor={focused === "thinking" ? terminalTheme.brand : terminalTheme.muted}
+            borderColor={focused === "thinking" ? terminalTheme.focus : terminalTheme.muted}
             paddingX={1}
           >
             <Text
-              color={focused === "thinking" ? terminalTheme.brand : undefined}
+              color={focused === "thinking" ? terminalTheme.focus : undefined}
               bold={focused === "thinking"}
             >
               {focused === "thinking" ? raisedButtonStyle.activeMarker : raisedButtonStyle.inactiveMarker}{" "}
@@ -785,10 +931,14 @@ const PromptControlBar: React.FC<{
 
 const ChatContextPanel: React.FC<{
   width: number;
+  height: number;
+  active: boolean;
   focused: TuiControlFocus;
+  selectedThreadTitle: string;
   selectedProject: ProjectInfo | null;
   selectedModel: string;
   selectedMode: ChatMode;
+  selectedAgentProfileLabel: string;
   hasThinkingSteps: boolean;
   thinkingExpanded: boolean;
   thinkingSummary: string;
@@ -796,13 +946,16 @@ const ChatContextPanel: React.FC<{
   statusColor?: string;
   busy: boolean;
   animate: boolean;
-  threadId?: string;
 }> = ({
   width,
+  height,
+  active,
   focused,
   selectedProject,
+  selectedThreadTitle,
   selectedModel,
   selectedMode,
+  selectedAgentProfileLabel,
   hasThinkingSteps,
   thinkingExpanded,
   thinkingSummary,
@@ -810,27 +963,23 @@ const ChatContextPanel: React.FC<{
   statusColor,
   busy,
   animate,
-  threadId,
 }) => {
-  const displayThreadId = threadId
-    ? truncateForTerminal(threadId, Math.max(16, width - 14))
-    : "new thread";
-
   return (
     <TitledBox
-      title="Context"
+      title="Settings"
       borderStyle="round"
-      borderColor={terminalTheme.muted}
+      borderColor={active ? terminalTheme.focus : terminalTheme.muted}
       padding={1}
       width={width}
+      height={height}
     >
-      <Text dimColor>Thread</Text>
-      <Text wrap="truncate">{displayThreadId}</Text>
       <PromptControlBar
         focused={focused}
+        selectedThreadTitle={selectedThreadTitle}
         selectedProject={selectedProject}
         selectedModel={selectedModel}
         selectedMode={selectedMode}
+        selectedAgentProfileLabel={selectedAgentProfileLabel}
         hasThinkingSteps={hasThinkingSteps}
         thinkingExpanded={thinkingExpanded}
         thinkingSummary={thinkingSummary}
@@ -849,7 +998,7 @@ const BottomControls: React.FC<{ tab: WorkspaceTab }> = ({ tab }) => (
   <Box flexDirection="row" justifyContent="space-between">
     <Text dimColor>
       <Text color={terminalTheme.brand} bold>Keys</Text>
-      <Text> ↑/↓ scroll | PgUp/PgDn scroll | [/] table page | </Text>
+      <Text> ↑/↓ move or scroll | PgUp/PgDn scroll | [/] table page | </Text>
       <Text color={terminalTheme.brand} bold>D</Text>
       <Text> download | </Text>
       <Text color={terminalTheme.brand} bold>R</Text>
@@ -912,7 +1061,13 @@ const HitlPanel: React.FC<{
             return (
               <Text
                 key={option.id}
-                color={highlighted ? terminalTheme.brand : undefined}
+                color={
+                  highlighted
+                    ? terminalTheme.focus
+                    : selected
+                      ? terminalTheme.selected
+                      : undefined
+                }
                 dimColor={!highlighted && !selected}
                 bold={highlighted}
                 inverse={highlighted}
@@ -944,6 +1099,7 @@ export const App: React.FC<AppProps> = ({
   initialMode = "ask",
   initialTab,
   initialProjectId,
+  configProfile,
   frontendUrl,
   debug = false,
   disableBanner = false,
@@ -956,6 +1112,8 @@ export const App: React.FC<AppProps> = ({
   const [loaderStep, setLoaderStep] = useState(0);
   const [bootError, setBootError] = useState<string | undefined>();
   const [input, setInput] = useState("");
+  const [promptInputActive, setPromptInputActive] = useState(true);
+  const [starterSelectionsOpen, setStarterSelectionsOpen] = useState(false);
   const [promptInputScrollOffset, setPromptInputScrollOffset] = useState(0);
   const [authToken, setAuthToken] = useState<string | undefined>(accessKey);
   const [chatState, setChatState] = useState<ChatState>({
@@ -968,6 +1126,7 @@ export const App: React.FC<AppProps> = ({
   const [selectedProject, setSelectedProject] = useState<ProjectInfo | null>(null);
   const [selectedModel, setSelectedModel] = useState(model ?? "");
   const [selectedMode, setSelectedMode] = useState<ChatMode>(initialMode);
+  const [selectedAgentProfileId, setSelectedAgentProfileId] = useState("");
   const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<WorkspaceTab>(() =>
     normalizeWorkspaceTab(initialTab)
   );
@@ -983,6 +1142,10 @@ export const App: React.FC<AppProps> = ({
     }
     return fallbackModels;
   });
+  const [localSessions, setLocalSessions] = useState<LocalSession[]>([]);
+  const [remoteThreads, setRemoteThreads] = useState<RemoteThreadSummary[]>([]);
+  const [loadingSessions, setLoadingSessions] = useState(false);
+  const [loadingRemoteThreads, setLoadingRemoteThreads] = useState(false);
   const [activeSelector, setActiveSelector] = useState<SelectorKind>(null);
   const [selectingProject, setSelectingProject] = useState(false);
   const [loadingProjects, setLoadingProjects] = useState(false);
@@ -1004,11 +1167,19 @@ export const App: React.FC<AppProps> = ({
   const [workspaceScrollOffset, setWorkspaceScrollOffset] = useState(0);
   const [workspaceContentHeight, setWorkspaceContentHeight] = useState(0);
   const [workspaceViewportHeight, setWorkspaceViewportHeight] = useState(14);
+  const [chatMiddleScrollOffset, setChatMiddleScrollOffset] = useState(0);
+  const [chatMiddleContentHeight, setChatMiddleContentHeight] = useState(0);
+  const [chatMiddleViewportHeight, setChatMiddleViewportHeight] = useState(12);
   const apiBase = useMemo(() => normalizeApiBase(baseUrl), [baseUrl]);
   const frontendBaseUrl = useMemo(
     () => resolveFrontendBaseUrl(apiBase, frontendUrl),
     [apiBase, frontendUrl]
   );
+  const selectedAgentProfile = useMemo(
+    () => bundledAgentProfiles.find((profile) => profile.id === selectedAgentProfileId),
+    [selectedAgentProfileId]
+  );
+  const selectedAgentProfileLabel = selectedAgentProfile?.display_name ?? "Profile";
   const frontendThreadUrl = useMemo(
     () => buildFrontendThreadUrl(frontendBaseUrl, chatState.threadId),
     [frontendBaseUrl, chatState.threadId]
@@ -1027,10 +1198,12 @@ export const App: React.FC<AppProps> = ({
   const billingHeaderRefreshKey = workspaceRefreshKeys.billing ?? 0;
   const scrollViewRef = React.useRef<ScrollViewRef>(null);
   const workspaceScrollViewRef = React.useRef<ScrollViewRef>(null);
+  const chatMiddleScrollViewRef = React.useRef<ScrollViewRef>(null);
   const controllerRef = React.useRef<AbortController | null>(null);
   const queueRef = React.useRef<QueuedMessage[]>([]);
   const completionCycleRef = React.useRef<CompletionCycleState | undefined>();
   const previousWorkspaceTabRef = React.useRef<WorkspaceTab>(activeWorkspaceTab);
+  const hydratedThreadRef = React.useRef<string | undefined>();
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [expandedThinkingMessageIds, setExpandedThinkingMessageIds] = useState<Set<string>>(
     () => new Set()
@@ -1057,6 +1230,28 @@ export const App: React.FC<AppProps> = ({
   const [searchQuery, setSearchQuery] = useState("");
   const terminalSize = useTerminalSize();
   const mouseTrackingEnabled = isMouseTrackingEnabled();
+  const selectedLocalSession = useMemo(
+    () => localSessions.find((session) => session.threadId === chatState.threadId),
+    [chatState.threadId, localSessions]
+  );
+  const selectedRemoteThread = useMemo(
+    () => remoteThreads.find((thread) => thread.thread_id === chatState.threadId),
+    [chatState.threadId, remoteThreads]
+  );
+  const selectedThreadTitle = useMemo(
+    () =>
+      threadPanelTitle({
+        session: selectedLocalSession,
+        remoteThread: selectedRemoteThread,
+        threadId: chatState.threadId,
+        hasMessages: chatState.messages.length > 0,
+      }),
+    [chatState.messages.length, chatState.threadId, selectedLocalSession, selectedRemoteThread]
+  );
+  const threadSelectItems = useMemo(
+    () => buildThreadSelectItems(localSessions, chatState.threadId, remoteThreads),
+    [chatState.threadId, localSessions, remoteThreads]
+  );
 
   const checkHealth = useMemo(() => {
     return async (token?: string) => {
@@ -1097,8 +1292,245 @@ export const App: React.FC<AppProps> = ({
           : [defaultProject],
       models: modelItems,
       modes: modeItems,
+      threads: threadSelectItems.map((item) => ({
+        label: item.label,
+        value:
+          item.value.kind === "remote"
+            ? item.value.thread.thread_id
+            : item.value.kind === "session"
+              ? item.value.session.threadId
+              : "new",
+        description: item.description,
+      })),
+      profiles: agentProfileItems,
     }),
-    [modelItems, projects, selectedProject]
+    [modelItems, projects, selectedProject, threadSelectItems]
+  );
+
+  const refreshLocalSessions = React.useCallback(async () => {
+    setLoadingSessions(true);
+    try {
+      setLocalSessions(await listSessions(24, configProfile));
+    } finally {
+      setLoadingSessions(false);
+    }
+  }, [configProfile]);
+
+  const resolveThreadApiToken = React.useCallback(async (): Promise<string | undefined> => {
+    if (accessKey) {
+      return accessKey;
+    }
+    try {
+      const token = await getAuthToken({ baseUrl: apiBase });
+      setAuthToken(token);
+      return token;
+    } catch {
+      return authToken;
+    }
+  }, [accessKey, apiBase, authToken]);
+
+  const fetchThreadApiJson = React.useCallback(
+    async (path: string) => {
+      const token = await resolveThreadApiToken();
+      if (!token) {
+        throw new Error("No authentication token is available.");
+      }
+      const response = await fetch(`${apiBase}${path}`, {
+        headers: getCLIHeaders(token),
+      });
+      if (!response.ok) {
+        const detail = await response.text().catch(() => "");
+        throw new Error(
+          `Thread request failed with status ${response.status} ${response.statusText}${
+            detail ? `: ${detail.slice(0, 240)}` : ""
+          }`
+        );
+      }
+      return response.json();
+    },
+    [apiBase, resolveThreadApiToken]
+  );
+
+  const refreshRemoteThreads = React.useCallback(async () => {
+    setLoadingRemoteThreads(true);
+    try {
+      const payload = await fetchThreadApiJson(
+        "/chat/threads?limit=50&offset=0&include_archived=true"
+      );
+      const threads = Array.isArray(payload)
+        ? payload
+        : Array.isArray(payload?.threads)
+          ? payload.threads
+          : Array.isArray(payload?.data)
+            ? payload.data
+            : [];
+      setRemoteThreads(
+        threads.filter(
+          (thread: unknown): thread is RemoteThreadSummary =>
+            Boolean(
+              thread &&
+                typeof thread === "object" &&
+                typeof (thread as RemoteThreadSummary).thread_id === "string"
+            )
+        )
+      );
+    } finally {
+      setLoadingRemoteThreads(false);
+    }
+  }, [fetchThreadApiJson]);
+
+  const refreshBillingHeader = React.useCallback(() => {
+    setWorkspaceRefreshKeys((current) => ({
+      ...current,
+      billing: (current.billing ?? 0) + 1,
+    }));
+  }, []);
+
+  const loadRemoteThreadHistory = React.useCallback(
+    async (threadId: string): Promise<RemoteThreadHistory> => {
+      const payload = await fetchThreadApiJson(
+        `/chat/threads/${encodeURIComponent(threadId)}?message_limit=80`
+      );
+      return payload as RemoteThreadHistory;
+    },
+    [fetchThreadApiJson]
+  );
+
+  const restoreLocalSession = React.useCallback(
+    (session: LocalSession, options: { silent?: boolean } = {}) => {
+      const messages = localSessionMessagesToChatMessages(session);
+      setChatState((prev) => ({
+        ...initialChatState,
+        status: "idle",
+        debug: prev.debug,
+        threadId: session.threadId,
+        messages,
+      }));
+      if (session.model) {
+        setSelectedModel(session.model);
+      }
+      if (session.projectId) {
+        const matchingProject = projects.find((project) => project.id === session.projectId);
+        if (matchingProject) {
+          setSelectedProject(matchingProject);
+        }
+      }
+      setActiveSelector(null);
+      autoExpandedThinkingMessageIdsRef.current.clear();
+      setExpandedThinkingMessageIds(new Set());
+      setTimeout(() => scrollViewRef.current?.scrollToBottom(), 0);
+      if (!options.silent) {
+        setNotice(`Loaded thread: ${truncateForTerminal(session.title, 90)}`);
+      }
+    },
+    [projects]
+  );
+
+  const restoreRemoteThread = React.useCallback(
+    async (
+      thread: RemoteThreadSummary,
+      options: { silent?: boolean } = {}
+    ) => {
+      setNotice(`Loading thread: ${truncateForTerminal(thread.title || thread.thread_id, 90)}`);
+      const history = await loadRemoteThreadHistory(thread.thread_id);
+      const messages = remoteThreadMessagesToChatMessages(history);
+      const threadId = history.thread_id || thread.thread_id;
+      const hydratedSummary: RemoteThreadSummary = {
+        ...thread,
+        thread_id: threadId,
+        title: history.title || history.thread_head?.title || thread.title,
+        updated_at: history.updated_at || history.thread_head?.updated_at || thread.updated_at,
+        created_at: history.created_at || history.thread_head?.created_at || thread.created_at,
+        message_count:
+          history.message_count ??
+          history.thread_head?.message_count ??
+          thread.message_count ??
+          messages.length,
+        project_id: history.project_id || history.thread_head?.project_id || thread.project_id,
+        project_name:
+          history.project_name || history.thread_head?.project_name || thread.project_name,
+        model: history.model || history.thread_head?.model || thread.model,
+      };
+      setRemoteThreads((current) => {
+        const withoutCurrent = current.filter((item) => item.thread_id !== threadId);
+        return [hydratedSummary, ...withoutCurrent];
+      });
+      setChatState((prev) => ({
+        ...initialChatState,
+        status: "idle",
+        debug: prev.debug,
+        threadId,
+        messages,
+      }));
+      const nextModel = history.model || history.thread_head?.model || thread.model;
+      if (nextModel) {
+        setSelectedModel(nextModel);
+      }
+      const projectId =
+        history.project_id || history.thread_head?.project_id || thread.project_id;
+      if (projectId) {
+        const matchingProject = projects.find((project) => project.id === projectId);
+        if (matchingProject) {
+          setSelectedProject(matchingProject);
+        }
+      }
+      setActiveSelector(null);
+      autoExpandedThinkingMessageIdsRef.current.clear();
+      setExpandedThinkingMessageIds(new Set());
+      setTimeout(() => scrollViewRef.current?.scrollToBottom(), 0);
+      if (!options.silent) {
+        setNotice(
+          `Loaded thread: ${truncateForTerminal(
+            history.title || history.thread_head?.title || thread.title || thread.thread_id,
+            90
+          )}`
+        );
+      }
+    },
+    [loadRemoteThreadHistory, projects]
+  );
+
+  const startNewThread = React.useCallback(() => {
+    if (isBusyStatus(chatState.status) || controllerRef.current) {
+      setNotice("Stop the running response before switching threads.");
+      return;
+    }
+    queueRef.current = [];
+    setQueuedMessages([]);
+    setChatState((prev) => ({
+      ...initialChatState,
+      status: "idle",
+      debug: prev.debug,
+      threadId: undefined,
+      messages: [],
+    }));
+    hydratedThreadRef.current = undefined;
+    setActiveSelector(null);
+    autoExpandedThinkingMessageIdsRef.current.clear();
+    setExpandedThinkingMessageIds(new Set());
+    setNotice("Started a new thread.");
+    setTimeout(() => scrollViewRef.current?.scrollToTop(), 0);
+  }, [chatState.status]);
+
+  const selectThread = React.useCallback(
+    (choice: ThreadSelectValue) => {
+      if (choice.kind === "new") {
+        startNewThread();
+        return;
+      }
+      if (isBusyStatus(chatState.status) || controllerRef.current) {
+        setNotice("Stop the running response before switching threads.");
+        return;
+      }
+      if (choice.kind === "remote") {
+        void restoreRemoteThread(choice.thread).catch((error: any) => {
+          setNotice(`Could not load thread: ${error?.message ?? "Unknown error"}`);
+        });
+        return;
+      }
+      restoreLocalSession(choice.session);
+    },
+    [chatState.status, restoreLocalSession, restoreRemoteThread, startNewThread]
   );
 
   const selectProjectForUser = async (
@@ -1172,6 +1604,69 @@ export const App: React.FC<AppProps> = ({
     if (phase !== "ready") {
       return;
     }
+    void refreshLocalSessions().catch((error: any) => {
+      setNotice(`Local threads unavailable: ${error?.message ?? "Unknown error"}`);
+    });
+    void refreshRemoteThreads().catch((error: any) => {
+      setNotice(`Cloud threads unavailable: ${error?.message ?? "Unknown error"}`);
+    });
+  }, [phase, refreshLocalSessions, refreshRemoteThreads]);
+
+  useEffect(() => {
+    if (
+      phase !== "ready" ||
+      !chatState.threadId ||
+      chatState.messages.length > 0 ||
+      hydratedThreadRef.current === chatState.threadId
+    ) {
+      return;
+    }
+    const threadId = chatState.threadId;
+    hydratedThreadRef.current = threadId;
+    void getSession(threadId, configProfile)
+      .then((session) => {
+        if (session) {
+          restoreLocalSession(session, { silent: true });
+          return;
+        }
+        return loadRemoteThreadHistory(threadId).then((history) =>
+          restoreRemoteThread(
+            {
+              thread_id: history.thread_id || threadId,
+              title: history.title,
+              updated_at: history.updated_at,
+              created_at: history.created_at,
+              message_count:
+                history.message_count ??
+                history.messages_page?.length ??
+                history.thread_messages?.length ??
+                history.messages?.length ??
+                0,
+              project_id: history.project_id,
+              project_name: history.project_name,
+              model: history.model,
+            },
+            { silent: true }
+          )
+        );
+      })
+      .catch((error: any) => {
+        setNotice(`Could not load thread history: ${error?.message ?? "Unknown error"}`);
+      });
+  }, [
+    chatState.messages.length,
+    chatState.threadId,
+    configProfile,
+    loadRemoteThreadHistory,
+    phase,
+    restoreLocalSession,
+    restoreRemoteThread,
+  ]);
+
+  useEffect(() => {
+    if (phase !== "ready") {
+      return;
+    }
     const timer = setInterval(() => {
       setWorkspaceStaleTick(Date.now());
     }, WORKSPACE_PANEL_STALE_CHECK_MS);
@@ -1187,12 +1682,22 @@ export const App: React.FC<AppProps> = ({
     }
 
     setBillingHeaderError(undefined);
-    getBillingEntitlement({ baseUrl: apiBase, authToken })
-      .then((entitlement) => {
+    const usageRange = thirtyDayUsageRange();
+    Promise.all([
+      getBillingEntitlement({ baseUrl: apiBase, authToken }),
+      getBillingUsageSummary({
+        baseUrl: apiBase,
+        authToken,
+        startAt: usageRange.startAt,
+        endAt: usageRange.endAt,
+        granularity: "day",
+      }).catch(() => null),
+    ])
+      .then(([entitlement, usageSummary]) => {
         if (cancelled) {
           return;
         }
-        setBillingHeader(billingHeaderFromEntitlement(entitlement));
+        setBillingHeader(billingHeaderFromEntitlement(entitlement, usageSummary));
       })
       .catch((error: any) => {
         if (cancelled) {
@@ -1453,6 +1958,7 @@ export const App: React.FC<AppProps> = ({
           getTopUpPacks,
           getBillingNotifications,
           getCreditStatus,
+          getBillingUsageCreditsUsed,
         },
       });
 
@@ -1803,6 +2309,16 @@ export const App: React.FC<AppProps> = ({
     );
   };
 
+  const selectAgentProfileById = (profileId: string, label: string) => {
+    setSelectedAgentProfileId(profileId);
+    if (profileId) {
+      setSelectedMode("agent");
+      setNotice(`Profile selected: ${label}. Mode set to Agent.`);
+      return;
+    }
+    setNotice("Agent Profile cleared. Default chat flow active.");
+  };
+
   const handlePromptSubmit = (value: string) => {
     const cleanedValue = sanitizeTerminalMultilineInput(value);
     const promptCommand = resolvePromptCommand(cleanedValue, promptCompletionContext);
@@ -1817,13 +2333,45 @@ export const App: React.FC<AppProps> = ({
           setSelectedProject(promptCommand.project);
           setNotice(`Project selected: ${promptCommand.project.name}`);
           return;
+        case "setThread": {
+          if (promptCommand.threadId === "new") {
+            startNewThread();
+            return;
+          }
+          const remoteThread = remoteThreads.find(
+            (candidate) => candidate.thread_id === promptCommand.threadId
+          );
+          if (remoteThread) {
+            selectThread({ kind: "remote", thread: remoteThread });
+            return;
+          }
+          const session = localSessions.find(
+            (candidate) => candidate.threadId === promptCommand.threadId
+          );
+          if (!session) {
+            setNotice(`Thread not loaded: ${promptCommand.label}`);
+            return;
+          }
+          selectThread({ kind: "session", session });
+          return;
+        }
         case "setModel":
           setSelectedModel(promptCommand.model);
           setNotice(`Model selected: ${promptCommand.label}`);
           return;
         case "setMode":
           setSelectedMode(promptCommand.mode);
-          setNotice(`Mode selected: ${promptCommand.label}`);
+          if (promptCommand.mode === "ask") {
+            setSelectedAgentProfileId("");
+          }
+          setNotice(
+            promptCommand.mode === "ask"
+              ? "Mode selected: Ask. Agent Profile cleared."
+              : `Mode selected: ${promptCommand.label}`
+          );
+          return;
+        case "setProfile":
+          selectAgentProfileById(promptCommand.profileId, promptCommand.label);
           return;
         case "toggleThinking":
           toggleLatestThinking();
@@ -1837,6 +2385,12 @@ export const App: React.FC<AppProps> = ({
         case "showHelp":
           setActiveWorkspaceTab("help");
           setNotice(undefined);
+          return;
+        case "showStarters":
+          setStarterSelectionsOpen(true);
+          setPromptInputActive(true);
+          setFocusedControl("followup:0");
+          setNotice("Starter selections shown. Use Tab/Enter or click a starter.");
           return;
         case "unknown":
           setNotice(promptCommand.message);
@@ -1866,6 +2420,10 @@ export const App: React.FC<AppProps> = ({
   const handlePromptChange = (value: string) => {
     const cleanedValue = sanitizeTerminalMultilineInput(value);
     completionCycleRef.current = undefined;
+    setPromptInputActive(true);
+    if (!isStarterSlashCommandInput(cleanedValue)) {
+      setStarterSelectionsOpen(false);
+    }
     setPromptInputScrollOffset(
       getInputViewport({
         value: cleanedValue,
@@ -1918,7 +2476,7 @@ export const App: React.FC<AppProps> = ({
             createdAt: now,
           };
 
-    setChatState((prev) => ({
+    const prepareConnectingState = (prev: ChatState): ChatState => ({
       ...prev,
       threadId,
       status: "connecting",
@@ -1946,7 +2504,13 @@ export const App: React.FC<AppProps> = ({
               ? { ...m, pending: false, updatedAt: now }
               : m
       ).concat(userMessage ? [userMessage] : []),
-    }));
+    });
+
+    let latestChatState = prepareConnectingState(chatState);
+    setChatState((prev) => {
+      latestChatState = prepareConnectingState(prev);
+      return latestChatState;
+    });
 
     const ctrl = new AbortController();
     controllerRef.current = ctrl;
@@ -1958,6 +2522,8 @@ export const App: React.FC<AppProps> = ({
       let rafId: number | null = null;
       let lastUpdateTime = Date.now();
       let sawHitlRequest = false;
+      let streamToken = token;
+      let retriedAfterAuthRefresh = false;
 
       const flushChunks = (immediate = false) => {
         if (pendingChunks.length === 0) {
@@ -1969,6 +2535,9 @@ export const App: React.FC<AppProps> = ({
         pendingChunks = [];
         rafId = null;
         lastUpdateTime = Date.now();
+        for (const chunk of chunksToProcess) {
+          latestChatState = reduceChunk(latestChatState, chunk);
+        }
 
         const applyChunks = () => {
           setChatState((prev) => {
@@ -2004,41 +2573,65 @@ export const App: React.FC<AppProps> = ({
         }
       };
 
-      for await (const chunk of streamChat({
-        baseUrl,
-        authToken: token,
-        message: options.hitlResume ? "" : trimmed,
-        threadId,
-        user: {
-          id: selectedProject?.user_id ?? currentUserId ?? defaultUser.id,
-          name: userName,
-        },
-        project:
-          selectedProject ??
-          (currentUserId ? { ...defaultProject, user_id: currentUserId } : defaultProject),
-        settings: {
-          ...(selectedModel ? { model: selectedModel } : {}),
-          mode: selectedMode,
-        },
-        streamingMode: debug ? "DEBUG" : "USER",
-        signal: ctrl.signal,
-        debug,
-        hitlResume: options.hitlResume,
-        completeAfterResponse: true,
-        responseCompletionGraceMs: 5000,
-      })) {
-        if (chunk.type === "hitl_request") {
-          sawHitlRequest = true;
-          pendingChunks.push(chunk);
-          if (rafId !== null) {
-            clearTimeout(rafId);
-            rafId = null;
+      while (true) {
+        try {
+          for await (const chunk of streamChat({
+            baseUrl,
+            authToken: streamToken,
+            message: options.hitlResume ? "" : trimmed,
+            threadId,
+            user: {
+              id: selectedProject?.user_id ?? currentUserId ?? defaultUser.id,
+              name: userName,
+            },
+            project:
+              selectedProject ??
+              (currentUserId ? { ...defaultProject, user_id: currentUserId } : defaultProject),
+            settings: {
+              ...(selectedModel ? { model: selectedModel } : {}),
+              mode: selectedMode,
+            },
+            agentProfileId: selectedAgentProfileId || undefined,
+            streamingMode: debug ? "DEBUG" : "USER",
+            signal: ctrl.signal,
+            debug,
+            hitlResume: options.hitlResume,
+            completeAfterResponse: true,
+            responseCompletionGraceMs: 5000,
+          })) {
+            if (chunk.type === "hitl_request") {
+              sawHitlRequest = true;
+              pendingChunks.push(chunk);
+              if (rafId !== null) {
+                clearTimeout(rafId);
+                rafId = null;
+              }
+              flushChunks(true);
+              break;
+            }
+            pendingChunks.push(chunk);
+            scheduleFlush();
           }
-          flushChunks(true);
           break;
+        } catch (error) {
+          if (
+            !accessKey &&
+            !retriedAfterAuthRefresh &&
+            isExpiredDeviceTokenStreamError(error)
+          ) {
+            retriedAfterAuthRefresh = true;
+            if (rafId !== null) {
+              clearTimeout(rafId);
+              rafId = null;
+            }
+            pendingChunks = [];
+            streamToken = await getAuthToken({ baseUrl, forceRefresh: true });
+            setAuthToken(streamToken);
+            setNotice("Session refreshed. Retrying your request...");
+            continue;
+          }
+          throw error;
         }
-        pendingChunks.push(chunk);
-        scheduleFlush();
       }
 
       // Flush any remaining chunks immediately
@@ -2051,7 +2644,30 @@ export const App: React.FC<AppProps> = ({
         setNotice(`Action required. Answer in CLI or open frontend: ${frontendThreadUrl}`);
       } else {
         shouldDrainQueue = true;
+        latestChatState = completeActiveAssistantMessage(latestChatState);
         setChatState((prev) => completeActiveAssistantMessage(prev));
+        const finalMessage = [...latestChatState.messages]
+          .reverse()
+          .find((message) => message.role === "assistant");
+        const finalResponse = collapseRepeatedAssistantText(finalMessage?.content ?? "");
+        if (trimmed && finalResponse.trim()) {
+          try {
+            await recordSessionTurn({
+              threadId,
+              question: trimmed,
+              response: finalResponse,
+              project: selectedProject
+                ? { id: selectedProject.id, name: selectedProject.name }
+                : undefined,
+              model: selectedModel,
+              profile: configProfile,
+            });
+            void refreshLocalSessions().catch(() => undefined);
+            void refreshRemoteThreads().catch(() => undefined);
+          } catch (error: any) {
+            setNotice(`Response complete. Local thread history was not saved: ${error?.message ?? "Unknown error"}`);
+          }
+        }
       }
     } catch (error: any) {
       const isAbort =
@@ -2093,6 +2709,7 @@ export const App: React.FC<AppProps> = ({
       if (controllerRef.current === ctrl) {
         controllerRef.current = null;
       }
+      refreshBillingHeader();
       if (shouldDrainQueue && queueRef.current.length > 0) {
         setTimeout(dequeueAndSend, 0);
       }
@@ -2116,12 +2733,14 @@ export const App: React.FC<AppProps> = ({
   const hasThinkingSteps = Boolean(latestThinkingMessage);
   const hasCancellableReasoning = hasCancellableAssistantWork(chatState.messages);
   const latestFollowUps = latestAssistant?.followUpQuestions?.filter(Boolean) ?? [];
+  const starterSlashCommandActive = isStarterSlashCommandInput(input);
   const promptSuggestions = getPromptSuggestions({
     latestFollowUps,
     messages: chatState.messages,
     mode: selectedMode,
     project: selectedProject,
     limit: terminalSize.columns < 110 ? 3 : 4,
+    showStarters: starterSelectionsOpen || starterSlashCommandActive,
   });
   const visiblePromptSuggestions = promptSuggestions.prompts.slice(
     0,
@@ -2156,7 +2775,9 @@ export const App: React.FC<AppProps> = ({
     visiblePromptSuggestions.length
   );
   const splitChatLayout = shouldUseSplitChatLayout(terminalSize);
+  const promptControlsCompact = terminalSize.columns < 96;
   const focusedFollowUpIndex = focusFollowUpIndex(focusedControl);
+  const activeChatPanel = chatPanelFocusForControl(focusedControl);
   const controlFocusOrder = buildControlFocusOrder({
     hasThinkingSteps,
     followUpCount: visiblePromptSuggestions.length,
@@ -2208,7 +2829,6 @@ export const App: React.FC<AppProps> = ({
       ? (chatThreadPanelWidth ?? chatAvailableWidth) - 8
       : chatAvailableWidth - 8
   );
-  const chatThreadHeight = Math.max(1, tuiLayout.threadHeight - bottomControlsRows);
   const activeWorkspacePanelState =
     workspacePanelStore[activeWorkspaceTab] ??
     createWorkspacePanelState(activeWorkspaceTab, "loading");
@@ -2216,16 +2836,6 @@ export const App: React.FC<AppProps> = ({
   const bannerRenderedRows = bannerDisabled
     ? 0
     : estimateBannerRows({ detailsCount: headerDetails.length, columns: bannerContentColumns });
-  const workspaceHeaderRows =
-    bannerRenderedRows +
-    3 +
-    (notice ? 1 : 0);
-  const workspaceFooterRows =
-    bottomControlsRows + 1 + (activeSelector === "project" ? tuiLayout.selectorLimit + 4 : 0);
-  const workspacePanelViewportRows = Math.max(
-    3,
-    terminalSize.rows - workspaceHeaderRows - workspaceFooterRows
-  );
   const workspaceContentWidth = Math.max(24, terminalSize.columns - tuiLayout.paddingX * 2 - 3);
   const workspaceTabStartRow = useMemo(() => {
     const rootContentStartRow = 1;
@@ -2252,10 +2862,73 @@ export const App: React.FC<AppProps> = ({
       }),
     [terminalSize.columns, tuiLayout.paddingX, workspaceTabStartRow]
   );
+  const workspaceTabButtonRows = useMemo(() => {
+    if (!workspaceTabHitAreas.length) {
+      return 0;
+    }
+    const firstRow = Math.min(...workspaceTabHitAreas.map((area) => area.startRow));
+    const lastRow = Math.max(...workspaceTabHitAreas.map((area) => area.endRow));
+    return Math.max(0, lastRow - firstRow + 1);
+  }, [workspaceTabHitAreas]);
+  const workspaceTabBarRows =
+    (bannerDisabled ? 3 : 0) +
+    workspaceTabButtonRows +
+    1 +
+    (bannerDisabled ? 1 : 0);
+  const promptPanelRows = estimatePromptPanelRows({
+    inputRows: promptInputRows,
+    suggestionRows: promptSuggestionRows,
+    compact: promptControlsCompact,
+    hasThinkingSteps,
+    includeControls: !splitChatLayout,
+  });
+  const searchPromptPanelRows =
+    estimatePromptPanelRows({
+      inputRows: promptInputRows,
+      suggestionRows: 0,
+      compact: promptControlsCompact,
+      hasThinkingSteps: false,
+      includeControls: false,
+    });
+  const workspaceHeaderRows =
+    bannerRenderedRows +
+    workspaceTabBarRows +
+    2 +
+    (notice ? 1 : 0);
+  const workspaceFooterRows =
+    bottomControlsRows + (activeSelector === "project" ? tuiLayout.selectorLimit + 4 : 0);
+  const workspacePanelViewportRows = getMiddleViewportRows(terminalSize, {
+    headerRows: workspaceHeaderRows,
+    footerRows: workspaceFooterRows,
+  });
+  const workspacePanelBodyRows = getFramedBodyRows(workspacePanelViewportRows);
+  const workspacePanelOverflowing = workspaceContentHeight > workspaceViewportHeight;
+  const workspacePanelBodyWidth = Math.max(
+    24,
+    workspaceContentWidth - (workspacePanelOverflowing ? 7 : 5)
+  );
+  const chatHeaderRows = bannerRenderedRows + workspaceTabBarRows + 2;
+  const chatFooterRows =
+    bottomControlsRows +
+    (isSearching ? searchPromptPanelRows : activeSelector ? 0 : promptPanelRows);
+  const chatMiddleViewportRows = getMiddleViewportRows(terminalSize, {
+    headerRows: chatHeaderRows,
+    footerRows: chatFooterRows,
+  });
+  const chatMiddleAuxiliaryRows =
+    (isSearching ? 3 : 0) +
+    (queuedMessages.length > 0 ? 4 : 0) +
+    (notice ? 1 : 0) +
+    (errorText ? 5 : 0) +
+    (chatState.status === "hitl_waiting" && chatState.hitl?.waiting ? 7 : 0) +
+    (activeSelector ? tuiLayout.selectorLimit + 4 : 0);
+  const chatMainPanelRows = Math.max(4, chatMiddleViewportRows - chatMiddleAuxiliaryRows);
+  const chatThreadHeight = getFramedBodyRows(chatMainPanelRows);
+  const chatMiddleOverflowing = chatMiddleContentHeight > chatMiddleViewportHeight;
   const selectorControlStartRow = useMemo(
     () => {
       if (!splitChatLayout) {
-        return Math.max(1, terminalSize.rows - (tuiLayout.compact ? 7 : 5));
+        return Math.max(1, terminalSize.rows - (promptControlsCompact ? 7 : 5));
       }
       const auxiliaryRows =
         (isSearching ? 3 : 0) +
@@ -2271,14 +2944,14 @@ export const App: React.FC<AppProps> = ({
       queuedMessages.length,
       splitChatLayout,
       terminalSize.rows,
-      tuiLayout.compact,
+      promptControlsCompact,
       workspaceTabStartRow,
     ]
   );
   const selectorControlHitAreas = useMemo(
     () =>
       getSelectorControlHitAreas({
-        compact: tuiLayout.compact || splitChatLayout,
+        compact: promptControlsCompact || splitChatLayout,
         hasThinkingSteps,
         startColumn: tuiLayout.paddingX + 1,
         startRow: selectorControlStartRow,
@@ -2292,7 +2965,7 @@ export const App: React.FC<AppProps> = ({
       selectorControlStartRow,
       splitChatLayout,
       terminalSize.columns,
-      tuiLayout.compact,
+      promptControlsCompact,
       tuiLayout.paddingX,
     ]
   );
@@ -2304,7 +2977,7 @@ export const App: React.FC<AppProps> = ({
           estimatePromptPanelRows({
             inputRows: promptInputRows,
             suggestionRows: promptSuggestionRows,
-            compact: tuiLayout.compact,
+            compact: promptControlsCompact,
             hasThinkingSteps,
             includeControls: !splitChatLayout,
           }) +
@@ -2315,7 +2988,7 @@ export const App: React.FC<AppProps> = ({
       promptInputRows,
       promptSuggestionRows,
       terminalSize.rows,
-      tuiLayout.compact,
+      promptControlsCompact,
       splitChatLayout,
     ]
   );
@@ -2333,12 +3006,15 @@ export const App: React.FC<AppProps> = ({
       previousWorkspaceTabRef.current = activeWorkspaceTab;
       setScrollOffset(0);
       setContentHeight(0);
+      setChatMiddleScrollOffset(0);
+      setChatMiddleContentHeight(0);
       setWorkspaceScrollOffset(0);
       setWorkspaceContentHeight(0);
     }
     if (activeWorkspaceTab !== "chat") {
       setTimeout(() => workspaceScrollViewRef.current?.scrollToTop(), 0);
     } else {
+      setTimeout(() => chatMiddleScrollViewRef.current?.scrollToTop(), 0);
       setTimeout(() => scrollViewRef.current?.scrollToTop(), 0);
     }
   }, [activeWorkspaceTab]);
@@ -2349,6 +3025,7 @@ export const App: React.FC<AppProps> = ({
       return;
     }
     setInput("");
+    setStarterSelectionsOpen(false);
     completionCycleRef.current = undefined;
     const noticePrefix = promptSuggestions.kind === "starter" ? "Starter" : "Follow-up";
     setNotice(`${noticePrefix} queued: ${truncateForTerminal(oneLine(question), 90)}`);
@@ -2366,6 +3043,10 @@ export const App: React.FC<AppProps> = ({
     }
     if (focusedControl === "thinking") {
       toggleLatestThinking();
+      return;
+    }
+    if (focusedControl === "threadPanel") {
+      setNotice("Thread selected. Use arrows, Page Up/Down, or mouse wheel to scroll.");
       return;
     }
     const followUpIndex = focusFollowUpIndex(focusedControl);
@@ -2408,6 +3089,16 @@ export const App: React.FC<AppProps> = ({
         setNotice(undefined);
         return;
       }
+      if (
+        splitChatLayout &&
+        mouseEvent.y >= selectorControlStartRow &&
+        mouseEvent.y < promptPanelStartRow &&
+        mouseEvent.x >= tuiLayout.paddingX + chatContextPanelWidth + chatSplitGap
+      ) {
+        setFocusedControl("threadPanel");
+        setNotice(undefined);
+        return;
+      }
     }
 
     if (mouseEvent.released) {
@@ -2417,7 +3108,7 @@ export const App: React.FC<AppProps> = ({
     if (!visiblePromptSuggestions.length) {
       return;
     }
-    const promptAreaTop = Math.max(1, terminalSize.rows - (visiblePromptSuggestions.length ? 8 : 5));
+    const promptAreaTop = promptPanelStartRow;
     if (mouseEvent.y < promptAreaTop) {
       return;
     }
@@ -2470,7 +3161,11 @@ export const App: React.FC<AppProps> = ({
              );
            } else if (activeWorkspaceTab !== "chat") {
              workspaceScrollViewRef.current?.scrollBy(mouseWheelDelta);
+           } else if (chatMiddleOverflowing) {
+             setFocusedControl("threadPanel");
+             chatMiddleScrollViewRef.current?.scrollBy(mouseWheelDelta);
            } else {
+             setFocusedControl("threadPanel");
              scrollViewRef.current?.scrollBy(mouseWheelDelta);
            }
          } else {
@@ -2485,7 +3180,7 @@ export const App: React.FC<AppProps> = ({
 
        const lowerInput = inputKey.toLowerCase();
 
-       if (phase === "ready" && !input.trim()) {
+       if (phase === "ready" && (!input.trim() || !promptInputActive)) {
          const shortcutTab = workspaceTabFromShortcut(inputKey);
          if (shortcutTab) {
            setActiveWorkspaceTab(shortcutTab);
@@ -2627,7 +3322,11 @@ export const App: React.FC<AppProps> = ({
            return;
        }
 
-       if ((key.tab || inputKey === "\t") && input.trimStart().startsWith("/")) {
+       if (
+         promptInputActive &&
+         (key.tab || inputKey === "\t") &&
+         input.trimStart().startsWith("/")
+       ) {
          const completion = completePromptInput(
            input,
            promptCompletionContext,
@@ -2655,7 +3354,13 @@ export const App: React.FC<AppProps> = ({
          return;
        }
 
-      if (key.rightArrow && !key.ctrl && !key.meta && promptGhostSuffix) {
+      if (
+        promptInputActive &&
+        key.rightArrow &&
+        !key.ctrl &&
+        !key.meta &&
+        promptGhostSuffix
+      ) {
         const nextValue = `${input}${promptGhostSuffix}`;
         setInput(nextValue);
         setPromptInputScrollOffset(
@@ -2705,7 +3410,7 @@ export const App: React.FC<AppProps> = ({
          }
        }
 
-       if (phase === "ready" && !input.trim()) {
+       if (phase === "ready" && (!input.trim() || !promptInputActive)) {
          if (key.tab || inputKey === "\t") {
            setFocusedControl((current) => nextControlFocus(current, controlFocusOrder));
            return;
@@ -2716,6 +3421,30 @@ export const App: React.FC<AppProps> = ({
          }
          if (key.rightArrow && !key.ctrl && !key.meta) {
            setFocusedControl((current) => nextControlFocus(current, controlFocusOrder));
+           return;
+         }
+         if (key.upArrow && !key.ctrl && !key.meta && !key.shift) {
+           if (focusedControl === "threadPanel") {
+             if (chatMiddleOverflowing) {
+               chatMiddleScrollViewRef.current?.scrollBy(-1);
+             } else {
+               scrollViewRef.current?.scrollBy(-1);
+             }
+           } else {
+             setFocusedControl((current) => nextControlFocus(current, controlFocusOrder, -1));
+           }
+           return;
+         }
+         if (key.downArrow && !key.ctrl && !key.meta && !key.shift) {
+           if (focusedControl === "threadPanel") {
+             if (chatMiddleOverflowing) {
+               chatMiddleScrollViewRef.current?.scrollBy(1);
+             } else {
+               scrollViewRef.current?.scrollBy(1);
+             }
+           } else {
+             setFocusedControl((current) => nextControlFocus(current, controlFocusOrder));
+           }
            return;
          }
          if (key.return && !key.meta && !key.ctrl) {
@@ -2729,40 +3458,108 @@ export const App: React.FC<AppProps> = ({
        if (phase === "ready") {
          // Ctrl+Arrow keys work even when input is focused
          if (key.ctrl && key.upArrow) {
-           scrollViewRef.current?.scrollBy(-1);
+           setFocusedControl("threadPanel");
+           if (chatMiddleOverflowing) {
+             chatMiddleScrollViewRef.current?.scrollBy(-1);
+           } else {
+             scrollViewRef.current?.scrollBy(-1);
+           }
            return;
          }
          if (key.ctrl && key.downArrow) {
-           scrollViewRef.current?.scrollBy(1);
+           setFocusedControl("threadPanel");
+           if (chatMiddleOverflowing) {
+             chatMiddleScrollViewRef.current?.scrollBy(1);
+           } else {
+             scrollViewRef.current?.scrollBy(1);
+           }
            return;
          }
          // Plain arrows scroll only when the prompt is empty, so text editing stays predictable.
-         if (!input.trim() && key.upArrow && !key.ctrl && !key.meta && !key.shift) {
-           scrollViewRef.current?.scrollBy(-1);
+         if (
+           (!input.trim() || !promptInputActive) &&
+           key.upArrow &&
+           !key.ctrl &&
+           !key.meta &&
+           !key.shift
+         ) {
+           setFocusedControl("threadPanel");
+           if (chatMiddleOverflowing) {
+             chatMiddleScrollViewRef.current?.scrollBy(-1);
+           } else {
+             scrollViewRef.current?.scrollBy(-1);
+           }
            return;
          }
-         if (!input.trim() && key.downArrow && !key.ctrl && !key.meta && !key.shift) {
-           scrollViewRef.current?.scrollBy(1);
+         if (
+           (!input.trim() || !promptInputActive) &&
+           key.downArrow &&
+           !key.ctrl &&
+           !key.meta &&
+           !key.shift
+         ) {
+           setFocusedControl("threadPanel");
+           if (chatMiddleOverflowing) {
+             chatMiddleScrollViewRef.current?.scrollBy(1);
+           } else {
+             scrollViewRef.current?.scrollBy(1);
+           }
            return;
          }
          // Page Up/Down
          if (key.pageUp && !key.ctrl && !key.meta) {
-           scrollViewRef.current?.scrollBy(-Math.max(1, Math.floor(viewportHeight * 0.8)));
+           setFocusedControl("threadPanel");
+           if (chatMiddleOverflowing) {
+             chatMiddleScrollViewRef.current?.scrollBy(
+               -Math.max(1, Math.floor(chatMiddleViewportHeight * 0.8))
+             );
+           } else {
+             scrollViewRef.current?.scrollBy(-Math.max(1, Math.floor(viewportHeight * 0.8)));
+           }
            return;
          }
          if (key.pageDown && !key.ctrl && !key.meta) {
-           scrollViewRef.current?.scrollBy(Math.max(1, Math.floor(viewportHeight * 0.8)));
+           setFocusedControl("threadPanel");
+           if (chatMiddleOverflowing) {
+             chatMiddleScrollViewRef.current?.scrollBy(
+               Math.max(1, Math.floor(chatMiddleViewportHeight * 0.8))
+             );
+           } else {
+             scrollViewRef.current?.scrollBy(Math.max(1, Math.floor(viewportHeight * 0.8)));
+           }
            return;
          }
          // Scroll to top/bottom with Ctrl+H (home) and Ctrl+E (end)
          if (key.ctrl && inputKey.toLowerCase() === "h" && inputKey.toLowerCase() !== "l") {
-           scrollViewRef.current?.scrollToTop();
+           setFocusedControl("threadPanel");
+           if (chatMiddleOverflowing) {
+             chatMiddleScrollViewRef.current?.scrollToTop();
+           } else {
+             scrollViewRef.current?.scrollToTop();
+           }
            return;
          }
          if (key.ctrl && inputKey.toLowerCase() === "e") {
-           scrollViewRef.current?.scrollToBottom();
+           setFocusedControl("threadPanel");
+           if (chatMiddleOverflowing) {
+             chatMiddleScrollViewRef.current?.scrollToBottom();
+           } else {
+             scrollViewRef.current?.scrollToBottom();
+           }
            return;
          }
+       }
+
+       if (
+         phase === "ready" &&
+         activeWorkspaceTab === "chat" &&
+         !promptInputActive &&
+         !activeSelector &&
+         !isSearching &&
+         isPromptTextInput(inputKey, key)
+       ) {
+         handlePromptChange(`${input}${inputKey}`);
+         return;
        }
 
        // Other controls
@@ -2795,7 +3592,7 @@ export const App: React.FC<AppProps> = ({
 
   if (phase === "boot") {
     return (
-      <Box flexDirection="column" paddingX={tuiLayout.paddingX} paddingY={0}>
+      <Box flexDirection="column" paddingX={tuiLayout.paddingX} paddingY={0} height={terminalSize.rows}>
         <Banner disable={bannerDisabled} details={headerDetails} terminalColumns={bannerContentColumns} />
         {isLoggingIn ? (
           <Box flexDirection="column" gap={1} padding={1}>
@@ -2835,7 +3632,7 @@ export const App: React.FC<AppProps> = ({
 
   if (phase === "error") {
     return (
-      <Box flexDirection="column" padding={1}>
+      <Box flexDirection="column" padding={1} height={terminalSize.rows}>
         <Text color={terminalTheme.danger}>Failed to start CLI.</Text>
         <Text>{bootError ?? "Unknown error"}</Text>
         <Text>
@@ -2876,11 +3673,12 @@ export const App: React.FC<AppProps> = ({
     isBusyStatus(chatState.status) || Boolean(controllerRef.current) || hasCancellableReasoning;
   const threadPanel = (
     <TitledBox
-      title="Thread"
+      title={selectedThreadTitle}
       borderStyle="round"
-      borderColor={terminalTheme.muted}
+      borderColor={activeChatPanel === "thread" ? terminalTheme.focus : terminalTheme.muted}
       padding={1}
       width={chatThreadPanelWidth}
+      height={chatMainPanelRows}
     >
       <Box flexDirection="row">
         <Box flexShrink={1} width={threadContentWidth}>
@@ -2929,13 +3727,15 @@ export const App: React.FC<AppProps> = ({
   const promptFooterControls = splitChatLayout ? undefined : (
     <PromptControlBar
       focused={focusedControl}
+      selectedThreadTitle={selectedThreadTitle}
       selectedProject={selectedProject}
       selectedModel={selectedModel}
       selectedMode={selectedMode}
+      selectedAgentProfileLabel={selectedAgentProfileLabel}
       hasThinkingSteps={hasThinkingSteps}
       thinkingExpanded={thinkingExpanded}
       thinkingSummary={thinkingSummary}
-      compact={tuiLayout.compact}
+      compact={promptControlsCompact}
       terminalColumns={terminalSize.columns}
       statusText={chatStatusText}
       statusColor={chatStatusColor}
@@ -2950,7 +3750,7 @@ export const App: React.FC<AppProps> = ({
       value: p,
     }));
     return (
-      <Box flexDirection="column" paddingX={tuiLayout.paddingX} paddingY={0} gap={0}>
+      <Box flexDirection="column" paddingX={tuiLayout.paddingX} paddingY={0} gap={0} height={terminalSize.rows}>
         <Banner disable={bannerDisabled} details={headerDetails} terminalColumns={bannerContentColumns} />
         <Text>Select a project to chat with:</Text>
         {loadingProjects ? (
@@ -2976,7 +3776,7 @@ export const App: React.FC<AppProps> = ({
 
   if (activeWorkspaceTab !== "chat") {
     return (
-      <Box flexDirection="column" paddingX={tuiLayout.paddingX} paddingY={0} gap={0}>
+      <Box flexDirection="column" paddingX={tuiLayout.paddingX} paddingY={0} gap={0} height={terminalSize.rows}>
         <Banner disable={bannerDisabled} details={headerDetails} terminalColumns={bannerContentColumns} />
         <WorkspaceTabBar
           activeTab={activeWorkspaceTab}
@@ -2985,37 +3785,50 @@ export const App: React.FC<AppProps> = ({
         />
         <Text dimColor wrap="wrap">{workspaceTabDescriptions[activeWorkspaceTab]}</Text>
         {notice ? <Text dimColor wrap="wrap">{notice}</Text> : null}
-        <Box flexDirection="row">
-          <Box flexShrink={1} width={workspaceContentWidth}>
-            <ScrollView
-              ref={workspaceScrollViewRef}
-              height={workspacePanelViewportRows}
-              onScroll={(offset) => setWorkspaceScrollOffset(offset)}
-              onContentHeightChange={(height) => setWorkspaceContentHeight(height)}
-              onViewportSizeChange={(size) => setWorkspaceViewportHeight(size.height)}
-            >
-              <WorkspacePanel
-                tab={activeWorkspaceTab}
-                state={activeWorkspacePanelState}
-                projects={projects}
-                selectedProject={selectedProject}
-                currentUserId={currentUserId}
-                selectedModel={selectedModel}
-                selectedMode={selectedMode}
-                apiBase={apiBase}
-                frontendUrl={workspaceFrontendUrl}
-                terminalColumns={workspaceContentWidth}
-                tablePage={activeTablePage}
-                animate={animationsEnabled}
+        <TitledBox
+          title={workspaceTabLabels[activeWorkspaceTab]}
+          borderStyle="round"
+          borderColor={terminalTheme.muted}
+          padding={1}
+          marginTop={1}
+          height={workspacePanelViewportRows}
+          width={workspaceContentWidth}
+        >
+          <Box flexDirection="row">
+            <Box flexShrink={1} width={workspacePanelBodyWidth}>
+              <ScrollView
+                ref={workspaceScrollViewRef}
+                height={workspacePanelBodyRows}
+                onScroll={(offset) => setWorkspaceScrollOffset(offset)}
+                onContentHeightChange={(height) => setWorkspaceContentHeight(height)}
+                onViewportSizeChange={(size) => setWorkspaceViewportHeight(size.height)}
+              >
+                <WorkspacePanel
+                  tab={activeWorkspaceTab}
+                  state={activeWorkspacePanelState}
+                  projects={projects}
+                  selectedProject={selectedProject}
+                  currentUserId={currentUserId}
+                  selectedModel={selectedModel}
+                  selectedMode={selectedMode}
+                  apiBase={apiBase}
+                  frontendUrl={workspaceFrontendUrl}
+                  terminalColumns={workspacePanelBodyWidth}
+                  tablePage={activeTablePage}
+                  animate={animationsEnabled}
+                  framed={false}
+                />
+              </ScrollView>
+            </Box>
+            {workspacePanelOverflowing ? (
+              <Scrollbar
+                scrollOffset={workspaceScrollOffset}
+                contentHeight={workspaceContentHeight}
+                viewportHeight={workspaceViewportHeight}
               />
-            </ScrollView>
+            ) : null}
           </Box>
-          <Scrollbar
-            scrollOffset={workspaceScrollOffset}
-            contentHeight={workspaceContentHeight}
-            viewportHeight={workspaceViewportHeight}
-          />
-        </Box>
+        </TitledBox>
         <BottomControls tab={activeWorkspaceTab} />
         {activeSelector === "project" ? (
           <SelectPanel
@@ -3045,149 +3858,228 @@ export const App: React.FC<AppProps> = ({
   }
 
   return (
-    <Box flexDirection="column" paddingX={tuiLayout.paddingX} paddingY={0} gap={0}>
+    <Box flexDirection="column" paddingX={tuiLayout.paddingX} paddingY={0} gap={0} height={terminalSize.rows}>
       <Banner disable={bannerDisabled} details={headerDetails} terminalColumns={bannerContentColumns} />
       <WorkspaceTabBar
         activeTab={activeWorkspaceTab}
         showBrand={bannerDisabled}
         billingSummary={bannerDisabled ? billingHeader : undefined}
       />
-      {isSearching ? (
-        <TitledBox
-          title="Search"
-          borderStyle="double"
-          borderColor={terminalTheme.warning}
-          padding={0}
-          paddingX={1}
+      <Text dimColor wrap="wrap">{workspaceTabDescriptions.chat}</Text>
+      <Box flexDirection="row" marginTop={1}>
+        <Box
+          flexShrink={1}
+          width={Math.max(24, chatAvailableWidth - (chatMiddleOverflowing ? 2 : 0))}
         >
-          <Text>Found: {displayedMessages.length} matches</Text>
-        </TitledBox>
-      ) : null}
-      {queuedMessages.length > 0 ? (
-        <QueuePanel
-          messages={queuedMessages}
-          compact={tuiLayout.compact}
-          terminalColumns={terminalSize.columns}
-        />
-      ) : null}
-      {notice ? <Text dimColor wrap="wrap">{notice}</Text> : null}
-      {errorText ? (
-        <TitledBox
-          title="Error Details"
-          borderStyle="round"
-          borderColor={terminalTheme.danger}
-          padding={0}
-          paddingX={1}
-          marginTop={1}
-        >
-          <Text color={terminalTheme.danger} wrap="wrap">{errorText}</Text>
-          {!hasThinkingSteps ? (
-            <Text dimColor wrap="wrap">
-              No thinking steps were received before the backend returned this error.
-            </Text>
-          ) : null}
-        </TitledBox>
-      ) : null}
-      {splitChatLayout ? (
-        <Box flexDirection="row" columnGap={chatSplitGap}>
-          <ChatContextPanel
-            width={chatContextPanelWidth}
-            focused={focusedControl}
-            selectedProject={selectedProject}
-            selectedModel={selectedModel}
-            selectedMode={selectedMode}
-            hasThinkingSteps={hasThinkingSteps}
-            thinkingExpanded={thinkingExpanded}
-            thinkingSummary={thinkingSummary}
-            statusText={chatStatusText}
-            statusColor={chatStatusColor}
-            busy={chatBusy}
-            animate={animationsEnabled}
-            threadId={chatState.threadId}
-          />
-          {threadPanel}
+          <ScrollView
+            ref={chatMiddleScrollViewRef}
+            height={chatMiddleViewportRows}
+            onScroll={(offset) => setChatMiddleScrollOffset(offset)}
+            onContentHeightChange={(height) => setChatMiddleContentHeight(height)}
+            onViewportSizeChange={(size) => setChatMiddleViewportHeight(size.height)}
+          >
+            <Box flexDirection="column">
+              {isSearching ? (
+                <TitledBox
+                  title="Search"
+                  borderStyle="double"
+                  borderColor={terminalTheme.warning}
+                  padding={0}
+                  paddingX={1}
+                >
+                  <Text>Found: {displayedMessages.length} matches</Text>
+                </TitledBox>
+              ) : null}
+              {queuedMessages.length > 0 ? (
+                <QueuePanel
+                  messages={queuedMessages}
+                  compact={tuiLayout.compact}
+                  terminalColumns={terminalSize.columns}
+                />
+              ) : null}
+              {notice ? <Text dimColor wrap="wrap">{notice}</Text> : null}
+              {errorText ? (
+                <TitledBox
+                  title="Error Details"
+                  borderStyle="round"
+                  borderColor={terminalTheme.danger}
+                  padding={0}
+                  paddingX={1}
+                  marginTop={1}
+                >
+                  <Text color={terminalTheme.danger} wrap="wrap">{errorText}</Text>
+                  {!hasThinkingSteps ? (
+                    <Text dimColor wrap="wrap">
+                      No thinking steps were received before the backend returned this error.
+                    </Text>
+                  ) : null}
+                </TitledBox>
+              ) : null}
+              {splitChatLayout ? (
+                <Box flexDirection="row" columnGap={chatSplitGap}>
+                  <ChatContextPanel
+                    width={chatContextPanelWidth}
+                    height={chatMainPanelRows}
+                    active={activeChatPanel === "settings"}
+                    focused={focusedControl}
+                    selectedThreadTitle={selectedThreadTitle}
+                    selectedProject={selectedProject}
+                    selectedModel={selectedModel}
+                    selectedMode={selectedMode}
+                    selectedAgentProfileLabel={selectedAgentProfileLabel}
+                    hasThinkingSteps={hasThinkingSteps}
+                    thinkingExpanded={thinkingExpanded}
+                    thinkingSummary={thinkingSummary}
+                    statusText={chatStatusText}
+                    statusColor={chatStatusColor}
+                    busy={chatBusy}
+                    animate={animationsEnabled}
+                  />
+                  {threadPanel}
+                </Box>
+              ) : (
+                threadPanel
+              )}
+              {chatState.status === "hitl_waiting" && chatState.hitl?.waiting ? (
+                <HitlPanel
+                  hitl={chatState.hitl}
+                  questionIndex={hitlQuestionIndex}
+                  optionIndex={hitlOptionIndex}
+                  answers={hitlAnswers}
+                  frontendUrl={frontendThreadUrl}
+                />
+              ) : null}
+              {activeSelector === "thread" ? (
+                <SelectPanel
+                  title="Select Thread"
+                  items={
+                    loadingSessions || loadingRemoteThreads
+                      ? [
+                          {
+                            label: "Loading threads...",
+                            value: { kind: "new" } satisfies ThreadSelectValue,
+                            description: "Reading CloudEval threads and local CLI history.",
+                          },
+                        ]
+                      : threadSelectItems
+                  }
+                  selectedIndex={Math.max(
+                    0,
+                    threadSelectItems.findIndex(
+                      (item) =>
+                        (item.value.kind === "remote" &&
+                          item.value.thread.thread_id === chatState.threadId) ||
+                        (item.value.kind === "session" &&
+                          item.value.session.threadId === chatState.threadId)
+                    )
+                  )}
+                  onSubmit={(item) => selectThread(item.value)}
+                  onCancel={() => setActiveSelector(null)}
+                  limit={tuiLayout.selectorLimit}
+                />
+              ) : null}
+              {activeSelector === "project" ? (
+                <SelectPanel
+                  title="Select Project"
+                  items={(projects.length ? projects : [defaultProject]).map((project) => ({
+                    label: `${project.name} (${project.cloud_provider ?? "cloud"})`,
+                    value: project,
+                    description: project.id,
+                  }))}
+                  selectedIndex={Math.max(
+                    0,
+                    (projects.length ? projects : [defaultProject]).findIndex(
+                      (project) => project.id === (selectedProject ?? defaultProject).id
+                    )
+                  )}
+                  onSubmit={(item) => {
+                    setSelectedProject(item.value);
+                    setActiveSelector(null);
+                  }}
+                  onCancel={() => setActiveSelector(null)}
+                  limit={tuiLayout.selectorLimit}
+                />
+              ) : null}
+              {activeSelector === "model" ? (
+                <SelectPanel
+                  title="Select Model"
+                  items={modelItems}
+                  selectedIndex={Math.max(
+                    0,
+                    modelItems.findIndex((item) => item.value === selectedModel)
+                  )}
+                  onSubmit={(item) => {
+                    setSelectedModel(item.value);
+                    setActiveSelector(null);
+                  }}
+                  onCancel={() => setActiveSelector(null)}
+                  limit={tuiLayout.selectorLimit}
+                />
+              ) : null}
+              {activeSelector === "mode" ? (
+                <SelectPanel
+                  title="Select Mode"
+                  items={modeItems}
+                  selectedIndex={Math.max(
+                    0,
+                    modeItems.findIndex((item) => item.value === selectedMode)
+                  )}
+                  onSubmit={(item) => {
+                    setSelectedMode(item.value);
+                    if (item.value === "ask") {
+                      setSelectedAgentProfileId("");
+                    }
+                    setNotice(
+                      item.value === "ask"
+                        ? "Mode selected: Ask. Agent Profile cleared."
+                        : `Mode selected: ${item.label}`
+                    );
+                    setActiveSelector(null);
+                  }}
+                  onCancel={() => setActiveSelector(null)}
+                  limit={tuiLayout.selectorLimit}
+                />
+              ) : null}
+              {activeSelector === "profile" ? (
+                <SelectPanel
+                  title="Select Agent Profile"
+                  items={agentProfileItems}
+                  selectedIndex={Math.max(
+                    0,
+                    agentProfileItems.findIndex((item) => item.value === selectedAgentProfileId)
+                  )}
+                  onSubmit={(item) => {
+                    selectAgentProfileById(item.value, item.label);
+                    setActiveSelector(null);
+                  }}
+                  onCancel={() => setActiveSelector(null)}
+                  limit={tuiLayout.selectorLimit}
+                />
+              ) : null}
+            </Box>
+          </ScrollView>
         </Box>
-      ) : (
-        threadPanel
-      )}
-      {chatState.status === "hitl_waiting" && chatState.hitl?.waiting ? (
-        <HitlPanel
-          hitl={chatState.hitl}
-          questionIndex={hitlQuestionIndex}
-          optionIndex={hitlOptionIndex}
-          answers={hitlAnswers}
-          frontendUrl={frontendThreadUrl}
-        />
-      ) : null}
-      {activeSelector === "project" ? (
-        <SelectPanel
-          title="Select Project"
-          items={(projects.length ? projects : [defaultProject]).map((project) => ({
-            label: `${project.name} (${project.cloud_provider ?? "cloud"})`,
-            value: project,
-            description: project.id,
-          }))}
-          selectedIndex={Math.max(
-            0,
-            (projects.length ? projects : [defaultProject]).findIndex(
-              (project) => project.id === (selectedProject ?? defaultProject).id
-            )
-          )}
-          onSubmit={(item) => {
-            setSelectedProject(item.value);
-            setActiveSelector(null);
-          }}
-          onCancel={() => setActiveSelector(null)}
-          limit={tuiLayout.selectorLimit}
-        />
-      ) : null}
-      {activeSelector === "model" ? (
-        <SelectPanel
-          title="Select Model"
-          items={modelItems}
-          selectedIndex={Math.max(
-            0,
-            modelItems.findIndex((item) => item.value === selectedModel)
-          )}
-          onSubmit={(item) => {
-            setSelectedModel(item.value);
-            setActiveSelector(null);
-          }}
-          onCancel={() => setActiveSelector(null)}
-          limit={tuiLayout.selectorLimit}
-        />
-      ) : null}
-      {activeSelector === "mode" ? (
-        <SelectPanel
-          title="Select Mode"
-          items={modeItems}
-          selectedIndex={Math.max(
-            0,
-            modeItems.findIndex((item) => item.value === selectedMode)
-          )}
-          onSubmit={(item) => {
-            setSelectedMode(item.value);
-            setActiveSelector(null);
-          }}
-          onCancel={() => setActiveSelector(null)}
-          limit={tuiLayout.selectorLimit}
-        />
-      ) : null}
+        {chatMiddleOverflowing ? (
+          <Scrollbar
+            scrollOffset={chatMiddleScrollOffset}
+            contentHeight={chatMiddleContentHeight}
+            viewportHeight={chatMiddleViewportHeight}
+          />
+        ) : null}
+      </Box>
 
       {isSearching ? (
-          <TitledBox
+          <InputBox
             title="Search History"
-            borderStyle="round"
-            borderColor={terminalTheme.warning}
-            padding={1}
-          >
-            <InputBox
-                value={searchQuery}
-                onChange={setSearchQuery}
-                onSubmit={() => {}}
-                placeholder="Type to filter history..."
-            />
-          </TitledBox>
+            value={searchQuery}
+            onChange={setSearchQuery}
+            onSubmit={() => {}}
+            placeholder="Type to filter history..."
+            onBlurRequest={() => {
+              setIsSearching(false);
+              setSearchQuery("");
+            }}
+          />
       ) : activeSelector ? null : (
           <InputBox
             value={input}
@@ -3195,9 +4087,15 @@ export const App: React.FC<AppProps> = ({
             onSubmit={handlePromptSubmit}
             ghostText={promptGhostSuffix}
             disabled={Boolean(activeSelector)}
+            inputActive={promptInputActive}
+            onBlurRequest={() => {
+              setPromptInputActive(false);
+              completionCycleRef.current = undefined;
+            }}
             onTabShortcut={(tab) => {
               setActiveWorkspaceTab(tab);
               setActiveSelector(null);
+              setStarterSelectionsOpen(false);
               setNotice(undefined);
               setInput("");
             }}
@@ -3209,14 +4107,21 @@ export const App: React.FC<AppProps> = ({
             scrollOffset={promptInputViewport.startRow}
             minInputRows={promptInputRowBudget}
             maxInputRows={promptInputRowBudget}
+            blinkCursor={shouldBlinkPromptCursor({
+              animationsEnabled,
+              inputActive: promptInputActive,
+              busy: chatBusy,
+              selectorOpen: Boolean(activeSelector),
+              searching: isSearching,
+            })}
             footerControls={promptFooterControls}
             helpText=""
-            actionLabel={promptActionIsCancel ? "ESC to cancel" : "ENTER to send"}
+            actionLabel={promptActionIsCancel ? "ESC to cancel" : undefined}
             actionHint={getChatInputHelpText({
               isCancelling: promptActionIsCancel,
+              inputActive: promptInputActive,
               promptCount: visiblePromptSuggestions.length,
             })}
-            actionTone={promptActionIsCancel ? terminalTheme.warning : terminalTheme.brand}
             onAction={() => {
               if (promptActionIsCancel) {
                 stopActiveChat();
@@ -3224,7 +4129,6 @@ export const App: React.FC<AppProps> = ({
               }
               handlePromptSubmit(input);
             }}
-            actionDisabled={!promptActionIsCancel && !input.trim()}
             placeholder={
               chatState.status === "hitl_waiting"
                 ? "Answer HITL prompt, or /open for frontend..."

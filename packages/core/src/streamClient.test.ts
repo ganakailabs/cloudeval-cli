@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { streamChat } from "./streamClient";
+import {
+  StreamRequestError,
+  isExpiredDeviceTokenStreamError,
+  streamChat,
+} from "./streamClient";
 
 const responseFromText = (body: string) =>
   new Response(body, {
@@ -327,6 +331,40 @@ test("streamChat fails when no stream response arrives before the idle timeout",
         // drain stream
       }
     }, /No chat stream response received within 25ms/);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test("streamChat exposes expired device token stream failures", async () => {
+  const originalFetch = global.fetch;
+
+  global.fetch = async () =>
+    new Response(
+      JSON.stringify({ detail: "Invalid token: Device token has expired" }),
+      {
+        status: 401,
+        statusText: "Unauthorized",
+        headers: { "Content-Type": "application/json" },
+      },
+    );
+
+  try {
+    await assert.rejects(async () => {
+      for await (const _chunk of streamChat({
+        baseUrl: "http://127.0.0.1:8787/api/v1",
+        authToken: "expired-token",
+        message: "hello",
+        threadId: "thread-expired-token",
+        user: { id: "user-1", name: "User" },
+      })) {
+        // drain stream
+      }
+    }, (error: unknown) => {
+      assert.equal(error instanceof StreamRequestError, true);
+      assert.equal(isExpiredDeviceTokenStreamError(error), true);
+      return true;
+    });
   } finally {
     global.fetch = originalFetch;
   }

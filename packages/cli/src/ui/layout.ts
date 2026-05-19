@@ -22,6 +22,12 @@ export interface ResponsiveTuiLayout {
   threadHeight: number;
 }
 
+export interface MiddleViewportRowsOptions {
+  headerRows?: number;
+  footerRows?: number;
+  safetyRows?: number;
+}
+
 const clamp = (value: number, min: number, max: number): number =>
   Math.min(max, Math.max(min, value));
 
@@ -82,7 +88,6 @@ export const getResponsiveTuiLayout = (
   if (options.hasSelector) reservedRows += 8;
   if (options.isSearching) reservedRows += 3;
 
-  const minThreadHeight = rows < 20 ? 3 : rows < 28 ? 4 : 6;
   const maxThreadHeight = compact ? 14 : 24;
   const availableRows = rows - reservedRows;
 
@@ -91,19 +96,27 @@ export const getResponsiveTuiLayout = (
     paddingX: compact ? 0 : 1,
     selectorLimit: compact ? 6 : 8,
     showBanner,
-    threadHeight: clamp(availableRows, minThreadHeight, maxThreadHeight),
+    threadHeight: clamp(availableRows, 1, maxThreadHeight),
   };
 };
 
+export const getMiddleViewportRows = (
+  size: Partial<TerminalSize>,
+  options: MiddleViewportRowsOptions = {}
+): number => {
+  const rows = normalizeDimension(size.rows, 32);
+  const headerRows = Math.max(0, Math.ceil(options.headerRows ?? 0));
+  const footerRows = Math.max(0, Math.ceil(options.footerRows ?? 0));
+  const safetyRows = Math.max(0, Math.ceil(options.safetyRows ?? 2));
+  return Math.max(1, Math.floor(rows) - headerRows - footerRows - safetyRows);
+};
+
+export const getFramedBodyRows = (frameRows: number, chromeRows = 4): number =>
+  Math.max(1, Math.floor(frameRows) - Math.max(0, Math.ceil(chromeRows)));
+
 export const getPromptInputRowBudget = (size: Partial<TerminalSize>): number => {
   const rows = normalizeDimension(size.rows, 32);
-  if (rows < 28) {
-    return 4;
-  }
-  if (rows < 38) {
-    return 6;
-  }
-  return clamp(Math.floor(rows * 0.22), 8, 16);
+  return clamp(Math.floor(rows * 0.13), 4, 8);
 };
 
 export const shouldUseSplitChatLayout = (size: Partial<TerminalSize>): boolean => {

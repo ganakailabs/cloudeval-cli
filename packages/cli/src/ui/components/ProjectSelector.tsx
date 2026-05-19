@@ -96,9 +96,9 @@ export function ProjectSelector<T>({
             bold={isHighlighted || isSelected}
             color={
               isSelected
-                ? terminalTheme.success
+                ? terminalTheme.selected
                 : isHighlighted
-                  ? terminalTheme.brand
+                  ? terminalTheme.focus
                   : undefined
             }
           >
@@ -120,5 +120,4 @@ export function ProjectSelector<T>({
     </Box>
   );
 }
-
 

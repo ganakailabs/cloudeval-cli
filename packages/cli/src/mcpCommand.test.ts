@@ -828,6 +828,7 @@ test("mcp serve filters resources and prompts by focused toolset", async () => {
     assert.deepEqual(resourceUris, [
       "cloudeval://capabilities",
       "cloudeval://billing/summary",
+      "cloudeval://skills",
     ]);
 
     mcp.send({
@@ -877,6 +878,7 @@ test("mcp serve exposes CloudEval resources and prompts", async () => {
     assert(resourceUris.includes("cloudeval://billing/summary"));
     assert(resourceUris.includes("cloudeval://reports/latest"));
     assert(resourceUris.includes("cloudeval://recipes"));
+    assert(resourceUris.includes("cloudeval://skills"));
 
     mcp.send({
       jsonrpc: "2.0",
@@ -927,6 +929,10 @@ test("mcp serve exposes CloudEval resources and prompts", async () => {
       "cloudeval-cli-onboarding-check",
       "cloudeval-frontend-workspace-links",
       "cloudeval-diagram-export",
+      "cloudeval-graph-drift-watch",
+      "cloudeval-impact-analysis",
+      "cloudeval-template-preflight",
+      "cloudeval-template-release-gate",
       "cloudeval-architecture-diagram-export",
       "cloudeval-dependency-diagram-export",
       "cloudeval-mcp-setup",
@@ -975,6 +981,21 @@ test("mcp serve exposes CloudEval resources and prompts", async () => {
     const recipePayload = JSON.parse(recipeResource.result.contents[0].text);
     assert.equal(recipePayload.ok, true);
     assert.equal(recipePayload.data.recipes.some((recipe: any) => recipe.id === "cloudeval-cloud-cost-review"), true);
+
+    mcp.send({
+      jsonrpc: "2.0",
+      id: 8,
+      method: "resources/read",
+      params: { uri: "cloudeval://skills" },
+    });
+    const skillsResource = await mcp.read();
+    assert.equal(skillsResource.id, 8);
+    const skillsPayload = JSON.parse(skillsResource.result.contents[0].text);
+    assert.equal(skillsPayload.ok, true);
+    assert.equal(
+      skillsPayload.data.skills.some((skill: any) => skill.id === "cloudeval-template-validation"),
+      true,
+    );
   } finally {
     const closed = await mcp.close();
     assert.equal(closed.exitCode, 0, closed.stderr);

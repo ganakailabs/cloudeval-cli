@@ -48,6 +48,34 @@ export interface StreamChatOptions {
   };
 }
 
+export class StreamRequestError extends Error {
+  readonly status: number;
+  readonly statusText: string;
+  readonly body: string;
+
+  constructor(input: { status: number; statusText: string; body: string }) {
+    super(
+      `Stream request failed with status ${input.status} ${input.statusText}${
+        input.body ? `: ${input.body}` : ""
+      }`
+    );
+    this.name = "StreamRequestError";
+    this.status = input.status;
+    this.statusText = input.statusText;
+    this.body = input.body;
+  }
+}
+
+export const isExpiredDeviceTokenStreamError = (error: unknown): boolean => {
+  if (!(error instanceof StreamRequestError) || error.status !== 401) {
+    return false;
+  }
+  const text = `${error.body}\n${error.message}`;
+  return /device token has expired|invalid token[^a-z0-9]+.*expired|token[^a-z0-9]+.*expired/i.test(
+    text
+  );
+};
+
 const DEFAULT_PROJECT_TYPE = "sync";
 const RESPONSE_OUTPUT_NODES = new Set([
   "generate_response",
@@ -419,11 +447,11 @@ export async function* streamChat(
 
   if (!response.ok) {
     const body = compactErrorBody(await response.text().catch(() => ""));
-    throw new Error(
-      `Stream request failed with status ${response.status} ${response.statusText}${
-        body ? `: ${body}` : ""
-      }`
-    );
+    throw new StreamRequestError({
+      status: response.status,
+      statusText: response.statusText,
+      body: body ?? "",
+    });
   }
 
   if (!response.body) {

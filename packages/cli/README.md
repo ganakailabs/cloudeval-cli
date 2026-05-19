@@ -14,7 +14,8 @@
 
 CloudEval CLI brings CloudEval into your terminal, scripts, and agent tools. It
 supports cloud chat, Agent mode, Agent Profiles, project and report inspection,
-template validation, recipes, local hooks, and MCP server workflows.
+template validation, recipes, local hooks, MCP server workflows, and local
+thread switching in the Terminal UI.
 
 [CloudEval](https://cloudeval.ai) | [Docs](https://docs.cloudeval.ai/reference/cli-overview) | [GitHub](https://github.com/ganakailabs/cloudeval-cli) | [Discord](https://discord.gg/tk5dcU2a7T) | [Issues](https://github.com/ganakailabs/cloudeval-cli/issues) | [Releases](https://github.com/ganakailabs/cloudeval-cli/releases)
 
@@ -90,18 +91,37 @@ npm uninstall -g @ganakailabs/cloudeval-cli
 
 ## What It Covers
 
-- Terminal UI for chat, Agent mode, projects, reports, billing, and settings.
+- Terminal UI for chat, Agent mode, Agent Profile selection, recent thread
+  switching, projects, reports, billing, and settings.
 - Scriptable commands with `json`, `ndjson`, `markdown`, and text output.
 - Agent Profiles: `architecture`, `cost`, `triage`, and `remediation`.
 - MCP tools for Codex, Cursor, Claude, VS Code, and other stdio JSON-RPC hosts.
 - Project graph, report, recipe, rules, and validation workflows.
 - Local opt-in hooks for CLI and Agent Profile events.
 
+In the Terminal UI, use the Thread control or `/thread` to choose recent
+CloudEval chat threads plus local CLI sessions, `/thread new` for a fresh
+thread, and `/open` for the matching CloudEval web chat thread. Use the Profile
+control or `/profile architecture|cost|triage|remediation` to choose an Agent
+Profile for the next chat stream. Selecting a profile switches to Agent mode;
+selecting Ask mode clears the profile back to the default chat flow. Starter
+prompts stay hidden until you run `/starter`, which opens the starter
+selections in the prompt box. Press `Esc` from the prompt to leave text editing
+so tab, arrow, and number shortcuts move through controls and tabs; type again
+to resume editing. Busy loaders and the input cursor animate by default unless
+you pass `--no-anim`.
+
 ## Authentication
 
 Use `cloudeval login` for local development. For CI or hosted agents, create a
 scoped CloudEval access key in the app or with `cloudeval credentials create`,
 then provide it as `CLOUDEVAL_ACCESS_KEY`.
+
+Stored device-login sessions are refreshed automatically before authenticated
+requests. If a long-running terminal session receives an expired-token response
+from the chat stream, the CLI refreshes the stored session and retries the
+request once. If the refresh token is revoked or expired, run `cloudeval login`
+again.
 
 ## Documentation
 

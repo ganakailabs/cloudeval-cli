@@ -27,15 +27,17 @@ const color = (dark: string, light: string): InkColor => {
 };
 
 export const terminalTheme = {
-  brand: color("cyan", "blue"),
-  accent: color("yellow", "blue"),
-  success: color("green", "green"),
+  brand: color("cyanBright", "blue"),
+  accent: color("magentaBright", "magenta"),
+  focus: color("cyanBright", "blue"),
+  selected: color("greenBright", "green"),
+  success: color("greenBright", "green"),
   muted: color("gray", "gray"),
   /** Inline ghost / autosuggest — distinct from user text and from gray-muted UI chrome */
   inputGhost: color("magenta", "blue"),
-  warning: color("yellow", "magenta"),
-  danger: color("red", "red"),
-  cursor: color("cyan", "blue"),
+  warning: color("yellowBright", "magenta"),
+  danger: color("redBright", "red"),
+  cursor: color("cyanBright", "blue"),
 };
 
 export const shouldUseColor = hasColor;

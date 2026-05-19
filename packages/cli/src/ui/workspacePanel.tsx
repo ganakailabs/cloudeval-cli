@@ -55,6 +55,7 @@ export interface WorkspacePanelProps {
   terminalColumns: number;
   tablePage: number;
   animate?: boolean;
+  framed?: boolean;
 }
 
 type Metric = {
@@ -178,6 +179,20 @@ const firstNumber = (value: unknown, keys: string[]): number | undefined => {
     }
   }
   return undefined;
+};
+
+const billingUsageTrendValues = (usageSummary: unknown): number[] => {
+  const record = toRecord(usageSummary);
+  const buckets = directArray(record?.buckets);
+  const bucketValues = buckets
+    .map((bucket) => firstNumber(bucket, ["credits_used", "total_credits", "credits"]))
+    .filter((value): value is number => value !== undefined);
+  if (bucketValues.length) {
+    return bucketValues;
+  }
+  const totals = toRecord(record?.totals);
+  const total = firstNumber(totals ?? usageSummary, ["credits_used", "total_credits", "credits"]);
+  return total !== undefined ? [total] : allNumbers(usageSummary);
 };
 
 const formatNumber = (value: number | undefined): string =>
@@ -671,7 +686,7 @@ const HelpLegend: React.FC<{ includeQuit?: boolean; wrap?: boolean }> = ({
       label: "tabs",
       color: terminalTheme.brand,
     },
-    { key: "Left/Right", label: "switch", color: terminalTheme.brand },
+    { key: "Arrows", label: "move focus", color: terminalTheme.brand },
     { key: "R", label: "refresh", color: terminalTheme.warning },
     { key: "O", label: "open", color: terminalTheme.success },
     { key: "D", label: "download", color: terminalTheme.success },
@@ -808,7 +823,7 @@ const BillingView: React.FC<{
   const creditStatus = toRecord(state.data.creditStatus);
   const entitlement = toRecord(state.data.entitlement);
   const plan = toRecord(entitlement?.plan);
-  const usageValues = allNumbers(state.data.usageSummary);
+  const usageValues = billingUsageTrendValues(state.data.usageSummary);
   const ledger = directArray(state.data.ledger);
   const invoices = directArray(state.data.billingInfo);
   const topups = directArray(state.data.topups);
@@ -1531,7 +1546,7 @@ const OptionsView: React.FC<WorkspacePanelProps> = ({
       <Text wrap="wrap">API: {apiBase}</Text>
       <Text wrap="wrap">Frontend: {frontendUrl}</Text>
       <Text dimColor wrap="wrap">
-        Keys: 1-{workspaceTabs.length} jump tabs | {keys.tabSwitch} tabs |{" "}
+        Keys: 1-{workspaceTabs.length} jump tabs | {keys.tabSwitch} |{" "}
         {keys.refresh} | {keys.open} | Ctrl+Q quit
       </Text>
     </Box>
@@ -1623,13 +1638,13 @@ export const WorkspaceTabBar: React.FC<{
             <Box
               key={tab}
               borderStyle={active ? "bold" : raisedButtonStyle.border}
-              borderColor={active ? terminalTheme.brand : terminalTheme.muted}
+              borderColor={active ? terminalTheme.focus : terminalTheme.muted}
               paddingX={1}
               marginRight={1}
             >
               <Text
                 bold={active}
-                color={active ? terminalTheme.brand : undefined}
+                color={active ? terminalTheme.focus : undefined}
               >
                 {active
                   ? raisedButtonStyle.activeMarker
@@ -1650,20 +1665,15 @@ export const WorkspacePanel: React.FC<WorkspacePanelProps> = (props) => {
   const compact = props.terminalColumns < 88;
   const state = props.state;
   const animate = props.animate ?? true;
+  const framed = props.framed ?? true;
   const connections = directArray(state.data.connections);
   const isInitialLoading = state.status === "loading";
   const isBackgroundRefreshing = Boolean(
     state.isRefreshing && !isInitialLoading,
   );
 
-  return (
-    <TitledBox
-      title={workspaceTabLabels[props.tab]}
-      borderStyle="round"
-      borderColor={terminalTheme.muted}
-      padding={1}
-      gap={1}
-    >
+  const content = (
+    <>
       {state.loadedAt && !isInitialLoading && !isBackgroundRefreshing ? (
         <Box flexDirection="row" justifyContent="flex-end">
           <Text dimColor>
@@ -1756,6 +1766,26 @@ export const WorkspacePanel: React.FC<WorkspacePanelProps> = (props) => {
       ) : null}
       {props.tab === "options" ? <OptionsView {...props} /> : null}
       {props.tab === "help" ? <HelpView /> : null}
+    </>
+  );
+
+  if (!framed) {
+    return (
+      <Box flexDirection="column" gap={1}>
+        {content}
+      </Box>
+    );
+  }
+
+  return (
+    <TitledBox
+      title={workspaceTabLabels[props.tab]}
+      borderStyle="round"
+      borderColor={terminalTheme.muted}
+      padding={1}
+      gap={1}
+    >
+      {content}
     </TitledBox>
   );
 };

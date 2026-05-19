@@ -9,17 +9,22 @@ export type CompletionContext<ProjectLike = { id: string; name: string }> = {
   projects: ProjectLike[];
   models: Array<SelectPanelItem<string>>;
   modes: Array<SelectPanelItem<string>>;
+  profiles?: Array<SelectPanelItem<string>>;
+  threads?: Array<SelectPanelItem<string>>;
 };
 
 export type PromptCommand<ProjectLike = { id: string; name: string }> =
-  | { type: "openSelector"; selector: "project" | "model" | "mode" }
+  | { type: "openSelector"; selector: "thread" | "project" | "model" | "mode" | "profile" }
   | { type: "toggleThinking" }
   | { type: "stopChat" }
   | { type: "openFrontend" }
   | { type: "showHelp" }
+  | { type: "showStarters" }
   | { type: "setModel"; model: string; label: string }
   | { type: "setMode"; mode: "ask" | "agent"; label: string }
+  | { type: "setProfile"; profileId: string; label: string }
   | { type: "setProject"; project: ProjectLike }
+  | { type: "setThread"; threadId: string; label: string }
   | { type: "unknown"; message: string };
 
 export type PromptCompletion = {
@@ -38,6 +43,11 @@ type SlashCommand = {
 
 export const slashCommands: SlashCommand[] = [
   {
+    name: "/thread",
+    aliases: ["/threads"],
+    description: "Open thread selector or use /thread <title-or-id>.",
+  },
+  {
     name: "/project",
     aliases: ["/projects"],
     description: "Open project selector or use /project <name-or-id>.",
@@ -51,6 +61,16 @@ export const slashCommands: SlashCommand[] = [
     name: "/mode",
     aliases: [],
     description: "Open mode selector or use /mode ask|agent.",
+  },
+  {
+    name: "/profile",
+    aliases: ["/profiles"],
+    description: "Open Agent Profile selector or use /profile architecture|cost|triage|remediation.",
+  },
+  {
+    name: "/starter",
+    aliases: ["/starters"],
+    description: "Show starter prompt selections.",
   },
   {
     name: "/thinking",
@@ -179,6 +199,21 @@ export const completePromptInput = <ProjectLike extends { id: string; name: stri
       : null;
   }
 
+  if (command === "/profile" || command === "/profiles") {
+    const query = normalize(rest);
+    const profileMatches = (context.profiles ?? [])
+      .flatMap((item) => (item.value ? [item.value] : ["default", "profile"]))
+      .filter((value) => normalize(value).startsWith(query));
+    const completion = completeFromCandidates(trimmed, profileMatches, previous);
+    return completion
+      ? {
+          ...completion,
+          value: `/profile ${completion.value}`,
+          ghostSuffix: toGhostSuffix(trimmed, `/profile ${completion.candidates[0] ?? ""}`),
+        }
+      : null;
+  }
+
   if (command === "/project" || command === "/projects") {
     const query = normalize(rest);
     const projectMatches = context.projects
@@ -190,6 +225,21 @@ export const completePromptInput = <ProjectLike extends { id: string; name: stri
           ...completion,
           value: `/project ${completion.value}`,
           ghostSuffix: toGhostSuffix(trimmed, `/project ${completion.candidates[0] ?? ""}`),
+        }
+      : null;
+  }
+
+  if (command === "/thread" || command === "/threads") {
+    const query = normalize(rest);
+    const threadMatches = (context.threads ?? [])
+      .flatMap((item) => [item.value, item.label])
+      .filter((value) => normalize(value).startsWith(query));
+    const completion = completeFromCandidates(trimmed, threadMatches, previous);
+    return completion
+      ? {
+          ...completion,
+          value: `/thread ${completion.value}`,
+          ghostSuffix: toGhostSuffix(trimmed, `/thread ${completion.candidates[0] ?? ""}`),
         }
       : null;
   }
@@ -249,6 +299,23 @@ export const resolvePromptCommand = <
       : { type: "unknown", message: `No unique project match for '${rest}'.` };
   }
 
+  if (command === "/thread" || command === "/threads") {
+    if (!rest) {
+      return { type: "openSelector", selector: "thread" };
+    }
+    const thread = matchOne(context.threads ?? [], rest, (item) => [
+      item.value,
+      item.label,
+    ]);
+    return thread
+      ? {
+          type: "setThread",
+          threadId: thread.value,
+          label: thread.label,
+        }
+      : { type: "unknown", message: `No unique thread match for '${rest}'.` };
+  }
+
   if (command === "/model" || command === "/models") {
     if (!rest) {
       return { type: "openSelector", selector: "model" };
@@ -277,6 +344,27 @@ export const resolvePromptCommand = <
     return mode && (mode.value === "ask" || mode.value === "agent")
       ? { type: "setMode", mode: mode.value, label: mode.label }
       : { type: "unknown", message: `No unique mode match for '${rest}'.` };
+  }
+
+  if (command === "/profile" || command === "/profiles") {
+    if (!rest) {
+      return { type: "openSelector", selector: "profile" };
+    }
+    const profile = matchOne(context.profiles ?? [], rest, (item) => [
+      item.value || "default",
+      item.value ? item.label : "profile",
+    ]);
+    return profile
+      ? {
+          type: "setProfile",
+          profileId: profile.value,
+          label: profile.label,
+        }
+      : { type: "unknown", message: `No unique profile match for '${rest}'.` };
+  }
+
+  if (command === "/starter" || command === "/starters") {
+    return { type: "showStarters" };
   }
 
   if (command === "/thinking" || command === "/think") {

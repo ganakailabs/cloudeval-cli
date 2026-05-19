@@ -128,6 +128,8 @@ test("public skill files include Azure-style operational sections", async () => 
     "cloudeval-billing",
     "cloudeval-connections",
     "cloudeval-credentials",
+    "cloudeval-graph-intelligence",
+    "cloudeval-template-validation",
     "cloudeval-visualizations",
     "cloudeval-mcp-diagnostics",
   ];

@@ -79,6 +79,7 @@ const cliDebug = (message: string, data?: Record<string, unknown>) => {
 interface AuthOptions {
   accessKey?: string;
   baseUrl?: string;
+  forceRefresh?: boolean;
 }
 
 interface LogoutOptions {
@@ -1916,7 +1917,7 @@ export const getAuthToken = async (options: AuthOptions = {}): Promise<string> =
 
   const minValidUntil = now() + TOKEN_EXPIRY_SKEW_MS;
 
-  if (cachedToken && cachedToken.expiresAt > minValidUntil) {
+  if (!options.forceRefresh && cachedToken && cachedToken.expiresAt > minValidUntil) {
     return cachedToken.token;
   }
 
@@ -1925,7 +1926,12 @@ export const getAuthToken = async (options: AuthOptions = {}): Promise<string> =
   const accessToken = getAccessToken(disk);
   let refreshError: unknown;
 
-  if (accessToken && disk.tokenExpiresAt && disk.tokenExpiresAt > minValidUntil) {
+  if (
+    !options.forceRefresh &&
+    accessToken &&
+    disk.tokenExpiresAt &&
+    disk.tokenExpiresAt > minValidUntil
+  ) {
     cachedToken = { token: accessToken, expiresAt: disk.tokenExpiresAt };
     return accessToken;
   }

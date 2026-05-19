@@ -16,10 +16,13 @@ import {
 import { TitledBox } from "./TitledBox.js";
 
 export interface InputBoxProps {
+  title?: string;
   value: string;
   onChange: (value: string) => void;
   onSubmit: (value: string) => void;
   disabled?: boolean;
+  inputActive?: boolean;
+  onBlurRequest?: () => void;
   placeholder?: string;
   followUps?: string[];
   followUpsLabel?: string;
@@ -30,9 +33,7 @@ export interface InputBoxProps {
   helpText?: string;
   actionLabel?: string;
   actionHint?: string;
-  actionTone?: string;
   onAction?: () => void;
-  actionDisabled?: boolean;
   minInputRows?: number;
   maxInputRows?: number;
   scrollOffset?: number;
@@ -43,11 +44,56 @@ export interface InputBoxProps {
 
 export const shouldAnimateInputCursor = ({
   disabled,
+  inputActive = true,
   blinkCursor = false,
 }: {
   disabled?: boolean;
+  inputActive?: boolean;
   blinkCursor?: boolean;
-}): boolean => !disabled && blinkCursor;
+}): boolean => !disabled && inputActive && blinkCursor;
+
+export const shouldBlinkPromptCursor = ({
+  animationsEnabled,
+  inputActive = true,
+  busy = false,
+  selectorOpen = false,
+  searching = false,
+}: {
+  animationsEnabled: boolean;
+  inputActive?: boolean;
+  busy?: boolean;
+  selectorOpen?: boolean;
+  searching?: boolean;
+}): boolean =>
+  Boolean(animationsEnabled && inputActive && busy && !selectorOpen && !searching);
+
+export const getInputCursorColor = ({
+  disabled,
+  inputActive = true,
+  cursorVisible = true,
+}: {
+  disabled?: boolean;
+  inputActive?: boolean;
+  cursorVisible?: boolean;
+}) => {
+  if (disabled || !inputActive) {
+    return terminalTheme.muted;
+  }
+  return cursorVisible ? terminalTheme.cursor : terminalTheme.accent;
+};
+
+export const getInputCursorGlyph = ({
+  inputActive = true,
+  cursorVisible = true,
+}: {
+  inputActive?: boolean;
+  cursorVisible?: boolean;
+}): string => {
+  if (!inputActive) {
+    return " ";
+  }
+  return cursorVisible ? "▌" : "▏";
+};
 
 const Scrollbar: React.FC<{ totalRows: number; visibleRows: number; startRow: number }> = ({
   totalRows,
@@ -65,7 +111,7 @@ const Scrollbar: React.FC<{ totalRows: number; visibleRows: number; startRow: nu
   return (
     <Box flexDirection="column" marginLeft={1}>
       {Array.from({ length: visibleRows }, (_, index) => (
-        <Text key={index} color={index === thumbIndex ? terminalTheme.brand : terminalTheme.muted}>
+        <Text key={index} color={index === thumbIndex ? terminalTheme.focus : terminalTheme.muted}>
           {index === thumbIndex ? "┃" : "│"}
         </Text>
       ))}
@@ -185,10 +231,13 @@ export const getFollowUpRowViewport = ({
 };
 
 export const InputBox: React.FC<InputBoxProps> = ({
+  title = "Prompt",
   value,
   onChange,
   onSubmit,
   disabled = false,
+  inputActive = true,
+  onBlurRequest,
   placeholder = "Ask Cloudeval...",
   followUps = [],
   followUpsLabel = "Follow-ups",
@@ -199,9 +248,7 @@ export const InputBox: React.FC<InputBoxProps> = ({
   helpText,
   actionLabel,
   actionHint,
-  actionTone,
   onAction,
-  actionDisabled = false,
   minInputRows = DEFAULT_INPUT_MIN_ROWS,
   maxInputRows = DEFAULT_INPUT_MAX_ROWS,
   scrollOffset,
@@ -214,17 +261,12 @@ export const InputBox: React.FC<InputBoxProps> = ({
   const compact = terminalColumns < 78;
   const defaultHelpText = `${keyBindings.submit} | ${keyBindings.newline} | ${keyBindings.quit}`;
   const resolvedHelpText = helpText ?? defaultHelpText;
-  const showHeaderRow = followUps.length > 0 || resolvedHelpText.length > 0;
   const followUpViewport = getFollowUpRowViewport({
     followUps,
     focusedFollowUpIndex,
     terminalColumns,
   });
-  const actionButtonWidth = actionLabel ? actionLabel.length + 4 : 0;
-  const inputWidth = Math.max(
-    20,
-    terminalColumns - 14 - (compact ? 0 : actionButtonWidth)
-  );
+  const inputWidth = Math.max(20, terminalColumns - 8);
   const inputViewport = getInputViewport({
     value,
     width: inputWidth,
@@ -238,13 +280,13 @@ export const InputBox: React.FC<InputBoxProps> = ({
   const visibleRows = inputViewport.visibleRows;
 
   useEffect(() => {
-    if (!shouldAnimateInputCursor({ disabled, blinkCursor })) {
+    if (!shouldAnimateInputCursor({ disabled, inputActive, blinkCursor })) {
       setCursorVisible(true);
       return;
     }
     const timer = setInterval(() => setCursorVisible((current) => !current), 520);
     return () => clearInterval(timer);
-  }, [blinkCursor, disabled, value]);
+  }, [blinkCursor, disabled, inputActive, value]);
 
   const handleChange = (nextValue: string) => {
     const cleanedValue = sanitizeTerminalMultilineInput(nextValue);
@@ -287,14 +329,18 @@ export const InputBox: React.FC<InputBoxProps> = ({
         onSubmit(sanitizeTerminalMultilineInput(value));
         return;
       }
-        if (key.ctrl && input.toLowerCase() === "j") {
-          insertNewline();
-          return;
-        }
-        if (key.escape && onAction && actionLabel?.toLowerCase().includes("cancel")) {
-          onAction();
-          return;
-        }
+      if (key.ctrl && input.toLowerCase() === "j") {
+        insertNewline();
+        return;
+      }
+      if (key.escape && onAction && actionLabel?.toLowerCase().includes("cancel")) {
+        onAction();
+        return;
+      }
+      if (key.escape) {
+        onBlurRequest?.();
+        return;
+      }
       if (key.backspace || key.delete) {
         handleChange(value.slice(0, -1));
         return;
@@ -311,67 +357,55 @@ export const InputBox: React.FC<InputBoxProps> = ({
       }
       insertText(input);
     },
-    { isActive: !disabled }
+    { isActive: !disabled && inputActive }
   );
+
+  const cursorGlyph = getInputCursorGlyph({ inputActive, cursorVisible });
+  const cursorColor = getInputCursorColor({ disabled, inputActive, cursorVisible });
+  const inputBorderColor = disabled
+    ? terminalTheme.muted
+    : followUpsActive || inputActive
+      ? terminalTheme.focus
+      : terminalTheme.muted;
 
   return (
     <TitledBox
-      title="Prompt"
+      title={title}
       borderStyle="round"
-      borderColor={followUpsActive ? terminalTheme.brand : terminalTheme.muted}
-      padding={1}
+      borderColor={inputBorderColor}
+      padding={0}
+      paddingX={1}
     >
-      {showHeaderRow ? (
-        <Box
-          flexDirection={compact ? "column" : "row"}
-          justifyContent="space-between"
-          columnGap={1}
-        >
-          <Text dimColor>
-            {followUps.length ? followUpsLabel : ""}
-          </Text>
-          {resolvedHelpText ? (
-            <Text dimColor wrap="truncate">
-              {resolvedHelpText}
-            </Text>
-          ) : null}
-        </Box>
-      ) : null}
       {followUps.length ? (
-        <Box flexDirection="row" columnGap={1} marginTop={compact ? 1 : 0}>
-          {followUpViewport.clippedStart ? <Text dimColor>{"<--"}</Text> : null}
+        <Text wrap="truncate">
+          <Text dimColor>{`${followUpsLabel}: `}</Text>
+          {followUpViewport.clippedStart ? <Text dimColor>{"<-- "}</Text> : null}
           {followUpViewport.items.map(({ question, index, label }) => {
             const focused = followUpsActive && focusedFollowUpIndex === index;
             return (
               <Text
                 key={`${index}-${question}`}
-                color={focused ? terminalTheme.brand : undefined}
+                color={focused ? terminalTheme.focus : undefined}
                 bold={focused}
               >
                 {focused ? raisedButtonStyle.activeMarker : raisedButtonStyle.inactiveMarker}{" "}
-                {label}
+                {label}{" "}
               </Text>
             );
           })}
           {followUpViewport.clippedEnd ? <Text dimColor>{"-->"}</Text> : null}
-        </Box>
+        </Text>
       ) : null}
-      <TitledBox
-        title="Input"
+      <Box
         flexDirection={compact ? "column" : "row"}
-        borderStyle="single"
-        borderColor={disabled ? terminalTheme.muted : terminalTheme.brand}
-        padding={0}
-        paddingX={1}
-        marginTop={1}
       >
         <Box flexDirection="column" flexGrow={1}>
           {!value ? (
-            <Text dimColor wrap="truncate">
-              <Text color={cursorVisible ? terminalTheme.brand : undefined}>
-                {cursorVisible ? "▌" : " "}
-              </Text>{" "}
-              {placeholder}
+            <Text wrap="truncate">
+              <Text color={cursorColor}>
+                {cursorGlyph}
+              </Text>
+              <Text dimColor>{` ${placeholder}`}</Text>
             </Text>
           ) : (
             visibleRows.map((line, index) => {
@@ -388,8 +422,8 @@ export const InputBox: React.FC<InputBoxProps> = ({
                       >
                         {ghostText ?? ""}
                       </Text>
-                      <Text color={cursorVisible ? terminalTheme.brand : undefined}>
-                        {cursorVisible ? "▌" : " "}
+                      <Text color={cursorColor}>
+                        {cursorGlyph}
                       </Text>
                     </>
                   ) : null}
@@ -403,39 +437,14 @@ export const InputBox: React.FC<InputBoxProps> = ({
           visibleRows={visibleRowCount}
           startRow={startRow}
         />
-        {actionLabel ? (
-          <Box
-            marginLeft={compact ? 0 : 1}
-            marginTop={compact ? 1 : 0}
-            justifyContent={compact ? "flex-end" : "center"}
-            flexDirection="row"
-          >
-            <Box
-              borderStyle={raisedButtonStyle.border}
-              borderColor={
-                actionDisabled
-                  ? terminalTheme.muted
-                  : actionTone ?? terminalTheme.brand
-              }
-              paddingX={1}
-            >
-              <Text
-                bold={!actionDisabled}
-                color={
-                  actionDisabled
-                    ? terminalTheme.muted
-                    : actionTone ?? terminalTheme.brand
-                }
-              >
-                {actionLabel}
-              </Text>
-            </Box>
-          </Box>
-        ) : null}
-      </TitledBox>
+      </Box>
       {actionHint ? (
         <Text dimColor wrap="truncate">
           {actionHint}
+        </Text>
+      ) : resolvedHelpText ? (
+        <Text dimColor wrap="truncate">
+          {resolvedHelpText}
         </Text>
       ) : null}
       {footerControls ? (

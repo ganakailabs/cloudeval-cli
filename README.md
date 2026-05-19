@@ -19,7 +19,7 @@ CloudEval CLI turns **ARM templates**, **GitHub-hosted IaC**, and **live Azure c
 
 | For                | What you get                                                                                                                      |
 | ------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
-| **Terminal users** | A full TUI with chat, Agent mode, workspace tabs, slash commands, streaming reasoning, and local SQLite session history.          |
+| **Terminal users** | A full TUI with chat, Agent mode, workspace tabs, thread switching, slash commands, streaming reasoning, and local SQLite session history. |
 | **Automation**     | Stable `json`, `ndjson`, `markdown`, and text output; payloads on stdout; progress and prompts on stderr; predictable exit codes. |
 | **Agents and CI**  | Scoped access-key credentials, redacted output by default, MCP toolsets, recipes, and machine-readable capability metadata.       |
 
@@ -120,13 +120,25 @@ cloudeval doctor --deep
 
 Full docs: [Use the CLI](https://docs.cloudeval.ai/quickstart/use-the-cli.md) and [CLI command reference](https://docs.cloudeval.ai/reference/cli-command-reference.md).
 
+Inside the Terminal UI, use the Thread control or `/thread` to switch recent
+CloudEval chat threads plus local CLI sessions, `/thread new` to start fresh,
+and `/open` to jump to the same chat thread in CloudEval. Use the Profile
+control or `/profile cost` to run the current prompt with an Agent Profile;
+selecting a profile switches the TUI to Agent mode, and selecting Ask mode
+clears the profile back to the default chat flow. Starter prompts stay hidden
+until you run `/starter`, which opens the starter selections in the prompt
+box. Press `Esc` from the prompt to leave text editing so tab, arrow, and
+number shortcuts move through controls and tabs; type again to resume editing.
+Busy loaders and the input cursor animate by default and can be disabled with
+`--no-anim`.
+
 ## Core Workflows
 
 | Goal                 | Terminal UI                         | Script or CI                          | MCP                       |
 | -------------------- | ----------------------------------- | ------------------------------------- | ------------------------- |
 | Grounded cloud chat  | `cloudeval` or `cloudeval chat`     | `cloudeval ask "..." --format json`   | `ask`                     |
 | Deeper analysis      | Agent mode in the TUI               | `cloudeval agent "..." --format json` | planner-style tool flows  |
-| Agent Profiles       | Developer workspace and Chat picker | `cloudeval agents list/show/run`      | `agent_profiles_*` tools  |
+| Agent Profiles       | TUI Profile control and Chat picker | `cloudeval agents list/show/run`      | `agent_profiles_*` tools  |
 | Reusable workflow    | prompt suggestions                  | `cloudeval recipes list/show/run`     | `recipes_*` tools         |
 | Projects and reports | workspace panels                    | `projects`, `reports`, `open`         | `projects_*`, `reports_*` |
 | Graph intelligence   | project graph views                 | `projects graph ...`                  | `projects_graph_*` tools  |
@@ -144,7 +156,9 @@ agent. The choice is deterministic for automation. Profile runs send only
 response defaults on the backend. `agents list` and `agents show` first try the
 backend profile catalog; if the profile catalog endpoint requires sign-in or is
 not available, they fall back to the bundled public catalog so discovery still
-works. `agents run` still requires authenticated backend access.
+works. `agents run` still requires authenticated backend access. In the TUI,
+the Profile selector uses the same canonical IDs and sends the selected
+`agent_profile_id` with chat streams.
 
 Run `cloudeval <command> --help` for exact flags.
 
@@ -153,6 +167,11 @@ Run `cloudeval <command> --help` for exact flags.
 Use `cloudeval login` for humans. The browser approval page requests an
 account chooser on every login. Use scoped access keys for CI, hosted agents,
 and long-running automation.
+
+Stored device-login sessions refresh automatically before authenticated
+requests. If the TUI or `cloudeval ask` receives an expired-token response from
+the chat stream, the CLI refreshes the stored session and retries that request
+once. If the refresh token is revoked or expired, run `cloudeval login` again.
 
 Create an access key after login and project selection:
 

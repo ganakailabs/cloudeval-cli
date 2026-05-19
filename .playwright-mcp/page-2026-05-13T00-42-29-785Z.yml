@@ -1,0 +1,273 @@
+- generic [ref=e1]:
+  - generic [ref=e60]:
+    - generic [ref=e62]:
+      - generic [ref=e63]:
+        - link "Logo" [ref=e65] [cursor=pointer]:
+          - /url: /app/overview
+          - img "Logo" [ref=e67]
+        - navigation [ref=e68]:
+          - button "Overview" [ref=e69] [cursor=pointer]:
+            - img [ref=e71]
+            - generic [ref=e76]: Overview
+          - button "Quickstart" [ref=e77] [cursor=pointer]:
+            - img [ref=e79]
+            - generic [ref=e80]: Quickstart
+          - button "Connect" [ref=e81] [cursor=pointer]:
+            - img [ref=e83]
+            - generic [ref=e90]: Connect
+          - button "Projects" [ref=e91] [cursor=pointer]:
+            - img [ref=e93]
+            - generic [ref=e95]: Projects
+          - button "Chat" [ref=e96] [cursor=pointer]:
+            - img [ref=e98]
+            - generic [ref=e100]: Chat
+          - button "Reports" [ref=e101] [cursor=pointer]:
+            - img [ref=e103]
+            - generic [ref=e106]: Reports
+          - button "Jobs" [ref=e107] [cursor=pointer]:
+            - img [ref=e109]
+            - generic [ref=e112]: Jobs
+          - button "Developer" [ref=e113] [cursor=pointer]:
+            - img [ref=e115]
+            - generic [ref=e118]: Developer
+          - button "Integrate" [disabled]:
+            - generic:
+              - img
+            - generic: Integrate
+      - generic [ref=e119]:
+        - button "Billing" [ref=e120] [cursor=pointer]:
+          - img [ref=e122]
+          - generic [ref=e125]: Billing
+        - button "Docs" [ref=e126] [cursor=pointer]:
+          - img [ref=e128]
+          - generic [ref=e130]: Docs
+        - button "L Profile" [ref=e131] [cursor=pointer]:
+          - generic [ref=e134]: L
+          - generic [ref=e135]: Profile
+    - generic [ref=e136]:
+      - generic [ref=e137]:
+        - generic [ref=e138]:
+          - link "Home" [ref=e139] [cursor=pointer]:
+            - /url: /app/overview
+            - img [ref=e140]
+          - img [ref=e143]
+          - link "Developer" [ref=e145] [cursor=pointer]:
+            - /url: /app/developer
+            - img [ref=e146]
+            - generic [ref=e149]: Developer
+          - img [ref=e150]
+          - link "CLI, MCP & agents" [ref=e307] [cursor=pointer]:
+            - /url: /app/developer?tab=cli
+            - img [ref=e308]
+            - generic [ref=e156]: CLI, MCP & agents
+        - generic [ref=e157]:
+          - generic [ref=e159]:
+            - generic [ref=e160]: 70 credits left (93% used)
+            - button "Buy Starter top-up. 1,000 credits · carry forward past cycle reset" [ref=e161] [cursor=pointer]:
+              - img [ref=e162]
+              - text: Top-up
+            - button "Upgrade" [ref=e163] [cursor=pointer]:
+              - img [ref=e164]
+              - text: Upgrade
+          - generic [ref=e167]:
+            - textbox "Search" [ref=e168]
+            - generic: ⌘K
+          - radiogroup [ref=e171]:
+            - radio "Switch to system theme" [ref=e172] [cursor=pointer]:
+              - img [ref=e173]
+            - radio "Switch to light theme" [ref=e184] [cursor=pointer]:
+              - img [ref=e185]
+            - radio "Switch to dark theme" [checked] [ref=e191] [cursor=pointer]:
+              - img [ref=e193]
+          - button "Notifications" [ref=e195] [cursor=pointer]:
+            - img
+            - generic: "1"
+      - main [ref=e197]:
+        - generic [ref=e200]:
+          - generic [ref=e201]:
+            - generic [ref=e202]:
+              - heading "Developer workspace" [level=1] [ref=e203]
+              - paragraph [ref=e204]: API keys, CLI, MCP, and agents.
+            - link "CLI documentation" [ref=e206] [cursor=pointer]:
+              - /url: https://docs.cloudeval.ai/reference/cli-overview
+              - img [ref=e207]
+              - text: CLI documentation
+          - generic [ref=e209]:
+            - generic [ref=e211]:
+              - button "Access keys" [ref=e212] [cursor=pointer]
+              - button "CLI, MCP & agents" [ref=e213] [cursor=pointer]
+            - generic [ref=e215]:
+              - text: Need an access key first?
+              - link "Open the Access keys tab" [ref=e311] [cursor=pointer]:
+                - /url: /app/developer?tab=keys
+              - text: ·
+              - link "Create a new secret" [ref=e312] [cursor=pointer]:
+                - /url: /app/developer?tab=keys&createKey=1
+              - text: .
+          - generic [ref=e313]:
+            - generic [ref=e315]:
+              - button "CLI" [ref=e316] [cursor=pointer]
+              - button "MCP" [ref=e317] [cursor=pointer]
+              - button "Agents" [active] [ref=e318] [cursor=pointer]
+              - button "Skills" [ref=e319] [cursor=pointer]
+            - generic [ref=e320]:
+              - generic [ref=e430]:
+                - generic [ref=e431]:
+                  - heading "Agent Profiles" [level=2] [ref=e432]
+                  - paragraph [ref=e433]: Role-specific reviewers for project, report, and cost analysis. The same profile ids work in Chat, CLI, and MCP.
+                - generic [ref=e434]:
+                  - article [ref=e435]:
+                    - generic [ref=e438]:
+                      - generic [ref=e439]: Cloud Architecture Reviewer
+                      - generic [ref=e440]: Systems-minded, concise, and dependency-aware.
+                    - paragraph [ref=e441]: Reviews topology, dependencies, blast radius, and design tradeoffs across the selected CloudEval project.
+                    - generic [ref=e442]:
+                      - generic [ref=e443]: agent
+                      - generic [ref=e444]: projects:read
+                      - generic [ref=e445]: reports:read
+                      - generic [ref=e446]: ask:run
+                    - button "Run" [ref=e447] [cursor=pointer]:
+                      - text: Run
+                      - img [ref=e448]
+                  - article [ref=e450]:
+                    - generic [ref=e453]:
+                      - generic [ref=e454]: Cost Reviewer
+                      - generic [ref=e455]: Commercially pragmatic, specific, and action-oriented.
+                    - paragraph [ref=e456]: Reviews project cost drivers, waste signals, and practical optimization opportunities.
+                    - generic [ref=e457]:
+                      - generic [ref=e458]: agent
+                      - generic [ref=e459]: projects:read
+                      - generic [ref=e460]: reports:read
+                      - generic [ref=e461]: billing:read
+                    - button "Run" [ref=e462] [cursor=pointer]:
+                      - text: Run
+                      - img [ref=e463]
+                  - article [ref=e465]:
+                    - generic [ref=e468]:
+                      - generic [ref=e469]: Well-Architected Framework Reviewer
+                      - generic [ref=e470]: Structured, risk-ranked, and framework-oriented.
+                    - paragraph [ref=e471]: Reviews reliability, security, cost optimization, operational excellence, and performance signals.
+                    - generic [ref=e472]:
+                      - generic [ref=e473]: agent
+                      - generic [ref=e474]: projects:read
+                      - generic [ref=e475]: reports:read
+                      - generic [ref=e476]: ask:run
+                    - button "Run" [ref=e477] [cursor=pointer]:
+                      - text: Run
+                      - img [ref=e478]
+                  - article [ref=e480]:
+                    - generic [ref=e483]:
+                      - generic [ref=e484]: Incident Triage Reviewer
+                      - generic [ref=e485]: Calm, diagnostic, and time-sensitive.
+                    - paragraph [ref=e486]: Helps investigate likely failure domains, affected resources, and first response actions.
+                    - generic [ref=e487]:
+                      - generic [ref=e488]: agent
+                      - generic [ref=e489]: projects:read
+                      - generic [ref=e490]: reports:read
+                      - generic [ref=e491]: ask:run
+                    - button "Run" [ref=e492] [cursor=pointer]:
+                      - text: Run
+                      - img [ref=e493]
+                  - article [ref=e495]:
+                    - generic [ref=e498]:
+                      - generic [ref=e499]: Remediation Planner
+                      - generic [ref=e500]: Delivery-focused, practical, and sequencing-aware.
+                    - paragraph [ref=e501]: Turns findings into ordered implementation steps with owners, dependencies, and validation checks.
+                    - generic [ref=e502]:
+                      - generic [ref=e503]: agent
+                      - generic [ref=e504]: projects:read
+                      - generic [ref=e505]: reports:read
+                      - generic [ref=e506]: ask:run
+                    - button "Run" [ref=e507] [cursor=pointer]:
+                      - text: Run
+                      - img [ref=e508]
+              - generic [ref=e510]:
+                - heading "Agents & IDEs" [level=2] [ref=e511]
+                - paragraph [ref=e512]: Each card has Open (hosted chat with the prompt, or the MCP setup section in the docs) and Copy setup prompt for Composer, Codex CLI, or rules files.
+              - generic [ref=e513]:
+                - generic [ref=e514]:
+                  - generic [ref=e515]:
+                    - img "ChatGPT" [ref=e517]
+                    - generic [ref=e518]:
+                      - generic [ref=e519]: ChatGPT
+                      - paragraph [ref=e520]: Start a chat with docs, CLI install, and automation rules included.
+                  - generic [ref=e521]:
+                    - link "Open in ChatGPT" [ref=e522] [cursor=pointer]:
+                      - /url: https://chatgpt.com/?q=Set%20up%20CloudEval%20AI%20for%20this%20agent%20workspace.%0A%0AFirst%20read%20these%20public%20CloudEval%20context%20and%20CLI%20docs%3A%0A-%20https%3A%2F%2Fcloudeval.ai%2Fllms.txt%0A-%20https%3A%2F%2Fcloudeval.ai%2Fllms-full.txt%0A-%20https%3A%2F%2Fdocs.cloudeval.ai%2Freference%2Fcli-overview%0A-%20https%3A%2F%2Fdocs.cloudeval.ai%2Freference%2Fcli-command-reference%0A-%20https%3A%2F%2Fdocs.cloudeval.ai%2Freference%2Fagent-and-automation-rules%0A%0AThen%20install%20the%20CloudEval%20CLI%3A%0A%0Acurl%20-fsSL%20https%3A%2F%2Fcli.cloudeval.ai%2Finstall.sh%20%7C%20bash%0A%0AAfter%20install%2C%20verify%20the%20setup%3A%0A%0Acloudeval%20auth%20status%0Acloudeval%20capabilities%20--format%20json%0Acloudeval%20recipes%20list%0Acloudeval%20mcp%20status%20--format%20json%0A%0AUse%20%22cloudeval%20capabilities%20--format%20json%22%20as%20the%20source%20of%20truth%20before%20running%20CloudEval%20commands.%20Use%20public%20CloudEval%20skills%20and%20recipes%20for%20repeatable%20project%2C%20report%2C%20cost%2C%20WAF%2C%20billing%2C%20credentials%2C%20connection%2C%20and%20MCP%20workflows.%20Prefer%20JSON%20and%20non-interactive%20flags%20for%20automation%2C%20and%20ask%20before%20actions%20that%20create%2C%20modify%2C%20delete%2C%20upload%2C%20or%20share%20CloudEval%20artifacts.
+                      - text: Open in ChatGPT
+                      - img [ref=e523]
+                    - button "Copy setup prompt" [ref=e526] [cursor=pointer]:
+                      - img [ref=e527]
+                      - text: Copy setup prompt
+                - generic [ref=e530]:
+                  - generic [ref=e531]:
+                    - img "Claude" [ref=e533]
+                    - generic [ref=e534]:
+                      - generic [ref=e535]: Claude
+                      - paragraph [ref=e536]: Start a web chat with the full setup prompt, or use Claude Code MCP from the docs.
+                  - generic [ref=e537]:
+                    - link "Open in Claude" [ref=e538] [cursor=pointer]:
+                      - /url: https://claude.ai/new?q=Set%20up%20CloudEval%20AI%20for%20this%20agent%20workspace.%0A%0AFirst%20read%20these%20public%20CloudEval%20context%20and%20CLI%20docs%3A%0A-%20https%3A%2F%2Fcloudeval.ai%2Fllms.txt%0A-%20https%3A%2F%2Fcloudeval.ai%2Fllms-full.txt%0A-%20https%3A%2F%2Fdocs.cloudeval.ai%2Freference%2Fcli-overview%0A-%20https%3A%2F%2Fdocs.cloudeval.ai%2Freference%2Fcli-command-reference%0A-%20https%3A%2F%2Fdocs.cloudeval.ai%2Freference%2Fagent-and-automation-rules%0A%0AThen%20install%20the%20CloudEval%20CLI%3A%0A%0Acurl%20-fsSL%20https%3A%2F%2Fcli.cloudeval.ai%2Finstall.sh%20%7C%20bash%0A%0AAfter%20install%2C%20verify%20the%20setup%3A%0A%0Acloudeval%20auth%20status%0Acloudeval%20capabilities%20--format%20json%0Acloudeval%20recipes%20list%0Acloudeval%20mcp%20status%20--format%20json%0A%0AUse%20%22cloudeval%20capabilities%20--format%20json%22%20as%20the%20source%20of%20truth%20before%20running%20CloudEval%20commands.%20Use%20public%20CloudEval%20skills%20and%20recipes%20for%20repeatable%20project%2C%20report%2C%20cost%2C%20WAF%2C%20billing%2C%20credentials%2C%20connection%2C%20and%20MCP%20workflows.%20Prefer%20JSON%20and%20non-interactive%20flags%20for%20automation%2C%20and%20ask%20before%20actions%20that%20create%2C%20modify%2C%20delete%2C%20upload%2C%20or%20share%20CloudEval%20artifacts.
+                      - text: Open in Claude
+                      - img [ref=e539]
+                    - button "Copy setup prompt" [ref=e542] [cursor=pointer]:
+                      - img [ref=e543]
+                      - text: Copy setup prompt
+                  - 'link "MCP: Claude Code (docs)" [ref=e546] [cursor=pointer]':
+                    - /url: https://docs.cloudeval.ai/reference/mcp-client-setup#claude-code
+                - generic [ref=e547]:
+                  - generic [ref=e548]:
+                    - img "Codex" [ref=e550]
+                    - generic [ref=e551]:
+                      - generic [ref=e552]: Codex
+                      - paragraph [ref=e553]: Copy the setup prompt for the terminal agent, or open Codex MCP commands in the docs.
+                  - generic [ref=e554]:
+                    - link "Open MCP setup" [ref=e555] [cursor=pointer]:
+                      - /url: https://docs.cloudeval.ai/reference/mcp-client-setup#codex
+                      - text: Open MCP setup
+                      - img [ref=e556]
+                    - button "Copy setup prompt" [ref=e559] [cursor=pointer]:
+                      - img [ref=e560]
+                      - text: Copy setup prompt
+                - generic [ref=e563]:
+                  - generic [ref=e564]:
+                    - img "Cursor" [ref=e566]
+                    - generic [ref=e567]:
+                      - generic [ref=e568]: Cursor
+                      - paragraph [ref=e569]: Copy the prompt for Composer or rules, or open the Cursor MCP section in the docs.
+                  - generic [ref=e570]:
+                    - link "Open MCP setup" [ref=e571] [cursor=pointer]:
+                      - /url: https://docs.cloudeval.ai/reference/mcp-client-setup#cursor
+                      - text: Open MCP setup
+                      - img [ref=e572]
+                    - button "Copy setup prompt" [ref=e575] [cursor=pointer]:
+                      - img [ref=e576]
+                      - text: Copy setup prompt
+                - generic [ref=e579]:
+                  - generic [ref=e580]:
+                    - img "VS Code" [ref=e582]
+                    - generic [ref=e583]:
+                      - generic [ref=e584]: VS Code
+                      - paragraph [ref=e585]: Copy the prompt for Copilot Chat or extensions, or open the VS Code MCP section.
+                  - generic [ref=e586]:
+                    - link "Open MCP setup" [ref=e587] [cursor=pointer]:
+                      - /url: https://docs.cloudeval.ai/reference/mcp-client-setup#vs-code
+                      - text: Open MCP setup
+                      - img [ref=e588]
+                    - button "Copy setup prompt" [ref=e591] [cursor=pointer]:
+                      - img [ref=e592]
+                      - text: Copy setup prompt
+    - generic [ref=e264]:
+      - button "Minimize to orb" [ref=e265] [cursor=pointer]:
+        - img [ref=e266]
+      - generic [ref=e269]:
+        - generic [ref=e275]:
+          - textbox [ref=e276]
+          - generic: Ask AI Agent
+        - button "Start voice dictation" [ref=e277] [cursor=pointer]:
+          - img [ref=e278]
+        - button "Submit minimized chat prompt" [ref=e281] [cursor=pointer]:
+          - img [ref=e282]
+        - button "Open chat panel" [ref=e284] [cursor=pointer]:
+          - img [ref=e285]
+  - alert [ref=e59]

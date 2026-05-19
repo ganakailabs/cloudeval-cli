@@ -23,7 +23,7 @@ export const getTuiKeyBindings = (
       : "Alt+Enter or Ctrl+J newline",
   quit: "Ctrl+C quit",
   tabFocus: "Tab focus",
-  tabSwitch: "Left/Right switch",
+  tabSwitch: "Arrow keys move focus",
   commandComplete: "Tab completes slash commands",
   historySearch: "Ctrl+R history search",
   cancel: "Esc cancel response",
@@ -35,18 +35,24 @@ export const getTuiKeyBindings = (
 
 export const getChatInputHelpText = ({
   isCancelling,
+  inputActive = true,
   promptCount = 0,
 }: {
   isCancelling: boolean;
+  inputActive?: boolean;
   promptCount?: number;
 }): string => {
   if (isCancelling) {
     return "Esc stop | Ctrl+C quit | /stop | /help";
   }
 
-  if (promptCount <= 0) {
-    return "Enter send | Ctrl+J newline | Tab focus | /help";
+  if (!inputActive) {
+    return "Type to edit | Tab/Arrows controls | 1-8 tabs | /help";
   }
 
-  return "Enter send | Ctrl+J newline | Tab focus | Enter choose | 1-8 tabs | /help";
+  if (promptCount <= 0) {
+    return "Enter send | Esc controls | Ctrl+J newline | /starter | /help";
+  }
+
+  return "Enter send/choose | Esc controls | Tab focus | 1-8 tabs | /help";
 };

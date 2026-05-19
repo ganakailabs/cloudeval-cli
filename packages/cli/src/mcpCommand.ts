@@ -37,6 +37,9 @@ import {
   renderRecipePrompt,
 } from "./recipes/catalog.js";
 import {
+  skillsResourceData,
+} from "./skills/catalog.js";
+import {
   writeFormattedOutput,
   formatErrorEnvelope,
   formatSuccessEnvelope,
@@ -1919,6 +1922,13 @@ const mcpResourceDefinitions: McpResourceDefinition[] = [
     description: "CloudEval reusable recipes and agent skill metadata.",
     mimeType: "application/json",
   },
+  {
+    uri: "cloudeval://skills",
+    name: "skills",
+    title: "CloudEval Skills",
+    description: "Public CloudEval SKILL.md catalog for agent reasoning.",
+    mimeType: "application/json",
+  },
 ];
 
 const mcpPromptDefinitions: McpPromptDefinition[] = recipes.map((recipe) => ({
@@ -1938,6 +1948,7 @@ const MCP_RESOURCE_TOOL_REQUIREMENTS: Record<string, readonly string[]> = {
   "cloudeval://billing/summary": ["billing_summary"],
   "cloudeval://reports/latest": ["reports_list"],
   "cloudeval://recipes": ["recipes_list"],
+  "cloudeval://skills": ["capabilities_get"],
 };
 
 const promptRequirementTools = (tools: string[]): string[] =>
@@ -3888,7 +3899,8 @@ const buildToolHandlers = (
   handlers.set("billing_summary", async (args) => {
     const config = await resolveInvocationConfig(serverOptions, args);
     const auth = await resolveAuth(config, { requireUser: true });
-    const [entitlement, subscriptionStatus] = await Promise.all([
+    const range = rangeToDates("30d");
+    const [entitlement, subscriptionStatus, usageSummary] = await Promise.all([
       auth.core.getBillingEntitlement({
         baseUrl: config.baseUrl,
         authToken: auth.token,
@@ -3897,18 +3909,29 @@ const buildToolHandlers = (
         baseUrl: config.baseUrl,
         authToken: auth.token,
       }),
+      auth.core.getBillingUsageSummary({
+        baseUrl: config.baseUrl,
+        authToken: auth.token,
+        startAt: range.startAt,
+        endAt: range.endAt,
+        granularity: "day",
+      }).catch(() => null),
     ]);
     const frontendUrl = buildFrontendUrl({
       baseUrl: frontendBase(config),
       target: "billing",
       tab: "plans",
     });
+    const usageCreditsUsed = auth.core.getBillingUsageCreditsUsed(usageSummary);
     return withEnvelope({
       command: "billing summary",
       data: {
-        creditStatus: auth.core.getCreditStatus(entitlement),
+        creditStatus: auth.core.getCreditStatus(entitlement, {
+          reportedUsedCredits: usageCreditsUsed,
+        }),
         entitlement,
         subscriptionStatus,
+        usageCreditsUsed,
       },
       frontendUrl,
     });
@@ -4180,6 +4203,20 @@ const readMcpResource = async (
   if (uri === "cloudeval://capabilities") {
     const envelope = await handlers.get("capabilities_get")?.({});
     return { contents: [resourceText(uri, envelope?.data ?? {})] };
+  }
+
+  if (uri === "cloudeval://skills") {
+    return {
+      contents: [
+        resourceText(
+          uri,
+          formatSuccessEnvelope({
+            command: "skills list",
+            data: await skillsResourceData(),
+          }),
+        ),
+      ],
+    };
   }
 
   const toolName =

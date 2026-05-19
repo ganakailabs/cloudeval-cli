@@ -121,6 +121,14 @@ The smoke script verifies:
   completion with bounded `--wait` / `--wait-timeout`, detailed per-check
   validation output with `--details`, and template test-suite output through
   `cloudeval validate tests`.
+- Chat stream auth recovery is covered by the non-interactive mock-backend
+  suite: a stored device-login access token that is rejected as expired by
+  `/chat/stream` must trigger one refresh-token exchange and one retry with the
+  refreshed access token.
+- Terminal UI Agent Profile coverage is handled by the CLI unit suite and a
+  manual TUI smoke: the chat settings row must show `Profile [Profile]`,
+  `/profile` must open the Agent Profile selector, `/profile cost` must select
+  the Cost profile, and selecting Ask mode must clear the profile.
 - `cloudeval models list --format json` reaches the real backend and returns at
   least one model.
 - `cloudeval billing plans --format json --non-interactive` returns a parseable

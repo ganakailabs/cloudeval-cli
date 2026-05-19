@@ -1,8 +1,0 @@
-[    2691ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ webpack-internal:///(app-pages-browser)/./node_modules/next/dist/compiled/react-dom/cjs/react-dom-client.development.js:25630
-[    4272ms] [LOG] ✅ [APP_SINGLETON] App instance mounted @ webpack-internal:///(app-pages-browser)/./components/app-singleton.tsx:145
-[    4315ms] [LOG] 🔵 [AUTH_LAYOUT] Auth layout rendered {pathname: /app/developer, timestamp: 2026-05-14T10:09:48.131Z} @ webpack-internal:///(app-pages-browser)/./app/(auth)/auth-layout-client.tsx:30
-[    4352ms] [LOG] 🔧 [APP_SINGLETON] Setting up Monaco environment (deferred)... @ webpack-internal:///(app-pages-browser)/./components/app-singleton.tsx:223
-[    4352ms] [LOG] [Monaco Environment] Setting up Monaco environment with full language services... @ webpack-internal:///(app-pages-browser)/./lib/monaco-environment.ts:18
-[    4352ms] [LOG] [Monaco Environment] ✅ Fetch interceptor configured for Azure schemas @ webpack-internal:///(app-pages-browser)/./lib/monaco-environment.ts:61
-[    4353ms] [LOG] ✅ [APP_SINGLETON] Monaco environment setup completed @ webpack-internal:///(app-pages-browser)/./components/app-singleton.tsx:225
-[   11744ms] [LOG] [UserAuthService] Checking user existence for local@test.cloudeval.ai @ webpack-internal:///(app-pages-browser)/./lib/user-auth-service.ts:66

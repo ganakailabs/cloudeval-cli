@@ -1,4 +1,0 @@
-[    1483ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ webpack-internal:///(app-pages-browser)/./node_modules/next/dist/compiled/react-dom/cjs/react-dom-client.development.js:25630
-[    1523ms] [LOG] %c%s%c 🟢 [PUBLIC_LAYOUT] Public layout rendered background: #e6e6e6;background: light-dark(rgba(0,0,0,0.1), rgba(255,255,255,0.25));color: #000000;color: light-dark(#000000, #ffffff);border-radius: 2px  Server   {timestamp: 2026-05-13T00:35:52.207Z} @ about://React/Server/webpack-internal:///(rsc)/./app/(public)/layout.tsx?0:16
-[    1614ms] [LOG] ✅ [APP_SINGLETON] App instance mounted @ webpack-internal:///(app-pages-browser)/./components/app-singleton.tsx:145
-[    1615ms] [LOG] ⏭️ [APP_SINGLETON] Skipping Monaco setup on public page for performance @ webpack-internal:///(app-pages-browser)/./components/app-singleton.tsx:249

@@ -1,6 +1,6 @@
 {
   "name": "cloudeval-cli-monorepo",
-  "version": "0.20.1",
+  "version": "0.20.2",
   "private": true,
   "license": "LicenseRef-CloudEval-CLI",
   "packageManager": "pnpm@9.12.0",

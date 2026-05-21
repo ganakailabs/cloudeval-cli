@@ -34,7 +34,7 @@ jobs:
           fi
           echo "release_tag=$release_tag" >> "$GITHUB_OUTPUT"
           echo "Resolved release ref: $release_tag"
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v6
         with:
           ref: ${{ steps.release-ref.outputs.release_tag }}
           fetch-depth: 0

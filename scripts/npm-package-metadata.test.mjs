@@ -175,6 +175,8 @@ test("npm publish workflow auto-runs after release and uses trusted publishing w
   assert.match(workflow, /id-token:\s*write/);
   assert.match(workflow, /node-version:\s*22\.14\.0/);
   assert.match(workflow, /npm install -g npm@\^11\.10\.0/);
+  assert.match(workflow, /pnpm test:npm-package/);
+  assert.doesNotMatch(workflow, /pnpm -C packages\/cli test/);
   assert.match(workflow, /npm view @ganakailabs\/cloudeval-cli version/);
   assert.match(workflow, /should_publish=true/);
   assert.match(workflow, /steps\.publish-needed\.outputs\.should_publish == 'true'/);

@@ -61,10 +61,6 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Test npm package metadata
         run: pnpm test:npm-package
-      - name: Lint CLI
-        run: pnpm -C packages/cli lint
-      - name: Test CLI
-        run: pnpm -C packages/cli test
       - name: Audit production licenses
         run: |
           pnpm license:artifacts

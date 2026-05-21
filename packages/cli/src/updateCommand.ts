@@ -14,6 +14,7 @@ import { CLI_VERSION } from "./version.js";
 const DEFAULT_LATEST_RELEASE_URL =
   "https://api.github.com/repos/ganakailabs/cloudeval-cli/releases/latest";
 const DEFAULT_INSTALLER_URL = "https://cli.cloudeval.ai/install.sh";
+const DEFAULT_POWERSHELL_INSTALLER_URL = "https://cli.cloudeval.ai/install.ps1";
 const DEFAULT_UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const UPDATE_CACHE_FILE = "update-check.json";
 
@@ -227,8 +228,7 @@ export const getUpdateStatus = async ({
 };
 
 export const runInstaller = async ({
-  installerUrl = process.env.CLOUDEVAL_UPDATE_INSTALLER_URL ??
-    DEFAULT_INSTALLER_URL,
+  installerUrl,
   targetTag,
   fetchImpl = fetch,
   spawnImpl = spawn,
@@ -237,15 +237,17 @@ export const runInstaller = async ({
   env = process.env,
   promptAgentSetup = false,
 }: RunInstallerOptions): Promise<void> => {
-  if (platform === "win32") {
-    throw new Error(
-      "Automatic update currently requires bash. Install the latest CLI from https://cli.cloudeval.ai/install.sh in Git Bash, WSL, or another POSIX shell."
-    );
-  }
-
-  const response = await fetchImpl(installerUrl, {
+  const resolvedInstallerUrl =
+    installerUrl ??
+    process.env.CLOUDEVAL_UPDATE_INSTALLER_URL ??
+    (platform === "win32" ? DEFAULT_POWERSHELL_INSTALLER_URL : DEFAULT_INSTALLER_URL);
+  const usePowerShellInstaller =
+    platform === "win32" || resolvedInstallerUrl.endsWith(".ps1");
+  const response = await fetchImpl(resolvedInstallerUrl, {
     headers: {
-      Accept: "text/x-shellscript,text/plain,*/*",
+      Accept: usePowerShellInstaller
+        ? "text/plain,*/*"
+        : "text/x-shellscript,text/plain,*/*",
       "User-Agent": `cloudeval-cli/${CLI_VERSION}`,
     },
   });
@@ -255,6 +257,58 @@ export const runInstaller = async ({
     );
   }
   const installerScript = await response.text();
+
+  if (usePowerShellInstaller) {
+    const scriptPath = path.join(
+      await fs.mkdtemp(path.join(getCloudevalConfigDir(), "installer-")),
+      "install.ps1"
+    );
+    await fs.writeFile(scriptPath, installerScript, "utf8");
+    const child = spawnImpl(
+      "pwsh",
+      [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        scriptPath,
+        targetTag,
+      ],
+      {
+        env: {
+          ...env,
+          CLOUDEVAL_ASSUME_YES: "1",
+        },
+        stdio: ["ignore", "pipe", "pipe"],
+      }
+    );
+
+    await new Promise<void>((resolve, reject) => {
+      child.once("error", (error) => {
+        reject(
+          error instanceof Error && error.message.includes("ENOENT")
+            ? new Error(
+                "Automatic update requires PowerShell 7 (pwsh). Install the latest CLI from https://cli.cloudeval.ai/install.ps1."
+              )
+            : error
+        );
+      });
+      child.once("close", (code) => {
+        void fs.rm(path.dirname(scriptPath), { recursive: true, force: true });
+        if (code === 0) {
+          resolve();
+          return;
+        }
+        reject(
+          new Error(`CloudEval CLI installer exited with code ${code ?? "unknown"}.`)
+        );
+      });
+      child.stdout?.on("data", (chunk) => output.write(chunk));
+      child.stderr?.on("data", (chunk) => output.write(chunk));
+    });
+    return;
+  }
+
   const child = spawnImpl("bash", ["-s", "--", targetTag], {
     env: {
       ...env,

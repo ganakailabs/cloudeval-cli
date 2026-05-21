@@ -180,20 +180,65 @@ test("runInstaller can allow agent setup prompts while keeping install prompts s
   await run;
 });
 
-test("runInstaller reports a helpful error on Windows", async () => {
+test("runInstaller uses PowerShell on Windows", async () => {
+  const stdout = new PassThrough();
+  const stderr = new PassThrough();
+  const child = Object.assign(new EventEmitter(), {
+    stdout,
+    stderr,
+  }) as unknown as ChildProcess;
+
+  const run = runInstaller({
+    targetTag: "v0.12.0",
+    platform: "win32",
+    fetchImpl: async (url) => {
+      assert.equal(url, "https://cli.cloudeval.ai/install.ps1");
+      return {
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        text: async () => "Write-Host installing",
+      } as Response;
+    },
+    spawnImpl: (command, args, options) => {
+      assert.equal(command, "pwsh");
+      assert.match(args[4] ?? "", /\.ps1$/);
+      assert.equal(args[5], "v0.12.0");
+      assert.equal(options.env?.CLOUDEVAL_ASSUME_YES, "1");
+      queueMicrotask(() => {
+        stdout.end("installer stdout\n");
+        stderr.end("installer stderr\n");
+        child.emit("close", 0);
+      });
+      return child;
+    },
+  });
+
+  await run;
+});
+
+test("runInstaller reports a helpful error when pwsh is missing on Windows", async () => {
   await assert.rejects(
     runInstaller({
-      installerUrl: "https://example.test/install.sh",
+      installerUrl: "https://example.test/install.ps1",
       targetTag: "v0.12.0",
       platform: "win32",
-      fetchImpl: async () => {
-        throw new Error("fetch should not run on Windows");
-      },
+      fetchImpl: async () => ({
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        text: async () => "Write-Host installing",
+      }) as Response,
       spawnImpl: () => {
-        throw new Error("spawn should not run on Windows");
+        const child = Object.assign(new EventEmitter(), {
+          stdout: new PassThrough(),
+          stderr: new PassThrough(),
+        }) as unknown as ChildProcess;
+        queueMicrotask(() => child.emit("error", Object.assign(new Error("ENOENT"), { code: "ENOENT" })));
+        return child;
       },
     }),
-    /Automatic update currently requires bash/
+    /PowerShell 7 \(pwsh\)/
   );
 });
 

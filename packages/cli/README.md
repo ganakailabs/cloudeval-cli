@@ -5,8 +5,11 @@
 </p>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/@ganakailabs/cloudeval-cli"><img alt="npm" src="https://img.shields.io/npm/v/@ganakailabs/cloudeval-cli?style=flat-square"></a>
+  <a href="https://www.npmjs.com/package/@ganakailabs/cloudeval-cli"><img alt="npm version" src="https://img.shields.io/npm/v/@ganakailabs/cloudeval-cli?style=flat-square&logo=npm"></a>
+  <a href="https://www.npmjs.com/package/@ganakailabs/cloudeval-cli"><img alt="npm downloads" src="https://img.shields.io/npm/dm/@ganakailabs/cloudeval-cli?style=flat-square&logo=npm&label=npm%20downloads"></a>
   <a href="https://github.com/ganakailabs/cloudeval-cli/releases"><img alt="release" src="https://img.shields.io/github/v/release/ganakailabs/cloudeval-cli?sort=semver&style=flat-square"></a>
+  <a href="https://github.com/ganakailabs/cloudeval-cli/releases"><img alt="GitHub downloads" src="https://img.shields.io/github/downloads/ganakailabs/cloudeval-cli/total?style=flat-square&logo=github&label=release%20downloads"></a>
+  <a href="https://github.com/ganakailabs/cloudeval-cli/actions/workflows/semantic-release.yml"><img alt="release health" src="https://img.shields.io/github/actions/workflow/status/ganakailabs/cloudeval-cli/semantic-release.yml?branch=main&style=flat-square&label=release%20health"></a>
   <a href="https://github.com/ganakailabs/cloudeval-cli/blob/main/LICENSE"><img alt="license" src="https://img.shields.io/badge/license-CloudEval%20CLI%20License-blue?style=flat-square"></a>
   <a href="https://docs.cloudeval.ai/reference/cli-overview"><img alt="docs" src="https://img.shields.io/badge/docs-docs.cloudeval.ai-2d6cdf?style=flat-square"></a>
   <a href="https://discord.gg/tk5dcU2a7T"><img alt="Discord" src="https://img.shields.io/badge/Discord-community-5865F2?style=flat-square&logo=discord&logoColor=white"></a>
@@ -33,10 +36,14 @@ The npm package requires Node.js 20 or newer and installs these command aliases:
 - `eva`
 
 For standalone macOS, Linux, and Windows binaries, use the GitHub releases or
-the shell installer:
+the installers:
 
 ```bash
 curl -fsSL https://cli.cloudeval.ai/install.sh | bash
+```
+
+```powershell
+irm https://cli.cloudeval.ai/install.ps1 | iex
 ```
 
 The shell installer can detect Codex, Claude Desktop, Cursor, and VS Code,

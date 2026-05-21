@@ -81,7 +81,8 @@ auth boundary is active.
 
 The smoke script verifies:
 
-- The public installer at `scripts/install.sh` can be fetched and executed.
+- The public installers at `scripts/install.sh` and `scripts/install.ps1` can be
+  fetched and executed.
 - GitHub latest release resolution, or the explicit release tag you pass.
 - The installer selects the current OS/architecture release asset.
 - The installer downloads the CLI binary and `yoga.wasm`, preferring compressed

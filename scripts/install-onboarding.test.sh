@@ -344,6 +344,35 @@ if ! grep -q 'raw.githubusercontent.com/ganakailabs/cloudeval-cli/${COMMIT_SHA}/
   exit 1
 fi
 
+if ! grep -q 'scripts/install.ps1' "$ROOT_DIR/docs/install.ps1"; then
+  echo "docs/install.ps1 should fetch scripts/install.ps1 from the resolved main commit" >&2
+  exit 1
+fi
+
+if ! grep -q 'THIRD_PARTY_NOTICES.md' "$ROOT_DIR/scripts/install.ps1"; then
+  echo "PowerShell installer should download license notices alongside binary assets" >&2
+  exit 1
+fi
+
+if command -v pwsh >/dev/null 2>&1; then
+  download_plan="$(
+    pwsh -NoProfile -File "$ROOT_DIR/scripts/install.ps1" -SelfTestDownloadPlan -SelfTestAsset cloudeval-linux-x64
+  )"
+  if ! printf '%s\n' "$download_plan" | grep -q 'cloudeval-linux-x64.gz'; then
+    echo "PowerShell installer should expose compressed asset URLs" >&2
+    printf '%s\n' "$download_plan" >&2
+    exit 1
+  fi
+  if ! printf '%s\n' "$download_plan" | grep -q 'cloudeval-linux-x64$'; then
+    echo "PowerShell installer should expose uncompressed asset URLs" >&2
+    printf '%s\n' "$download_plan" >&2
+    exit 1
+  fi
+  echo "ok - PowerShell installer download plan"
+else
+  echo "ok - PowerShell installer checks skipped (pwsh not installed)"
+fi
+
 echo "ok - installer and release workflows handle license notices"
 
 package_aliases="$(

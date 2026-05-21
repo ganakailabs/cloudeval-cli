@@ -7,6 +7,10 @@
 **Your cloud, in the terminal: evaluated, reported, and agent-ready.**
 
 [![Latest release](https://img.shields.io/github/v/release/ganakailabs/cloudeval-cli?sort=semver&style=flat-square&label=release)](https://github.com/ganakailabs/cloudeval-cli/releases/latest)
+[![npm version](https://img.shields.io/npm/v/@ganakailabs/cloudeval-cli?style=flat-square&logo=npm)](https://www.npmjs.com/package/@ganakailabs/cloudeval-cli)
+[![npm downloads](https://img.shields.io/npm/dm/@ganakailabs/cloudeval-cli?style=flat-square&logo=npm&label=npm%20downloads)](https://www.npmjs.com/package/@ganakailabs/cloudeval-cli)
+[![GitHub downloads](https://img.shields.io/github/downloads/ganakailabs/cloudeval-cli/total?style=flat-square&logo=github&label=release%20downloads)](https://github.com/ganakailabs/cloudeval-cli/releases)
+[![Release health](https://img.shields.io/github/actions/workflow/status/ganakailabs/cloudeval-cli/semantic-release.yml?branch=main&style=flat-square&label=release%20health)](https://github.com/ganakailabs/cloudeval-cli/actions/workflows/semantic-release.yml)
 [![CloudEval](https://img.shields.io/badge/product-CloudEval-b6f23c?style=flat-square&labelColor=0b0f0a)](https://cloudeval.ai)
 [![Docs](https://img.shields.io/badge/docs-docs.cloudeval.ai-2d6cdf?style=flat-square&logo=readthedocs&logoColor=white)](https://docs.cloudeval.ai/quickstart/use-the-cli.md)
 [![Discord](https://img.shields.io/badge/Discord-community-5865F2?style=flat-square&logo=discord&logoColor=white)](https://discord.gg/tk5dcU2a7T)
@@ -32,11 +36,15 @@ npm install -g @ganakailabs/cloudeval-cli
 cloudeval --help
 ```
 
-macOS, Linux, WSL2, and Git Bash on Windows can also use the standalone
-release installer:
+macOS, Linux, WSL2, Git Bash, and PowerShell 7+ on Windows or Linux can use
+the standalone release installer:
 
 ```bash
 curl -fsSL https://cli.cloudeval.ai/install.sh | bash
+```
+
+```powershell
+irm https://cli.cloudeval.ai/install.ps1 | iex
 ```
 
 Then reload your shell and sign in:
@@ -73,7 +81,15 @@ curl -fsSL https://cli.cloudeval.ai/install.sh | CLOUDEVAL_INSTALL_AGENT_SETUP=0
 curl -fsSL https://cli.cloudeval.ai/install.sh | CLOUDEVAL_INSTALL_MCP_CLIENTS=codex,cursor bash
 ```
 
-Native Windows should use WSL2 or Git Bash. There is no first-party PowerShell installer yet.
+```powershell
+$env:CLOUDEVAL_ASSUME_YES = "1"
+irm https://cli.cloudeval.ai/install.ps1 | iex
+```
+
+The bash installer can also detect agent clients and offer MCP setup. The
+PowerShell installer installs the verified binary, `yoga.wasm`, license
+notices, PATH, and optional PowerShell tab completions. Run `cloudeval mcp
+setup` afterward when you want MCP client configuration.
 
 </details>
 

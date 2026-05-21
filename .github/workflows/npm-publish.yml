@@ -16,12 +16,39 @@ concurrency:
 
 jobs:
   publish:
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion != 'cancelled')
     runs-on: ubuntu-latest
     steps:
+      - name: Resolve release ref
+        id: release-ref
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          release_tag="$(
+            gh release view --repo "${GITHUB_REPOSITORY}" --json tagName --jq .tagName 2>/dev/null || true
+          )"
+          if [ -z "$release_tag" ]; then
+            echo "Unable to resolve the latest GitHub release tag for npm publish." >&2
+            exit 1
+          fi
+          echo "release_tag=$release_tag" >> "$GITHUB_OUTPUT"
+          echo "Resolved release ref: $release_tag"
       - uses: actions/checkout@v6.0.2
         with:
-          ref: ${{ github.event.workflow_run.head_branch || github.ref }}
+          ref: ${{ steps.release-ref.outputs.release_tag }}
+          fetch-depth: 0
+      - name: Verify release ref matches package version
+        run: |
+          set -euo pipefail
+          release_tag="${{ steps.release-ref.outputs.release_tag }}"
+          package_version="$(node -p "require('./packages/cli/package.json').version")"
+          tag_version="${release_tag#v}"
+          if [ "$package_version" != "$tag_version" ]; then
+            echo "Checked out tag ${release_tag} but package.json is ${package_version}." >&2
+            exit 1
+          fi
+          echo "Checked out ${release_tag} with matching package version ${package_version}."
       - uses: pnpm/action-setup@v5.0.0
       - uses: actions/setup-node@v6.4.0
         with:
@@ -42,9 +69,23 @@ jobs:
         run: |
           pnpm license:artifacts
           pnpm license:audit
+      - name: Verify GitHub and npm versions before publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          release_tag="${{ steps.release-ref.outputs.release_tag }}"
+          github_version="${release_tag#v}"
+          npm_version="$(npm view @ganakailabs/cloudeval-cli version 2>/dev/null || true)"
+          echo "github_version=$github_version"
+          echo "npm_version=${npm_version:-none}"
+          if [ -n "$npm_version" ] && [ "$github_version" != "$npm_version" ]; then
+            echo "GitHub release (${github_version}) is ahead of npm (${npm_version}); publish is expected." >&2
+          fi
       - name: Check whether npm publish is needed
         id: publish-needed
         run: |
+          set -euo pipefail
           local_version=$(node -p "require('./packages/cli/package.json').version")
           published_version=$(npm view @ganakailabs/cloudeval-cli version 2>/dev/null || true)
           echo "local_version=$local_version"
@@ -58,3 +99,24 @@ jobs:
         if: steps.publish-needed.outputs.should_publish == 'true'
         working-directory: packages/cli
         run: npm publish --access public
+      - name: Verify GitHub and npm are in sync after publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          release_tag="${{ steps.release-ref.outputs.release_tag }}"
+          github_version="${release_tag#v}"
+          npm_version="$(npm view @ganakailabs/cloudeval-cli version 2>/dev/null || true)"
+          package_version="$(node -p "require('./packages/cli/package.json').version")"
+          echo "github_version=$github_version"
+          echo "npm_version=${npm_version:-none}"
+          echo "package_version=$package_version"
+          if [ "$github_version" != "$package_version" ]; then
+            echo "GitHub tag and package.json diverged after publish." >&2
+            exit 1
+          fi
+          if [ "$github_version" != "$npm_version" ]; then
+            echo "GitHub release (${github_version}) and npm (${npm_version:-none}) are out of sync." >&2
+            exit 1
+          fi
+          echo "GitHub release and npm are in sync at ${github_version}."

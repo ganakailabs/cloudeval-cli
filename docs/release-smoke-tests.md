@@ -62,6 +62,18 @@ cloudeval uninstall --dry-run --format json
 `~/.config/cloudeval`. Add `--remove-config` only for destructive local auth,
 settings, and session cleanup.
 
+## Release channel sync
+
+After a release, verify GitHub and npm agree:
+
+```bash
+pnpm release:verify-sync
+```
+
+The `Publish npm Package` workflow checks out the latest GitHub release tag (not
+`main` tip), confirms `packages/cli/package.json` matches that tag, publishes
+when npm is behind, and fails if GitHub and npm still diverge afterward.
+
 ## Defaults
 
 The script uses the public CloudEval FQDN by default:

@@ -12,6 +12,7 @@
     "lint": "pnpm -r --workspace-concurrency=1 --if-present lint",
     "test": "node --test scripts/npm-package-metadata.test.mjs && bash scripts/install-onboarding.test.sh && pnpm -r --workspace-concurrency=1 --if-present test",
     "test:npm-package": "node --test scripts/npm-package-metadata.test.mjs",
+    "release:verify-sync": "node scripts/verify-release-channel-sync.mjs",
     "test:installer": "bash scripts/install-onboarding.test.sh",
     "license:artifacts": "node scripts/generate-license-artifacts.mjs",
     "license:check": "node scripts/generate-license-artifacts.mjs --check",

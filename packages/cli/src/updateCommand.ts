@@ -259,8 +259,10 @@ export const runInstaller = async ({
   const installerScript = await response.text();
 
   if (usePowerShellInstaller) {
+    const configDir = getCloudevalConfigDir();
+    await fs.mkdir(configDir, { recursive: true, mode: 0o700 });
     const scriptPath = path.join(
-      await fs.mkdtemp(path.join(getCloudevalConfigDir(), "installer-")),
+      await fs.mkdtemp(path.join(configDir, "installer-")),
       "install.ps1"
     );
     await fs.writeFile(scriptPath, installerScript, "utf8");

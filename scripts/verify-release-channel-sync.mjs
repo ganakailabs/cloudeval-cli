@@ -69,7 +69,8 @@ const fetchNpmVersion = async () => {
   return payload.version;
 };
 
-const packageVersion = readPackageVersion();
+const remoteOnly = args.has("--remote-only");
+const packageVersion = remoteOnly ? undefined : readPackageVersion();
 const githubVersion = refArg ? normalizeTag(refArg) : await fetchLatestGithubReleaseVersion();
 const npmVersion = await fetchNpmVersion();
 
@@ -80,7 +81,9 @@ const report = {
   npmVersion,
   packageVersion,
   ref: refArg ?? `v${githubVersion}`,
-  inSync: githubVersion === npmVersion && githubVersion === packageVersion,
+  inSync: remoteOnly
+    ? githubVersion === npmVersion
+    : githubVersion === npmVersion && githubVersion === packageVersion,
   mismatches: [],
 };
 
@@ -91,14 +94,14 @@ if (githubVersion !== npmVersion) {
     npm: npmVersion,
   });
 }
-if (githubVersion !== packageVersion) {
+if (!remoteOnly && githubVersion !== packageVersion) {
   report.mismatches.push({
     channel: "github-vs-package",
     github: githubVersion,
     package: packageVersion,
   });
 }
-if (npmVersion !== packageVersion) {
+if (!remoteOnly && npmVersion !== packageVersion) {
   report.mismatches.push({
     channel: "npm-vs-package",
     npm: npmVersion,
@@ -111,7 +114,9 @@ if (jsonOutput) {
 } else {
   console.log(`GitHub latest release: v${githubVersion}`);
   console.log(`npm ${NPM_PACKAGE}:     ${npmVersion}`);
-  console.log(`packages/cli package:  ${packageVersion}`);
+  if (packageVersion !== undefined) {
+    console.log(`packages/cli package:  ${packageVersion}`);
+  }
   if (report.inSync) {
     console.log("Status: in sync");
   } else {

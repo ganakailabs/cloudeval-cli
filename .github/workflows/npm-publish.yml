@@ -102,17 +102,20 @@ jobs:
           set -euo pipefail
           release_tag="${{ steps.release-ref.outputs.release_tag }}"
           github_version="${release_tag#v}"
-          npm_version="$(npm view @ganakailabs/cloudeval-cli version 2>/dev/null || true)"
           package_version="$(node -p "require('./packages/cli/package.json').version")"
-          echo "github_version=$github_version"
-          echo "npm_version=${npm_version:-none}"
-          echo "package_version=$package_version"
           if [ "$github_version" != "$package_version" ]; then
             echo "GitHub tag and package.json diverged after publish." >&2
             exit 1
           fi
-          if [ "$github_version" != "$npm_version" ]; then
-            echo "GitHub release (${github_version}) and npm (${npm_version:-none}) are out of sync." >&2
-            exit 1
-          fi
-          echo "GitHub release and npm are in sync at ${github_version}."
+          npm_version=""
+          for attempt in 1 2 3 4 5 6; do
+            npm_version="$(npm view @ganakailabs/cloudeval-cli version 2>/dev/null || true)"
+            echo "sync check attempt ${attempt}: github=${github_version} npm=${npm_version:-none}"
+            if [ "$github_version" = "$npm_version" ]; then
+              echo "GitHub release and npm are in sync at ${github_version}."
+              exit 0
+            fi
+            sleep 15
+          done
+          echo "GitHub release (${github_version}) and npm (${npm_version:-none}) are out of sync after waiting for registry propagation." >&2
+          exit 1

@@ -152,11 +152,10 @@ The smoke script verifies:
   project/connection rows, Enter confirms the selected row, typing `/` opens
   the bottom slash-command completion strip, Tab or Up/Down moves the active
   command, Right accepts the ghost text, Enter chooses the highlighted command,
-  and the billing
-  header separates credits left from observed credits used. Banner details
-  should include the logged-in user. The active top tab should use the warm
-  banner-yellow accent, fill the full button interior, and highlight the
-  selected label text.
+  and the billing header separates credits left from observed credits used.
+  Banner details should include the logged-in user. The active top tab should
+  use the warm banner-yellow accent, fill the full button interior, and
+  highlight the selected label text.
 - `cloudeval models list --format json` reaches the real backend and returns at
   least one model.
 - `cloudeval billing plans --format json --non-interactive` returns a parseable

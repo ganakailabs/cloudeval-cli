@@ -140,30 +140,31 @@ Inside the Terminal UI, use the Thread control or `/thread` to switch open chat
 sessions, recent CloudEval chat threads, and local CLI sessions. `/thread new`
 starts another independent open session, and `/open` jumps to the same chat
 thread in CloudEval when the active session has a thread id. Roomy terminals show
-a context rail with project, thread, model, mode, profile, and report artifact
-chips; narrower terminals keep the chat first and expose the same controls
-through the composer and slash commands. Typing `/` opens a bottom command
-completion strip; use Tab or Up/Down to move, Right to accept the ghost text,
-and Enter to choose the highlighted command. Streaming work appears as a task
-ledger in the thread, and the bottom composer stays docked so prompt entry does
-not compete with the transcript. Grounded answers show numbered citations
-and a Sources section instead of raw `[S_tool_...]` tags, with citation numbers
-highlighted inline; `/copy` copies the latest assistant response and `/download`
-writes a Markdown transcript with the same references. Project and Connection
-tabs show a selected-item detail pane for backend fields, report coverage, sync
-state, and linked records; use `J`/`K` or Up/Down on Projects and Connections to
-move the selected row, then Enter to confirm it.
-The billing header separates credits left from observed credits used so usage
-does not look like the current budget. Use the Profile control or `/profile
-cost` to run the current prompt with an Agent Profile; selecting a profile
-switches the TUI to Agent mode, and selecting Ask mode clears the profile back
-to the default chat flow. Starter prompts stay hidden until you run `/starter`.
-Press `Esc` from the prompt to leave text editing so tab, arrow, and number
-shortcuts move through controls and tabs; type again to resume editing. Busy
-loaders and the input cursor share the same animation style and can be disabled with
-`--no-anim`. The banner details include the logged-in user. Focused controls and
-the active top tab use the shared warm banner-yellow accent, with the active tab
-filled across its full button interior.
+a context rail with project, thread, model, mode, profile, report artifact
+chips; narrower terminals keep the
+chat first and expose the same controls through the composer and slash commands.
+Typing `/` opens a bottom command completion strip; use Tab or Up/Down to move,
+Right to accept the ghost text, and Enter to choose the highlighted command.
+Streaming work appears as a task ledger in the thread, and the bottom composer
+stays docked so prompt entry does not compete with the transcript. Grounded
+answers show numbered citations and a Sources section instead of raw
+`[S_tool_...]` tags, with citation numbers highlighted inline; `/copy` copies
+the latest assistant response and `/download` writes a Markdown transcript with
+the same references. Project and Connection tabs show a selected-item detail
+pane for backend fields, report coverage, sync state, and linked records; use
+`J`/`K` or Up/Down on Projects and Connections to move the selected row, then
+Enter to confirm it. The billing header separates credits left from observed
+credits used so usage does not look like the current budget. Use the Profile
+control or `/profile cost` to run the current prompt with an Agent Profile;
+selecting a profile switches the TUI to Agent mode, and selecting Ask mode
+clears the profile back to the default chat flow. Starter prompts stay hidden
+until you run `/starter`. Press `Esc` from the prompt to leave text editing so
+tab, arrow, and number shortcuts move through controls and tabs; type again to
+resume editing. Busy loaders and the input cursor can be disabled with
+`--no-anim`. The banner details
+include the logged-in user. Focused controls and the active top tab use the
+shared warm banner-yellow accent, with the active tab filled across its full
+button interior.
 
 ## Core Workflows
 

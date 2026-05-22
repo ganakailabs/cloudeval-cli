@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Box, Text } from "ink";
 import { terminalTheme } from "../theme.js";
+import { getLoaderStepMarker, getSpinnerFrames } from "./Spinner.js";
 
 export interface LoaderProps {
   step: number;
@@ -8,7 +9,6 @@ export interface LoaderProps {
   animate?: boolean;
 }
 
-const asciiFrames = ["[. ]", "[..]", "[--]", "[  ]"];
 export const LOADER_FRAME_INTERVAL_MS = 1000;
 
 export const Loader: React.FC<LoaderProps> = ({
@@ -17,7 +17,7 @@ export const Loader: React.FC<LoaderProps> = ({
   animate = true,
 }) => {
   const [frame, setFrame] = useState(0);
-  const frames = asciiFrames;
+  const frames = getSpinnerFrames("line");
 
   useEffect(() => {
     if (!animate) return;
@@ -27,14 +27,17 @@ export const Loader: React.FC<LoaderProps> = ({
     return () => clearInterval(id);
   }, [animate, frames.length]);
 
-  const spinner = animate ? frames[frame] : "[..]";
+  const activeFrame = animate ? frame : 0;
 
   return (
     <Box flexDirection="column" gap={1}>
       {steps.map((label, idx) => {
         const isActive = idx === step;
         const isComplete = idx < step;
-        const prefix = isComplete ? "[ok]" : isActive ? spinner : "[  ]";
+        const prefix = getLoaderStepMarker(
+          isComplete ? "complete" : isActive ? "active" : "pending",
+          activeFrame
+        );
         const color = isComplete
           ? terminalTheme.success
           : isActive

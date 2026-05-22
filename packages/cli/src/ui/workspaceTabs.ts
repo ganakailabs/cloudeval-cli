@@ -1,4 +1,4 @@
-import { raisedButtonStyle } from "./theme.js";
+import { raisedButtonStyle, terminalTheme } from "./theme.js";
 
 export const workspaceTabs = [
   "chat",
@@ -69,6 +69,27 @@ export const workspaceTabButtonLabel = (tab: WorkspaceTab): string =>
 
 export const workspaceTabButtonContent = (tab: WorkspaceTab, active = false): string =>
   `${active ? raisedButtonStyle.activeMarker : raisedButtonStyle.inactiveMarker} ${workspaceTabButtonLabel(tab)}`;
+
+export const workspaceTabButtonInterior = (tab: WorkspaceTab, active = false): string =>
+  ` ${workspaceTabButtonContent(tab, active)} `;
+
+export interface WorkspaceTabButtonStyle {
+  backgroundColor?: string;
+  borderColor?: string;
+  borderStyle: typeof raisedButtonStyle.border | "bold";
+  color?: string;
+  bold: boolean;
+  underline: boolean;
+}
+
+export const workspaceTabButtonStyle = (active = false): WorkspaceTabButtonStyle => ({
+  backgroundColor: active ? terminalTheme.selectedBackground : undefined,
+  borderColor: active ? terminalTheme.focus : terminalTheme.muted,
+  borderStyle: active ? "bold" : raisedButtonStyle.border,
+  color: active ? "black" : terminalTheme.muted,
+  bold: active,
+  underline: active,
+});
 
 export const getWorkspaceTabHitAreas = ({
   startColumn = 1,

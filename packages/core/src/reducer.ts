@@ -31,6 +31,11 @@ const cloneMessage = (message: ChatMessage): ChatMessage => ({
   followUpQuestions: message.followUpQuestions
     ? [...message.followUpQuestions]
     : undefined,
+  toolsUsed: message.toolsUsed ? message.toolsUsed.map((entry) => ({ ...entry })) : undefined,
+  citationMarkers: message.citationMarkers
+    ? message.citationMarkers.map((entry) => ({ ...entry }))
+    : undefined,
+  citations: message.citations ? message.citations.map((entry) => ({ ...entry })) : undefined,
 });
 
 const finalizeOpenSteps = (
@@ -202,6 +207,33 @@ const isErrorFallbackRespondingChunk = (chunk: RespondingChunk) =>
 const getFallbackErrorMessage = (chunk: RespondingChunk) =>
   chunk.content || chunk.description || chunk.message || "Unknown error";
 
+const mergeSourceEntries = <T extends { source_id?: string }>(
+  existing: T[] | undefined,
+  next: T[] | undefined
+): T[] | undefined => {
+  if (!next?.length) {
+    return existing;
+  }
+  const merged = [...(existing ?? [])];
+  for (const entry of next) {
+    const sourceId =
+      typeof entry.source_id === "string" ? entry.source_id.trim() : "";
+    if (!sourceId) {
+      merged.push({ ...entry });
+      continue;
+    }
+    const existingIndex = merged.findIndex(
+      (candidate) => candidate.source_id === sourceId
+    );
+    if (existingIndex >= 0) {
+      merged[existingIndex] = { ...merged[existingIndex], ...entry };
+    } else {
+      merged.push({ ...entry });
+    }
+  }
+  return merged;
+};
+
 export const initialChatState: ChatState = {
   status: "idle",
   messages: [],
@@ -355,6 +387,21 @@ export const reduceChunk = (state: ChatState, chunk: Chunk): ChatState => {
       updatedMessage.thinkingSteps,
       chunk
     );
+    if (chunk.type === "responding") {
+      updatedMessage.toolsUsed = mergeSourceEntries(
+        updatedMessage.toolsUsed,
+        chunk.tools_used
+      );
+      updatedMessage.citations = mergeSourceEntries(
+        updatedMessage.citations,
+        chunk.citations
+      );
+      if (chunk.citation_markers?.length) {
+        updatedMessage.citationMarkers = chunk.citation_markers.map((entry) => ({
+          ...entry,
+        }));
+      }
+    }
     updatedMessage.updatedAt = chunk.receivedAt;
 
     if (chunk.type === "responding" && isErrorFallbackRespondingChunk(chunk)) {

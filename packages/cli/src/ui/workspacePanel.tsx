@@ -19,11 +19,18 @@ import {
 import { buildReportsDashboardModel } from "./reportsDashboard.js";
 import { raisedButtonStyle, terminalTheme } from "./theme.js";
 import {
-  workspaceTabButtonLabel,
+  workspaceTabButtonInterior,
+  workspaceTabButtonStyle,
   workspaceTabLabels,
   workspaceTabs,
   type WorkspaceTab,
 } from "./workspaceTabs.js";
+import {
+  buildConnectionDetailModel,
+  buildProjectDetailModel,
+  type EntityDetailModel,
+  type EntityTone,
+} from "./workspaceEntityDetails.js";
 
 export type WorkspacePanelStatus = "idle" | "loading" | "ready" | "error";
 
@@ -47,6 +54,7 @@ export interface WorkspacePanelProps {
   state: WorkspacePanelState;
   projects: Project[];
   selectedProject: Project | null;
+  selectedConnectionIndex?: number;
   currentUserId?: string;
   selectedModel: string;
   selectedMode: string;
@@ -61,7 +69,7 @@ export interface WorkspacePanelProps {
 type Metric = {
   label: string;
   value: string;
-  tone?: OverviewTone;
+  tone?: OverviewTone | "brand" | "muted";
 };
 
 type TableRow = Record<string, string | number>;
@@ -206,6 +214,8 @@ const formatPercent = (value: number | undefined): string =>
   value === undefined ? "-" : `${Math.round(value * 100)}%`;
 
 const metricColor = (tone?: Metric["tone"]): string | undefined => {
+  if (tone === "brand") return terminalTheme.brand;
+  if (tone === "muted") return terminalTheme.muted;
   if (tone === "success") return terminalTheme.success;
   if (tone === "warning") return terminalTheme.warning;
   if (tone === "danger") return terminalTheme.danger;
@@ -506,7 +516,11 @@ const BillingSummaryLine: React.FC<{ billing: BillingSummaryState }> = ({
     <Text dimColor>
       Credits:{" "}
       <Text color={billingToneColor(billing.tone)}>
-        {formatCredits(billing.remaining)}/{formatCredits(billing.total)}
+        {Math.max(Number(billing.reportedUsed ?? billing.used ?? 0), 0) > 0
+          ? `${formatCredits(billing.remaining)} left | Used ${formatCredits(
+              Math.max(Number(billing.reportedUsed ?? billing.used ?? 0), 0)
+            )}`
+          : `${formatCredits(billing.remaining)}/${formatCredits(billing.total)}`}
       </Text>
     </Text>
     <CreditProgress
@@ -756,63 +770,182 @@ const cleanBackendWarning = (
   );
 };
 
+const entityToneColor = (tone?: EntityTone): string | undefined => {
+  if (tone === "brand") return terminalTheme.brand;
+  if (tone === "success") return terminalTheme.success;
+  if (tone === "warning") return terminalTheme.warning;
+  if (tone === "danger") return terminalTheme.danger;
+  return terminalTheme.muted;
+};
+
+const EntityDetailPanel: React.FC<{
+  model: EntityDetailModel | null;
+  emptyLabel: string;
+  compact: boolean;
+  terminalColumns: number;
+}> = ({ model, emptyLabel, compact, terminalColumns }) => {
+  if (!model) {
+    return <Text dimColor>{emptyLabel}</Text>;
+  }
+  return (
+    <SectionCard title="Selected detail" borderColor={terminalTheme.focus}>
+      <Box flexDirection="column" gap={1}>
+        <Box flexDirection={compact ? "column" : "row"} justifyContent="space-between" gap={1}>
+          <Box flexDirection="column" flexShrink={1}>
+            <Text color={terminalTheme.focus} bold wrap="truncate">
+              {truncateForTerminal(model.title, Math.max(24, terminalColumns - 32))}
+            </Text>
+            {model.subtitle ? <Text dimColor wrap="truncate">{model.subtitle}</Text> : null}
+          </Box>
+          <MetricStrip metrics={model.metrics} compact={compact} />
+        </Box>
+        <Box flexDirection="column">
+          {model.detailRows.map((row) => (
+            <Text key={`${row.label}-${row.value}`} wrap="truncate">
+              <Text dimColor>{row.label.padEnd(16)} </Text>
+              <Text color={entityToneColor(row.tone)}>
+                {truncateForTerminal(row.value || "-", Math.max(20, terminalColumns - 24))}
+              </Text>
+            </Text>
+          ))}
+        </Box>
+        {model.relatedItems.length ? (
+          <Box flexDirection="column">
+            <Text color={terminalTheme.brand}>Linked</Text>
+            {model.relatedItems.slice(0, 5).map((item, index) => (
+              <Text key={`${item.label}-${index}`} wrap="truncate">
+                <Text color={entityToneColor(item.tone)}>● </Text>
+                {truncateForTerminal(item.label, 36)}
+                {item.detail ? <Text dimColor> - {truncateForTerminal(item.detail, 36)}</Text> : null}
+              </Text>
+            ))}
+          </Box>
+        ) : null}
+      </Box>
+    </SectionCard>
+  );
+};
+
 const ProjectsView: React.FC<{
   projects: Project[];
   selectedProject: Project | null;
-}> = ({ projects, selectedProject }) => (
+  connections: unknown[];
+  reportsSummary?: unknown;
+  compact: boolean;
+  terminalColumns: number;
+}> = ({ projects, selectedProject, connections, reportsSummary, compact, terminalColumns }) => {
+  const selectedModel = buildProjectDetailModel({
+    project: selectedProject ?? projects[0],
+    connections,
+    reportsSummary,
+  });
+  return (
   <Box flexDirection="column" gap={1}>
     <MetricStrip
-      compact={false}
+      compact={compact}
       metrics={[
         { label: "Projects", value: String(projects.length) },
         { label: "Selected", value: selectedProject?.name ?? "none" },
       ]}
     />
-    {projects.length ? (
-      projects.slice(0, 12).map((project, index) => (
-        <Text
-          key={project.id ?? index}
-          color={
-            project.id === selectedProject?.id ? terminalTheme.brand : undefined
-          }
-          wrap="truncate"
-        >
-          {project.id === selectedProject?.id ? ">" : " "} {project.name} |{" "}
-          {project.cloud_provider ?? "cloud"} | {project.id}
-        </Text>
-      ))
-    ) : (
-      <Text dimColor>No projects returned by the backend.</Text>
-    )}
+    <Text dimColor>J/K or Up/Down selects project | Enter confirms | O opens frontend</Text>
+    <Box flexDirection={compact ? "column" : "row"} gap={2}>
+      <Box flexDirection="column" flexBasis={compact ? undefined : 52} flexShrink={0}>
+        <Text color={terminalTheme.brand}>Project list</Text>
+        {projects.length ? (
+          projects.slice(0, 12).map((project, index) => {
+            const active = project.id === (selectedProject ?? projects[0])?.id;
+            return (
+              <Text
+                key={project.id ?? index}
+                color={active ? terminalTheme.focus : undefined}
+                backgroundColor={active ? terminalTheme.selectedBackground : undefined}
+                bold={active}
+                wrap="truncate"
+              >
+                {active ? ">" : " "} {truncateForTerminal(project.name, 30)}{" "}
+                <Text color={terminalTheme.brand}>{project.cloud_provider ?? "cloud"}</Text>{" "}
+                <Text dimColor>{project.id}</Text>
+              </Text>
+            );
+          })
+        ) : (
+          <Text dimColor>No projects returned by the backend.</Text>
+        )}
+      </Box>
+      <Box flexGrow={1}>
+        <EntityDetailPanel
+          model={selectedModel}
+          emptyLabel="Select a project to inspect backend details."
+          compact={compact}
+          terminalColumns={Math.max(32, terminalColumns - 56)}
+        />
+      </Box>
+    </Box>
   </Box>
-);
+  );
+};
 
 const ConnectionsView: React.FC<{
   connections: unknown[];
-}> = ({ connections }) => (
+  projects: Project[];
+  selectedIndex: number;
+  compact: boolean;
+  terminalColumns: number;
+}> = ({ connections, projects, selectedIndex, compact, terminalColumns }) => {
+  const safeIndex = connections.length
+    ? Math.min(Math.max(0, selectedIndex), connections.length - 1)
+    : -1;
+  const selectedConnection = safeIndex >= 0 ? connections[safeIndex] : undefined;
+  const selectedModel = buildConnectionDetailModel({
+    connection: selectedConnection,
+    projects,
+  });
+  return (
   <Box flexDirection="column" gap={1}>
     <MetricStrip
-      compact={false}
+      compact={compact}
       metrics={[{ label: "Connections", value: String(connections.length) }]}
     />
-    {connections.length ? (
-      connections.slice(0, 12).map((connection, index) => (
-        <Text
-          key={String(firstString(connection, ["id"], String(index)))}
-          wrap="truncate"
-        >
-          {index + 1}.{" "}
-          {truncateForTerminal(rowLabel(connection, "connection"), 36)}
-          {rowDetail(connection)
-            ? ` - ${truncateForTerminal(rowDetail(connection), 72)}`
-            : ""}
-        </Text>
-      ))
-    ) : (
-      <Text dimColor>No connections returned by the backend.</Text>
-    )}
+    <Text dimColor>J/K or Up/Down selects connection | Enter confirms | O opens frontend | D downloads table data</Text>
+    <Box flexDirection={compact ? "column" : "row"} gap={2}>
+      <Box flexDirection="column" flexBasis={compact ? undefined : 58} flexShrink={0}>
+        <Text color={terminalTheme.brand}>Connection list</Text>
+        {connections.length ? (
+          connections.slice(0, 12).map((connection, index) => {
+            const active = index === safeIndex;
+            return (
+              <Text
+                key={String(firstString(connection, ["id"], String(index)))}
+                color={active ? terminalTheme.focus : undefined}
+                backgroundColor={active ? terminalTheme.selectedBackground : undefined}
+                bold={active}
+                wrap="truncate"
+              >
+                {active ? ">" : " "} {String(index + 1).padStart(2)}{" "}
+                {truncateForTerminal(rowLabel(connection, "connection"), 34)}
+                {rowDetail(connection)
+                  ? <Text dimColor> - {truncateForTerminal(rowDetail(connection), 28)}</Text>
+                  : ""}
+              </Text>
+            );
+          })
+        ) : (
+          <Text dimColor>No connections returned by the backend.</Text>
+        )}
+      </Box>
+      <Box flexGrow={1}>
+        <EntityDetailPanel
+          model={selectedModel}
+          emptyLabel="Select a connection to inspect backend details."
+          compact={compact}
+          terminalColumns={Math.max(32, terminalColumns - 62)}
+        />
+      </Box>
+    </Box>
   </Box>
-);
+  );
+};
 
 const BillingView: React.FC<{
   state: WorkspacePanelState;
@@ -833,6 +966,9 @@ const BillingView: React.FC<{
   const tone = metricToneFromBillingTone(creditTone);
   const remaining = firstNumber(creditStatus, ["remaining"]);
   const total = firstNumber(creditStatus, ["total"]);
+  const reportedUsed =
+    firstNumber(creditStatus, ["reportedUsed"]) ??
+    firstNumber(creditStatus, ["used"]);
   const plansUrl = buildFrontendUrl({
     baseUrl: frontendUrl,
     target: "billing",
@@ -853,7 +989,8 @@ const BillingView: React.FC<{
       ),
     },
     { label: "Remaining", value: formatNumber(remaining) },
-    { label: "Used", value: formatNumber(firstNumber(creditStatus, ["used"])) },
+    { label: "Included", value: formatNumber(total) },
+    { label: "Used", value: formatNumber(reportedUsed) },
     {
       label: "Top-up",
       value: formatNumber(firstNumber(creditStatus, ["topUpBalance"])),
@@ -1634,22 +1771,21 @@ export const WorkspaceTabBar: React.FC<{
       <Box flexDirection="row" gap={0} flexWrap="wrap">
         {workspaceTabs.map((tab) => {
           const active = tab === activeTab;
+          const style = workspaceTabButtonStyle(active);
           return (
             <Box
               key={tab}
-              borderStyle={active ? "bold" : raisedButtonStyle.border}
-              borderColor={active ? terminalTheme.focus : terminalTheme.muted}
-              paddingX={1}
+              borderStyle={style.borderStyle}
+              borderColor={style.borderColor}
               marginRight={1}
             >
               <Text
-                bold={active}
-                color={active ? terminalTheme.focus : undefined}
+                bold={style.bold}
+                color={style.color}
+                backgroundColor={style.backgroundColor}
+                underline={style.underline}
               >
-                {active
-                  ? raisedButtonStyle.activeMarker
-                  : raisedButtonStyle.inactiveMarker}{" "}
-                {workspaceTabButtonLabel(tab)}
+                {workspaceTabButtonInterior(tab, active)}
               </Text>
             </Box>
           );
@@ -1684,7 +1820,7 @@ export const WorkspacePanel: React.FC<WorkspacePanelProps> = (props) => {
       {isInitialLoading ? (
         <Box flexDirection="row" gap={1}>
           <Spinner type="dots" animate={animate} />
-          <Text color={terminalTheme.brand}>Loading real API data...</Text>
+          <Text color={terminalTheme.brand}>Loading workspace data...</Text>
         </Box>
       ) : null}
       {isBackgroundRefreshing ? (
@@ -1751,10 +1887,20 @@ export const WorkspacePanel: React.FC<WorkspacePanelProps> = (props) => {
         <ProjectsView
           projects={props.projects}
           selectedProject={props.selectedProject}
+          connections={connections}
+          reportsSummary={state.data.reportsSummary}
+          compact={compact}
+          terminalColumns={props.terminalColumns}
         />
       ) : null}
       {props.tab === "connections" ? (
-        <ConnectionsView connections={connections} />
+        <ConnectionsView
+          connections={connections}
+          projects={props.projects}
+          selectedIndex={props.selectedConnectionIndex ?? 0}
+          compact={compact}
+          terminalColumns={props.terminalColumns}
+        />
       ) : null}
       {props.tab === "billing" ? (
         <BillingView

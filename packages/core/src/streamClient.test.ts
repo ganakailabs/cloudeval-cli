@@ -91,6 +91,56 @@ test("streamChat parses SSE data events", async () => {
   }
 });
 
+test("streamChat preserves citation metadata on responding chunks", async () => {
+  const originalFetch = global.fetch;
+
+  global.fetch = async () =>
+    responseFromText(
+      `data: ${JSON.stringify({
+        type: "responding",
+        node: "generate_response",
+        content: "Architecture risk summary.[S_tool_architecture_dashboard_0]",
+        status: "completed",
+        tools_used: [
+          {
+            source_id: "tool_architecture_dashboard_0",
+            title: "Architecture dashboard",
+          },
+        ],
+        citations: [
+          {
+            source_id: "tool_architecture_dashboard_0",
+            title: "Architecture dashboard",
+            url: "https://example.com/architecture",
+          },
+        ],
+        citation_markers: [{ source_id: "tool_architecture_dashboard_0" }],
+      })}\n\n` + "data: [DONE]\n\n",
+    );
+
+  try {
+    const chunks = [];
+    for await (const chunk of streamChat({
+      baseUrl: "http://127.0.0.1:8787/api/v1",
+      authToken: "token",
+      message: "hello",
+      threadId: "thread-citations",
+      user: { id: "user-1", name: "User" },
+    })) {
+      chunks.push(chunk);
+    }
+
+    assert.equal(chunks[0]?.type, "responding");
+    if (chunks[0]?.type === "responding") {
+      assert.equal(chunks[0].tools_used?.[0]?.title, "Architecture dashboard");
+      assert.equal(chunks[0].citations?.[0]?.url, "https://example.com/architecture");
+      assert.equal(chunks[0].citation_markers?.[0]?.source_id, "tool_architecture_dashboard_0");
+    }
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
 test("streamChat stops at SSE DONE even when the socket stays open", async () => {
   const originalFetch = global.fetch;
 
@@ -645,6 +695,40 @@ test("reduceChunk keeps follow-up questions on the same assistant message", asyn
     "Question one?",
     "Question two?",
   ]);
+});
+
+test("reduceChunk stores citation metadata on assistant messages", async () => {
+  const { reduceChunk, initialChatState } = await import("./index");
+
+  const finalState = reduceChunk(initialChatState, {
+    type: "responding",
+    node: "generate_response",
+    content: "Architecture risk summary.[S_tool_architecture_dashboard_0]",
+    status: "completed",
+    tools_used: [
+      {
+        source_id: "tool_architecture_dashboard_0",
+        title: "Architecture dashboard",
+      },
+    ],
+    citations: [
+      {
+        source_id: "tool_architecture_dashboard_0",
+        title: "Architecture dashboard",
+        url: "https://example.com/architecture",
+      },
+    ],
+    citation_markers: [{ source_id: "tool_architecture_dashboard_0" }],
+    receivedAt: Date.now(),
+  });
+
+  const message = finalState.messages[0];
+  assert.equal(message?.toolsUsed?.[0]?.title, "Architecture dashboard");
+  assert.equal(message?.citations?.[0]?.url, "https://example.com/architecture");
+  assert.equal(
+    message?.citationMarkers?.[0]?.source_id,
+    "tool_architecture_dashboard_0"
+  );
 });
 
 test("reduceChunk persists HITL questions and waits for user input", async () => {

@@ -55,6 +55,7 @@ export interface CreditStatus {
   remaining: number;
   total: number;
   used: number;
+  reportedUsed: number;
   cycleTotal: number;
   cycleUsed: number;
   cycleRemaining: number;
@@ -319,9 +320,7 @@ export const getCreditStatus = (
   if (effectiveTotal <= 0) {
     effectiveTotal = fallbackEffectiveTotal;
   }
-  if (effectiveRemaining > effectiveTotal) {
-    effectiveTotal = effectiveRemaining;
-  }
+  const entitlementBudget = effectiveTotal;
 
   const trialTotal = Math.max(
     Number(
@@ -332,26 +331,28 @@ export const getCreditStatus = (
     ),
     0
   );
-  const useTrialDisplayTotal = isFreeLikePlan && effectiveTotal <= 0 && trialTotal > 0;
-  let displayTotal = useTrialDisplayTotal ? trialTotal : effectiveTotal;
+  const useTrialDisplayTotal = isFreeLikePlan && entitlementBudget <= 0 && trialTotal > 0;
+  let displayTotal = useTrialDisplayTotal ? trialTotal : entitlementBudget;
   const remainingCandidate =
     useTrialDisplayTotal && (summary.trial_state?.consumed || summary.trial_state?.blocked)
       ? 0
       : effectiveRemaining;
-  const remaining = displayTotal > 0
-    ? Math.min(Math.max(remainingCandidate, 0), displayTotal)
-    : 0;
-  const derivedUsed = displayTotal > 0 ? Math.max(displayTotal - remaining, 0) : 0;
   const reportedUsed = Math.max(
     0,
     ...[balance.credits_used, balance.credits_used_cycle, options?.reportedUsedCredits]
       .map(finiteCredit)
       .filter((value): value is number => value !== null)
   );
-  const used = Math.max(derivedUsed, reportedUsed);
-  if (!explicitUnlimited && remaining + used > displayTotal) {
-    displayTotal = remaining + used;
+  const usageForBudget = Math.max(reportedUsed, cycleUsed);
+  if (!explicitUnlimited && (usageForBudget > 0 || remainingCandidate > 0)) {
+    displayTotal = Math.max(
+      displayTotal,
+      Math.max(remainingCandidate, 0) + usageForBudget
+    );
   }
+  const remaining =
+    displayTotal > 0 ? Math.min(Math.max(remainingCandidate, 0), displayTotal) : 0;
+  const used = displayTotal > 0 ? Math.max(displayTotal - remaining, 0) : 0;
   const remainingRatio = displayTotal > 0 ? remaining / displayTotal : explicitUnlimited ? 1 : 0;
   const creditsPerEvent = options?.creditsPerEvent;
   const messagesRemaining =
@@ -368,10 +369,11 @@ export const getCreditStatus = (
     remaining,
     total: displayTotal,
     used,
+    reportedUsed,
     cycleTotal,
     cycleUsed,
     cycleRemaining,
-    effectiveTotal,
+    effectiveTotal: entitlementBudget,
     effectiveRemaining,
     topUpBalance,
     remainingRatio,

@@ -1,4 +1,7 @@
 import {
+  ChatCitationEntry,
+  ChatCitationMarker,
+  ChatToolSourceEntry,
   Chunk,
   ChunkStatus,
   ErrorChunk,
@@ -129,6 +132,16 @@ const numberOrUndefined = (value: unknown): number | undefined =>
 const booleanOrUndefined = (value: unknown): boolean | undefined =>
   typeof value === "boolean" ? value : undefined;
 
+const objectArrayOrUndefined = <T extends Record<string, unknown>>(
+  value: unknown
+): T[] | undefined => {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+  const records = value.filter(isObject) as T[];
+  return records.length ? records : undefined;
+};
+
 const isResponseOutputChunk = (chunk: Chunk): chunk is RespondingChunk =>
   chunk.type === "responding" &&
   (!chunk.node || RESPONSE_OUTPUT_NODES.has(chunk.node));
@@ -243,6 +256,15 @@ const normalizeChunk = (raw: unknown, receivedAt: number): Chunk | null => {
         message: typeof raw.message === "string" ? raw.message : undefined,
         content: typeof raw.content === "string" ? raw.content : undefined,
         source: stringOrUndefined(raw.source),
+        tools_used:
+          objectArrayOrUndefined<ChatToolSourceEntry>(raw.tools_used) ??
+          objectArrayOrUndefined<ChatToolSourceEntry>(data?.tools_used),
+        citation_markers:
+          objectArrayOrUndefined<ChatCitationMarker>(raw.citation_markers) ??
+          objectArrayOrUndefined<ChatCitationMarker>(data?.citation_markers),
+        citations:
+          objectArrayOrUndefined<ChatCitationEntry>(raw.citations) ??
+          objectArrayOrUndefined<ChatCitationEntry>(data?.citations),
         ...base,
       };
       return chunk;

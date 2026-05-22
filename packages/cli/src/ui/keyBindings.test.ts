@@ -4,6 +4,10 @@ import { getChatInputHelpText, getTuiKeyBindings } from "./keyBindings";
 
 test("getTuiKeyBindings uses macOS naming for multiline input", () => {
   assert.match(getTuiKeyBindings("darwin").newline, /Option\+Enter/);
+  assert.equal(
+    getTuiKeyBindings("darwin").commandComplete,
+    "Tab/↑↓ slash command menu"
+  );
 });
 
 test("getTuiKeyBindings uses Alt naming for non-macOS multiline input", () => {
@@ -26,11 +30,11 @@ test("getChatInputHelpText stays short and avoids duplicate settings shortcuts",
 
   assert.equal(
     idleText,
-    "Enter send/choose | Esc controls | Tab focus | 1-8 tabs | /help"
+    "Enter send/choose | Esc controls | /copy | Tab focus | /help"
   );
   assert.equal(
     idleWithoutPromptsText,
-    "Enter send | Esc controls | Ctrl+J newline | /starter | /help"
+    "Enter send | Esc controls | /copy | /download | /help"
   );
   assert.equal(
     blurredText,

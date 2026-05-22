@@ -17,6 +17,7 @@ import { TitledBox } from "./TitledBox.js";
 
 export interface InputBoxProps {
   title?: string;
+  variant?: "dock" | "panel";
   value: string;
   onChange: (value: string) => void;
   onSubmit: (value: string) => void;
@@ -40,6 +41,10 @@ export interface InputBoxProps {
   onTabShortcut?: (tab: WorkspaceTab) => void;
   blinkCursor?: boolean;
   ghostText?: string;
+  commandCompletions?: CommandCompletionItem[];
+  focusedCommandCompletionIndex?: number;
+  commandCompletionsActive?: boolean;
+  onCommandCompletionSubmit?: (command: CommandCompletionItem) => void;
 }
 
 export const shouldAnimateInputCursor = ({
@@ -65,7 +70,7 @@ export const shouldBlinkPromptCursor = ({
   selectorOpen?: boolean;
   searching?: boolean;
 }): boolean =>
-  Boolean(animationsEnabled && inputActive && busy && !selectorOpen && !searching);
+  Boolean(animationsEnabled && inputActive && !selectorOpen && !searching);
 
 export const getInputCursorColor = ({
   disabled,
@@ -94,6 +99,39 @@ export const getInputCursorGlyph = ({
   }
   return cursorVisible ? "▌" : "▏";
 };
+
+export interface PromptDisplayRow {
+  line: string;
+  showPromptPrefix: boolean;
+  showCursor: boolean;
+  isFiller: boolean;
+}
+
+export interface CommandCompletionItem {
+  name: string;
+  description?: string;
+  aliases?: string[];
+}
+
+export const getPromptDisplayRows = ({
+  visibleRows,
+  startRow,
+  inputRowCount,
+}: {
+  visibleRows: string[];
+  startRow: number;
+  inputRowCount: number;
+}): PromptDisplayRow[] =>
+  visibleRows.map((line, index) => {
+    const rowIndex = startRow + index;
+    const isFiller = rowIndex >= inputRowCount;
+    return {
+      line,
+      isFiller,
+      showPromptPrefix: !isFiller,
+      showCursor: !isFiller && rowIndex === inputRowCount - 1,
+    };
+  });
 
 const Scrollbar: React.FC<{ totalRows: number; visibleRows: number; startRow: number }> = ({
   totalRows,
@@ -230,8 +268,64 @@ export const getFollowUpRowViewport = ({
   };
 };
 
+export const getCommandCompletionViewport = ({
+  commands,
+  focusedIndex = 0,
+  terminalColumns,
+}: {
+  commands: CommandCompletionItem[];
+  focusedIndex?: number;
+  terminalColumns: number;
+}): {
+  items: Array<{ command: CommandCompletionItem; index: number; label: string; width: number }>;
+  clippedStart: boolean;
+  clippedEnd: boolean;
+  rowCount: number;
+} => {
+  const availableWidth = Math.max(24, terminalColumns - 28);
+  const activeIndex = commands.length
+    ? Math.min(Math.max(0, focusedIndex), commands.length - 1)
+    : 0;
+  const items = commands.map((command, index) => {
+    const label = `${index === activeIndex ? raisedButtonStyle.activeMarker : raisedButtonStyle.inactiveMarker} ${command.name}`;
+    return { command, index, label, width: label.length };
+  });
+  if (!items.length) {
+    return { items: [], clippedStart: false, clippedEnd: false, rowCount: 0 };
+  }
+
+  let start = activeIndex;
+  let usedWidth = items[start]?.width ?? 0;
+  while (start > 0) {
+    const nextWidth = items[start - 1].width + 1;
+    if (usedWidth + nextWidth > availableWidth) {
+      break;
+    }
+    usedWidth += nextWidth;
+    start--;
+  }
+
+  let end = activeIndex + 1;
+  while (end < items.length) {
+    const nextWidth = items[end].width + (end > start ? 1 : 0);
+    if (usedWidth + nextWidth > availableWidth) {
+      break;
+    }
+    usedWidth += nextWidth;
+    end++;
+  }
+
+  return {
+    items: items.slice(start, end),
+    clippedStart: start > 0,
+    clippedEnd: end < items.length,
+    rowCount: 1,
+  };
+};
+
 export const InputBox: React.FC<InputBoxProps> = ({
   title = "Prompt",
+  variant = "panel",
   value,
   onChange,
   onSubmit,
@@ -255,6 +349,10 @@ export const InputBox: React.FC<InputBoxProps> = ({
   onTabShortcut,
   blinkCursor = false,
   ghostText,
+  commandCompletions = [],
+  focusedCommandCompletionIndex,
+  commandCompletionsActive = false,
+  onCommandCompletionSubmit,
 }) => {
   const [cursorVisible, setCursorVisible] = useState(true);
   const keyBindings = getTuiKeyBindings();
@@ -266,7 +364,27 @@ export const InputBox: React.FC<InputBoxProps> = ({
     focusedFollowUpIndex,
     terminalColumns,
   });
-  const inputWidth = Math.max(20, terminalColumns - 8);
+  const commandCompletionViewport = getCommandCompletionViewport({
+    commands: commandCompletions,
+    focusedIndex: focusedCommandCompletionIndex,
+    terminalColumns,
+  });
+  const commandCompletionLine = [
+    commandCompletionViewport.clippedStart ? "<--" : undefined,
+    ...commandCompletionViewport.items.map((item) => item.label),
+    commandCompletionViewport.clippedEnd ? "-->" : undefined,
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const activeCommand =
+    focusedCommandCompletionIndex === undefined
+      ? undefined
+      : commandCompletions[Math.min(
+          Math.max(0, focusedCommandCompletionIndex),
+          Math.max(0, commandCompletions.length - 1)
+        )];
+  const promptPrefix = ">";
+  const inputWidth = Math.max(20, terminalColumns - 10);
   const inputViewport = getInputViewport({
     value,
     width: inputWidth,
@@ -278,6 +396,11 @@ export const InputBox: React.FC<InputBoxProps> = ({
   const visibleRowCount = inputViewport.visibleRowCount;
   const startRow = inputViewport.startRow;
   const visibleRows = inputViewport.visibleRows;
+  const promptRows = getPromptDisplayRows({
+    visibleRows,
+    startRow,
+    inputRowCount: inputRows.length,
+  });
 
   useEffect(() => {
     if (!shouldAnimateInputCursor({ disabled, inputActive, blinkCursor })) {
@@ -321,6 +444,10 @@ export const InputBox: React.FC<InputBoxProps> = ({
       if (key.return) {
         if (key.meta || key.ctrl) {
           insertNewline();
+          return;
+        }
+        if (commandCompletionsActive && activeCommand && onCommandCompletionSubmit) {
+          onCommandCompletionSubmit(activeCommand);
           return;
         }
         if (!shouldSubmitInputOnReturn(value)) {
@@ -368,14 +495,8 @@ export const InputBox: React.FC<InputBoxProps> = ({
       ? terminalTheme.focus
       : terminalTheme.muted;
 
-  return (
-    <TitledBox
-      title={title}
-      borderStyle="round"
-      borderColor={inputBorderColor}
-      padding={0}
-      paddingX={1}
-    >
+  const content = (
+    <>
       {followUps.length ? (
         <Text wrap="truncate">
           <Text dimColor>{`${followUpsLabel}: `}</Text>
@@ -402,18 +523,27 @@ export const InputBox: React.FC<InputBoxProps> = ({
         <Box flexDirection="column" flexGrow={1}>
           {!value ? (
             <Text wrap="truncate">
+              <Text color={inputActive ? terminalTheme.brand : terminalTheme.muted}>
+                {promptPrefix}{" "}
+              </Text>
               <Text color={cursorColor}>
                 {cursorGlyph}
               </Text>
               <Text dimColor>{` ${placeholder}`}</Text>
             </Text>
           ) : (
-            visibleRows.map((line, index) => {
-              const isLastValueRow = startRow + index === inputRows.length - 1;
+            promptRows.map((row, index) => {
               return (
                 <Text key={`${startRow}-${index}`} wrap="truncate">
-                  {line}
-                  {isLastValueRow ? (
+                  {row.showPromptPrefix ? (
+                    <Text color={inputActive ? terminalTheme.brand : terminalTheme.muted}>
+                      {promptPrefix}{" "}
+                    </Text>
+                  ) : (
+                    <Text>{"  "}</Text>
+                  )}
+                  {row.line}
+                  {row.showCursor ? (
                     <>
                       <Text
                         dimColor
@@ -447,11 +577,45 @@ export const InputBox: React.FC<InputBoxProps> = ({
           {resolvedHelpText}
         </Text>
       ) : null}
+      {commandCompletionViewport.items.length ? (
+        <Text
+          color={commandCompletionsActive ? terminalTheme.focus : terminalTheme.muted}
+          bold={commandCompletionsActive}
+          wrap="truncate"
+        >
+          {`/commands: ${commandCompletionLine} | Tab/↑↓ move | Enter choose`}
+        </Text>
+      ) : null}
       {footerControls ? (
         <Box flexDirection="column" marginTop={1}>
           {footerControls}
         </Box>
       ) : null}
+    </>
+  );
+
+  if (variant === "dock") {
+    return (
+      <Box
+        flexDirection="column"
+        borderStyle="single"
+        borderColor={inputBorderColor}
+        paddingX={1}
+      >
+        {content}
+      </Box>
+    );
+  }
+
+  return (
+    <TitledBox
+      title={title}
+      borderStyle="round"
+      borderColor={inputBorderColor}
+      padding={0}
+      paddingX={1}
+    >
+      {content}
     </TitledBox>
   );
 };

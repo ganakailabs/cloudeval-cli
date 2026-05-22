@@ -919,7 +919,7 @@ program
 
     if (options.tab && options.tab !== "chat") {
       process.stderr.write(
-        `Opening Terminal UI with requested tab '${options.tab}'. Rich non-chat tabs load real API data where supported.\n`
+        `Opening Terminal UI with requested tab '${options.tab}'. Workspace tabs load account data when available.\n`
       );
     }
 

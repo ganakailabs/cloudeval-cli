@@ -36,6 +36,9 @@ export interface RespondingChunk extends BaseChunk {
   message?: string;
   content?: string;
   source?: string;
+  tools_used?: ChatToolSourceEntry[];
+  citation_markers?: ChatCitationMarker[];
+  citations?: ChatCitationEntry[];
 }
 
 export interface ErrorChunk extends BaseChunk {
@@ -124,6 +127,9 @@ export interface ChatMessage {
   pending?: boolean;
   queued?: boolean;
   thinkingSteps?: ThinkingStep[];
+  toolsUsed?: ChatToolSourceEntry[];
+  citationMarkers?: ChatCitationMarker[];
+  citations?: ChatCitationEntry[];
   error?: string;
   followUpQuestions?: string[];
   hitlQuestionsAnswered?: {
@@ -132,6 +138,34 @@ export interface ChatMessage {
   };
   createdAt: number;
   updatedAt?: number;
+}
+
+export interface ChatToolSourceEntry {
+  source_id?: string;
+  title?: string;
+  tool_friendly_name?: string;
+  tool_name?: string;
+  source_url?: string;
+  quote?: string;
+  loc?: string;
+  [key: string]: unknown;
+}
+
+export interface ChatCitationMarker {
+  start?: number;
+  end?: number;
+  source_index?: number;
+  source_id?: string;
+  [key: string]: unknown;
+}
+
+export interface ChatCitationEntry {
+  source_id?: string;
+  title?: string;
+  url?: string;
+  quote?: string;
+  loc?: string;
+  [key: string]: unknown;
 }
 
 export type ChatStatus =

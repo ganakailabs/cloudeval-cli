@@ -28,6 +28,7 @@ test("getCreditStatus derives visible credit state from entitlement", () => {
     remaining: 300,
     total: 1050,
     used: 750,
+    reportedUsed: 750,
     cycleTotal: 800,
     cycleUsed: 600,
     cycleRemaining: 200,
@@ -41,27 +42,7 @@ test("getCreditStatus derives visible credit state from entitlement", () => {
   });
 });
 
-test("getCreditStatus preserves reported usage when effective balance is current remaining credits", () => {
-  const status = getCreditStatus({
-    plan: { id: "free", name: "Free", price_usd: 0 },
-    plan_source: "free",
-    balance: {
-      credits_total: 0,
-      credits_used: 24,
-      credits_remaining: 0,
-      credits_total_effective: 101,
-      credits_remaining_effective: 101,
-      top_up_credits_balance: 101,
-    },
-  } as any);
-
-  assert.equal(status?.remaining, 101);
-  assert.equal(status?.used, 24);
-  assert.equal(status?.total, 125);
-  assert.equal(status?.remainingRatio, 101 / 125);
-});
-
-test("getCreditStatus can fold usage-summary credits into stale entitlement balances", () => {
+test("getCreditStatus keeps entitlement total separate from reported usage", () => {
   const status = getCreditStatus(
     {
       plan: { id: "free", name: "Free", price_usd: 0 },
@@ -80,8 +61,62 @@ test("getCreditStatus can fold usage-summary credits into stale entitlement bala
 
   assert.equal(status?.remaining, 101);
   assert.equal(status?.used, 24);
+  assert.equal(status?.reportedUsed, 24);
   assert.equal(status?.total, 125);
   assert.equal(status?.remainingRatio, 101 / 125);
+});
+
+test("getCreditStatus aligns progress with remaining and reported usage", () => {
+  const status = getCreditStatus(
+    {
+      plan: { id: "free", name: "Free", price_usd: 0 },
+      plan_source: "free",
+      balance: {
+        credits_total: 0,
+        credits_used: 0,
+        credits_remaining: 0,
+        credits_total_effective: 0,
+        credits_remaining_effective: 540,
+        top_up_credits_balance: 0,
+      },
+    } as any,
+    { reportedUsedCredits: 2523 }
+  );
+
+  assert.equal(status?.remaining, 540);
+  assert.equal(status?.reportedUsed, 2523);
+  assert.equal(status?.total, 3063);
+  assert.equal(status?.used, 2523);
+  assert.ok(
+    Math.abs((status?.remainingRatio ?? 0) - 540 / 3063) < 0.001,
+    `expected remainingRatio near ${540 / 3063}, got ${status?.remainingRatio}`
+  );
+});
+
+test("getCreditStatus does not show consumed credits as the credit budget", () => {
+  const status = getCreditStatus(
+    {
+      plan: { id: "free", name: "Free", price_usd: 0 },
+      plan_source: "free",
+      balance: {
+        credits_total: 0,
+        credits_used: 0,
+        credits_remaining: 0,
+        credits_total_effective: 0,
+        credits_remaining_effective: 0,
+        top_up_credits_balance: 0,
+      },
+      trial_state: { credits_total: 1000, consumed: true },
+      credits_exhausted: true,
+    } as any,
+    { reportedUsedCredits: 2063 }
+  );
+
+  assert.equal(status?.remaining, 0);
+  assert.equal(status?.total, 2063);
+  assert.equal(status?.used, 2063);
+  assert.equal(status?.reportedUsed, 2063);
+  assert.equal(status?.remainingRatio, 0);
 });
 
 test("getBillingUsageCreditsUsed reads frontend-aligned usage totals", async () => {

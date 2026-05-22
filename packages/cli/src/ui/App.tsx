@@ -19,8 +19,10 @@ import { ProjectSelector } from "./components/ProjectSelector.js";
 import { SelectPanel, type SelectPanelItem } from "./components/SelectPanel.js";
 import { TitledBox } from "./components/TitledBox.js";
 import {
+  buildSlashCommandCompletionItems,
   completePromptInput,
   resolvePromptCommand,
+  slashCommandGhostSuffix,
   type CompletionCycleState,
 } from "./commandCompletion.js";
 import { billingSummaryText, type BillingSummaryState } from "./billingSummary.js";
@@ -40,18 +42,33 @@ import {
   type TuiControlFocus,
 } from "./interactionModel.js";
 import {
+  estimateComposerRows,
   estimateBannerRows,
+  getChatResponsiveMode,
+  getContextRailWidth,
   getFramedBodyRows,
   getMiddleViewportRows,
   getPromptInputRowBudget,
   getResponsiveTuiLayout,
   shouldUseSplitChatLayout,
   truncateForTerminal,
+  type ChatResponsiveMode,
   type TerminalSize,
 } from "./layout.js";
+import {
+  buildChatArtifactChips,
+  type ArtifactChip,
+  type ArtifactChipTone,
+} from "./artifactChips.js";
+import {
+  buildLatestAssistantResponseText,
+  copyTextToClipboard,
+  writeChatTranscriptDownload,
+} from "./chatResponseActions.js";
 import { shouldAutoScrollToBottom } from "./scrollBehavior.js";
 import { getPromptSuggestions } from "./promptSuggestions.js";
 import {
+  buildDraftThreadSummary,
   buildThreadSelectItems,
   localSessionMessagesToChatMessages,
   remoteThreadMessagesToChatMessages,
@@ -90,6 +107,10 @@ import {
   workspaceTabFromShortcut,
   type WorkspaceTab,
 } from "./workspaceTabs.js";
+import {
+  nextWorkspaceSelectionIndex,
+  selectableWorkspaceTab,
+} from "./workspaceSelection.js";
 import {
   completeActiveAssistantMessage,
   initialChatState,
@@ -162,6 +183,15 @@ const bootSteps = [
 
 const defaultUser = { id: "cli-user", name: "CLI User" };
 
+type DraftChatSession = {
+  key: string;
+  state: ChatState;
+  projectName?: string;
+  updatedAt: number;
+};
+
+const newDraftChatSessionKey = (): string => `draft-${randomUUID()}`;
+
 const getUserNameFromToken = async (token?: string): Promise<string> => {
   if (!token) return "You";
   try {
@@ -207,9 +237,9 @@ const dropdownIndicator = "▾";
 const bundledAgentProfiles = getBundledAgentProfiles();
 const agentProfileItems: Array<SelectPanelItem<string>> = [
   {
-    label: "Profile",
+    label: "General",
     value: "",
-    description: "Default CloudEval chat flow without an Agent Profile.",
+    description: "Built-in CloudEval chat flow without a named Agent Profile.",
   },
   ...bundledAgentProfiles.map((profile) => ({
     label: profile.display_name,
@@ -331,6 +361,8 @@ const billingHeaderFromEntitlement = (
     plan: creditStatus.planName,
     remaining: creditStatus.remaining,
     total: creditStatus.total,
+    used: creditStatus.used,
+    reportedUsed: creditStatus.reportedUsed,
     tone: creditStatus.tone,
     status: entitlement?.effective_status,
   };
@@ -342,6 +374,26 @@ const isBusyStatus = (status: ChatState["status"]): boolean =>
   status === "streaming" ||
   status === "tool_running" ||
   status === "hitl_waiting";
+
+export const buildTuiHeaderDetails = ({
+  apiBase,
+  frontendBaseUrl,
+  billingSummary,
+  userName,
+}: {
+  apiBase: string;
+  frontendBaseUrl: string;
+  billingSummary: string;
+  userName: string;
+}): string[] => {
+  const displayName = truncateForTerminal(userName.trim() || "You", 64);
+  return [
+    `User: ${displayName}`,
+    `API: ${apiBase}`,
+    `Frontend: ${frontendBaseUrl}`,
+    billingSummary,
+  ];
+};
 
 const isTerminalThinkingStatus = (status?: string): boolean =>
   status === "completed" ||
@@ -474,6 +526,37 @@ const openExternalUrl = (url: string): void => {
   child.unref();
 };
 
+const directArray = (value: unknown): unknown[] => {
+  if (Array.isArray(value)) {
+    return value;
+  }
+  if (!value || typeof value !== "object") {
+    return [];
+  }
+  const record = value as Record<string, unknown>;
+  for (const key of ["data", "items", "rows", "results", "connections", "ledger", "invoices", "notifications", "topups"]) {
+    const candidate = record[key];
+    if (Array.isArray(candidate)) {
+      return candidate;
+    }
+  }
+  return [];
+};
+
+const recordLabel = (value: unknown, fallback: string): string => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return fallback;
+  }
+  const record = value as Record<string, unknown>;
+  for (const key of ["name", "title", "id"]) {
+    const current = record[key];
+    if (typeof current === "string" && current.trim()) {
+      return current.trim();
+    }
+  }
+  return fallback;
+};
+
 const writeTableDownload = ({
   tab,
   data,
@@ -487,22 +570,6 @@ const writeTableDownload = ({
   selectedProject: ProjectInfo | null;
   tablePage: number;
 }): string => {
-  const directArray = (value: unknown): unknown[] => {
-    if (Array.isArray(value)) {
-      return value;
-    }
-    if (!value || typeof value !== "object") {
-      return [];
-    }
-    const record = value as Record<string, unknown>;
-    for (const key of ["data", "items", "rows", "results", "connections", "ledger", "invoices", "notifications", "topups"]) {
-      const candidate = record[key];
-      if (Array.isArray(candidate)) {
-        return candidate;
-      }
-    }
-    return [];
-  };
   const derived =
     tab === "overview"
       ? buildOverviewDashboardModel({
@@ -582,18 +649,24 @@ const estimatePromptPanelRows = ({
   compact,
   hasThinkingSteps,
   includeControls = true,
+  variant = "panel",
 }: {
   inputRows: number;
   suggestionRows: number;
   compact: boolean;
   hasThinkingSteps: boolean;
   includeControls?: boolean;
+  variant?: "dock" | "panel";
 }): number => {
-  const outerChromeRows = 2;
-  const inputRowsWithHint = inputRows + 1;
-  const footerRows =
+  const controlRows =
     includeControls ? 1 + estimatePromptControlRows({ compact, hasThinkingSteps }) : 0;
-  return outerChromeRows + suggestionRows + inputRowsWithHint + footerRows;
+  return estimateComposerRows({
+    inputRows,
+    suggestionRows,
+    includeControls,
+    controlRows,
+    variant,
+  });
 };
 
 const useTerminalSize = (): TerminalSize => {
@@ -765,6 +838,38 @@ const QueuePanel: React.FC<{
   );
 };
 
+const artifactToneColor = (tone: ArtifactChipTone): string | undefined => {
+  if (tone === "brand") return terminalTheme.brand;
+  if (tone === "success") return terminalTheme.success;
+  if (tone === "warning") return terminalTheme.warning;
+  if (tone === "danger") return terminalTheme.danger;
+  return undefined;
+};
+
+const ArtifactStrip: React.FC<{
+  chips: ArtifactChip[];
+  compact?: boolean;
+  terminalColumns: number;
+}> = ({ chips, compact = false, terminalColumns }) => {
+  if (!chips.length) {
+    return null;
+  }
+  const valueLimit = compact ? Math.max(10, terminalColumns - 15) : 24;
+  return (
+    <Box flexDirection={compact ? "column" : "row"} gap={compact ? 0 : 1} flexWrap="wrap">
+      {chips.map((chip) => (
+        <Text key={`${chip.label}-${chip.value}`}>
+          <Text color={artifactToneColor(chip.tone)} bold>{chip.label}</Text>
+          <Text dimColor> </Text>
+          <Text color={artifactToneColor(chip.tone)}>
+            {truncateForTerminal(chip.value, valueLimit)}
+          </Text>
+        </Text>
+      ))}
+    </Box>
+  );
+};
+
 const PromptControlBar: React.FC<{
   focused: TuiControlFocus;
   selectedThreadTitle: string;
@@ -834,7 +939,8 @@ const PromptControlBar: React.FC<{
               return (
                 <Text
                   key={kind}
-                  color={isFocused ? terminalTheme.focus : undefined}
+                  color={isFocused ? "white" : undefined}
+                  backgroundColor={isFocused ? terminalTheme.selectedBackground : undefined}
                   bold={isFocused}
                   wrap="truncate"
                 >
@@ -849,11 +955,12 @@ const PromptControlBar: React.FC<{
           <Box flexDirection="column" gap={0} marginTop={1}>
             <Text dimColor>Activity</Text>
             {hasThinkingSteps ? (
-              <Text
-                color={focused === "thinking" ? terminalTheme.focus : undefined}
-                bold={focused === "thinking"}
-                wrap="truncate"
-              >
+	              <Text
+	                color={focused === "thinking" ? "white" : undefined}
+	                backgroundColor={focused === "thinking" ? terminalTheme.selectedBackground : undefined}
+	                bold={focused === "thinking"}
+	                wrap="truncate"
+	              >
                 {focused === "thinking" ? raisedButtonStyle.activeMarker : raisedButtonStyle.inactiveMarker}{" "}
                 Reasoning: {thinkingExpanded ? "open" : thinkingSummary}
               </Text>
@@ -869,7 +976,7 @@ const PromptControlBar: React.FC<{
   }
   return (
     <Box flexDirection="column" gap={0}>
-      <Text dimColor>Settings</Text>
+      <Text dimColor>Command context</Text>
       <Box flexDirection={compact ? "column" : "row"} gap={controlGap} flexWrap="wrap">
         {selectorOrder.map((kind) => {
           const isFocused = focused === kind;
@@ -895,12 +1002,16 @@ const PromptControlBar: React.FC<{
               borderColor={isFocused ? terminalTheme.focus : terminalTheme.muted}
               paddingX={1}
             >
-              <Text color={isFocused ? terminalTheme.focus : undefined} bold={isFocused}>
+              <Text
+                color={isFocused ? "white" : undefined}
+                backgroundColor={isFocused ? terminalTheme.selectedBackground : undefined}
+                bold={isFocused}
+              >
                 {isFocused ? raisedButtonStyle.activeMarker : raisedButtonStyle.inactiveMarker}{" "}
                 {label} [{value}] {dropdownIndicator}
               </Text>
-  </Box>
-);
+            </Box>
+          );
 
         })}
         {hasThinkingSteps ? (
@@ -910,7 +1021,8 @@ const PromptControlBar: React.FC<{
             paddingX={1}
           >
             <Text
-              color={focused === "thinking" ? terminalTheme.focus : undefined}
+              color={focused === "thinking" ? "white" : undefined}
+              backgroundColor={focused === "thinking" ? terminalTheme.selectedBackground : undefined}
               bold={focused === "thinking"}
             >
               {focused === "thinking" ? raisedButtonStyle.activeMarker : raisedButtonStyle.inactiveMarker}{" "}
@@ -932,8 +1044,10 @@ const PromptControlBar: React.FC<{
 const ChatContextPanel: React.FC<{
   width: number;
   height: number;
+  mode: ChatResponsiveMode;
   active: boolean;
   focused: TuiControlFocus;
+  artifactChips: ArtifactChip[];
   selectedThreadTitle: string;
   selectedProject: ProjectInfo | null;
   selectedModel: string;
@@ -949,8 +1063,10 @@ const ChatContextPanel: React.FC<{
 }> = ({
   width,
   height,
+  mode,
   active,
   focused,
+  artifactChips,
   selectedProject,
   selectedThreadTitle,
   selectedModel,
@@ -966,13 +1082,24 @@ const ChatContextPanel: React.FC<{
 }) => {
   return (
     <TitledBox
-      title="Settings"
+      title="Context"
       borderStyle="round"
       borderColor={active ? terminalTheme.focus : terminalTheme.muted}
-      padding={1}
+      padding={mode === "medium" ? 0 : 1}
+      paddingX={1}
       width={width}
       height={height}
     >
+      {artifactChips.length ? (
+        <Box flexDirection="column" marginBottom={1}>
+          <Text color={terminalTheme.brand}>Artifacts</Text>
+          <ArtifactStrip
+            chips={artifactChips}
+            compact
+            terminalColumns={Math.max(24, width - 4)}
+          />
+        </Box>
+      ) : null}
       <PromptControlBar
         focused={focused}
         selectedThreadTitle={selectedThreadTitle}
@@ -997,16 +1124,40 @@ const ChatContextPanel: React.FC<{
 const BottomControls: React.FC<{ tab: WorkspaceTab }> = ({ tab }) => (
   <Box flexDirection="row" justifyContent="space-between">
     <Text dimColor>
-      <Text color={terminalTheme.brand} bold>Keys</Text>
-      <Text> ↑/↓ move or scroll | PgUp/PgDn scroll | [/] table page | </Text>
-      <Text color={terminalTheme.brand} bold>D</Text>
-      <Text> download | </Text>
-      <Text color={terminalTheme.brand} bold>R</Text>
-      <Text> refresh | </Text>
-      <Text color={terminalTheme.brand} bold>O</Text>
-      <Text> open | </Text>
-      <Text color={terminalTheme.brand} bold>C</Text>
-      <Text> chat</Text>
+      <Text color={terminalTheme.accent} bold>⌃Q</Text>
+      <Text> Quit  </Text>
+      <Text color={terminalTheme.accent} bold>⌃T</Text>
+      <Text> Tabs  </Text>
+      {tab === "chat" ? (
+        <>
+          <Text color={terminalTheme.accent} bold>Y</Text>
+          <Text> Copy  </Text>
+          <Text color={terminalTheme.accent} bold>D</Text>
+          <Text> Download  </Text>
+          <Text color={terminalTheme.accent} bold>O</Text>
+          <Text> Open  </Text>
+          <Text color={terminalTheme.brand}>/ Commands</Text>
+        </>
+      ) : (
+        <>
+          <Text color={terminalTheme.accent} bold>R</Text>
+          <Text> Refresh  </Text>
+          <Text color={terminalTheme.accent} bold>O</Text>
+          <Text> Open  </Text>
+          <Text color={terminalTheme.accent} bold>D</Text>
+          <Text> Download  </Text>
+          {tab === "projects" || tab === "connections" ? (
+            <>
+              <Text color={terminalTheme.accent} bold>↑↓/J/K</Text>
+              <Text> Select  </Text>
+              <Text color={terminalTheme.accent} bold>Enter</Text>
+              <Text> Confirm  </Text>
+            </>
+          ) : null}
+          <Text color={terminalTheme.accent} bold>[/]</Text>
+          <Text> Page</Text>
+        </>
+      )}
     </Text>
     {tab === "reports" ? (
       <Text dimColor>
@@ -1122,6 +1273,10 @@ export const App: React.FC<AppProps> = ({
     threadId: conversationId,
     debug,
   });
+  const [activeDraftSessionKey, setActiveDraftSessionKey] = useState<string | undefined>(() =>
+    conversationId ? undefined : newDraftChatSessionKey()
+  );
+  const [draftChatSessions, setDraftChatSessions] = useState<Record<string, DraftChatSession>>({});
   const [projects, setProjects] = useState<ProjectInfo[]>([]);
   const [selectedProject, setSelectedProject] = useState<ProjectInfo | null>(null);
   const [selectedModel, setSelectedModel] = useState(model ?? "");
@@ -1134,6 +1289,7 @@ export const App: React.FC<AppProps> = ({
     createWorkspacePanelStateMap
   );
   const [tablePageByTab, setTablePageByTab] = useState<Partial<Record<WorkspaceTab, number>>>({});
+  const [selectedConnectionIndex, setSelectedConnectionIndex] = useState(0);
   const [workspaceRefreshKeys, setWorkspaceRefreshKeys] = useState<WorkspaceRefreshKeyMap>({});
   const [workspaceStaleTick, setWorkspaceStaleTick] = useState(0);
   const [modelItems, setModelItems] = useState<Array<SelectPanelItem<string>>>(() => {
@@ -1164,6 +1320,7 @@ export const App: React.FC<AppProps> = ({
   const [scrollOffset, setScrollOffset] = useState(0);
   const [contentHeight, setContentHeight] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(20);
+  const [slashCommandCompletionIndex, setSlashCommandCompletionIndex] = useState(0);
   const [workspaceScrollOffset, setWorkspaceScrollOffset] = useState(0);
   const [workspaceContentHeight, setWorkspaceContentHeight] = useState(0);
   const [workspaceViewportHeight, setWorkspaceViewportHeight] = useState(14);
@@ -1179,7 +1336,7 @@ export const App: React.FC<AppProps> = ({
     () => bundledAgentProfiles.find((profile) => profile.id === selectedAgentProfileId),
     [selectedAgentProfileId]
   );
-  const selectedAgentProfileLabel = selectedAgentProfile?.display_name ?? "Profile";
+  const selectedAgentProfileLabel = selectedAgentProfile?.display_name ?? "General";
   const frontendThreadUrl = useMemo(
     () => buildFrontendThreadUrl(frontendBaseUrl, chatState.threadId),
     [frontendBaseUrl, chatState.threadId]
@@ -1238,6 +1395,20 @@ export const App: React.FC<AppProps> = ({
     () => remoteThreads.find((thread) => thread.thread_id === chatState.threadId),
     [chatState.threadId, remoteThreads]
   );
+  const draftThreadSummaries = useMemo(
+    () =>
+      Object.values(draftChatSessions)
+        .map((draft) =>
+          buildDraftThreadSummary({
+            key: draft.key,
+            state: draft.state,
+            projectName: draft.projectName,
+            updatedAt: draft.updatedAt,
+          })
+        )
+        .filter((draft): draft is NonNullable<typeof draft> => Boolean(draft)),
+    [draftChatSessions]
+  );
   const selectedThreadTitle = useMemo(
     () =>
       threadPanelTitle({
@@ -1249,8 +1420,11 @@ export const App: React.FC<AppProps> = ({
     [chatState.messages.length, chatState.threadId, selectedLocalSession, selectedRemoteThread]
   );
   const threadSelectItems = useMemo(
-    () => buildThreadSelectItems(localSessions, chatState.threadId, remoteThreads),
-    [chatState.threadId, localSessions, remoteThreads]
+    () =>
+      buildThreadSelectItems(localSessions, chatState.threadId, remoteThreads, {
+        drafts: draftThreadSummaries,
+      }),
+    [chatState.threadId, draftThreadSummaries, localSessions, remoteThreads]
   );
 
   const checkHealth = useMemo(() => {
@@ -1299,7 +1473,9 @@ export const App: React.FC<AppProps> = ({
             ? item.value.thread.thread_id
             : item.value.kind === "session"
               ? item.value.session.threadId
-              : "new",
+              : item.value.kind === "draft"
+                ? item.value.draft.key
+                : "new",
         description: item.description,
       })),
       profiles: agentProfileItems,
@@ -1406,6 +1582,7 @@ export const App: React.FC<AppProps> = ({
         threadId: session.threadId,
         messages,
       }));
+      setActiveDraftSessionKey(undefined);
       if (session.model) {
         setSelectedModel(session.model);
       }
@@ -1462,6 +1639,7 @@ export const App: React.FC<AppProps> = ({
         threadId,
         messages,
       }));
+      setActiveDraftSessionKey(undefined);
       const nextModel = history.model || history.thread_head?.model || thread.model;
       if (nextModel) {
         setSelectedModel(nextModel);
@@ -1490,11 +1668,34 @@ export const App: React.FC<AppProps> = ({
     [loadRemoteThreadHistory, projects]
   );
 
-  const startNewThread = React.useCallback(() => {
-    if (isBusyStatus(chatState.status) || controllerRef.current) {
-      setNotice("Stop the running response before switching threads.");
+  const restoreDraftThread = React.useCallback((key: string) => {
+    const draft = draftChatSessions[key];
+    if (!draft) {
+      setNotice("Open session was not found.");
       return;
     }
+    if (isBusyStatus(chatState.status) || controllerRef.current) {
+      setNotice("Stop the running response before switching sessions.");
+      return;
+    }
+    setActiveDraftSessionKey(key);
+    setChatState((prev) => ({
+      ...draft.state,
+      debug: prev.debug,
+    }));
+    setActiveSelector(null);
+    autoExpandedThinkingMessageIdsRef.current.clear();
+    setExpandedThinkingMessageIds(new Set());
+    setNotice(`Loaded open session: ${truncateForTerminal(draft.state.threadId ?? key, 90)}`);
+    setTimeout(() => scrollViewRef.current?.scrollToBottom(), 0);
+  }, [chatState.status, draftChatSessions]);
+
+  const startNewThread = React.useCallback(() => {
+    if (isBusyStatus(chatState.status) || controllerRef.current) {
+      setNotice("Stop the running response before starting another session.");
+      return;
+    }
+    setActiveDraftSessionKey(newDraftChatSessionKey());
     queueRef.current = [];
     setQueuedMessages([]);
     setChatState((prev) => ({
@@ -1519,7 +1720,11 @@ export const App: React.FC<AppProps> = ({
         return;
       }
       if (isBusyStatus(chatState.status) || controllerRef.current) {
-        setNotice("Stop the running response before switching threads.");
+        setNotice("Stop the running response before switching sessions.");
+        return;
+      }
+      if (choice.kind === "draft") {
+        restoreDraftThread(choice.draft.key);
         return;
       }
       if (choice.kind === "remote") {
@@ -1530,7 +1735,7 @@ export const App: React.FC<AppProps> = ({
       }
       restoreLocalSession(choice.session);
     },
-    [chatState.status, restoreLocalSession, restoreRemoteThread, startNewThread]
+    [chatState.status, restoreDraftThread, restoreLocalSession, restoreRemoteThread, startNewThread]
   );
 
   const selectProjectForUser = async (
@@ -1589,6 +1794,27 @@ export const App: React.FC<AppProps> = ({
       controllerRef.current?.abort("App unmounted");
     };
   }, []);
+
+  useEffect(() => {
+    if (!activeDraftSessionKey) {
+      return;
+    }
+    const hasLocalContent =
+      Boolean(chatState.threadId) ||
+      chatState.messages.some((message) => message.content.trim());
+    if (!hasLocalContent) {
+      return;
+    }
+    setDraftChatSessions((current) => ({
+      ...current,
+      [activeDraftSessionKey]: {
+        key: activeDraftSessionKey,
+        state: chatState,
+        projectName: selectedProject?.name,
+        updatedAt: Date.now(),
+      },
+    }));
+  }, [activeDraftSessionKey, chatState, selectedProject?.name]);
 
   useEffect(() => {
     if (phase !== "ready") {
@@ -1891,7 +2117,7 @@ export const App: React.FC<AppProps> = ({
       return;
     }
 
-    if (tab === "chat" || tab === "projects" || tab === "options" || tab === "help") {
+    if (tab === "chat" || tab === "options" || tab === "help") {
       const now = Date.now();
       setWorkspacePanelTabState(tab, (previous) => ({
         ...previous,
@@ -2316,7 +2542,38 @@ export const App: React.FC<AppProps> = ({
       setNotice(`Profile selected: ${label}. Mode set to Agent.`);
       return;
     }
-    setNotice("Agent Profile cleared. Default chat flow active.");
+    setNotice("Agent Profile cleared. General chat flow active.");
+  };
+
+  const copyLatestAssistantResponse = () => {
+    const text = buildLatestAssistantResponseText(chatState.messages);
+    if (!text) {
+      setNotice("No assistant response to copy yet.");
+      return;
+    }
+    try {
+      copyTextToClipboard(text);
+      setNotice("Copied latest response with numbered citations.");
+    } catch (error: any) {
+      setNotice(`Copy failed: ${error?.message ?? "clipboard unavailable"}`);
+    }
+  };
+
+  const downloadChatTranscript = () => {
+    if (!chatState.messages.some((message) => message.content.trim())) {
+      setNotice("No chat transcript to download yet.");
+      return;
+    }
+    try {
+      const file = writeChatTranscriptDownload({
+        messages: chatState.messages,
+        userName,
+        threadId: chatState.threadId,
+      });
+      setNotice(`Downloaded chat transcript: ${file}`);
+    } catch (error: any) {
+      setNotice(`Failed to download chat transcript: ${error?.message ?? "Unknown error"}`);
+    }
   };
 
   const handlePromptSubmit = (value: string) => {
@@ -2343,6 +2600,13 @@ export const App: React.FC<AppProps> = ({
           );
           if (remoteThread) {
             selectThread({ kind: "remote", thread: remoteThread });
+            return;
+          }
+          const draftThread = draftThreadSummaries.find(
+            (candidate) => candidate.key === promptCommand.threadId
+          );
+          if (draftThread) {
+            selectThread({ kind: "draft", draft: draftThread });
             return;
           }
           const session = localSessions.find(
@@ -2382,6 +2646,12 @@ export const App: React.FC<AppProps> = ({
         case "openFrontend":
           handleOpenFrontend();
           return;
+        case "copyLatestResponse":
+          copyLatestAssistantResponse();
+          return;
+        case "downloadTranscript":
+          downloadChatTranscript();
+          return;
         case "showHelp":
           setActiveWorkspaceTab("help");
           setNotice(undefined);
@@ -2398,7 +2668,7 @@ export const App: React.FC<AppProps> = ({
       }
     }
 
-    if (chatState.status === "hitl_waiting" && chatState.hitl?.waiting) {
+	       if (chatState.status === "hitl_waiting" && chatState.hitl?.waiting) {
       setInput("");
       if (cleanedValue.trim()) {
         submitHitlAnswer(cleanedValue.trim());
@@ -2464,6 +2734,7 @@ export const App: React.FC<AppProps> = ({
       }
     }
 
+    const draftKeyAtStart = activeDraftSessionKey;
     const threadId = chatState.threadId ?? randomUUID();
     const now = Date.now();
     const userMessage: ChatMessage | undefined =
@@ -2662,6 +2933,16 @@ export const App: React.FC<AppProps> = ({
               model: selectedModel,
               profile: configProfile,
             });
+            if (draftKeyAtStart) {
+              setDraftChatSessions((current) => {
+                const next = { ...current };
+                delete next[draftKeyAtStart];
+                return next;
+              });
+              setActiveDraftSessionKey((current) =>
+                current === draftKeyAtStart ? undefined : current
+              );
+            }
             void refreshLocalSessions().catch(() => undefined);
             void refreshRemoteThreads().catch(() => undefined);
           } catch (error: any) {
@@ -2746,9 +3027,30 @@ export const App: React.FC<AppProps> = ({
     0,
     terminalSize.columns < 110 ? 3 : 4
   );
+  const slashCommandCompletions = useMemo(
+    () => buildSlashCommandCompletionItems(input),
+    [input]
+  );
+  const activeSlashCommandCompletionIndex = slashCommandCompletions.length
+    ? Math.min(slashCommandCompletionIndex, slashCommandCompletions.length - 1)
+    : undefined;
+  const activeSlashCommandCompletion =
+    activeSlashCommandCompletionIndex === undefined
+      ? undefined
+      : slashCommandCompletions[activeSlashCommandCompletionIndex];
+  const slashCommandCompletionsActive =
+    promptInputActive &&
+    activeWorkspaceTab === "chat" &&
+    !activeSelector &&
+    !isSearching &&
+    slashCommandCompletions.length > 0;
   const promptGhostSuffix = useMemo((): string | undefined => {
     const trimmedStart = input.trimStart();
     if (trimmedStart.startsWith("/")) {
+      const commandGhost = slashCommandGhostSuffix(input, activeSlashCommandCompletion);
+      if (commandGhost) {
+        return commandGhost;
+      }
       return completePromptInput(input, promptCompletionContext)?.ghostSuffix;
     }
     for (const suggestion of visiblePromptSuggestions) {
@@ -2760,7 +3062,7 @@ export const App: React.FC<AppProps> = ({
       return visiblePromptSuggestions[0];
     }
     return undefined;
-  }, [input, promptCompletionContext, visiblePromptSuggestions]);
+  }, [activeSlashCommandCompletion, input, promptCompletionContext, visiblePromptSuggestions]);
   const promptInputWidth = Math.max(20, terminalSize.columns - 14);
   const promptInputRowBudget = getPromptInputRowBudget(terminalSize);
   const promptInputViewport = getInputViewport({
@@ -2771,11 +3073,14 @@ export const App: React.FC<AppProps> = ({
     scrollOffset: promptInputScrollOffset,
   });
   const promptInputRows = promptInputViewport.visibleRowCount;
-  const promptSuggestionRows = estimatePromptSuggestionRows(
-    visiblePromptSuggestions.length
-  );
+  const promptCommandCompletionRows = slashCommandCompletions.length ? 1 : 0;
+  const promptSuggestionRows =
+    estimatePromptSuggestionRows(visiblePromptSuggestions.length) +
+    promptCommandCompletionRows;
+  const chatResponsiveMode = getChatResponsiveMode(terminalSize);
   const splitChatLayout = shouldUseSplitChatLayout(terminalSize);
   const promptControlsCompact = terminalSize.columns < 96;
+  const promptFooterControlsVisible = !slashCommandCompletionsActive;
   const focusedFollowUpIndex = focusFollowUpIndex(focusedControl);
   const activeChatPanel = chatPanelFocusForControl(focusedControl);
   const controlFocusOrder = buildControlFocusOrder({
@@ -2803,11 +3108,12 @@ export const App: React.FC<AppProps> = ({
   const billingSummary = billingHeaderError
     ? `Plan: unavailable | Credits: unavailable`
     : billingSummaryText(billingHeader);
-  const headerDetails = [
-    `API: ${apiBase}`,
-    `Frontend: ${frontendBaseUrl}`,
+  const headerDetails = buildTuiHeaderDetails({
+    apiBase,
+    frontendBaseUrl,
     billingSummary,
-  ];
+    userName,
+  });
   const keyBindings = getTuiKeyBindings();
   const scrollHelp = mouseTrackingEnabled
     ? `${keyBindings.mouse} | wheel scroll`
@@ -2817,7 +3123,7 @@ export const App: React.FC<AppProps> = ({
     terminalSize.columns - tuiLayout.paddingX * 2
   );
   const chatContextPanelWidth = splitChatLayout
-    ? Math.min(44, Math.max(34, Math.floor(chatAvailableWidth * 0.24)))
+    ? getContextRailWidth(terminalSize)
     : 0;
   const chatSplitGap = splitChatLayout ? 1 : 0;
   const chatThreadPanelWidth = splitChatLayout
@@ -2832,6 +3138,106 @@ export const App: React.FC<AppProps> = ({
   const activeWorkspacePanelState =
     workspacePanelStore[activeWorkspaceTab] ??
     createWorkspacePanelState(activeWorkspaceTab, "loading");
+  const activeConnections = directArray(activeWorkspacePanelState.data.connections);
+  const activeProjectList = projects.length ? projects : [selectedProject ?? defaultProject];
+  const selectedProjectIndex = Math.max(
+    0,
+    activeProjectList.findIndex(
+      (project) => project.id === (selectedProject ?? activeProjectList[0])?.id
+    )
+  );
+
+  const moveSelectedProject = React.useCallback(
+    (direction: 1 | -1) => {
+      const nextIndex = nextWorkspaceSelectionIndex({
+        currentIndex: selectedProjectIndex,
+        itemCount: activeProjectList.length,
+        direction,
+      });
+      const project = activeProjectList[nextIndex];
+      if (!project) {
+        setNotice("No project rows are available to select.");
+        return;
+      }
+      setSelectedProject(project);
+      setNotice(`Project selected: ${truncateForTerminal(project.name, 80)}`);
+    },
+    [activeProjectList, selectedProjectIndex]
+  );
+
+  const moveSelectedConnection = React.useCallback(
+    (direction: 1 | -1) => {
+      setSelectedConnectionIndex((current) => {
+        const next = nextWorkspaceSelectionIndex({
+          currentIndex: current,
+          itemCount: activeConnections.length,
+          direction,
+        });
+        const selected = activeConnections[next];
+        if (selected) {
+          setNotice(
+            `Connection selected: ${truncateForTerminal(recordLabel(selected, "connection"), 80)}`
+          );
+        } else {
+          setNotice("No connection rows are available to select.");
+        }
+        return next;
+      });
+    },
+    [activeConnections]
+  );
+
+  useEffect(() => {
+    setSelectedConnectionIndex((current) =>
+      activeConnections.length
+        ? Math.min(Math.max(0, current), activeConnections.length - 1)
+        : 0
+    );
+  }, [activeConnections.length]);
+
+  useEffect(() => {
+    setSlashCommandCompletionIndex(0);
+  }, [input]);
+
+  useEffect(() => {
+    setSlashCommandCompletionIndex((current) =>
+      slashCommandCompletions.length
+        ? Math.min(current, slashCommandCompletions.length - 1)
+        : 0
+    );
+  }, [slashCommandCompletions.length]);
+  const reportsPanelState =
+    workspacePanelStore.reports ?? createWorkspacePanelState("reports", "idle");
+  const reportsDashboardModel = useMemo(
+    () =>
+      reportsPanelState.status === "ready"
+        ? buildReportsDashboardModel({
+            dashboard: reportsPanelState.data.dashboard,
+            reportsSummary: reportsPanelState.data.reportsSummary,
+            selectedProject,
+            costReport: reportsPanelState.data.costReport,
+            wafReport: reportsPanelState.data.wafReport,
+          })
+        : undefined,
+    [reportsPanelState.data, reportsPanelState.status, selectedProject]
+  );
+  const chatArtifactChips = useMemo(
+    () =>
+      buildChatArtifactChips({
+        projectName: selectedProject?.name ?? defaultProject.name,
+        reportsStatus: reportsPanelState.status,
+        coverageLabel: reportsDashboardModel?.coverageLabel,
+        topActionCount: reportsDashboardModel?.topActions.length ?? 0,
+        frontendThreadUrl,
+      }),
+    [
+      frontendThreadUrl,
+      reportsDashboardModel?.coverageLabel,
+      reportsDashboardModel?.topActions.length,
+      reportsPanelState.status,
+      selectedProject?.name,
+    ]
+  );
   const activeTablePage = tablePageByTab[activeWorkspaceTab] ?? 0;
   const bannerRenderedRows = bannerDisabled
     ? 0
@@ -2880,7 +3286,8 @@ export const App: React.FC<AppProps> = ({
     suggestionRows: promptSuggestionRows,
     compact: promptControlsCompact,
     hasThinkingSteps,
-    includeControls: !splitChatLayout,
+    includeControls: !splitChatLayout && promptFooterControlsVisible,
+    variant: "dock",
   });
   const searchPromptPanelRows =
     estimatePromptPanelRows({
@@ -2922,6 +3329,8 @@ export const App: React.FC<AppProps> = ({
     (errorText ? 5 : 0) +
     (chatState.status === "hitl_waiting" && chatState.hitl?.waiting ? 7 : 0) +
     (activeSelector ? tuiLayout.selectorLimit + 4 : 0);
+  const contextRailArtifactRows =
+    splitChatLayout && chatArtifactChips.length ? chatArtifactChips.length + 2 : 0;
   const chatMainPanelRows = Math.max(4, chatMiddleViewportRows - chatMiddleAuxiliaryRows);
   const chatThreadHeight = getFramedBodyRows(chatMainPanelRows);
   const chatMiddleOverflowing = chatMiddleContentHeight > chatMiddleViewportHeight;
@@ -2935,9 +3344,10 @@ export const App: React.FC<AppProps> = ({
         (queuedMessages.length > 0 ? 4 : 0) +
         (notice ? 1 : 0) +
         (errorText ? 5 : 0);
-      return workspaceTabStartRow + 9 + auxiliaryRows;
+      return workspaceTabStartRow + 9 + auxiliaryRows + contextRailArtifactRows;
     },
     [
+      contextRailArtifactRows,
       errorText,
       isSearching,
       notice,
@@ -2979,7 +3389,8 @@ export const App: React.FC<AppProps> = ({
             suggestionRows: promptSuggestionRows,
             compact: promptControlsCompact,
             hasThinkingSteps,
-            includeControls: !splitChatLayout,
+            includeControls: !splitChatLayout && promptFooterControlsVisible,
+            variant: "dock",
           }) +
           1
       ),
@@ -2989,6 +3400,7 @@ export const App: React.FC<AppProps> = ({
       promptSuggestionRows,
       terminalSize.rows,
       promptControlsCompact,
+      promptFooterControlsVisible,
       splitChatLayout,
     ]
   );
@@ -3034,6 +3446,23 @@ export const App: React.FC<AppProps> = ({
       return;
     }
     void sendMessage(question);
+  };
+
+  const chooseSlashCommandCompletion = (command: { name: string }) => {
+    completionCycleRef.current = undefined;
+    setSlashCommandCompletionIndex(0);
+    handlePromptSubmit(command.name);
+  };
+
+  const moveSlashCommandCompletion = (direction: 1 | -1) => {
+    if (!slashCommandCompletions.length) {
+      return;
+    }
+    completionCycleRef.current = undefined;
+    setSlashCommandCompletionIndex((current) =>
+      (current + direction + slashCommandCompletions.length) %
+      slashCommandCompletions.length
+    );
   };
 
   const handleFocusedControlEnter = () => {
@@ -3206,6 +3635,43 @@ export const App: React.FC<AppProps> = ({
            exit();
            return;
          }
+         const selectionDirection =
+           key.downArrow || lowerInput === "j"
+             ? 1
+             : key.upArrow || lowerInput === "k"
+               ? -1
+               : undefined;
+         if (
+           selectionDirection &&
+           selectableWorkspaceTab(activeWorkspaceTab) &&
+           !key.ctrl &&
+           !key.meta
+         ) {
+           if (activeWorkspaceTab === "projects") {
+             moveSelectedProject(selectionDirection);
+           } else {
+             moveSelectedConnection(selectionDirection);
+           }
+           return;
+         }
+         if (key.return && selectableWorkspaceTab(activeWorkspaceTab)) {
+           if (activeWorkspaceTab === "projects") {
+             const project = activeProjectList[selectedProjectIndex];
+             setNotice(
+               project
+                 ? `Project selected for chat context: ${truncateForTerminal(project.name, 80)}`
+                 : "No project rows are available to select."
+             );
+           } else {
+             const connection = activeConnections[selectedConnectionIndex];
+             setNotice(
+               connection
+                 ? `Connection selected: ${truncateForTerminal(recordLabel(connection, "connection"), 80)}`
+                 : "No connection rows are available to select."
+             );
+           }
+           return;
+         }
          if (key.upArrow && !key.ctrl && !key.meta) {
            workspaceScrollViewRef.current?.scrollBy(-1);
            return;
@@ -3323,9 +3789,30 @@ export const App: React.FC<AppProps> = ({
        }
 
        if (
+         slashCommandCompletionsActive &&
+         (key.tab || inputKey === "\t" || key.downArrow) &&
+         !key.ctrl &&
+         !key.meta
+       ) {
+         moveSlashCommandCompletion(1);
+         return;
+       }
+
+       if (
+         slashCommandCompletionsActive &&
+         key.upArrow &&
+         !key.ctrl &&
+         !key.meta
+       ) {
+         moveSlashCommandCompletion(-1);
+         return;
+       }
+
+       if (
          promptInputActive &&
          (key.tab || inputKey === "\t") &&
-         input.trimStart().startsWith("/")
+         input.trimStart().startsWith("/") &&
+         !slashCommandCompletionsActive
        ) {
          const completion = completePromptInput(
            input,
@@ -3410,9 +3897,30 @@ export const App: React.FC<AppProps> = ({
          }
        }
 
-       if (phase === "ready" && (!input.trim() || !promptInputActive)) {
-         if (key.tab || inputKey === "\t") {
-           setFocusedControl((current) => nextControlFocus(current, controlFocusOrder));
+       if (
+         phase === "ready" &&
+         activeWorkspaceTab === "chat" &&
+         !promptInputActive &&
+         !activeSelector &&
+         !isSearching
+       ) {
+         if (lowerInput === "y") {
+           copyLatestAssistantResponse();
+           return;
+         }
+         if (lowerInput === "d") {
+           downloadChatTranscript();
+           return;
+         }
+         if (lowerInput === "o") {
+           handleOpenFrontend();
+           return;
+         }
+       }
+
+	       if (phase === "ready" && (!input.trim() || !promptInputActive)) {
+	         if (key.tab || inputKey === "\t") {
+	           setFocusedControl((current) => nextControlFocus(current, controlFocusOrder));
            return;
          }
          if (key.leftArrow && !key.ctrl && !key.meta) {
@@ -3572,6 +4080,7 @@ export const App: React.FC<AppProps> = ({
          stopActiveChat();
        }
        if (key.ctrl && inputKey.toLowerCase() === "l") {
+         setActiveDraftSessionKey(newDraftChatSessionKey());
          setChatState((prev) => ({
            ...initialChatState,
            status: "idle",
@@ -3808,6 +4317,7 @@ export const App: React.FC<AppProps> = ({
                   state={activeWorkspacePanelState}
                   projects={projects}
                   selectedProject={selectedProject}
+                  selectedConnectionIndex={selectedConnectionIndex}
                   currentUserId={currentUserId}
                   selectedModel={selectedModel}
                   selectedMode={selectedMode}
@@ -3915,13 +4425,23 @@ export const App: React.FC<AppProps> = ({
                   ) : null}
                 </TitledBox>
               ) : null}
+              {!splitChatLayout && chatArtifactChips.length ? (
+                <Box marginTop={1}>
+                  <ArtifactStrip
+                    chips={chatArtifactChips}
+                    terminalColumns={chatAvailableWidth}
+                  />
+                </Box>
+              ) : null}
               {splitChatLayout ? (
                 <Box flexDirection="row" columnGap={chatSplitGap}>
                   <ChatContextPanel
                     width={chatContextPanelWidth}
                     height={chatMainPanelRows}
+                    mode={chatResponsiveMode}
                     active={activeChatPanel === "settings"}
                     focused={focusedControl}
+                    artifactChips={chatArtifactChips}
                     selectedThreadTitle={selectedThreadTitle}
                     selectedProject={selectedProject}
                     selectedModel={selectedModel}
@@ -3970,7 +4490,9 @@ export const App: React.FC<AppProps> = ({
                         (item.value.kind === "remote" &&
                           item.value.thread.thread_id === chatState.threadId) ||
                         (item.value.kind === "session" &&
-                          item.value.session.threadId === chatState.threadId)
+                          item.value.session.threadId === chatState.threadId) ||
+                        (item.value.kind === "draft" &&
+                          item.value.draft.key === activeDraftSessionKey)
                     )
                   )}
                   onSubmit={(item) => selectThread(item.value)}
@@ -4082,6 +4604,7 @@ export const App: React.FC<AppProps> = ({
           />
       ) : activeSelector ? null : (
           <InputBox
+            variant="dock"
             value={input}
             onChange={handlePromptChange}
             onSubmit={handlePromptSubmit}
@@ -4103,6 +4626,10 @@ export const App: React.FC<AppProps> = ({
             followUpsLabel={promptSuggestions.label}
             focusedFollowUpIndex={focusedFollowUpIndex}
             followUpsActive={focusedFollowUpIndex !== undefined}
+            commandCompletions={slashCommandCompletions}
+            focusedCommandCompletionIndex={activeSlashCommandCompletionIndex}
+            commandCompletionsActive={slashCommandCompletionsActive}
+            onCommandCompletionSubmit={chooseSlashCommandCompletion}
             terminalColumns={terminalSize.columns}
             scrollOffset={promptInputViewport.startRow}
             minInputRows={promptInputRowBudget}
@@ -4114,7 +4641,7 @@ export const App: React.FC<AppProps> = ({
               selectorOpen: Boolean(activeSelector),
               searching: isSearching,
             })}
-            footerControls={promptFooterControls}
+            footerControls={slashCommandCompletionsActive ? undefined : promptFooterControls}
             helpText=""
             actionLabel={promptActionIsCancel ? "ESC to cancel" : undefined}
             actionHint={getChatInputHelpText({

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  buildDraftThreadSummary,
   buildThreadSelectItems,
   localSessionMessagesToChatMessages,
   remoteThreadMessagesToChatMessages,
@@ -45,6 +46,64 @@ test("buildThreadSelectItems includes new thread and recent local session titles
     "Local session · created 2h ago · Production · 2 messages"
   );
   assert.equal(items[1].value.kind, "session");
+});
+
+test("buildThreadSelectItems includes independent open draft sessions", () => {
+  const draft = buildDraftThreadSummary({
+    key: "draft-1",
+    state: {
+      status: "idle",
+      messages: [
+        {
+          id: "u1",
+          role: "user",
+          content: "Review network drift",
+          createdAt: Date.parse("2026-05-18T12:01:00.000Z"),
+        },
+      ],
+    },
+    projectName: "Playground",
+    updatedAt: Date.parse("2026-05-18T12:01:00.000Z"),
+  });
+  assert.ok(draft);
+  const items = buildThreadSelectItems([], undefined, [], {
+    drafts: [draft],
+    now: Date.parse("2026-05-18T12:05:00.000Z"),
+  });
+
+  assert.equal(items[1].label, "Review network drift · 4m");
+  assert.equal(
+    items[1].description,
+    "Open session · active locally · created 4m ago · Playground · 1 message"
+  );
+  assert.deepEqual(items[1].value, { kind: "draft", draft });
+});
+
+test("buildDraftThreadSummary uses the latest message time when no update time is provided", () => {
+  const draft = buildDraftThreadSummary({
+    key: "draft-2",
+    state: {
+      status: "idle",
+      messages: [
+        {
+          id: "u1",
+          role: "user",
+          content: "First prompt",
+          createdAt: Date.parse("2026-05-18T12:01:00.000Z"),
+        },
+        {
+          id: "a1",
+          role: "assistant",
+          content: "First answer",
+          createdAt: Date.parse("2026-05-18T12:02:00.000Z"),
+          updatedAt: Date.parse("2026-05-18T12:03:00.000Z"),
+        },
+      ],
+    },
+  });
+
+  assert.ok(draft);
+  assert.equal(draft.updatedAt, Date.parse("2026-05-18T12:03:00.000Z"));
 });
 
 test("buildThreadSelectItems prefers cloud threads and deduplicates local matches", () => {

@@ -18,6 +18,8 @@ export type PromptCommand<ProjectLike = { id: string; name: string }> =
   | { type: "toggleThinking" }
   | { type: "stopChat" }
   | { type: "openFrontend" }
+  | { type: "copyLatestResponse" }
+  | { type: "downloadTranscript" }
   | { type: "showHelp" }
   | { type: "showStarters" }
   | { type: "setModel"; model: string; label: string }
@@ -41,11 +43,13 @@ type SlashCommand = {
   description: string;
 };
 
+export type SlashCommandCompletionItem = SlashCommand;
+
 export const slashCommands: SlashCommand[] = [
   {
     name: "/thread",
     aliases: ["/threads"],
-    description: "Open thread selector or use /thread <title-or-id>.",
+    description: "Open session/thread selector or use /thread <title-or-id>.",
   },
   {
     name: "/project",
@@ -88,6 +92,16 @@ export const slashCommands: SlashCommand[] = [
     description: "Open the current thread in the frontend.",
   },
   {
+    name: "/copy",
+    aliases: ["/copy-response"],
+    description: "Copy the latest assistant response with numbered citations.",
+  },
+  {
+    name: "/download",
+    aliases: ["/export"],
+    description: "Download the current chat transcript as Markdown.",
+  },
+  {
     name: "/help",
     aliases: ["/?"],
     description: "Show command help.",
@@ -107,6 +121,35 @@ const firstTokenAndRest = (input: string): { command: string; rest: string } => 
 
 const allCommandNames = (): string[] =>
   slashCommands.flatMap((command) => [command.name, ...command.aliases]);
+
+export const buildSlashCommandCompletionItems = (
+  input: string
+): SlashCommandCompletionItem[] => {
+  const trimmed = input.trimStart();
+  if (!trimmed.startsWith("/") || /\s/.test(trimmed)) {
+    return [];
+  }
+  const query = normalize(trimmed);
+  return slashCommands.filter((command) => {
+    if (query === "/") {
+      return true;
+    }
+    return [command.name, ...command.aliases].some((name) =>
+      name.startsWith(query)
+    );
+  });
+};
+
+export const slashCommandGhostSuffix = (
+  input: string,
+  command?: SlashCommandCompletionItem
+): string | undefined => {
+  const trimmed = input.trimStart();
+  if (!command || !trimmed.startsWith("/") || /\s/.test(trimmed)) {
+    return undefined;
+  }
+  return toGhostSuffix(trimmed, command.name);
+};
 
 const completeFromCandidates = (
   input: string,
@@ -129,12 +172,12 @@ const completeFromCandidates = (
   };
 };
 
-const toGhostSuffix = (input: string, suggestion: string): string | undefined => {
+function toGhostSuffix(input: string, suggestion: string): string | undefined {
   if (!suggestion.startsWith(input) || suggestion === input) {
     return undefined;
   }
   return suggestion.slice(input.length);
-};
+}
 
 const modelValue = (item: SelectPanelItem<string>): string =>
   item.value || "auto";
@@ -377,6 +420,14 @@ export const resolvePromptCommand = <
 
   if (command === "/open" || command === "/frontend") {
     return { type: "openFrontend" };
+  }
+
+  if (command === "/copy" || command === "/copy-response") {
+    return { type: "copyLatestResponse" };
+  }
+
+  if (command === "/download" || command === "/export") {
+    return { type: "downloadTranscript" };
   }
 
   if (command === "/help" || command === "/?") {

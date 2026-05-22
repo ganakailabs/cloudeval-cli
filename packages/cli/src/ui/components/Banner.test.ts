@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import "../../runtime/prepareInk";
-import { bannerSegmentColor, splitBannerLineSegments } from "./Banner.js";
+import {
+  bannerMetaColor,
+  bannerSegmentColor,
+  splitBannerLineSegments,
+} from "./Banner.js";
+import { terminalTheme } from "../theme.js";
 
 test("splitBannerLineSegments separates fill and outline glyphs for color rendering", () => {
   assert.deepEqual(splitBannerLineSegments("██╔═  ╚█"), [
@@ -51,4 +56,8 @@ test("bannerSegmentColor disables gradient colors when terminal color is disable
       process.env.NO_COLOR = previousNoColor;
     }
   }
+});
+
+test("banner metadata uses the primary accent color", () => {
+  assert.equal(bannerMetaColor(), terminalTheme.accent);
 });

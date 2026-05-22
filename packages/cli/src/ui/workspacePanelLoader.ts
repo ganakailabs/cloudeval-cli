@@ -292,7 +292,7 @@ export const loadWorkspacePanelData = async ({
     }
   };
 
-  if (tab === "overview" || tab === "connections") {
+  if (tab === "overview" || tab === "connections" || tab === "projects") {
     if (currentUserId) {
       await capture("connections", "Connections", () =>
         deps.listConnections({ ...client, userId: currentUserId })

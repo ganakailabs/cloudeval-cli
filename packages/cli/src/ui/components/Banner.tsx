@@ -93,6 +93,8 @@ export const bannerSegmentColor = (
   return undefined;
 };
 
+export const bannerMetaColor = (): string | undefined => terminalTheme.accent;
+
 const BannerArtLine: React.FC<{
   line: string;
   lineIndex: number;
@@ -128,7 +130,7 @@ export const Banner: React.FC<BannerProps> = ({
     <Box flexDirection="column" alignItems="flex-start" marginBottom={1}>
       {showArt ? (
         <>
-          <Text color={terminalTheme.success}>Welcome to</Text>
+          <Text color={bannerMetaColor()}>Welcome to</Text>
           <Box flexDirection="row" gap={2}>
             <Box flexDirection="column">
               {art.map((line, lineIndex) => (
@@ -142,7 +144,7 @@ export const Banner: React.FC<BannerProps> = ({
             </Box>
             {showDetailsBesideArt ? (
               <Box flexDirection="column" paddingTop={1}>
-                <Text color={terminalTheme.success}>CLI v{version}</Text>
+                <Text color={bannerMetaColor()}>CLI v{version}</Text>
                 {details.map((detail) => (
                   <Text key={detail} dimColor wrap="truncate">
                     {detail}
@@ -155,7 +157,7 @@ export const Banner: React.FC<BannerProps> = ({
       ) : null}
       {!showDetailsBesideArt ? (
         <>
-          <Text color={terminalTheme.success}>CLI v{version}</Text>
+          <Text color={bannerMetaColor()}>CLI v{version}</Text>
           {details.map((detail) => (
             <Text key={detail} dimColor wrap="truncate">
               {detail}

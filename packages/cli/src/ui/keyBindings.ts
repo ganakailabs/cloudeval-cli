@@ -24,7 +24,7 @@ export const getTuiKeyBindings = (
   quit: "Ctrl+C quit",
   tabFocus: "Tab focus",
   tabSwitch: "Arrow keys move focus",
-  commandComplete: "Tab completes slash commands",
+  commandComplete: "Tab/↑↓ slash command menu",
   historySearch: "Ctrl+R history search",
   cancel: "Esc cancel response",
   scroll: "Ctrl+Up/Down scroll",
@@ -51,8 +51,8 @@ export const getChatInputHelpText = ({
   }
 
   if (promptCount <= 0) {
-    return "Enter send | Esc controls | Ctrl+J newline | /starter | /help";
+    return "Enter send | Esc controls | /copy | /download | /help";
   }
 
-  return "Enter send/choose | Esc controls | Tab focus | 1-8 tabs | /help";
+  return "Enter send/choose | Esc controls | /copy | Tab focus | /help";
 };

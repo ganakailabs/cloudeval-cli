@@ -3,7 +3,9 @@ import test from "node:test";
 import "../../runtime/prepareInk";
 import { shouldSubmitInputOnReturn } from "../inputSubmitBehavior";
 import {
+  getCommandCompletionViewport,
   getFollowUpRowViewport,
+  getPromptDisplayRows,
   getInputCursorGlyph,
   getInputCursorColor,
   shouldBlinkPromptCursor,
@@ -39,10 +41,10 @@ test("input cursor stays static by default to avoid idle TUI redraws", () => {
   );
 });
 
-test("prompt cursor only blinks while useful to avoid idle TUI flicker", () => {
+test("prompt cursor blinks while prompt input is active", () => {
   assert.equal(
     shouldBlinkPromptCursor({ animationsEnabled: true, busy: false }),
-    false
+    true
   );
   assert.equal(
     shouldBlinkPromptCursor({ animationsEnabled: true, busy: true }),
@@ -130,4 +132,48 @@ test("getFollowUpRowViewport keeps full prompt labels when they fit", () => {
   assert.equal(viewport.clippedEnd, false);
   assert.equal(viewport.items[0]?.label, `1. ${firstPrompt}`);
   assert.equal(viewport.items[1]?.label, `2. ${secondPrompt}`);
+});
+
+test("getCommandCompletionViewport keeps the active slash command visible", () => {
+  const viewport = getCommandCompletionViewport({
+    commands: [
+      { name: "/thread", description: "Threads" },
+      { name: "/project", description: "Projects" },
+      { name: "/model", description: "Models" },
+      { name: "/download", description: "Download transcript" },
+    ],
+    focusedIndex: 3,
+    terminalColumns: 42,
+  });
+
+  assert.equal(viewport.clippedStart, true);
+  assert.equal(viewport.clippedEnd, false);
+  assert.deepEqual(
+    viewport.items.map((item) => item.command.name),
+    ["/model", "/download"]
+  );
+  assert.equal(viewport.rowCount, 1);
+});
+
+test("getPromptDisplayRows only shows prompt marker on real input rows", () => {
+  const rows = getPromptDisplayRows({
+    visibleRows: ["cdscdsc", "", "", ""],
+    startRow: 0,
+    inputRowCount: 1,
+  });
+
+  assert.deepEqual(
+    rows.map((row) => ({
+      line: row.line,
+      showPromptPrefix: row.showPromptPrefix,
+      showCursor: row.showCursor,
+      isFiller: row.isFiller,
+    })),
+    [
+      { line: "cdscdsc", showPromptPrefix: true, showCursor: true, isFiller: false },
+      { line: "", showPromptPrefix: false, showCursor: false, isFiller: true },
+      { line: "", showPromptPrefix: false, showCursor: false, isFiller: true },
+      { line: "", showPromptPrefix: false, showCursor: false, isFiller: true },
+    ]
+  );
 });

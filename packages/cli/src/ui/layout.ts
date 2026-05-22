@@ -22,6 +22,8 @@ export interface ResponsiveTuiLayout {
   threadHeight: number;
 }
 
+export type ChatResponsiveMode = "narrow" | "medium" | "wide";
+
 export interface MiddleViewportRowsOptions {
   headerRows?: number;
   footerRows?: number;
@@ -119,10 +121,50 @@ export const getPromptInputRowBudget = (size: Partial<TerminalSize>): number => 
   return clamp(Math.floor(rows * 0.13), 4, 8);
 };
 
-export const shouldUseSplitChatLayout = (size: Partial<TerminalSize>): boolean => {
+export const getChatResponsiveMode = (size: Partial<TerminalSize>): ChatResponsiveMode => {
   const columns = normalizeDimension(size.columns, 100);
   const rows = normalizeDimension(size.rows, 32);
-  return columns >= 132 && rows >= 40;
+  if (columns >= 132 && rows >= 40) {
+    return "wide";
+  }
+  if (columns >= 112 && rows >= 34) {
+    return "medium";
+  }
+  return "narrow";
+};
+
+export const shouldUseSplitChatLayout = (size: Partial<TerminalSize>): boolean =>
+  getChatResponsiveMode(size) !== "narrow";
+
+export const getContextRailWidth = (size: Partial<TerminalSize>): number => {
+  const mode = getChatResponsiveMode(size);
+  const columns = normalizeDimension(size.columns, 100);
+  if (mode === "wide") {
+    return Math.min(40, Math.max(34, Math.ceil(columns * 0.25)));
+  }
+  if (mode === "medium") {
+    return Math.min(30, Math.max(28, Math.ceil(columns * 0.25)));
+  }
+  return 0;
+};
+
+export const estimateComposerRows = ({
+  inputRows,
+  suggestionRows,
+  includeControls = true,
+  controlRows = 0,
+  variant = "panel",
+}: {
+  inputRows: number;
+  suggestionRows: number;
+  includeControls?: boolean;
+  controlRows?: number;
+  variant?: "dock" | "panel";
+}): number => {
+  const chromeRows = variant === "dock" ? 1 : 2;
+  const inputRowsWithHint = inputRows + 1;
+  const footerRows = includeControls ? controlRows : 0;
+  return chromeRows + Math.max(0, suggestionRows) + inputRowsWithHint + footerRows;
 };
 
 export const truncateForTerminal = (value: string, maxLength: number): string => {

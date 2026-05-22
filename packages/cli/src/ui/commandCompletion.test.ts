@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  buildSlashCommandCompletionItems,
   completePromptInput,
   resolvePromptCommand,
+  slashCommandGhostSuffix,
   type CompletionCycleState,
 } from "./commandCompletion";
 
@@ -29,6 +31,7 @@ const context = {
   ],
   threads: [
     { label: "New thread", value: "new" },
+    { label: "Review network drift", value: "draft-1" },
     { label: "Cost review", value: "thread-cost" },
     { label: "Architecture triage", value: "thread-arch" },
   ],
@@ -36,6 +39,23 @@ const context = {
 
 test("completePromptInput does not pick a command for lone slash", () => {
   assert.equal(completePromptInput("/", context), null);
+});
+
+test("buildSlashCommandCompletionItems exposes bottom command choices for slash input", () => {
+  const all = buildSlashCommandCompletionItems("/");
+  assert.ok(all.length >= 8);
+  assert.deepEqual(all[0], {
+    name: "/thread",
+    aliases: ["/threads"],
+    description: "Open session/thread selector or use /thread <title-or-id>.",
+  });
+
+  const partial = buildSlashCommandCompletionItems("/mo");
+  assert.deepEqual(
+    partial.map((item) => item.name),
+    ["/model", "/mode"]
+  );
+  assert.equal(slashCommandGhostSuffix("/mo", partial[0]), "del");
 });
 
 test("completePromptInput cycles ambiguous slash commands", () => {
@@ -125,6 +145,11 @@ test("resolvePromptCommand opens and selects local threads", () => {
     threadId: "thread-cost",
     label: "Cost review",
   });
+  assert.deepEqual(resolvePromptCommand("/thread review", context), {
+    type: "setThread",
+    threadId: "draft-1",
+    label: "Review network drift",
+  });
 });
 
 test("resolvePromptCommand supports chat stop aliases", () => {
@@ -137,5 +162,18 @@ test("resolvePromptCommand shows starter selections on demand", () => {
   assert.equal(completePromptInput("/sta", context)?.value, "/starter");
   assert.deepEqual(resolvePromptCommand("/starter", context), {
     type: "showStarters",
+  });
+});
+
+test("resolvePromptCommand supports response copy and transcript download", () => {
+  assert.equal(completePromptInput("/co", context)?.value, "/copy");
+  assert.deepEqual(resolvePromptCommand("/copy", context), {
+    type: "copyLatestResponse",
+  });
+  assert.deepEqual(resolvePromptCommand("/download", context), {
+    type: "downloadTranscript",
+  });
+  assert.deepEqual(resolvePromptCommand("/export", context), {
+    type: "downloadTranscript",
   });
 });

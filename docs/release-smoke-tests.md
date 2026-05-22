@@ -139,9 +139,24 @@ The smoke script verifies:
   `/chat/stream` must trigger one refresh-token exchange and one retry with the
   refreshed access token.
 - Terminal UI Agent Profile coverage is handled by the CLI unit suite and a
-  manual TUI smoke: the chat settings row must show `Profile [Profile]`,
-  `/profile` must open the Agent Profile selector, `/profile cost` must select
-  the Cost profile, and selecting Ask mode must clear the profile.
+  manual TUI smoke: the chat context rail or docked composer controls must show
+  `Profile [Profile]`, `/profile` must open the Agent Profile selector,
+  `/profile cost` must select the Cost profile, and selecting Ask mode must
+  clear the profile. The same smoke should confirm a roomy terminal shows
+  report artifact chips, streaming work is labeled as a task ledger, raw
+  `[S_tool_...]` citation tags render as highlighted numbered sources, `/copy`
+  copies the latest assistant response, `/download` writes a Markdown chat
+  transcript, `/thread new` creates another independent open session, the
+  Thread selector can switch open sessions plus local/cloud threads, Projects
+  and Connections show selected-item details, `J`/`K` and Up/Down move selected
+  project/connection rows, Enter confirms the selected row, typing `/` opens
+  the bottom slash-command completion strip, Tab or Up/Down moves the active
+  command, Right accepts the ghost text, Enter chooses the highlighted command,
+  and the billing
+  header separates credits left from observed credits used. Banner details
+  should include the logged-in user. The active top tab should use the warm
+  banner-yellow accent, fill the full button interior, and highlight the
+  selected label text.
 - `cloudeval models list --format json` reaches the real backend and returns at
   least one model.
 - `cloudeval billing plans --format json --non-interactive` returns a parseable

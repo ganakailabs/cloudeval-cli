@@ -1,13 +1,24 @@
 import { randomUUID } from "node:crypto";
-import type { ChatMessage } from "@cloudeval/shared";
+import type { ChatMessage, ChatState } from "@cloudeval/shared";
 import type { LocalSession } from "../sessionsStore.js";
 import type { SelectPanelItem } from "./components/SelectPanel.js";
 import { truncateForTerminal } from "./layout.js";
 
 export type ThreadSelectValue =
   | { kind: "new" }
+  | { kind: "draft"; draft: DraftThreadSummary }
   | { kind: "remote"; thread: RemoteThreadSummary }
   | { kind: "session"; session: LocalSession };
+
+export interface DraftThreadSummary {
+  key: string;
+  title: string;
+  threadId?: string;
+  updatedAt?: number;
+  projectName?: string;
+  messageCount: number;
+  status?: ChatState["status"];
+}
 
 export interface RemoteThreadSummary {
   thread_id: string;
@@ -33,6 +44,7 @@ export interface RemoteThreadHistory extends RemoteThreadSummary {
 
 interface BuildThreadSelectItemsOptions {
   now?: number;
+  drafts?: DraftThreadSummary[];
 }
 
 const timestampFromIso = (value: string, fallbackOffset: number): number => {
@@ -90,6 +102,17 @@ const sessionDescription = (session: LocalSession, age?: string): string => {
   const project = session.projectName || session.projectId;
   const messages = `${session.messageCount} message${session.messageCount === 1 ? "" : "s"}`;
   return [createdAgeDescription(age), project, messages].filter(Boolean).join(" · ");
+};
+
+const draftDescription = (draft: DraftThreadSummary, age?: string): string => {
+  const messages = `${draft.messageCount} message${draft.messageCount === 1 ? "" : "s"}`;
+  const status =
+    draft.status && draft.status !== "idle" && draft.status !== "complete"
+      ? draft.status.replace(/_/g, " ")
+      : "active locally";
+  return ["Open session", status, createdAgeDescription(age), draft.projectName, messages]
+    .filter(Boolean)
+    .join(" · ");
 };
 
 const remoteTitle = (thread: RemoteThreadSummary): string => {
@@ -209,6 +232,43 @@ export const localSessionMessagesToChatMessages = (
     createdAt: timestampFromIso(message.createdAt, index),
   }));
 
+export const buildDraftThreadSummary = ({
+  key,
+  state,
+  projectName,
+  updatedAt,
+}: {
+  key: string;
+  state: ChatState;
+  projectName?: string;
+  updatedAt?: number;
+}): DraftThreadSummary | null => {
+  const messages = state.messages.filter((message) => message.content.trim());
+  if (!messages.length && !state.threadId) {
+    return null;
+  }
+  const firstUserMessage = messages.find((message) => message.role === "user");
+  const fallbackTitle = state.threadId ?? "New local session";
+  const title = truncateForTerminal(
+    firstUserMessage?.content.trim() || messages[0]?.content.trim() || fallbackTitle,
+    72
+  );
+  const messageTimestamps = messages
+    .map((message) => message.updatedAt ?? message.createdAt)
+    .filter((value) => Number.isFinite(value));
+  const lastUpdated =
+    updatedAt ?? (messageTimestamps.length ? Math.max(...messageTimestamps) : Date.now());
+  return {
+    key,
+    title,
+    threadId: state.threadId,
+    updatedAt: lastUpdated,
+    projectName,
+    messageCount: messages.length,
+    status: state.status,
+  };
+};
+
 export const buildThreadSelectItems = (
   sessions: LocalSession[],
   activeThreadId?: string,
@@ -220,6 +280,14 @@ export const buildThreadSelectItems = (
     value: { kind: "new" },
     description: activeThreadId ? "Start a fresh CloudEval chat thread." : "Current selection.",
   },
+  ...(options.drafts ?? []).map((draft) => {
+    const age = draft.updatedAt ? relativeThreadAge(new Date(draft.updatedAt).toISOString(), options.now) : undefined;
+    return {
+      label: titleWithAge(draft.title, age),
+      value: { kind: "draft" as const, draft },
+      description: draftDescription(draft, age),
+    };
+  }),
   ...remoteThreads.map((thread) => {
     const age = relativeThreadAge(thread.created_at ?? thread.updated_at, options.now);
     return {

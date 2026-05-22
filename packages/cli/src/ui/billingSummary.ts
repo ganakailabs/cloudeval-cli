@@ -2,6 +2,8 @@ export type BillingSummaryState = {
   plan: string;
   remaining: number;
   total: number;
+  used?: number;
+  reportedUsed?: number;
   status?: string;
   tone?: "normal" | "success" | "warning" | "danger" | string;
 };
@@ -29,11 +31,18 @@ export const creditProgressText = ({
 export const billingSummaryText = (
   billing: BillingSummaryState | null,
   progressWidth = 10
-): string =>
-  billing
-    ? `Plan: ${billing.plan} | Credits: ${formatCredits(billing.remaining)}/${formatCredits(billing.total)} ${creditProgressText({
+): string => {
+  if (!billing) {
+    return "Plan: loading | Credits: loading";
+  }
+  const used = Math.max(Number(billing.reportedUsed ?? billing.used ?? 0), 0);
+  const creditLabel =
+    used > 0
+      ? `${formatCredits(billing.remaining)} left | Used: ${formatCredits(used)}`
+      : `${formatCredits(billing.remaining)}/${formatCredits(billing.total)}`;
+  return `Plan: ${billing.plan} | Credits: ${creditLabel} ${creditProgressText({
         remaining: billing.remaining,
         total: billing.total,
         width: progressWidth,
-      })}`
-    : "Plan: loading | Credits: loading";
+      })}`;
+};

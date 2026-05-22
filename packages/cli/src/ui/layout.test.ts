@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  estimateComposerRows,
   estimateBannerRows,
+  getChatResponsiveMode,
+  getContextRailWidth,
   getFramedBodyRows,
   getMiddleViewportRows,
   getPromptInputRowBudget,
@@ -86,8 +89,42 @@ test("estimateBannerRows counts the Welcome row in each banner layout", () => {
 test("shouldUseSplitChatLayout only enables the side context on roomy terminals", () => {
   assert.equal(shouldUseSplitChatLayout({ columns: 160, rows: 48 }), true);
   assert.equal(shouldUseSplitChatLayout({ columns: 132, rows: 40 }), true);
-  assert.equal(shouldUseSplitChatLayout({ columns: 120, rows: 48 }), false);
-  assert.equal(shouldUseSplitChatLayout({ columns: 131, rows: 48 }), false);
-  assert.equal(shouldUseSplitChatLayout({ columns: 160, rows: 39 }), false);
-  assert.equal(shouldUseSplitChatLayout({ columns: 160, rows: 34 }), false);
+  assert.equal(shouldUseSplitChatLayout({ columns: 118, rows: 36 }), true);
+  assert.equal(shouldUseSplitChatLayout({ columns: 108, rows: 48 }), false);
+  assert.equal(shouldUseSplitChatLayout({ columns: 111, rows: 48 }), false);
+  assert.equal(shouldUseSplitChatLayout({ columns: 160, rows: 33 }), false);
+});
+
+test("getChatResponsiveMode separates wide, medium, and narrow chat layouts", () => {
+  assert.equal(getChatResponsiveMode({ columns: 160, rows: 48 }), "wide");
+  assert.equal(getChatResponsiveMode({ columns: 118, rows: 36 }), "medium");
+  assert.equal(getChatResponsiveMode({ columns: 96, rows: 36 }), "narrow");
+  assert.equal(getChatResponsiveMode({ columns: 160, rows: 31 }), "narrow");
+});
+
+test("getContextRailWidth keeps the rail useful without stealing the thread", () => {
+  assert.equal(getContextRailWidth({ columns: 160, rows: 48 }), 40);
+  assert.equal(getContextRailWidth({ columns: 118, rows: 36 }), 30);
+  assert.equal(getContextRailWidth({ columns: 96, rows: 36 }), 0);
+});
+
+test("estimateComposerRows budgets a flatter dock than the framed panel", () => {
+  assert.equal(
+    estimateComposerRows({
+      inputRows: 4,
+      suggestionRows: 1,
+      includeControls: false,
+      variant: "panel",
+    }),
+    8
+  );
+  assert.equal(
+    estimateComposerRows({
+      inputRows: 4,
+      suggestionRows: 1,
+      includeControls: false,
+      variant: "dock",
+    }),
+    7
+  );
 });

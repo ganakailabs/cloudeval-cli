@@ -4,6 +4,11 @@ import { ChatMessage } from "@cloudeval/shared";
 import { supportsLanguage } from "cli-highlight";
 import SyntaxHighlight from "ink-syntax-highlight";
 import { terminalTheme } from "../theme.js";
+import {
+  buildCitationReferences,
+  toDisplayCitationContent,
+  type CitationReference,
+} from "../citationContent.js";
 import { hasRenderableTranscriptMessages } from "../transcriptModel.js";
 import { Spinner } from "./Spinner.js";
 import { TitledBox } from "./TitledBox.js";
@@ -18,6 +23,9 @@ export interface TranscriptProps {
 }
 
 const AI_NAME = "Cloudeval AI";
+
+export const getTranscriptRoleColor = (role: "user" | "assistant"): string | undefined =>
+  role === "user" ? terminalTheme.userName : terminalTheme.aiName;
 
 interface ParsedBlock {
   type: "text" | "code";
@@ -68,28 +76,58 @@ const parseMarkdown = (text: string): ParsedBlock[] => {
   return blocks;
 };
 
+export type InlineMarkdownToken = {
+  type: "text" | "code" | "bold" | "citation";
+  text: string;
+};
+
+export const tokenizeInlineMarkdown = (text: string): InlineMarkdownToken[] => {
+  const segments = text
+    .split(/(`[^`\n]+`|\*\*[^*\n]+\*\*|\[[1-9][0-9]*\])/g)
+    .filter(Boolean);
+  return segments.map((segment) => {
+    if (segment.startsWith("`") && segment.endsWith("`")) {
+      return { type: "code", text: segment.slice(1, -1) };
+    }
+    if (segment.startsWith("**") && segment.endsWith("**")) {
+      return { type: "bold", text: segment.slice(2, -2) };
+    }
+    if (/^\[[1-9][0-9]*\]$/.test(segment)) {
+      return { type: "citation", text: segment };
+    }
+    return { type: "text", text: segment };
+  });
+};
+
 const renderInlineMarkdown = (
   text: string,
   keyPrefix: string
 ): React.ReactNode[] => {
-  const segments = text.split(/(`[^`\n]+`|\*\*[^*\n]+\*\*)/g).filter(Boolean);
+  const segments = tokenizeInlineMarkdown(text);
   return segments.map((segment, index) => {
     const key = `${keyPrefix}-${index}`;
-    if (segment.startsWith("`") && segment.endsWith("`")) {
+    if (segment.type === "code") {
       return (
         <Text key={key} color={terminalTheme.accent}>
-          {segment.slice(1, -1)}
+          {segment.text}
         </Text>
       );
     }
-    if (segment.startsWith("**") && segment.endsWith("**")) {
+    if (segment.type === "bold") {
       return (
         <Text key={key} bold>
-          {segment.slice(2, -2)}
+          {segment.text}
         </Text>
       );
     }
-    return <Text key={key}>{segment}</Text>;
+    if (segment.type === "citation") {
+      return (
+        <Text key={key} color={terminalTheme.citation} bold>
+          {segment.text}
+        </Text>
+      );
+    }
+    return <Text key={key}>{segment.text}</Text>;
   });
 };
 
@@ -137,12 +175,41 @@ const MarkdownText: React.FC<{ content: string; dim?: boolean }> = ({
   );
 };
 
-const FormattedContent: React.FC<{ content: string; role: "user" | "assistant" }> = ({ content, role }) => {
+const CitationReferences: React.FC<{ references: CitationReference[] }> = ({
+  references,
+}) => {
+  if (!references.length) {
+    return null;
+  }
+  return (
+    <Box flexDirection="column" marginTop={1}>
+      <Text color={terminalTheme.brand}>Sources</Text>
+      {references.map((reference) => (
+        <Text key={reference.sourceId} dimColor wrap="wrap">
+          <Text color={terminalTheme.brand}>[{reference.number}]</Text>{" "}
+          {reference.label}
+          {reference.url ? ` - ${reference.url}` : ""}
+        </Text>
+      ))}
+    </Box>
+  );
+};
+
+const FormattedContent: React.FC<{
+  message: ChatMessage;
+  role: "user" | "assistant";
+}> = ({ message, role }) => {
+  const content = message.content;
   if (role === "user") {
     return <MarkdownText content={content} />;
   }
 
   const blocks = parseMarkdown(content);
+  const references = buildCitationReferences({
+    content,
+    toolsUsed: message.toolsUsed,
+    citations: message.citations,
+  });
 
   return (
     <Box flexDirection="column">
@@ -164,8 +231,14 @@ const FormattedContent: React.FC<{ content: string; role: "user" | "assistant" }
             </TitledBox>
           );
         }
-        return <MarkdownText key={idx} content={block.content} />;
+        return (
+          <MarkdownText
+            key={idx}
+            content={toDisplayCitationContent(block.content)}
+          />
+        );
       })}
+      <CitationReferences references={references} />
     </Box>
   );
 };
@@ -219,6 +292,30 @@ const getStepStatusMeta = (status?: string) => {
   return { marker: "•", label: status || "pending", color: terminalTheme.muted };
 };
 
+export const summarizeThinkingLedger = (
+  steps: NonNullable<ChatMessage["thinkingSteps"]>
+): { title: "Task Ledger"; completed: number; failed: number; running: number; parts: string[] } => {
+  const completed = steps.filter((step) => step.status === "completed").length;
+  const failed = steps.filter(
+    (step) =>
+      step.status === "error" ||
+      step.status === "aborted" ||
+      step.status === "cancelled"
+  ).length;
+  const running = steps.filter((step) => step.status === "streaming").length;
+  return {
+    title: "Task Ledger",
+    completed,
+    failed,
+    running,
+    parts: [
+      `${completed}/${steps.length} done`,
+      failed ? `${failed} failed` : "",
+      running ? `${running} running` : "",
+    ].filter(Boolean),
+  };
+};
+
 const ProgressBar: React.FC<{
   completed: number;
   total: number;
@@ -243,7 +340,7 @@ const ProgressBar: React.FC<{
   );
   return (
     <Text>
-      <Text color={terminalTheme.success}>{"━".repeat(filled)}</Text>
+      <Text color={terminalTheme.brand}>{"━".repeat(filled)}</Text>
       <Text color={terminalTheme.danger}>{"━".repeat(failedWidth)}</Text>
       {openRail.map((character, index) => (
         <Text
@@ -280,36 +377,24 @@ const ThinkingSteps: React.FC<{
     return null;
   }
 
-  const completedCount = steps.filter((step) => step.status === "completed").length;
-  const failedCount = steps.filter(
-    (step) =>
-      step.status === "error" ||
-      step.status === "aborted" ||
-      step.status === "cancelled"
-  ).length;
-  const runningCount = steps.filter((step) => step.status === "streaming").length;
-  const summaryParts = [
-    `${completedCount}/${steps.length} completed`,
-    failedCount ? `${failedCount} failed` : "",
-    runningCount ? `${runningCount} running` : "",
-  ].filter(Boolean);
+  const ledger = summarizeThinkingLedger(steps);
   const runningStep = [...steps].reverse().find((step) => step.status === "streaming");
 
   return (
     <Box flexDirection="column" marginTop={1}>
       <Box flexDirection="row" gap={1}>
-        <Text color={message.pending ? terminalTheme.brand : terminalTheme.muted}>
-          {isExpanded ? "▾" : "▸"} Reasoning
+        <Text color={terminalTheme.brand}>
+          {isExpanded ? "▾" : "▸"} {ledger.title}
         </Text>
         {message.pending ? <Spinner type="pulse" animate={animate} /> : null}
         <ProgressBar
-          completed={completedCount}
-          failed={failedCount}
+          completed={ledger.completed}
+          failed={ledger.failed}
           total={steps.length}
-          active={message.pending || runningCount > 0}
+          active={message.pending || ledger.running > 0}
           pulseIndex={animate ? Math.floor(now / 1000) : 0}
         />
-        <Text dimColor>({summaryParts.join(", ")})</Text>
+        <Text dimColor>({ledger.parts.join(", ")})</Text>
       </Box>
       {!isExpanded && runningStep ? (
         <Box paddingLeft={2}>
@@ -379,7 +464,7 @@ export const Transcript: React.FC<TranscriptProps> = ({
 
         return (
           <Box key={message.id} flexDirection="column" paddingY={0} marginBottom={1}>
-            <Text bold color={isUser ? terminalTheme.success : terminalTheme.brand}>
+            <Text bold color={getTranscriptRoleColor(isUser ? "user" : "assistant")}>
               {isUser ? userName : AI_NAME}:
               {isUser && message.queued ? " (queued)" : ""}
             </Text>
@@ -392,7 +477,7 @@ export const Transcript: React.FC<TranscriptProps> = ({
             ) : null}
             <Box paddingLeft={0}>
                {content ? (
-                 <FormattedContent content={content} role={message.role as any} />
+                 <FormattedContent message={message} role={message.role as any} />
                ) : !hasThinkingSteps && !message.error ? (
                  <Text dimColor>No final response content.</Text>
                ) : null}
@@ -432,7 +517,7 @@ export const Transcript: React.FC<TranscriptProps> = ({
         if (!hasContent && hasThinkingSteps) {
           return (
             <Box key={streamingMessage.id} flexDirection="column" paddingY={0}>
-              <Text bold color={terminalTheme.brand}>{AI_NAME}:</Text>
+              <Text bold color={getTranscriptRoleColor("assistant")}>{AI_NAME}:</Text>
               <ThinkingSteps
                 message={streamingMessage}
                 expanded={true}
@@ -448,7 +533,7 @@ export const Transcript: React.FC<TranscriptProps> = ({
             // basic parsing still works, but render might be jittery if backticks are appearing.
           return (
             <Box key={streamingMessage.id} flexDirection="column" paddingY={0}>
-              <Text bold color={terminalTheme.brand}>{AI_NAME}:</Text>
+              <Text bold color={getTranscriptRoleColor("assistant")}>{AI_NAME}:</Text>
               <ThinkingSteps
                 message={streamingMessage}
                 expanded={Boolean(expandedThinkingMessageIds?.has(streamingMessage.id))}
@@ -456,7 +541,7 @@ export const Transcript: React.FC<TranscriptProps> = ({
                 animate={animate}
               />
               <Box paddingLeft={0}>
-                  <FormattedContent content={content} role="assistant" />
+                  <FormattedContent message={streamingMessage} role="assistant" />
                   <Text color={terminalTheme.cursor}>|</Text>
               </Box>
             </Box>

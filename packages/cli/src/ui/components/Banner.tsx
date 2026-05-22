@@ -1,11 +1,13 @@
 import React from "react";
 import { Box, Text } from "ink";
+import type { BannerDetailLine } from "../bannerDetails.js";
 import { shouldUseColor, terminalTheme } from "../theme.js";
 import { CLI_VERSION } from "../../version.js";
 
 export interface BannerProps {
   disable?: boolean;
   details?: string[];
+  detailLines?: BannerDetailLine[];
   terminalColumns?: number;
 }
 
@@ -112,9 +114,25 @@ const BannerArtLine: React.FC<{
   </Text>
 );
 
+const BannerDetailText: React.FC<{ line: BannerDetailLine }> = ({ line }) => (
+  <Text wrap="truncate">
+    {line.segments.map((segment, index) => (
+      <Text
+        key={`${line.key}-${index}`}
+        color={segment.color}
+        dimColor={segment.dimColor}
+        bold={segment.bold}
+      >
+        {segment.text}
+      </Text>
+    ))}
+  </Text>
+);
+
 export const Banner: React.FC<BannerProps> = ({
   disable = false,
   details = [],
+  detailLines = [],
   terminalColumns,
 }) => {
   if (disable) return null;
@@ -123,7 +141,15 @@ export const Banner: React.FC<BannerProps> = ({
   const art = wordArt;
   const width = artWidth(art);
   const showArt = columns >= width;
-  const showDetailsBesideArt = showArt && details.length > 0 && columns >= width + 42;
+  const resolvedDetailLines: BannerDetailLine[] =
+    detailLines.length > 0
+      ? detailLines
+      : details.map((detail, index) => ({
+          key: `legacy-${index}`,
+          segments: [{ text: detail, dimColor: true }],
+        }));
+  const showDetailsBesideArt =
+    showArt && resolvedDetailLines.length > 0 && columns >= width + 42;
   const version = process.env.CLOUDEVAL_CLI_VERSION ?? CLI_VERSION;
 
   return (
@@ -145,10 +171,8 @@ export const Banner: React.FC<BannerProps> = ({
             {showDetailsBesideArt ? (
               <Box flexDirection="column" paddingTop={1}>
                 <Text color={bannerMetaColor()}>CLI v{version}</Text>
-                {details.map((detail) => (
-                  <Text key={detail} dimColor wrap="truncate">
-                    {detail}
-                  </Text>
+                {resolvedDetailLines.map((line) => (
+                  <BannerDetailText key={line.key} line={line} />
                 ))}
               </Box>
             ) : null}
@@ -158,10 +182,8 @@ export const Banner: React.FC<BannerProps> = ({
       {!showDetailsBesideArt ? (
         <>
           <Text color={bannerMetaColor()}>CLI v{version}</Text>
-          {details.map((detail) => (
-            <Text key={detail} dimColor wrap="truncate">
-              {detail}
-            </Text>
+          {resolvedDetailLines.map((line) => (
+            <BannerDetailText key={line.key} line={line} />
           ))}
         </>
       ) : null}

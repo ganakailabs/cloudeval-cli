@@ -10,9 +10,12 @@ import { Loader } from "./components/Loader.js";
 import { Transcript } from "./components/Transcript.js";
 import {
   InputBox,
+  estimateCommandCompletionRows,
   getFollowUpRowViewport,
   shouldBlinkPromptCursor,
 } from "./components/InputBox.js";
+import { NoticeLine } from "./components/NoticeLine.js";
+import { buildBannerDetailLines } from "./bannerDetails.js";
 import { Spinner } from "./components/Spinner.js";
 import { Scrollbar } from "./components/Scrollbar.js";
 import { ProjectSelector } from "./components/ProjectSelector.js";
@@ -194,14 +197,21 @@ type DraftChatSession = {
 
 const newDraftChatSessionKey = (): string => `draft-${randomUUID()}`;
 
-const getUserNameFromToken = async (token?: string): Promise<string> => {
-  if (!token) return "You";
+const getUserIdentityFromToken = async (
+  token?: string
+): Promise<{ name: string; email?: string }> => {
+  if (!token) {
+    return { name: "You" };
+  }
   try {
     const { extractEmailFromToken } = await import("@cloudeval/core");
-    const email = extractEmailFromToken(token);
-    return getFirstNameForDisplay({ email: email ?? undefined });
+    const email = extractEmailFromToken(token) ?? undefined;
+    return {
+      name: getFirstNameForDisplay({ email }),
+      email,
+    };
   } catch {
-    return "You";
+    return { name: "You" };
   }
 };
 const defaultProject: ProjectInfo = {
@@ -377,25 +387,7 @@ const isBusyStatus = (status: ChatState["status"]): boolean =>
   status === "tool_running" ||
   status === "hitl_waiting";
 
-export const buildTuiHeaderDetails = ({
-  apiBase,
-  frontendBaseUrl,
-  billingSummary,
-  userName,
-}: {
-  apiBase: string;
-  frontendBaseUrl: string;
-  billingSummary: string;
-  userName: string;
-}): string[] => {
-  const displayName = truncateForTerminal(userName.trim() || "You", 64);
-  return [
-    `User: ${displayName}`,
-    `API: ${apiBase}`,
-    `Frontend: ${frontendBaseUrl}`,
-    billingSummary,
-  ];
-};
+export { buildBannerDetailLines, buildTuiHeaderDetails } from "./bannerDetails.js";
 
 const isTerminalThinkingStatus = (status?: string): boolean =>
   status === "completed" ||
@@ -1311,6 +1303,7 @@ export const App: React.FC<AppProps> = ({
   const [checkingOnboarding, setCheckingOnboarding] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | undefined>();
   const [userName, setUserName] = useState<string>("You");
+  const [userEmail, setUserEmail] = useState<string | undefined>();
   const [billingHeader, setBillingHeader] = useState<BillingHeaderState | null>(null);
   const [billingHeaderError, setBillingHeaderError] = useState<string | undefined>();
   const [focusedControl, setFocusedControl] = useState<TuiControlFocus>("project");
@@ -1783,6 +1776,7 @@ export const App: React.FC<AppProps> = ({
     const userStatus = await checkUserStatus(baseUrl, token);
     if (userStatus.user) {
       setUserName(getFirstNameForDisplay(userStatus.user));
+      setUserEmail(userStatus.user.email?.trim() || undefined);
     }
     if (userStatus.user?.id) {
       setCurrentUserId(userStatus.user.id);
@@ -1993,10 +1987,15 @@ export const App: React.FC<AppProps> = ({
 
       // Extract userName from token
       if (token && !accessKey) {
-        getUserNameFromToken(token).then(setUserName).catch(() => {
-          // Fallback to default if extraction fails
-          setUserName("You");
-        });
+        getUserIdentityFromToken(token)
+          .then((identity) => {
+            setUserName(identity.name);
+            setUserEmail(identity.email);
+          })
+          .catch(() => {
+            setUserName("You");
+            setUserEmail(undefined);
+          });
       }
 
       // Step 1.5: Check onboarding status and fetch projects.
@@ -3075,7 +3074,10 @@ export const App: React.FC<AppProps> = ({
     scrollOffset: promptInputScrollOffset,
   });
   const promptInputRows = promptInputViewport.visibleRowCount;
-  const promptCommandCompletionRows = slashCommandCompletions.length ? 1 : 0;
+  const promptCommandCompletionRows = estimateCommandCompletionRows(
+    slashCommandCompletions.length,
+    terminalSize.columns
+  );
   const promptSuggestionRows =
     estimatePromptSuggestionRows(visiblePromptSuggestions.length) +
     promptCommandCompletionRows;
@@ -3110,12 +3112,17 @@ export const App: React.FC<AppProps> = ({
   const billingSummary = billingHeaderError
     ? `Plan: unavailable | Credits: unavailable`
     : billingSummaryText(billingHeader);
-  const headerDetails = buildTuiHeaderDetails({
+  const bannerDetailLines = buildBannerDetailLines({
     apiBase,
     frontendBaseUrl,
     billingSummary,
+    billingTone: billingHeader?.tone,
     userName,
+    userEmail,
   });
+  const headerDetails = bannerDetailLines.map((line) =>
+    line.segments.map((segment) => segment.text).join("")
+  );
   const keyBindings = getTuiKeyBindings();
   const scrollHelp = mouseTrackingEnabled
     ? `${keyBindings.mouse} | wheel scroll`
@@ -4112,7 +4119,11 @@ export const App: React.FC<AppProps> = ({
   if (phase === "boot") {
     return (
       <Box flexDirection="column" paddingX={tuiLayout.paddingX} paddingY={0} height={terminalSize.rows}>
-        <Banner disable={bannerDisabled} details={headerDetails} terminalColumns={bannerContentColumns} />
+        <Banner
+          disable={bannerDisabled}
+          detailLines={bannerDetailLines}
+          terminalColumns={bannerContentColumns}
+        />
         {isLoggingIn ? (
           <Box flexDirection="column" gap={1} padding={1}>
             <Text color={terminalTheme.brand} bold>Signing in...</Text>
@@ -4270,7 +4281,11 @@ export const App: React.FC<AppProps> = ({
     }));
     return (
       <Box flexDirection="column" paddingX={tuiLayout.paddingX} paddingY={0} gap={0} height={terminalSize.rows}>
-        <Banner disable={bannerDisabled} details={headerDetails} terminalColumns={bannerContentColumns} />
+        <Banner
+          disable={bannerDisabled}
+          detailLines={bannerDetailLines}
+          terminalColumns={bannerContentColumns}
+        />
         <Text>Select a project to chat with:</Text>
         {loadingProjects ? (
           <Box flexDirection="row" gap={1}>
@@ -4296,14 +4311,18 @@ export const App: React.FC<AppProps> = ({
   if (activeWorkspaceTab !== "chat") {
     return (
       <Box flexDirection="column" paddingX={tuiLayout.paddingX} paddingY={0} gap={0} height={terminalSize.rows}>
-        <Banner disable={bannerDisabled} details={headerDetails} terminalColumns={bannerContentColumns} />
+        <Banner
+          disable={bannerDisabled}
+          detailLines={bannerDetailLines}
+          terminalColumns={bannerContentColumns}
+        />
         <WorkspaceTabBar
           activeTab={activeWorkspaceTab}
           showBrand={bannerDisabled}
           billingSummary={bannerDisabled ? billingHeader : undefined}
         />
         <Text dimColor wrap="wrap">{workspaceTabDescriptions[activeWorkspaceTab]}</Text>
-        {notice ? <Text dimColor wrap="wrap">{notice}</Text> : null}
+        {notice ? <NoticeLine message={notice} /> : null}
         <TitledBox
           title={workspaceTabLabels[activeWorkspaceTab]}
           borderStyle="round"
@@ -4380,7 +4399,11 @@ export const App: React.FC<AppProps> = ({
   return (
     <Box flexDirection="column" paddingX={tuiLayout.paddingX} paddingY={0} gap={0} height={terminalSize.rows}>
       <Box flexShrink={0}>
-        <Banner disable={bannerDisabled} details={headerDetails} terminalColumns={bannerContentColumns} />
+        <Banner
+          disable={bannerDisabled}
+          detailLines={bannerDetailLines}
+          terminalColumns={bannerContentColumns}
+        />
       </Box>
       <Box flexShrink={0}>
         <WorkspaceTabBar
@@ -4423,7 +4446,7 @@ export const App: React.FC<AppProps> = ({
                   terminalColumns={terminalSize.columns}
                 />
               ) : null}
-              {notice ? <Text dimColor wrap="wrap">{notice}</Text> : null}
+              {notice ? <NoticeLine message={notice} /> : null}
               {errorText ? (
                 <TitledBox
                   title="Error Details"

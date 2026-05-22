@@ -14,6 +14,9 @@ import {
   type WorkspaceTab,
 } from "../workspaceTabs.js";
 import { TitledBox } from "./TitledBox.js";
+import { InputHelpText } from "./InputHelpText.js";
+
+export const COMMAND_MENU_VISIBLE_ROWS = 5;
 
 export interface InputBoxProps {
   title?: string;
@@ -268,7 +271,37 @@ export const getFollowUpRowViewport = ({
   };
 };
 
-export const getCommandCompletionViewport = ({
+export type CommandCompletionLayoutMode = "vertical" | "horizontal";
+
+export type CommandCompletionLayout = {
+  mode: CommandCompletionLayoutMode;
+  activeIndex: number;
+  activeCommand?: CommandCompletionItem;
+  items: Array<{ command: CommandCompletionItem; index: number; label: string; width: number }>;
+  clippedStart: boolean;
+  clippedEnd: boolean;
+  rowCount: number;
+};
+
+export const estimateCommandCompletionRows = (
+  commandCount: number,
+  terminalColumns: number
+): number => {
+  if (!commandCount) {
+    return 0;
+  }
+  const layout = getCommandCompletionLayout({
+    commands: Array.from({ length: commandCount }, (_, index) => ({
+      name: `/cmd-${index}`,
+      description: "",
+    })),
+    focusedIndex: 0,
+    terminalColumns,
+  });
+  return layout.rowCount;
+};
+
+export const getCommandCompletionLayout = ({
   commands,
   focusedIndex = 0,
   terminalColumns,
@@ -276,23 +309,53 @@ export const getCommandCompletionViewport = ({
   commands: CommandCompletionItem[];
   focusedIndex?: number;
   terminalColumns: number;
-}): {
-  items: Array<{ command: CommandCompletionItem; index: number; label: string; width: number }>;
-  clippedStart: boolean;
-  clippedEnd: boolean;
-  rowCount: number;
-} => {
-  const availableWidth = Math.max(24, terminalColumns - 28);
+}): CommandCompletionLayout => {
   const activeIndex = commands.length
     ? Math.min(Math.max(0, focusedIndex), commands.length - 1)
     : 0;
+  const activeCommand = commands[activeIndex];
+  const useVertical =
+    commands.length >= 5 || terminalColumns < 100 || commands.some((command) => command.name.length > 14);
+
+  if (!commands.length) {
+    return {
+      mode: "vertical",
+      activeIndex: 0,
+      items: [],
+      clippedStart: false,
+      clippedEnd: false,
+      rowCount: 0,
+    };
+  }
+
+  if (useVertical) {
+    const visibleCount = Math.min(COMMAND_MENU_VISIBLE_ROWS, commands.length);
+    let start = Math.max(0, activeIndex - Math.floor(visibleCount / 2));
+    if (start + visibleCount > commands.length) {
+      start = Math.max(0, commands.length - visibleCount);
+    }
+    const end = Math.min(commands.length, start + visibleCount);
+    const items = commands.slice(start, end).map((command, offset) => {
+      const index = start + offset;
+      const label = `${index === activeIndex ? raisedButtonStyle.activeMarker : raisedButtonStyle.inactiveMarker} ${command.name}`;
+      return { command, index, label, width: label.length };
+    });
+    return {
+      mode: "vertical",
+      activeIndex,
+      activeCommand,
+      items,
+      clippedStart: start > 0,
+      clippedEnd: end < commands.length,
+      rowCount: 1 + items.length + 1 + 1,
+    };
+  }
+
+  const availableWidth = Math.max(24, terminalColumns - 28);
   const items = commands.map((command, index) => {
     const label = `${index === activeIndex ? raisedButtonStyle.activeMarker : raisedButtonStyle.inactiveMarker} ${command.name}`;
     return { command, index, label, width: label.length };
   });
-  if (!items.length) {
-    return { items: [], clippedStart: false, clippedEnd: false, rowCount: 0 };
-  }
 
   let start = activeIndex;
   let usedWidth = items[start]?.width ?? 0;
@@ -316,10 +379,32 @@ export const getCommandCompletionViewport = ({
   }
 
   return {
+    mode: "horizontal",
+    activeIndex,
+    activeCommand,
     items: items.slice(start, end),
     clippedStart: start > 0,
     clippedEnd: end < items.length,
-    rowCount: 1,
+    rowCount: 2,
+  };
+};
+
+/** @deprecated Prefer getCommandCompletionLayout for layout-aware rendering. */
+export const getCommandCompletionViewport = ({
+  commands,
+  focusedIndex = 0,
+  terminalColumns,
+}: {
+  commands: CommandCompletionItem[];
+  focusedIndex?: number;
+  terminalColumns: number;
+}) => {
+  const layout = getCommandCompletionLayout({ commands, focusedIndex, terminalColumns });
+  return {
+    items: layout.items,
+    clippedStart: layout.clippedStart,
+    clippedEnd: layout.clippedEnd,
+    rowCount: layout.mode === "vertical" ? 1 : layout.rowCount,
   };
 };
 
@@ -364,25 +449,20 @@ export const InputBox: React.FC<InputBoxProps> = ({
     focusedFollowUpIndex,
     terminalColumns,
   });
-  const commandCompletionViewport = getCommandCompletionViewport({
+  const commandCompletionLayout = getCommandCompletionLayout({
     commands: commandCompletions,
     focusedIndex: focusedCommandCompletionIndex,
     terminalColumns,
   });
-  const commandCompletionLine = [
-    commandCompletionViewport.clippedStart ? "<--" : undefined,
-    ...commandCompletionViewport.items.map((item) => item.label),
-    commandCompletionViewport.clippedEnd ? "-->" : undefined,
+  const activeCommand = commandCompletionLayout.activeCommand;
+  const commandCompletionNavigationHint = [
+    commandCompletionLayout.clippedStart ? "↑ more" : undefined,
+    "Tab/↑↓ move",
+    "Enter choose",
+    commandCompletionLayout.clippedEnd ? "↓ more" : undefined,
   ]
     .filter(Boolean)
-    .join(" ");
-  const activeCommand =
-    focusedCommandCompletionIndex === undefined
-      ? undefined
-      : commandCompletions[Math.min(
-          Math.max(0, focusedCommandCompletionIndex),
-          Math.max(0, commandCompletions.length - 1)
-        )];
+    .join(" · ");
   const promptPrefix = ">";
   const inputWidth = Math.max(20, terminalColumns - 10);
   const inputViewport = getInputViewport({
@@ -573,18 +653,52 @@ export const InputBox: React.FC<InputBoxProps> = ({
           {actionHint}
         </Text>
       ) : resolvedHelpText ? (
-        <Text dimColor wrap="truncate">
-          {resolvedHelpText}
-        </Text>
+        <InputHelpText text={resolvedHelpText} />
       ) : null}
-      {commandCompletionViewport.items.length ? (
-        <Text
-          color={commandCompletionsActive ? terminalTheme.focus : terminalTheme.muted}
-          bold={commandCompletionsActive}
-          wrap="truncate"
-        >
-          {`/commands: ${commandCompletionLine} | Tab/↑↓ move | Enter choose`}
-        </Text>
+      {commandCompletionLayout.items.length ? (
+        <Box flexDirection="column">
+          <Text color={terminalTheme.muted} bold={commandCompletionsActive}>
+            Slash commands
+          </Text>
+          {commandCompletionLayout.mode === "vertical" ? (
+            commandCompletionLayout.items.map((item) => {
+              const active = item.index === commandCompletionLayout.activeIndex;
+              return (
+                <Text
+                  key={item.command.name}
+                  backgroundColor={active ? terminalTheme.selectedBackground : undefined}
+                  color={active ? terminalTheme.selected : terminalTheme.muted}
+                  bold={active}
+                  wrap="truncate"
+                >
+                  {item.label}
+                </Text>
+              );
+            })
+          ) : (
+            <Text
+              color={commandCompletionsActive ? terminalTheme.focus : terminalTheme.muted}
+              bold={commandCompletionsActive}
+              wrap="truncate"
+            >
+              {[
+                commandCompletionLayout.clippedStart ? "…" : undefined,
+                ...commandCompletionLayout.items.map((item) => item.label),
+                commandCompletionLayout.clippedEnd ? "…" : undefined,
+              ]
+                .filter(Boolean)
+                .join("  ")}
+            </Text>
+          )}
+          {activeCommand?.description ? (
+            <Text color={terminalTheme.secondary} wrap="truncate">
+              {activeCommand.description}
+            </Text>
+          ) : null}
+          <Text dimColor wrap="truncate">
+            {commandCompletionNavigationHint}
+          </Text>
+        </Box>
       ) : null}
       {footerControls ? (
         <Box flexDirection="column" marginTop={1}>

@@ -3,6 +3,7 @@ import test from "node:test";
 import "../../runtime/prepareInk";
 import { shouldSubmitInputOnReturn } from "../inputSubmitBehavior";
 import {
+  getCommandCompletionLayout,
   getCommandCompletionViewport,
   getFollowUpRowViewport,
   getPromptDisplayRows,
@@ -135,7 +136,30 @@ test("getFollowUpRowViewport keeps full prompt labels when they fit", () => {
 });
 
 test("getCommandCompletionViewport keeps the active slash command visible", () => {
+  const commands = [
+    { name: "/thread", description: "Threads" },
+    { name: "/project", description: "Projects" },
+    { name: "/model", description: "Models" },
+    { name: "/mode", description: "Modes" },
+    { name: "/profile", description: "Profiles" },
+    { name: "/starter", description: "Starters" },
+    { name: "/thinking", description: "Thinking" },
+    { name: "/download", description: "Download transcript" },
+  ];
   const viewport = getCommandCompletionViewport({
+    commands,
+    focusedIndex: commands.length - 1,
+    terminalColumns: 72,
+  });
+
+  assert.equal(viewport.clippedStart, true);
+  assert.equal(viewport.clippedEnd, false);
+  assert.ok(viewport.items.some((item) => item.command.name === "/download"));
+  assert.equal(viewport.rowCount, 1);
+});
+
+test("getCommandCompletionLayout uses a vertical menu on narrow terminals", () => {
+  const layout = getCommandCompletionLayout({
     commands: [
       { name: "/thread", description: "Threads" },
       { name: "/project", description: "Projects" },
@@ -146,13 +170,9 @@ test("getCommandCompletionViewport keeps the active slash command visible", () =
     terminalColumns: 42,
   });
 
-  assert.equal(viewport.clippedStart, true);
-  assert.equal(viewport.clippedEnd, false);
-  assert.deepEqual(
-    viewport.items.map((item) => item.command.name),
-    ["/model", "/download"]
-  );
-  assert.equal(viewport.rowCount, 1);
+  assert.equal(layout.mode, "vertical");
+  assert.equal(layout.activeCommand?.name, "/download");
+  assert.ok(layout.rowCount >= 4);
 });
 
 test("getPromptDisplayRows only shows prompt marker on real input rows", () => {

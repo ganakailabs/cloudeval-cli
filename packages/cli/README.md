@@ -53,6 +53,11 @@ are summarized with a follow-up command instead of forcing another prompt.
 When a CLI update exposes new MCP capabilities, restart or reload your MCP
 client when you are ready; CloudEval never restarts those apps automatically.
 
+`npm install -g` does not run that installer wizard. After installing from npm,
+use `cloudeval login` for first-run auth, `cloudeval mcp setup <client>` to
+configure MCP in your editor, or `cloudeval update` (TTY) to rerun the shell
+installer and optionally accept agent/MCP setup prompts.
+
 ## Common Commands
 
 ```bash

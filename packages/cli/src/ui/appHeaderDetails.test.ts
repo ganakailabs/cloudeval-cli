@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import "../runtime/prepareInk";
-import { buildTuiHeaderDetails } from "./App";
+import { buildTuiHeaderDetails } from "./bannerDetails.js";
 
 test("buildTuiHeaderDetails includes the logged-in user name in banner details", () => {
   assert.deepEqual(

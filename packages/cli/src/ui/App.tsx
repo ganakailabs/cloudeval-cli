@@ -44,6 +44,8 @@ import {
 import {
   estimateComposerRows,
   estimateBannerRows,
+  estimateSelectPanelRows,
+  estimateWorkspaceTabBarRows,
   getChatResponsiveMode,
   getContextRailWidth,
   getFramedBodyRows,
@@ -3277,10 +3279,7 @@ export const App: React.FC<AppProps> = ({
     return Math.max(0, lastRow - firstRow + 1);
   }, [workspaceTabHitAreas]);
   const workspaceTabBarRows =
-    (bannerDisabled ? 3 : 0) +
-    workspaceTabButtonRows +
-    1 +
-    (bannerDisabled ? 1 : 0);
+    (bannerDisabled ? 4 : 0) + Math.max(estimateWorkspaceTabBarRows(), workspaceTabButtonRows);
   const promptPanelRows = estimatePromptPanelRows({
     inputRows: promptInputRows,
     suggestionRows: promptSuggestionRows,
@@ -3314,24 +3313,35 @@ export const App: React.FC<AppProps> = ({
     24,
     workspaceContentWidth - (workspacePanelOverflowing ? 7 : 5)
   );
-  const chatHeaderRows = bannerRenderedRows + workspaceTabBarRows + 2;
+  const chatTabDescriptionRows = 1;
+  const chatMiddleMarginRows = 1;
+  const chatHeaderRows =
+    bannerRenderedRows + workspaceTabBarRows + chatTabDescriptionRows + chatMiddleMarginRows;
+  const chatSelectorRows = activeSelector
+    ? estimateSelectPanelRows(tuiLayout.selectorLimit)
+    : 0;
   const chatFooterRows =
     bottomControlsRows +
+    chatSelectorRows +
     (isSearching ? searchPromptPanelRows : activeSelector ? 0 : promptPanelRows);
   const chatMiddleViewportRows = getMiddleViewportRows(terminalSize, {
     headerRows: chatHeaderRows,
     footerRows: chatFooterRows,
+    safetyRows: 3,
   });
   const chatMiddleAuxiliaryRows =
     (isSearching ? 3 : 0) +
     (queuedMessages.length > 0 ? 4 : 0) +
     (notice ? 1 : 0) +
     (errorText ? 5 : 0) +
-    (chatState.status === "hitl_waiting" && chatState.hitl?.waiting ? 7 : 0) +
-    (activeSelector ? tuiLayout.selectorLimit + 4 : 0);
+    (chatState.status === "hitl_waiting" && chatState.hitl?.waiting ? 7 : 0);
   const contextRailArtifactRows =
     splitChatLayout && chatArtifactChips.length ? chatArtifactChips.length + 2 : 0;
-  const chatMainPanelRows = Math.max(4, chatMiddleViewportRows - chatMiddleAuxiliaryRows);
+  const chatMainPanelRows = Math.max(
+    4,
+    chatMiddleViewportRows - chatMiddleAuxiliaryRows
+  );
+  const showChatThreadPanel = !activeSelector;
   const chatThreadHeight = getFramedBodyRows(chatMainPanelRows);
   const chatMiddleOverflowing = chatMiddleContentHeight > chatMiddleViewportHeight;
   const selectorControlStartRow = useMemo(
@@ -4369,13 +4379,19 @@ export const App: React.FC<AppProps> = ({
 
   return (
     <Box flexDirection="column" paddingX={tuiLayout.paddingX} paddingY={0} gap={0} height={terminalSize.rows}>
-      <Banner disable={bannerDisabled} details={headerDetails} terminalColumns={bannerContentColumns} />
-      <WorkspaceTabBar
-        activeTab={activeWorkspaceTab}
-        showBrand={bannerDisabled}
-        billingSummary={bannerDisabled ? billingHeader : undefined}
-      />
-      <Text dimColor wrap="wrap">{workspaceTabDescriptions.chat}</Text>
+      <Box flexShrink={0}>
+        <Banner disable={bannerDisabled} details={headerDetails} terminalColumns={bannerContentColumns} />
+      </Box>
+      <Box flexShrink={0}>
+        <WorkspaceTabBar
+          activeTab={activeWorkspaceTab}
+          showBrand={bannerDisabled}
+          billingSummary={bannerDisabled ? billingHeader : undefined}
+        />
+      </Box>
+      <Box flexShrink={0}>
+        <Text dimColor wrap="wrap">{workspaceTabDescriptions.chat}</Text>
+      </Box>
       <Box flexDirection="row" marginTop={1}>
         <Box
           flexShrink={1}
@@ -4433,33 +4449,35 @@ export const App: React.FC<AppProps> = ({
                   />
                 </Box>
               ) : null}
-              {splitChatLayout ? (
-                <Box flexDirection="row" columnGap={chatSplitGap}>
-                  <ChatContextPanel
-                    width={chatContextPanelWidth}
-                    height={chatMainPanelRows}
-                    mode={chatResponsiveMode}
-                    active={activeChatPanel === "settings"}
-                    focused={focusedControl}
-                    artifactChips={chatArtifactChips}
-                    selectedThreadTitle={selectedThreadTitle}
-                    selectedProject={selectedProject}
-                    selectedModel={selectedModel}
-                    selectedMode={selectedMode}
-                    selectedAgentProfileLabel={selectedAgentProfileLabel}
-                    hasThinkingSteps={hasThinkingSteps}
-                    thinkingExpanded={thinkingExpanded}
-                    thinkingSummary={thinkingSummary}
-                    statusText={chatStatusText}
-                    statusColor={chatStatusColor}
-                    busy={chatBusy}
-                    animate={animationsEnabled}
-                  />
-                  {threadPanel}
-                </Box>
-              ) : (
-                threadPanel
-              )}
+              {showChatThreadPanel ? (
+                splitChatLayout ? (
+                  <Box flexDirection="row" columnGap={chatSplitGap}>
+                    <ChatContextPanel
+                      width={chatContextPanelWidth}
+                      height={chatMainPanelRows}
+                      mode={chatResponsiveMode}
+                      active={activeChatPanel === "settings"}
+                      focused={focusedControl}
+                      artifactChips={chatArtifactChips}
+                      selectedThreadTitle={selectedThreadTitle}
+                      selectedProject={selectedProject}
+                      selectedModel={selectedModel}
+                      selectedMode={selectedMode}
+                      selectedAgentProfileLabel={selectedAgentProfileLabel}
+                      hasThinkingSteps={hasThinkingSteps}
+                      thinkingExpanded={thinkingExpanded}
+                      thinkingSummary={thinkingSummary}
+                      statusText={chatStatusText}
+                      statusColor={chatStatusColor}
+                      busy={chatBusy}
+                      animate={animationsEnabled}
+                    />
+                    {threadPanel}
+                  </Box>
+                ) : (
+                  threadPanel
+                )
+              ) : null}
               {chatState.status === "hitl_waiting" && chatState.hitl?.waiting ? (
                 <HitlPanel
                   hitl={chatState.hitl}
@@ -4467,115 +4485,6 @@ export const App: React.FC<AppProps> = ({
                   optionIndex={hitlOptionIndex}
                   answers={hitlAnswers}
                   frontendUrl={frontendThreadUrl}
-                />
-              ) : null}
-              {activeSelector === "thread" ? (
-                <SelectPanel
-                  title="Select Thread"
-                  items={
-                    loadingSessions || loadingRemoteThreads
-                      ? [
-                          {
-                            label: "Loading threads...",
-                            value: { kind: "new" } satisfies ThreadSelectValue,
-                            description: "Reading CloudEval threads and local CLI history.",
-                          },
-                        ]
-                      : threadSelectItems
-                  }
-                  selectedIndex={Math.max(
-                    0,
-                    threadSelectItems.findIndex(
-                      (item) =>
-                        (item.value.kind === "remote" &&
-                          item.value.thread.thread_id === chatState.threadId) ||
-                        (item.value.kind === "session" &&
-                          item.value.session.threadId === chatState.threadId) ||
-                        (item.value.kind === "draft" &&
-                          item.value.draft.key === activeDraftSessionKey)
-                    )
-                  )}
-                  onSubmit={(item) => selectThread(item.value)}
-                  onCancel={() => setActiveSelector(null)}
-                  limit={tuiLayout.selectorLimit}
-                />
-              ) : null}
-              {activeSelector === "project" ? (
-                <SelectPanel
-                  title="Select Project"
-                  items={(projects.length ? projects : [defaultProject]).map((project) => ({
-                    label: `${project.name} (${project.cloud_provider ?? "cloud"})`,
-                    value: project,
-                    description: project.id,
-                  }))}
-                  selectedIndex={Math.max(
-                    0,
-                    (projects.length ? projects : [defaultProject]).findIndex(
-                      (project) => project.id === (selectedProject ?? defaultProject).id
-                    )
-                  )}
-                  onSubmit={(item) => {
-                    setSelectedProject(item.value);
-                    setActiveSelector(null);
-                  }}
-                  onCancel={() => setActiveSelector(null)}
-                  limit={tuiLayout.selectorLimit}
-                />
-              ) : null}
-              {activeSelector === "model" ? (
-                <SelectPanel
-                  title="Select Model"
-                  items={modelItems}
-                  selectedIndex={Math.max(
-                    0,
-                    modelItems.findIndex((item) => item.value === selectedModel)
-                  )}
-                  onSubmit={(item) => {
-                    setSelectedModel(item.value);
-                    setActiveSelector(null);
-                  }}
-                  onCancel={() => setActiveSelector(null)}
-                  limit={tuiLayout.selectorLimit}
-                />
-              ) : null}
-              {activeSelector === "mode" ? (
-                <SelectPanel
-                  title="Select Mode"
-                  items={modeItems}
-                  selectedIndex={Math.max(
-                    0,
-                    modeItems.findIndex((item) => item.value === selectedMode)
-                  )}
-                  onSubmit={(item) => {
-                    setSelectedMode(item.value);
-                    if (item.value === "ask") {
-                      setSelectedAgentProfileId("");
-                    }
-                    setNotice(
-                      item.value === "ask"
-                        ? "Mode selected: Ask. Agent Profile cleared."
-                        : `Mode selected: ${item.label}`
-                    );
-                    setActiveSelector(null);
-                  }}
-                  onCancel={() => setActiveSelector(null)}
-                  limit={tuiLayout.selectorLimit}
-                />
-              ) : null}
-              {activeSelector === "profile" ? (
-                <SelectPanel
-                  title="Select Agent Profile"
-                  items={agentProfileItems}
-                  selectedIndex={Math.max(
-                    0,
-                    agentProfileItems.findIndex((item) => item.value === selectedAgentProfileId)
-                  )}
-                  onSubmit={(item) => {
-                    selectAgentProfileById(item.value, item.label);
-                    setActiveSelector(null);
-                  }}
-                  onCancel={() => setActiveSelector(null)}
-                  limit={tuiLayout.selectorLimit}
                 />
               ) : null}
             </Box>
@@ -4589,6 +4498,116 @@ export const App: React.FC<AppProps> = ({
           />
         ) : null}
       </Box>
+
+      {activeSelector === "thread" ? (
+        <SelectPanel
+          title="Select Thread"
+          items={
+            loadingSessions || loadingRemoteThreads
+              ? [
+                  {
+                    label: "Loading threads...",
+                    value: { kind: "new" } satisfies ThreadSelectValue,
+                    description: "Reading CloudEval threads and local CLI history.",
+                  },
+                ]
+              : threadSelectItems
+          }
+          selectedIndex={Math.max(
+            0,
+            threadSelectItems.findIndex(
+              (item) =>
+                (item.value.kind === "remote" &&
+                  item.value.thread.thread_id === chatState.threadId) ||
+                (item.value.kind === "session" &&
+                  item.value.session.threadId === chatState.threadId) ||
+                (item.value.kind === "draft" &&
+                  item.value.draft.key === activeDraftSessionKey)
+            )
+          )}
+          onSubmit={(item) => selectThread(item.value)}
+          onCancel={() => setActiveSelector(null)}
+          limit={tuiLayout.selectorLimit}
+        />
+      ) : null}
+      {activeSelector === "project" ? (
+        <SelectPanel
+          title="Select Project"
+          items={(projects.length ? projects : [defaultProject]).map((project) => ({
+            label: `${project.name} (${project.cloud_provider ?? "cloud"})`,
+            value: project,
+            description: project.id,
+          }))}
+          selectedIndex={Math.max(
+            0,
+            (projects.length ? projects : [defaultProject]).findIndex(
+              (project) => project.id === (selectedProject ?? defaultProject).id
+            )
+          )}
+          onSubmit={(item) => {
+            setSelectedProject(item.value);
+            setActiveSelector(null);
+          }}
+          onCancel={() => setActiveSelector(null)}
+          limit={tuiLayout.selectorLimit}
+        />
+      ) : null}
+      {activeSelector === "model" ? (
+        <SelectPanel
+          title="Select Model"
+          items={modelItems}
+          selectedIndex={Math.max(
+            0,
+            modelItems.findIndex((item) => item.value === selectedModel)
+          )}
+          onSubmit={(item) => {
+            setSelectedModel(item.value);
+            setActiveSelector(null);
+          }}
+          onCancel={() => setActiveSelector(null)}
+          limit={tuiLayout.selectorLimit}
+        />
+      ) : null}
+      {activeSelector === "mode" ? (
+        <SelectPanel
+          title="Select Mode"
+          items={modeItems}
+          selectedIndex={Math.max(
+            0,
+            modeItems.findIndex((item) => item.value === selectedMode)
+          )}
+          onSubmit={(item) => {
+            setSelectedMode(item.value);
+            if (item.value === "ask") {
+              setSelectedAgentProfileId("");
+            }
+            setNotice(
+              item.value === "ask"
+                ? "Mode selected: Ask. Agent Profile cleared."
+                : `Mode selected: ${item.label}`
+            );
+            setActiveSelector(null);
+          }}
+          onCancel={() => setActiveSelector(null)}
+          limit={tuiLayout.selectorLimit}
+        />
+      ) : null}
+      {activeSelector === "profile" ? (
+        <SelectPanel
+          title="Select Agent Profile"
+          items={agentProfileItems}
+          selectedIndex={Math.max(
+            0,
+            agentProfileItems.findIndex((item) => item.value === selectedAgentProfileId)
+          )}
+          onSubmit={(item) => {
+            selectAgentProfileById(item.value, item.label);
+            setActiveSelector(null);
+          }}
+          onCancel={() => setActiveSelector(null)}
+          limit={tuiLayout.selectorLimit}
+        />
+      ) : null}
 
       {isSearching ? (
           <InputBox

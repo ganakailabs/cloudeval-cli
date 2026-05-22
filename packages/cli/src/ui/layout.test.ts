@@ -3,6 +3,8 @@ import test from "node:test";
 import {
   estimateComposerRows,
   estimateBannerRows,
+  estimateSelectPanelRows,
+  estimateWorkspaceTabBarRows,
   getChatResponsiveMode,
   getContextRailWidth,
   getFramedBodyRows,
@@ -106,6 +108,14 @@ test("getContextRailWidth keeps the rail useful without stealing the thread", ()
   assert.equal(getContextRailWidth({ columns: 160, rows: 48 }), 40);
   assert.equal(getContextRailWidth({ columns: 118, rows: 36 }), 30);
   assert.equal(getContextRailWidth({ columns: 96, rows: 36 }), 0);
+});
+
+test("estimateSelectPanelRows budgets the framed selector panel", () => {
+  assert.equal(estimateSelectPanelRows(8), 12);
+});
+
+test("estimateWorkspaceTabBarRows includes the shortcut legend row", () => {
+  assert.equal(estimateWorkspaceTabBarRows(), 2);
 });
 
 test("estimateComposerRows budgets a flatter dock than the framed panel", () => {

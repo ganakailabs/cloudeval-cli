@@ -34,10 +34,13 @@ export const TitledBox: React.FC<TitledBoxProps> = ({
   const labelColor =
     titleColor ?? (typeof borderColor === "string" ? borderColor : undefined);
 
+  const clipContent = boxProps.height !== undefined;
+
   return (
     <Box
       {...boxProps}
       flexDirection="column"
+      overflow={clipContent ? "hidden" : undefined}
       borderStyle={borderStyle}
       borderColor={borderColor}
       padding={padding}
@@ -63,6 +66,8 @@ export const TitledBox: React.FC<TitledBoxProps> = ({
         alignItems={alignItems}
         justifyContent={justifyContent}
         flexWrap={flexWrap}
+        overflow={clipContent ? "hidden" : undefined}
+        height={clipContent ? "100%" : undefined}
       >
         {children}
       </Box>

@@ -116,6 +116,13 @@ export const getMiddleViewportRows = (
 export const getFramedBodyRows = (frameRows: number, chromeRows = 4): number =>
   Math.max(1, Math.floor(frameRows) - Math.max(0, Math.ceil(chromeRows)));
 
+/** Tab buttons plus the shortcut legend rendered under them. */
+export const estimateWorkspaceTabBarRows = (): number => 2;
+
+/** Framed selector panel: title, list window, and footer hint. */
+export const estimateSelectPanelRows = (visibleLimit: number): number =>
+  4 + Math.max(1, Math.ceil(visibleLimit));
+
 export const getPromptInputRowBudget = (size: Partial<TerminalSize>): number => {
   const rows = normalizeDimension(size.rows, 32);
   return clamp(Math.floor(rows * 0.13), 4, 8);

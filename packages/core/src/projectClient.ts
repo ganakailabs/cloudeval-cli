@@ -56,6 +56,22 @@ export interface QuickProjectInput {
   name?: string;
   description?: string;
   provider?: CloudProvider;
+  workspaceFiles?: WorkspaceFileInput[];
+  workspaceEntry?: string;
+  cloudSync?: AzureCloudSyncInput;
+}
+
+export interface WorkspaceFileInput {
+  path: string;
+  blob: Blob;
+}
+
+export interface AzureCloudSyncInput {
+  tenantId: string;
+  clientId: string;
+  clientSecret: string;
+  subscriptionId: string;
+  resourceGroups?: string[];
 }
 
 export interface QuickProjectPayload {
@@ -71,6 +87,7 @@ export interface QuickProjectResult {
   syncStatus?: unknown;
   normalizedTemplateUrl?: string;
   inferred: ParsedTemplateUrl | null;
+  iacPipeline?: Record<string, any>;
 }
 
 const providerValues = new Set(["azure", "aws", "gcp"]);
@@ -168,11 +185,14 @@ export const buildQuickProjectPayload = (
   if (!providerValues.has(provider)) {
     throw new Error(`Unsupported cloud provider '${provider}'.`);
   }
+  if (input.cloudSync && provider !== "azure") {
+    throw new Error("Cloud sync project creation currently supports Azure only.");
+  }
   const name = input.name?.trim() || inferred?.suggestedName || "Quick Project";
   const description =
     input.description?.trim() ||
     inferred?.suggestedDescription ||
-    `Template project for ${name}`;
+    (input.cloudSync ? `Cloud sync project for ${name}` : `Template project for ${name}`);
 
   const connection: ConnectionRequest = {
     user_id: input.userId,
@@ -226,6 +246,49 @@ const appendConnectionBody = (
   payload: ConnectionRequest,
   input: QuickProjectInput
 ): BodyInit => {
+  if (input.cloudSync) {
+    return JSON.stringify({
+      ...payload,
+      subscription_id: input.cloudSync.subscriptionId,
+      target_resource_groups: input.cloudSync.resourceGroups ?? [],
+      credentials: {
+        tenant_id: input.cloudSync.tenantId,
+        client_id: input.cloudSync.clientId,
+        client_secret: input.cloudSync.clientSecret,
+        subscription_id: input.cloudSync.subscriptionId,
+      },
+    });
+  }
+
+  if (input.workspaceFiles?.length) {
+    const entryPath = input.workspaceEntry || input.workspaceFiles[0]?.path;
+    const entry = input.workspaceFiles.find((file) => file.path === entryPath);
+    if (!entry) {
+      throw new Error(`Workspace entry file '${entryPath}' was not found.`);
+    }
+
+    const formData = new FormData();
+    formData.append("user_id", payload.user_id);
+    formData.append("name", payload.name);
+    formData.append("cloud_provider", payload.cloud_provider);
+    formData.append("description", payload.description);
+    formData.append("type", payload.type);
+    formData.append("auto_sync", String(payload.auto_sync ?? true));
+    formData.append("visualization_source_path", entry.path);
+    formData.append("template_file", entry.blob, entry.path);
+
+    const workspaceFilePaths: string[] = [];
+    for (const file of input.workspaceFiles) {
+      if (file.path === entry.path) {
+        continue;
+      }
+      workspaceFilePaths.push(file.path);
+      formData.append("workspace_files", file.blob, file.path);
+    }
+    formData.append("workspace_file_paths", JSON.stringify(workspaceFilePaths));
+    return formData;
+  }
+
   if (!input.templateFile && !input.parametersFile) {
     return JSON.stringify(payload);
   }
@@ -270,10 +333,21 @@ const headersForBody = (
 export const createQuickProject = async (
   input: QuickProjectInput & { baseUrl: string; authToken?: string }
 ): Promise<QuickProjectResult> => {
-  if (!input.templateUrl && !input.templateFile) {
-    throw new Error("Provide --template-url or --template-file.");
+  if (
+    !input.templateUrl &&
+    !input.templateFile &&
+    !input.workspaceFiles?.length &&
+    !input.cloudSync
+  ) {
+    throw new Error("Provide --template-url, --template-file, --workspace-dir, or --cloud-sync.");
   }
   const built = buildQuickProjectPayload(input);
+  if (input.cloudSync) {
+    built.connection.type = "sync";
+    built.connection.auto_sync = true;
+    built.project.type = "sync";
+    built.project.report_config.include_cost_forecast = true;
+  }
   const apiBase = normalizeApiBase(input.baseUrl);
   const connectionBody = appendConnectionBody(built.connection, input);
   const connection = await responseJson<Record<string, unknown>>(
@@ -302,12 +376,32 @@ export const createQuickProject = async (
     "Project creation"
   );
 
+  let iacPipeline: Record<string, any> | undefined;
+  if (input.workspaceFiles?.length) {
+    iacPipeline = await responseJson<Record<string, any>>(
+      await fetch(
+        `${apiBase}/projects/${encodeURIComponent(String(project.id))}/iac/pipeline?user_id=${encodeURIComponent(input.userId)}`,
+        {
+          method: "POST",
+          headers: withIdempotencyHeader(getCLIHeaders(input.authToken)),
+          body: JSON.stringify({
+            import_request: { source: "connection", connection_id: connectionId },
+            resolve: true,
+            refresh_analysis: true,
+          }),
+        }
+      ),
+      "IaC pipeline"
+    );
+  }
+
   return {
     project,
     connection,
     syncStatus: connection.sync_status ?? connection.sync_job ?? null,
     normalizedTemplateUrl: built.normalizedTemplateUrl,
     inferred: built.inferred,
+    iacPipeline,
   };
 };
 

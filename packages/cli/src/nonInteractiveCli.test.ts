@@ -604,10 +604,22 @@ const startBackend = async (
         ...project,
         id: "project-created",
         name: payload.name ?? "Created Project",
+        type: payload.type ?? project.type,
+        project_data_source: payload.type ?? project.type,
         connection_ids: payload.connection_ids ?? ["conn-created"],
       };
       createdProjects.push(created);
       return json(res, created, 201);
+    }
+    if (
+      url.pathname === "/api/v1/projects/project-created/iac/pipeline" &&
+      req.method === "POST"
+    ) {
+      return json(res, {
+        import: { files_added: 4, files_updated: 0, files_skipped: 0 },
+        resolve: { primary_stack_id: "main", linked_file_count: 2 },
+        refresh_analysis: { project_reports_autogen: "job-reports" },
+      });
     }
     if (url.pathname === `/api/v1/connection/user/${user.id}`) {
       return json(res, [connection]);
@@ -2555,6 +2567,147 @@ test("project creation, project reads, output files, and stdin access key work n
     );
   } finally {
     await fs.rm(outputDir, { recursive: true, force: true });
+    await backend.close();
+  }
+});
+
+test("projects create uploads a nested ARM workspace directory", async () => {
+  const backend = await startBackend();
+  const workspaceDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "cloudeval-workspace-"),
+  );
+  try {
+    await fs.mkdir(path.join(workspaceDir, "nested"), { recursive: true });
+    await fs.writeFile(
+      path.join(workspaceDir, "azuredeploy.json"),
+      JSON.stringify({
+        $schema:
+          "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+        contentVersion: "1.0.0.0",
+        resources: [
+          {
+            type: "Microsoft.Resources/deployments",
+            apiVersion: "2022-09-01",
+            name: "network",
+            properties: {
+              mode: "Incremental",
+              templateLink: { uri: "nested/network.json" },
+            },
+          },
+        ],
+      }),
+    );
+    await fs.writeFile(
+      path.join(workspaceDir, "nested", "network.json"),
+      JSON.stringify({ resources: [] }),
+    );
+
+    const create = parseJson(
+      await runCli([
+        "projects",
+        "create",
+        "--base-url",
+        backend.baseUrl,
+        "--access-key",
+        "test-token",
+        "--workspace-dir",
+        workspaceDir,
+        "--workspace-entry",
+        "azuredeploy.json",
+        "--name",
+        "Nested Workspace",
+        "--provider",
+        "azure",
+        "--format",
+        "json",
+        "--no-open",
+      ]),
+    );
+
+    assert.equal(create.command, "projects create");
+    assert.equal(create.data.project.id, "project-created");
+    assert.equal(create.data.iacPipeline.resolve.primary_stack_id, "main");
+
+    const connectionRequest = backend.requests.find(
+      (request) => request.path === "/api/v1/connection/",
+    );
+    assert.ok(connectionRequest);
+    assert.match(connectionRequest.body, /name="workspace_file_paths"/);
+    assert.match(connectionRequest.body, /nested\/network\.json/);
+    assert.match(connectionRequest.body, /\.cloudeval\/config\.yaml/);
+
+    const pipelineRequest = backend.requests.find(
+      (request) =>
+        request.path === "/api/v1/projects/project-created/iac/pipeline",
+    );
+    assert.ok(pipelineRequest);
+    assert.equal(pipelineRequest.query.get("user_id"), user.id);
+    assert.deepEqual(JSON.parse(pipelineRequest.body), {
+      import_request: { source: "connection", connection_id: "conn-created" },
+      resolve: true,
+      refresh_analysis: true,
+    });
+  } finally {
+    await backend.close();
+    await fs.rm(workspaceDir, { recursive: true, force: true });
+  }
+});
+
+test("projects create supports Cloud sync from Azure credential flags", async () => {
+  const backend = await startBackend();
+  try {
+    const create = parseJson(
+      await runCli([
+        "projects",
+        "create",
+        "--base-url",
+        backend.baseUrl,
+        "--access-key",
+        "test-token",
+        "--cloud-sync",
+        "--azure-tenant-id",
+        "tenant-1",
+        "--azure-client-id",
+        "client-1",
+        "--azure-client-secret",
+        "secret-1",
+        "--azure-subscription-id",
+        "sub-1",
+        "--resource-group",
+        "rg-app",
+        "--resource-group",
+        "rg-network",
+        "--name",
+        "CLI Cloud Sync",
+        "--provider",
+        "azure",
+        "--format",
+        "json",
+        "--no-open",
+      ]),
+    );
+
+    assert.equal(create.command, "projects create");
+    assert.equal(create.data.project.type, "sync");
+
+    const connectionRequest = backend.requests.find(
+      (request) => request.path === "/api/v1/connection/",
+    );
+    assert.ok(connectionRequest);
+    const connectionPayload = JSON.parse(connectionRequest.body);
+    assert.equal(connectionPayload.type, "sync");
+    assert.equal(connectionPayload.subscription_id, "sub-1");
+    assert.deepEqual(connectionPayload.target_resource_groups, [
+      "rg-app",
+      "rg-network",
+    ]);
+    assert.deepEqual(connectionPayload.credentials, {
+      tenant_id: "tenant-1",
+      client_id: "client-1",
+      client_secret: "secret-1",
+      subscription_id: "sub-1",
+    });
+  } finally {
     await backend.close();
   }
 });

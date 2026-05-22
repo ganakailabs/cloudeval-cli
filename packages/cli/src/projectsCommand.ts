@@ -68,6 +68,36 @@ type GraphCommandOptions = CommonOptions & {
   limit?: string;
 };
 
+type WorkspaceFile = {
+  path: string;
+  blob: Blob;
+};
+
+type WorkspaceConfig = {
+  entry?: string;
+  parameters?: string;
+};
+
+type ProjectCreateOptions = CommonOptions & {
+  templateUrl?: string;
+  templateFile?: string;
+  parametersFile?: string;
+  parametersUrl?: string;
+  workspaceDir?: string;
+  workspaceEntry?: string;
+  workspaceParameters?: string;
+  cloudSync?: boolean;
+  azureTenantId?: string;
+  azureClientId?: string;
+  azureClientSecret?: string;
+  azureSubscriptionId?: string;
+  resourceGroup?: string[];
+  resourceGroups?: string;
+  name?: string;
+  description?: string;
+  provider?: string;
+};
+
 const addCommon = <T extends Command>(command: T): T =>
   command
     .option("--format <format>", "Output format: text, json, ndjson, markdown", "text")
@@ -211,6 +241,253 @@ const fileBlob = async (filePath?: string): Promise<{ blob: Blob; name: string }
     name: path.basename(filePath),
   };
 };
+
+const normalizeWorkspacePath = (value: string): string =>
+  value
+    .replace(/\\/g, "/")
+    .replace(/^\/+/, "")
+    .replace(/^\.\//, "")
+    .split("/")
+    .filter((part) => part && part !== ".")
+    .join("/");
+
+const isIgnoredWorkspacePath = (relativePath: string): boolean => {
+  const normalized = normalizeWorkspacePath(relativePath);
+  return (
+    normalized === ".DS_Store" ||
+    normalized.endsWith("/.DS_Store") ||
+    normalized.startsWith(".git/") ||
+    normalized.startsWith("node_modules/") ||
+    normalized.startsWith(".cloudeval/bundles/") ||
+    normalized.startsWith(".cloudeval/connections/") ||
+    normalized.startsWith(".cloudeval/reports/") ||
+    normalized.startsWith(".cloudeval/share/") ||
+    normalized.startsWith(".cloudeval/shares/") ||
+    normalized.startsWith(".cloudeval/snapshots/") ||
+    normalized.startsWith(".cloudeval/template-cache/") ||
+    normalized === ".cloudeval/ps-rule.yaml"
+  );
+};
+
+const readWorkspaceConfig = (content: string): WorkspaceConfig => {
+  const entryMatch = content.match(/^\s*entry:\s*["']?([^"'\n#]+)["']?\s*(?:#.*)?$/m);
+  const parametersMatch = content.match(
+    /^\s*parameters:\s*["']?([^"'\n#]+)["']?\s*(?:#.*)?$/m
+  );
+  return {
+    entry: entryMatch ? normalizeWorkspacePath(entryMatch[1].trim()) : undefined,
+    parameters: parametersMatch ? normalizeWorkspacePath(parametersMatch[1].trim()) : undefined,
+  };
+};
+
+const generateWorkspaceConfig = (entry: string, parameters?: string): string => {
+  const parameterLine = parameters ? `    parameters: ${parameters}\n` : "";
+  return [
+    "version: 1",
+    "stacks:",
+    "  - id: main",
+    `    entry: ${entry}`,
+    parameterLine.trimEnd(),
+    "resolve:",
+    "  linked_templates: true",
+    "analysis:",
+    "  auto_resolve_on_import: true",
+    "  auto_refresh_on_resolve: true",
+    "",
+  ]
+    .filter((line) => line.length > 0)
+    .join("\n");
+};
+
+const collectWorkspacePaths = async (root: string): Promise<string[]> => {
+  const paths: string[] = [];
+  const visit = async (directory: string) => {
+    const entries = await fs.readdir(directory, { withFileTypes: true });
+    for (const entry of entries) {
+      const absolute = path.join(directory, entry.name);
+      const relative = normalizeWorkspacePath(path.relative(root, absolute));
+      if (!relative || isIgnoredWorkspacePath(relative)) {
+        continue;
+      }
+      if (entry.isDirectory()) {
+        await visit(absolute);
+      } else if (entry.isFile()) {
+        paths.push(relative);
+      }
+    }
+  };
+  await visit(root);
+  return paths.sort((left, right) => left.localeCompare(right));
+};
+
+const findFirstPath = (paths: string[], candidates: string[]): string | undefined => {
+  const lowerToPath = new Map(paths.map((filePath) => [filePath.toLowerCase(), filePath]));
+  for (const candidate of candidates) {
+    const found = lowerToPath.get(candidate.toLowerCase());
+    if (found) {
+      return found;
+    }
+  }
+  return undefined;
+};
+
+const detectWorkspaceEntry = (
+  paths: string[],
+  explicitEntry?: string,
+  config?: WorkspaceConfig
+): string => {
+  if (explicitEntry) {
+    const normalized = normalizeWorkspacePath(explicitEntry);
+    if (!paths.includes(normalized)) {
+      throw new Error(`--workspace-entry '${explicitEntry}' was not found in --workspace-dir.`);
+    }
+    return normalized;
+  }
+  if (config?.entry && paths.includes(config.entry)) {
+    return config.entry;
+  }
+  const rootCandidate = findFirstPath(paths, ["azuredeploy.json", "main.json", "deploy.json"]);
+  if (rootCandidate) {
+    return rootCandidate;
+  }
+  const recursiveAzureDeploy = paths.find((filePath) =>
+    /(^|\/)azuredeploy\.json$/i.test(filePath)
+  );
+  if (recursiveAzureDeploy) {
+    return recursiveAzureDeploy;
+  }
+  const armCandidate = paths.find((filePath) => /\.json$/i.test(filePath));
+  if (armCandidate) {
+    return armCandidate;
+  }
+  throw new Error(
+    "Could not detect a workspace entry file. Pass --workspace-entry or add .cloudeval/config.yaml."
+  );
+};
+
+const resolveWorkspaceParameters = (
+  paths: string[],
+  explicitParameters?: string,
+  config?: WorkspaceConfig
+): string | undefined => {
+  if (explicitParameters) {
+    const normalized = normalizeWorkspacePath(explicitParameters);
+    if (!paths.includes(normalized)) {
+      throw new Error(`--workspace-parameters '${explicitParameters}' was not found in --workspace-dir.`);
+    }
+    return normalized;
+  }
+  if (config?.parameters && paths.includes(config.parameters)) {
+    return config.parameters;
+  }
+  return findFirstPath(paths, ["azuredeploy.parameters.json", "parameters.json"]);
+};
+
+const collectWorkspaceFiles = async (
+  workspaceDir: string,
+  options: Pick<ProjectCreateOptions, "workspaceEntry" | "workspaceParameters">
+): Promise<{ files: WorkspaceFile[]; entry: string }> => {
+  const root = path.resolve(workspaceDir);
+  const stat = await fs.stat(root).catch(() => undefined);
+  if (!stat?.isDirectory()) {
+    throw new Error(`--workspace-dir '${workspaceDir}' is not a directory.`);
+  }
+
+  const paths = await collectWorkspacePaths(root);
+  const existingConfigPath = paths.find(
+    (filePath) => filePath.toLowerCase() === ".cloudeval/config.yaml"
+  );
+  const config = existingConfigPath
+    ? readWorkspaceConfig(await fs.readFile(path.join(root, existingConfigPath), "utf8"))
+    : undefined;
+  const entry = detectWorkspaceEntry(paths, options.workspaceEntry, config);
+  const parameters = resolveWorkspaceParameters(paths, options.workspaceParameters, config);
+  const finalPaths = [...paths];
+  const generatedConfig = existingConfigPath
+    ? undefined
+    : generateWorkspaceConfig(entry, parameters);
+  if (generatedConfig) {
+    finalPaths.push(".cloudeval/config.yaml");
+  }
+
+  const files: WorkspaceFile[] = [];
+  for (const relativePath of finalPaths.sort((left, right) => left.localeCompare(right))) {
+    if (relativePath === ".cloudeval/config.yaml" && generatedConfig) {
+      files.push({
+        path: relativePath,
+        blob: new Blob([generatedConfig], { type: "text/yaml" }),
+      });
+      continue;
+    }
+    const bytes = await fs.readFile(path.join(root, relativePath));
+    files.push({
+      path: relativePath,
+      blob: new Blob([bytes], {
+        type: /\.ya?ml$/i.test(relativePath) ? "text/yaml" : "application/octet-stream",
+      }),
+    });
+  }
+  return { files, entry };
+};
+
+const collectResourceGroups = (options: ProjectCreateOptions): string[] => {
+  const repeated = Array.isArray(options.resourceGroup) ? options.resourceGroup : [];
+  const commaSeparated = options.resourceGroups
+    ? options.resourceGroups.split(",").map((value) => value.trim())
+    : [];
+  return [...repeated, ...commaSeparated].map((value) => value.trim()).filter(Boolean);
+};
+
+const resolveAzureCloudSyncInput = (options: ProjectCreateOptions) => {
+  if (!options.cloudSync) {
+    return undefined;
+  }
+  const tenantId = options.azureTenantId || process.env.AZURE_TENANT_ID;
+  const clientId = options.azureClientId || process.env.AZURE_CLIENT_ID;
+  const clientSecret = options.azureClientSecret || process.env.AZURE_CLIENT_SECRET;
+  const subscriptionId = options.azureSubscriptionId || process.env.AZURE_SUBSCRIPTION_ID;
+  const missing = [
+    ["--azure-tenant-id or AZURE_TENANT_ID", tenantId],
+    ["--azure-client-id or AZURE_CLIENT_ID", clientId],
+    ["--azure-client-secret or AZURE_CLIENT_SECRET", clientSecret],
+    ["--azure-subscription-id or AZURE_SUBSCRIPTION_ID", subscriptionId],
+  ]
+    .filter(([, value]) => !value)
+    .map(([label]) => label);
+  if (missing.length) {
+    throw new Error(`Missing Cloud sync credential value(s): ${missing.join(", ")}.`);
+  }
+  return {
+    tenantId: tenantId!,
+    clientId: clientId!,
+    clientSecret: clientSecret!,
+    subscriptionId: subscriptionId!,
+    resourceGroups: collectResourceGroups(options),
+  };
+};
+
+const assertSingleProjectSource = (options: ProjectCreateOptions) => {
+  const sources = [
+    options.templateUrl ? "--template-url" : undefined,
+    options.templateFile ? "--template-file" : undefined,
+    options.workspaceDir ? "--workspace-dir" : undefined,
+    options.cloudSync ? "--cloud-sync" : undefined,
+  ].filter(Boolean);
+  if (sources.length > 1) {
+    throw new Error(`Choose one project source: ${sources.join(", ")} cannot be combined.`);
+  }
+  if ((options.parametersFile || options.parametersUrl) && !options.templateFile && !options.templateUrl) {
+    throw new Error("--parameters-file and --parameters-url require --template-file or --template-url.");
+  }
+  if (options.cloudSync && options.provider && options.provider !== "azure") {
+    throw new Error("--cloud-sync currently supports --provider azure.");
+  }
+};
+
+const appendOptionValue = (value: string, previous: string[] = []): string[] => [
+  ...previous,
+  value,
+];
 
 const writeDiagramImageHeaders = async (
   outputPath: string,
@@ -588,22 +865,39 @@ export const registerProjectsCommand = (
 
   configureGraphCommands(projects, deps);
 
-  addCommon(addAuthOptions(projects.command("create").description("Create a quick template project"), deps.defaultBaseUrl))
+  addCommon(addAuthOptions(projects.command("create").description("Create a CloudEval project"), deps.defaultBaseUrl))
     .option("--template-url <url>", "Template URL")
     .option("--template-file <path>", "Local JSON template file")
     .option("--parameters-file <path>", "Local JSON parameters file")
     .option("--parameters-url <url>", "Parameters file URL")
+    .option("--workspace-dir <path>", "Upload an Infrastructure as code folder")
+    .option("--workspace-entry <path>", "Workspace visualization entry file")
+    .option("--workspace-parameters <path>", "Workspace parameters file")
+    .option("--cloud-sync", "Create a Cloud sync project from Azure credentials", false)
+    .option("--azure-tenant-id <id>", "Azure tenant id for Cloud sync")
+    .option("--azure-client-id <id>", "Azure service principal client id for Cloud sync")
+    .option("--azure-client-secret <secret>", "Azure service principal client secret for Cloud sync")
+    .option("--azure-subscription-id <id>", "Azure subscription id for Cloud sync")
+    .option("--resource-group <name>", "Azure resource group scope for Cloud sync", appendOptionValue, [])
+    .option("--resource-groups <list>", "Comma-separated Azure resource group scopes for Cloud sync")
     .option("--name <name>", "Project name")
     .option("--description <text>", "Project description")
     .option("--provider <provider>", "Cloud provider: azure, aws, gcp")
-    .action(async (options: CommonOptions & any, command) => {
+    .action(async (options: ProjectCreateOptions, command) => {
       try {
+        assertSingleProjectSource(options);
         const context = requireAuthUser(await resolveAuthContext(options, command, deps));
         const core = await import("@cloudeval/core");
         const template = await fileBlob(options.templateFile);
         const parameters = await fileBlob(options.parametersFile);
+        const workspace = options.workspaceDir
+          ? await collectWorkspaceFiles(options.workspaceDir, options)
+          : undefined;
+        const cloudSync = resolveAzureCloudSyncInput(options);
         const inferredName =
           options.name ||
+          (options.workspaceDir ? path.basename(path.resolve(options.workspaceDir)) : undefined) ||
+          (cloudSync ? "Cloud sync" : undefined) ||
           (options.templateFile ? path.basename(options.templateFile, path.extname(options.templateFile)) : undefined);
         const result = await core.createQuickProject({
           baseUrl: context.baseUrl,
@@ -615,9 +909,12 @@ export const registerProjectsCommand = (
           parametersFile: parameters?.blob,
           parametersFileName: parameters?.name,
           parametersUrl: options.parametersUrl,
+          workspaceFiles: workspace?.files,
+          workspaceEntry: workspace?.entry,
+          cloudSync,
           name: inferredName,
           description: options.description,
-          provider: options.provider,
+          provider: (options.provider as any) ?? "azure",
         });
         const projectId = String(result.project.id);
         const url = buildFrontendUrl({
@@ -633,6 +930,7 @@ export const registerProjectsCommand = (
             syncStatus: result.syncStatus,
             normalizedTemplateUrl: result.normalizedTemplateUrl,
             inferred: result.inferred,
+            iacPipeline: result.iacPipeline,
           },
           format: options.format,
           output: options.output,

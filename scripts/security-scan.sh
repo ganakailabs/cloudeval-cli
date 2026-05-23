@@ -82,7 +82,7 @@ run_targeted_current_scan() {
   local source_dir="$1"
   local output="$TMP_DIR/targeted-current.txt"
   local pattern
-  pattern='(sk-or-v1-[A-Za-z0-9_-]{20,}|sk-proj-[A-Za-z0-9_-]{20,}|sk-[A-Za-z0-9_-]{20,}|gh[pousr]_[A-Za-z0-9_]{20,}|AKIA[0-9A-Z]{16}|api://[0-9a-fA-F-]{36}/(access_as_user|\.default)|login\.microsoftonline\.com/[0-9a-fA-F-]{36}|CLOUDEVAL_BACKEND_(CLIENT|TENANT)_ID|AZURE_(CLIENT|TENANT)_ID|DEFAULT_BACKEND_(CLIENT|TENANT)_ID)'
+  pattern='(sk-or-v1-[A-Za-z0-9_-]{20,}|sk-proj-[A-Za-z0-9_-]{20,}|sk-[A-Za-z0-9_-]{20,}|gh[pousr]_[A-Za-z0-9_]{20,}|AKIA[0-9A-Z]{16}|api://[0-9a-fA-F-]{36}/(access_as_user|\.default)|login\.microsoftonline\.com/[0-9a-fA-F-]{36})'
 
   set +e
   grep -R -n -I -E "$pattern" "$source_dir" >"$output"

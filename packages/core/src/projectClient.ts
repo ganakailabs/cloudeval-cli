@@ -242,6 +242,76 @@ const responseJson = async <T>(response: Response, label: string): Promise<T> =>
   return (await response.json()) as T;
 };
 
+const formatResponseError = (
+  response: Response,
+  label: string,
+  body: string
+): Error => {
+  const redactedBody = redactSensitiveText(body.trim());
+  return new Error(
+    `${label} failed with status ${response.status} ${response.statusText}${
+      redactedBody ? `: ${redactedBody}` : ""
+    }`
+  );
+};
+
+const buildInlineWorkspaceImportRequest = async (
+  workspaceFiles: WorkspaceFileInput[]
+) => ({
+  source: "upload" as const,
+  files: await Promise.all(
+    workspaceFiles.map(async (file) => ({
+      path: file.path,
+      content: await file.blob.text(),
+    }))
+  ),
+});
+
+const runIacPipeline = async (
+  input: QuickProjectInput & { baseUrl: string; authToken?: string },
+  projectId: string,
+  connectionId: string
+): Promise<Record<string, any>> => {
+  const apiBase = normalizeApiBase(input.baseUrl);
+  const pipelineUrl = `${apiBase}/projects/${encodeURIComponent(projectId)}/iac/pipeline?user_id=${encodeURIComponent(input.userId)}`;
+  const connectionImportBody = {
+    import_request: { source: "connection", connection_id: connectionId },
+    resolve: true,
+    refresh_analysis: true,
+  };
+  const response = await fetch(pipelineUrl, {
+    method: "POST",
+    headers: withIdempotencyHeader(getCLIHeaders(input.authToken)),
+    body: JSON.stringify(connectionImportBody),
+  });
+  if (response.ok) {
+    return (await response.json()) as Record<string, any>;
+  }
+
+  const failureBody = await response.text().catch(() => "");
+  const workspaceFiles = input.workspaceFiles ?? [];
+  const canRetryAsUpload =
+    response.status === 422 &&
+    workspaceFiles.length > 0 &&
+    /source/i.test(failureBody) &&
+    /upload/i.test(failureBody);
+  if (!canRetryAsUpload) {
+    throw formatResponseError(response, "IaC pipeline", failureBody);
+  }
+
+  const uploadImportBody = {
+    import_request: await buildInlineWorkspaceImportRequest(workspaceFiles),
+    resolve: true,
+    refresh_analysis: true,
+  };
+  const retryResponse = await fetch(pipelineUrl, {
+    method: "POST",
+    headers: withIdempotencyHeader(getCLIHeaders(input.authToken)),
+    body: JSON.stringify(uploadImportBody),
+  });
+  return responseJson<Record<string, any>>(retryResponse, "IaC pipeline");
+};
+
 const appendConnectionBody = (
   payload: ConnectionRequest,
   input: QuickProjectInput
@@ -378,20 +448,10 @@ export const createQuickProject = async (
 
   let iacPipeline: Record<string, any> | undefined;
   if (input.workspaceFiles?.length) {
-    iacPipeline = await responseJson<Record<string, any>>(
-      await fetch(
-        `${apiBase}/projects/${encodeURIComponent(String(project.id))}/iac/pipeline?user_id=${encodeURIComponent(input.userId)}`,
-        {
-          method: "POST",
-          headers: withIdempotencyHeader(getCLIHeaders(input.authToken)),
-          body: JSON.stringify({
-            import_request: { source: "connection", connection_id: connectionId },
-            resolve: true,
-            refresh_analysis: true,
-          }),
-        }
-      ),
-      "IaC pipeline"
+    iacPipeline = await runIacPipeline(
+      input,
+      String(project.id),
+      connectionId
     );
   }
 

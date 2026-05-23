@@ -224,6 +224,109 @@ test("createQuickProject creates a multi-file IaC workspace project and runs the
   }
 });
 
+test("createQuickProject falls back to inline workspace upload for older IaC pipeline contracts", async () => {
+  const calls: Array<{ url: string; method: string; body?: BodyInit | null }> = [];
+  const previousFetch = globalThis.fetch;
+  let pipelineAttempts = 0;
+  globalThis.fetch = (async (url: string, init?: RequestInit) => {
+    calls.push({
+      url,
+      method: init?.method ?? "GET",
+      body: init?.body,
+    });
+    if (String(url).endsWith("/connection/")) {
+      return new Response(
+        JSON.stringify({ id: "conn-workspace", name: "Workspace Connection" }),
+        { status: 201, headers: { "content-type": "application/json" } }
+      );
+    }
+    if (String(url).endsWith("/projects/")) {
+      return new Response(
+        JSON.stringify({ id: "project-workspace", name: "Workspace", connection_ids: ["conn-workspace"] }),
+        { status: 201, headers: { "content-type": "application/json" } }
+      );
+    }
+    if (String(url).includes("/projects/project-workspace/iac/pipeline")) {
+      pipelineAttempts += 1;
+      if (pipelineAttempts === 1) {
+        return new Response(
+          JSON.stringify({
+            detail: [
+              {
+                loc: ["body", "import_request", "source"],
+                msg: "Input should be 'upload' or 'github'",
+              },
+            ],
+          }),
+          { status: 422, statusText: "Unprocessable Entity", headers: { "content-type": "application/json" } }
+        );
+      }
+      return new Response(
+        JSON.stringify({
+          import: { files_added: 2 },
+          resolve: { primary_stack_id: "main", linked_file_count: 1 },
+        }),
+        { status: 200, headers: { "content-type": "application/json" } }
+      );
+    }
+    return new Response("not found", { status: 404 });
+  }) as typeof fetch;
+
+  try {
+    const result = await createQuickProject({
+      baseUrl: "https://api.example.test/api/v1",
+      authToken: "token",
+      userId: "user-1",
+      workspaceFiles: [
+        {
+          path: "azuredeploy.json",
+          blob: new Blob([JSON.stringify({ resources: [] })], {
+            type: "application/json",
+          }),
+        },
+        {
+          path: "nested/storage.json",
+          blob: new Blob([JSON.stringify({ resources: [] })], {
+            type: "application/json",
+          }),
+        },
+      ],
+      workspaceEntry: "azuredeploy.json",
+      name: "Workspace",
+      description: "Nested templates",
+      provider: "azure",
+    });
+
+    assert.equal(result.iacPipeline?.resolve?.primary_stack_id, "main");
+    assert.equal(pipelineAttempts, 2);
+
+    const pipelineCalls = calls.filter((call) =>
+      call.url.includes("/projects/project-workspace/iac/pipeline")
+    );
+    assert.equal(
+      pipelineCalls[0].body,
+      JSON.stringify({
+        import_request: { source: "connection", connection_id: "conn-workspace" },
+        resolve: true,
+        refresh_analysis: true,
+      })
+    );
+    assert.deepEqual(JSON.parse(String(pipelineCalls[1].body)), {
+      import_request: {
+        source: "upload",
+        files: [
+          { path: "azuredeploy.json", content: JSON.stringify({ resources: [] }) },
+          { path: "nested/storage.json", content: JSON.stringify({ resources: [] }) },
+        ],
+      },
+      resolve: true,
+      refresh_analysis: true,
+    });
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});
+
 test("createQuickProject creates a Cloud sync project from Azure credentials", async () => {
   const calls: Array<{ url: string; method: string; body?: string }> = [];
   const previousFetch = globalThis.fetch;

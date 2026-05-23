@@ -89,6 +89,16 @@ test("createQuickProject creates connection then project", async () => {
         { status: 200, headers: { "content-type": "application/json" } }
       );
     }
+    if (String(url).includes("/projects/project-1/iac/pipeline")) {
+      return new Response(
+        JSON.stringify({
+          import: { files_added: 1, files_updated: 0, files_skipped: 0 },
+          resolve: { primary_stack_id: "main", linked_file_count: 0 },
+          refresh_analysis: { project_reports_autogen: "job-1" },
+        }),
+        { status: 200, headers: { "content-type": "application/json" } }
+      );
+    }
     return new Response("not found", { status: 404 });
   }) as typeof fetch;
 
@@ -107,6 +117,19 @@ test("createQuickProject creates connection then project", async () => {
     assert.equal(result.project.id, "project-1");
     assert.equal(calls[0].url, "https://api.example.test/api/v1/connection/");
     assert.equal(calls[1].url, "https://api.example.test/api/v1/projects/");
+    assert.equal(
+      calls[2].url,
+      "https://api.example.test/api/v1/projects/project-1/iac/pipeline?user_id=user-1"
+    );
+    assert.equal(
+      calls[2].body,
+      JSON.stringify({
+        import_request: { source: "connection", connection_id: "conn-1" },
+        resolve: true,
+        refresh_analysis: true,
+      })
+    );
+    assert.equal(result.iacPipeline?.resolve?.primary_stack_id, "main");
     assert.match(calls[0].headers?.["Idempotency-Key"] ?? "", /^[0-9a-f-]{36}$/);
     assert.match(calls[1].headers?.["Idempotency-Key"] ?? "", /^[0-9a-f-]{36}$/);
     assert.match(calls[1].body ?? "", /"connection_ids":\["conn-1"\]/);

@@ -447,7 +447,7 @@ export const createQuickProject = async (
   );
 
   let iacPipeline: Record<string, any> | undefined;
-  if (input.workspaceFiles?.length) {
+  if (!input.cloudSync) {
     iacPipeline = await runIacPipeline(
       input,
       String(project.id),

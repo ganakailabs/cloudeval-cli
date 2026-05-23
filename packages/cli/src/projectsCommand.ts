@@ -1,5 +1,7 @@
 import path from "node:path";
 import fs from "node:fs/promises";
+import os from "node:os";
+import { spawn } from "node:child_process";
 import type { Command } from "commander";
 import {
   addAuthOptions,
@@ -280,13 +282,19 @@ const readWorkspaceConfig = (content: string): WorkspaceConfig => {
   };
 };
 
-const generateWorkspaceConfig = (entry: string, parameters?: string): string => {
+const generateWorkspaceConfig = (
+  entry: string,
+  parameters?: string,
+  sourceEntry?: string
+): string => {
   const parameterLine = parameters ? `    parameters: ${parameters}\n` : "";
+  const sourceEntryLine = sourceEntry ? `    source_entry: ${sourceEntry}` : "";
   return [
     "version: 1",
     "stacks:",
     "  - id: main",
     `    entry: ${entry}`,
+    sourceEntryLine,
     parameterLine.trimEnd(),
     "resolve:",
     "  linked_templates: true",
@@ -297,6 +305,83 @@ const generateWorkspaceConfig = (entry: string, parameters?: string): string => 
   ]
     .filter((line) => line.length > 0)
     .join("\n");
+};
+
+const runCommand = (
+  command: string,
+  args: string[]
+): Promise<{ stdout: string; stderr: string }> =>
+  new Promise((resolve, reject) => {
+    const child = spawn(command, args, { stdio: ["ignore", "pipe", "pipe"] });
+    const stdout: Buffer[] = [];
+    const stderr: Buffer[] = [];
+    child.stdout.on("data", (chunk) => stdout.push(Buffer.from(chunk)));
+    child.stderr.on("data", (chunk) => stderr.push(Buffer.from(chunk)));
+    child.on("error", reject);
+    child.on("exit", (code) => {
+      const output = {
+        stdout: Buffer.concat(stdout).toString("utf8"),
+        stderr: Buffer.concat(stderr).toString("utf8"),
+      };
+      if (code === 0) {
+        resolve(output);
+        return;
+      }
+      reject(
+        new Error(
+          `${command} ${args.join(" ")} failed with exit code ${code ?? "unknown"}${
+            output.stderr ? `: ${output.stderr.trim()}` : ""
+          }`
+        )
+      );
+    });
+  });
+
+const isBicepPath = (filePath: string): boolean => /\.bicep$/i.test(filePath);
+
+const compiledBicepPathFor = (entry: string): string => {
+  const parsed = path.posix.parse(entry);
+  return normalizeWorkspacePath(
+    path.posix.join(
+      ".cloudeval/template-cache/compiled",
+      parsed.dir,
+      `${parsed.name}.json`
+    )
+  );
+};
+
+const compileBicepEntry = async (
+  root: string,
+  entry: string
+): Promise<WorkspaceFile> => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "cloudeval-bicep-"));
+  const outputPath = path.join(tempDir, "compiled.json");
+  try {
+    await runCommand("az", [
+      "bicep",
+      "build",
+      "--file",
+      path.join(root, entry),
+      "--outfile",
+      outputPath,
+    ]);
+    const bytes = await fs.readFile(outputPath);
+    return {
+      path: compiledBicepPathFor(entry),
+      blob: new Blob([bytes], { type: "application/json" }),
+    };
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Bicep compilation failed.";
+    if ((error as NodeJS.ErrnoException)?.code === "ENOENT") {
+      throw new Error(
+        "Bicep workspace entries require Azure CLI with `az bicep` available. Install Azure CLI or upload a compiled ARM JSON entry."
+      );
+    }
+    throw new Error(`Failed to compile Bicep workspace entry '${entry}': ${message}`);
+  } finally {
+    await fs.rm(tempDir, { recursive: true, force: true });
+  }
 };
 
 const collectWorkspacePaths = async (root: string): Promise<string[]> => {
@@ -402,15 +487,22 @@ const collectWorkspaceFiles = async (
     : undefined;
   const entry = detectWorkspaceEntry(paths, options.workspaceEntry, config);
   const parameters = resolveWorkspaceParameters(paths, options.workspaceParameters, config);
+  const compiledEntry = isBicepPath(entry)
+    ? await compileBicepEntry(root, entry)
+    : undefined;
+  const analysisEntry = compiledEntry?.path ?? entry;
   const finalPaths = [...paths];
-  const generatedConfig = existingConfigPath
+  const generatedConfig = existingConfigPath && !compiledEntry
     ? undefined
-    : generateWorkspaceConfig(entry, parameters);
+    : generateWorkspaceConfig(analysisEntry, parameters, compiledEntry ? entry : undefined);
   if (generatedConfig) {
     finalPaths.push(".cloudeval/config.yaml");
   }
 
   const files: WorkspaceFile[] = [];
+  if (compiledEntry) {
+    files.push(compiledEntry);
+  }
   for (const relativePath of finalPaths.sort((left, right) => left.localeCompare(right))) {
     if (relativePath === ".cloudeval/config.yaml" && generatedConfig) {
       files.push({
@@ -427,7 +519,7 @@ const collectWorkspaceFiles = async (
       }),
     });
   }
-  return { files, entry };
+  return { files, entry: analysisEntry };
 };
 
 const collectResourceGroups = (options: ProjectCreateOptions): string[] => {

@@ -2653,6 +2653,91 @@ test("projects create uploads a nested ARM workspace directory", async () => {
   }
 });
 
+test("projects create compiles a Bicep workspace entry for analysis upload", async () => {
+  const backend = await startBackend();
+  const workspaceDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "cloudeval-bicep-workspace-"),
+  );
+  const fakeBinDir = await fs.mkdtemp(path.join(os.tmpdir(), "cloudeval-fake-az-"));
+  try {
+    await fs.writeFile(
+      path.join(workspaceDir, "main.bicep"),
+      "resource storage 'Microsoft.Storage/storageAccounts@2022-09-01' = { name: 'sttest001' location: 'eastus' sku: { name: 'Standard_LRS' } kind: 'StorageV2' }\n",
+    );
+    const fakeAz = path.join(fakeBinDir, "az");
+    await fs.writeFile(
+      fakeAz,
+      [
+        "#!/usr/bin/env node",
+        "const fs = require('fs');",
+        "const args = process.argv.slice(2);",
+        "const outIndex = args.indexOf('--outfile');",
+        "if (args[0] !== 'bicep' || args[1] !== 'build' || outIndex === -1) process.exit(2);",
+        "fs.writeFileSync(args[outIndex + 1], JSON.stringify({ resources: [{ type: 'Microsoft.Storage/storageAccounts', apiVersion: '2022-09-01', name: 'sttest001' }] }));",
+      ].join("\n"),
+    );
+    await fs.chmod(fakeAz, 0o755);
+
+    const create = parseJson(
+      await runCli(
+        [
+          "projects",
+          "create",
+          "--base-url",
+          backend.baseUrl,
+          "--access-key",
+          "test-token",
+          "--workspace-dir",
+          workspaceDir,
+          "--workspace-entry",
+          "main.bicep",
+          "--name",
+          "Bicep Workspace",
+          "--provider",
+          "azure",
+          "--format",
+          "json",
+          "--no-open",
+        ],
+        {
+          env: { PATH: `${fakeBinDir}${path.delimiter}${process.env.PATH ?? ""}` },
+        },
+      ),
+    );
+
+    assert.equal(create.command, "projects create");
+    assert.equal(create.data.project.id, "project-created");
+
+    const connectionRequest = backend.requests.find(
+      (request) => request.path === "/api/v1/connection/",
+    );
+    assert.ok(connectionRequest);
+    assert.match(connectionRequest.body, /name="visualization_source_path"/);
+    assert.match(
+      connectionRequest.body,
+      /\.cloudeval\/template-cache\/compiled\/main\.json/,
+    );
+    assert.match(connectionRequest.body, /source_entry: main\.bicep/);
+    assert.match(connectionRequest.body, /name="workspace_files"/);
+    assert.match(connectionRequest.body, /filename="main\.bicep"/);
+
+    const pipelineRequest = backend.requests.find(
+      (request) =>
+        request.path === "/api/v1/projects/project-created/iac/pipeline",
+    );
+    assert.ok(pipelineRequest);
+    assert.deepEqual(JSON.parse(pipelineRequest.body), {
+      import_request: { source: "connection", connection_id: "conn-created" },
+      resolve: true,
+      refresh_analysis: true,
+    });
+  } finally {
+    await backend.close();
+    await fs.rm(workspaceDir, { recursive: true, force: true });
+    await fs.rm(fakeBinDir, { recursive: true, force: true });
+  }
+});
+
 test("projects create supports Cloud sync from Azure credential flags", async () => {
   const backend = await startBackend();
   try {

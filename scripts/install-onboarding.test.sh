@@ -215,6 +215,64 @@ fi
 
 echo "ok - installer MCP onboarding uses concise next steps and summary"
 
+telemetry_env_default="$(
+  CLOUDEVAL_TELEMETRY= \
+  CLOUDEVAL_TELEMETRY_DISABLED= \
+  bash "$ROOT_DIR/scripts/install.sh" --self-test-telemetry-env
+)"
+if [ "$telemetry_env_default" != "enabled" ]; then
+  echo "telemetry should default to enabled when no override is set" >&2
+  exit 1
+fi
+
+telemetry_env_disabled="$(
+  CLOUDEVAL_TELEMETRY=0 \
+  bash "$ROOT_DIR/scripts/install.sh" --self-test-telemetry-env
+)"
+if [ "$telemetry_env_disabled" != "disabled" ]; then
+  echo "CLOUDEVAL_TELEMETRY=0 should disable installer telemetry" >&2
+  exit 1
+fi
+
+fake_cloudeval="$TMP_DIR/bin/fake-cloudeval"
+fake_cloudeval_log="$TMP_DIR/fake-cloudeval.log"
+cat >"$fake_cloudeval" <<'SH'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "${CLOUDEVAL_FAKE_LOG:?}"
+SH
+chmod +x "$fake_cloudeval"
+
+CLOUDEVAL_FAKE_LOG="$fake_cloudeval_log" \
+CLOUDEVAL_SELF_TEST_TELEMETRY_ANSWER=n \
+bash "$ROOT_DIR/scripts/install.sh" --self-test-telemetry-configure "$fake_cloudeval" >/dev/null
+if ! grep -qx "config set telemetry.enabled false --format json" "$fake_cloudeval_log"; then
+  echo "telemetry opt-out should write telemetry.enabled=false through the installed CLI" >&2
+  cat "$fake_cloudeval_log" >&2
+  exit 1
+fi
+
+rm -f "$fake_cloudeval_log"
+CLOUDEVAL_FAKE_LOG="$fake_cloudeval_log" \
+CI=true \
+bash "$ROOT_DIR/scripts/install.sh" --self-test-telemetry-configure "$fake_cloudeval" >/dev/null
+if [ -e "$fake_cloudeval_log" ]; then
+  echo "non-interactive installer should keep telemetry default-on without writing config" >&2
+  cat "$fake_cloudeval_log" >&2
+  exit 1
+fi
+
+rm -f "$fake_cloudeval_log"
+CLOUDEVAL_FAKE_LOG="$fake_cloudeval_log" \
+CLOUDEVAL_TELEMETRY_DISABLED=1 \
+bash "$ROOT_DIR/scripts/install.sh" --self-test-telemetry-configure "$fake_cloudeval" >/dev/null
+if ! grep -qx "config set telemetry.enabled false --format json" "$fake_cloudeval_log"; then
+  echo "installer telemetry hard-disable env should write telemetry.enabled=false" >&2
+  cat "$fake_cloudeval_log" >&2
+  exit 1
+fi
+
+echo "ok - installer telemetry prompt defaults on and opt-out writes config"
+
 banner_output="$(bash "$ROOT_DIR/scripts/install.sh" --self-test-banner)"
 
 if [[ "$banner_output" != *$'\033[1;38;5;220m ██████╗'* ]]; then
@@ -366,6 +424,17 @@ if command -v pwsh >/dev/null 2>&1; then
   if ! printf '%s\n' "$download_plan" | grep -q 'cloudeval-linux-x64$'; then
     echo "PowerShell installer should expose uncompressed asset URLs" >&2
     printf '%s\n' "$download_plan" >&2
+    exit 1
+  fi
+  rm -f "$fake_cloudeval_log"
+  CLOUDEVAL_FAKE_LOG="$fake_cloudeval_log" \
+  CLOUDEVAL_SELF_TEST_TELEMETRY_ANSWER=n \
+  pwsh -NoProfile -File "$ROOT_DIR/scripts/install.ps1" \
+    -SelfTestTelemetryConfigure \
+    -SelfTestTelemetryDest "$fake_cloudeval" >/dev/null
+  if ! grep -qx "config set telemetry.enabled false --format json" "$fake_cloudeval_log"; then
+    echo "PowerShell telemetry opt-out should write telemetry.enabled=false through the installed CLI" >&2
+    cat "$fake_cloudeval_log" >&2
     exit 1
   fi
   echo "ok - PowerShell installer download plan"

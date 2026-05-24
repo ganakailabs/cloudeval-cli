@@ -3,7 +3,9 @@
 param(
   [string] $Version = "latest",
   [switch] $SelfTestDownloadPlan,
-  [string] $SelfTestAsset = "cloudeval-macos-arm64"
+  [string] $SelfTestAsset = "cloudeval-macos-arm64",
+  [switch] $SelfTestTelemetryConfigure,
+  [string] $SelfTestTelemetryDest = ""
 )
 
 Set-StrictMode -Version Latest
@@ -21,6 +23,10 @@ function Test-AssumeYes {
   return $env:CLOUDEVAL_ASSUME_YES -eq "1" -or $env:CI -eq "true"
 }
 
+function Test-CanPrompt {
+  return -not (Test-AssumeYes) -and -not [Console]::IsInputRedirected
+}
+
 function Ask-YesNo {
   param(
     [string] $Prompt,
@@ -31,6 +37,87 @@ function Ask-YesNo {
   $answer = Read-Host "$Prompt $suffix"
   if ([string]::IsNullOrWhiteSpace($answer)) { return $Default }
   return $answer -match "^(y|yes)$" -or $answer -match "^(Y|YES)$"
+}
+
+function Test-TelemetryEnvDisables {
+  $disabled = @("1", "true", "TRUE", "yes", "YES", "on", "ON")
+  $off = @("0", "false", "FALSE", "no", "NO", "off", "OFF")
+  return $disabled -contains $env:CLOUDEVAL_TELEMETRY_DISABLED -or
+    $off -contains $env:CLOUDEVAL_TELEMETRY
+}
+
+function Write-TelemetryNotice {
+  Write-Info "Telemetry"
+  Write-Host "  CloudEval sends limited CLI usage events to Azure Application Insights to improve reliability."
+  Write-Host "  It does not send prompts, command output, tokens, local paths, project/resource/account/session/tenant IDs, stack traces, or cloud resource names."
+  Write-Host "  It may include CLI/runtime versions and signed-in email/name after login."
+}
+
+function Set-TelemetryOptOut {
+  param([string] $Dest)
+  try {
+    & $Dest config set telemetry.enabled false --format json | Out-Null
+    Write-Ok "Telemetry disabled in CloudEval CLI config."
+  } catch {
+    Write-Warn "Could not write telemetry preference automatically. Run:"
+    Write-Host "  $BinName config set telemetry.enabled false"
+  }
+}
+
+function Set-TelemetryPreference {
+  param([string] $Dest)
+  Write-Host ""
+  Write-TelemetryNotice
+
+  if (Test-TelemetryEnvDisables) {
+    Set-TelemetryOptOut -Dest $Dest
+    return
+  }
+
+  if (-not [string]::IsNullOrWhiteSpace($env:CLOUDEVAL_SELF_TEST_TELEMETRY_ANSWER)) {
+    if ($env:CLOUDEVAL_SELF_TEST_TELEMETRY_ANSWER -match "^(y|yes|true|1)$") {
+      Write-Ok "Telemetry enabled. Disable later with: $BinName config set telemetry.enabled false"
+    } else {
+      Set-TelemetryOptOut -Dest $Dest
+    }
+    return
+  }
+
+  if (Test-CanPrompt) {
+    if (Ask-YesNo "Share limited CLI telemetry?" $true) {
+      Write-Ok "Telemetry enabled. Disable later with: $BinName config set telemetry.enabled false"
+    } else {
+      Set-TelemetryOptOut -Dest $Dest
+    }
+    return
+  }
+
+  Write-Ok "Telemetry enabled by default."
+  Write-Host "  Disable with CLOUDEVAL_TELEMETRY=0 or $BinName config set telemetry.enabled false."
+}
+
+function Send-InstallTelemetry {
+  param(
+    [string] $Dest,
+    [string] $RequestedVersion,
+    [string] $ResolvedVersion,
+    [string] $Platform,
+    [string] $Aliases,
+    [string] $Completions
+  )
+  try {
+    & $Dest __telemetry install `
+      --installer-type powershell `
+      --requested-version $RequestedVersion `
+      --resolved-version $ResolvedVersion `
+      --platform $Platform `
+      --aliases $Aliases `
+      --completions $Completions `
+      --mcp-setup not_run `
+      --result success | Out-Null
+  } catch {
+    # Telemetry must never block installation.
+  }
 }
 
 function Get-InstallDestDir {
@@ -280,6 +367,14 @@ if ($SelfTestDownloadPlan) {
   exit 0
 }
 
+if ($SelfTestTelemetryConfigure) {
+  if ([string]::IsNullOrWhiteSpace($SelfTestTelemetryDest)) {
+    throw "SelfTestTelemetryDest is required."
+  }
+  Set-TelemetryPreference -Dest $SelfTestTelemetryDest
+  exit 0
+}
+
 Write-Banner
 
 $platform, $arch = Get-PlatformArch
@@ -295,6 +390,8 @@ $licenseDir = if ($IsWindows -or $env:OS -match "Windows") {
   Join-Path $HOME ".local/share/cloudeval/licenses"
 }
 $resolvedVersion = Resolve-ReleaseVersion
+$installAliases = "not_applicable"
+$installCompletions = "not_applicable"
 
 Write-Info "Installation Details:"
 Write-Host "  Requested Version: $Version"
@@ -353,13 +450,18 @@ if ($platform -ne "win") {
     if (Test-Path $cloud) { Remove-Item $cloud -Force }
     New-Item -ItemType SymbolicLink -Path $eva -Target $dest -Force | Out-Null
     New-Item -ItemType SymbolicLink -Path $cloud -Target $dest -Force | Out-Null
+    $installAliases = "created"
     Write-Ok "Created 'eva' and 'cloud' aliases"
+  } else {
+    $installAliases = "declined"
   }
 }
 
 Write-Ok "Installation complete!"
 Write-Host "  Binary installed to: $dest"
 Write-Host ""
+
+Set-TelemetryPreference -Dest $dest
 
 if (Test-PathInPath $destDir) {
   Write-Ok "$destDir is already in your PATH"
@@ -380,12 +482,26 @@ if ($env:CLOUDEVAL_INSTALL_COMPLETION -ne "0") {
   if (Ask-YesNo "Install PowerShell tab completions?" $true) {
     try {
       & $dest completion install --shell powershell
+      $installCompletions = "installed"
       Write-Ok "Installed PowerShell completions. Open a new terminal or reload your profile."
     } catch {
+      $installCompletions = "failed"
       Write-Warn "Could not install completions automatically. Run: $BinName completion install --shell powershell"
     }
+  } else {
+    $installCompletions = "declined"
   }
+} else {
+  $installCompletions = "disabled"
 }
+
+Send-InstallTelemetry `
+  -Dest $dest `
+  -RequestedVersion $Version `
+  -ResolvedVersion $resolvedVersion `
+  -Platform "$platform-$arch" `
+  -Aliases $installAliases `
+  -Completions $installCompletions
 
 Write-Info "Next steps:"
 Write-Host "  $BinName login"

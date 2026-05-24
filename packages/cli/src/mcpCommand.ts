@@ -81,6 +81,10 @@ import {
   withTemplateValidationDetails,
 } from "./templateValidationClient.js";
 import { warnIfAccessKeyFromCliOption } from "./authGuard.js";
+import {
+  classifyTelemetryError,
+  type CliTelemetry,
+} from "./telemetry.js";
 
 type JsonValue =
   | string
@@ -164,6 +168,8 @@ export interface RegisterMcpCommandOptions {
     options: { baseUrl?: string },
     command?: Command,
   ) => Promise<string>;
+  getTelemetry?: () => CliTelemetry | undefined;
+  finishTelemetry?: (exitCode: number, error?: unknown) => Promise<void>;
 }
 
 interface ServeMcpOptions {
@@ -173,6 +179,7 @@ interface ServeMcpOptions {
   accessKey?: string;
   verbose?: boolean;
   toolset?: McpToolsetName;
+  telemetry?: CliTelemetry;
 }
 
 interface InvocationConfig {
@@ -4575,9 +4582,18 @@ export const serveMcpServer = async (
             `Tool has no handler: ${name}`,
           );
         }
+        const startedAt = Date.now();
         try {
           const envelope = await handler(args);
           debug("tool call completed", { tool: name, ok: envelope.ok });
+          await options.telemetry?.track("cli.mcp.tool", {
+            command: "mcp",
+            subcommand: "serve",
+            toolName: name,
+            toolset,
+            durationMs: Date.now() - startedAt,
+            success: true,
+          });
           return jsonRpcResult(
             request.id,
             toToolResult(envelope) as unknown as JsonRecord,
@@ -4586,6 +4602,15 @@ export const serveMcpServer = async (
           log("tool call failed", {
             tool: name,
             message: error instanceof Error ? error.message : String(error),
+          });
+          await options.telemetry?.track("cli.mcp.tool", {
+            command: "mcp",
+            subcommand: "serve",
+            toolName: name,
+            toolset,
+            durationMs: Date.now() - startedAt,
+            success: false,
+            errorCategory: classifyTelemetryError(error),
           });
           return jsonRpcResult(
             request.id,
@@ -4931,7 +4956,9 @@ export const registerMcpCommand = (
         accessKey: stringValue(options.accessKey),
         toolset: normalizeMcpToolset(options.toolset),
         verbose: Boolean(options.verbose),
+        telemetry: deps.getTelemetry?.(),
       });
+      await deps.finishTelemetry?.(0);
       process.exit(0);
     });
 };

@@ -10,6 +10,7 @@ import {
   type MachineOutputFormat,
 } from "./outputFormatter.js";
 import { CLI_VERSION } from "./version.js";
+import type { CliTelemetry } from "./telemetry.js";
 
 const DEFAULT_LATEST_RELEASE_URL =
   "https://api.github.com/repos/ganakailabs/cloudeval-cli/releases/latest";
@@ -86,6 +87,10 @@ interface UpdateCommandDeps {
   output?: NodeJS.WriteStream | Writable;
   env?: NodeJS.ProcessEnv;
   now?: Date;
+}
+
+interface RegisterUpdateCommandOptions {
+  getTelemetry?: () => CliTelemetry | undefined;
 }
 
 export interface VersionNudgeInput {
@@ -601,7 +606,10 @@ export const maybeShowUpdateNudge = async (
   }
 };
 
-export const registerUpdateCommand = (program: Command) => {
+export const registerUpdateCommand = (
+  program: Command,
+  registerOptions: RegisterUpdateCommandOptions = {}
+) => {
   program
     .command("update")
     .description("Update CloudEval CLI to the latest published version")
@@ -615,6 +623,12 @@ export const registerUpdateCommand = (program: Command) => {
     .option("-o, --output <file>", "Output file")
     .action(async (options: UpdateCommandOptions) => {
       const result = await handleUpdateCommand(options);
+      await registerOptions.getTelemetry?.()?.track("cli.update", {
+        previousCliVersion: result.currentVersion,
+        targetCliVersion: result.latestVersion,
+        updateAction: result.action,
+        success: true,
+      });
       if (options.format === "text" || !options.format) {
         const text = formatUpdateStatusText(result);
         if (options.output) {

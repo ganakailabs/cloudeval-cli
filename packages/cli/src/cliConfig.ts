@@ -26,6 +26,10 @@ export interface LocalHooksConfig {
   events?: Partial<Record<LocalHookEvent, LocalHookDefinition[]>>;
 }
 
+export interface TelemetryConfig {
+  enabled?: boolean;
+}
+
 export interface CliConfig {
   baseUrl?: string;
   frontendUrl?: string;
@@ -34,6 +38,7 @@ export interface CliConfig {
   mode?: CliMode;
   outputFormat?: MachineOutputFormat;
   hooks?: LocalHooksConfig;
+  telemetry?: TelemetryConfig;
 }
 
 const CONFIG_PROFILE_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/;
@@ -134,6 +139,8 @@ const keyAliases: Record<string, keyof CliConfig> = {
   format: "outputFormat",
 };
 
+type NormalizedConfigKey = keyof CliConfig | "telemetry.enabled";
+
 export const normalizeCliMode = (value?: string): CliMode | undefined => {
   const normalized = value?.trim().toLowerCase();
   if (!normalized) {
@@ -145,12 +152,26 @@ export const normalizeCliMode = (value?: string): CliMode | undefined => {
   throw new Error("mode must be one of: ask, agent");
 };
 
-export const normalizeConfigKey = (key: string): keyof CliConfig => {
+const parseConfigBoolean = (key: string, value: string): boolean => {
+  const normalized = value.trim().toLowerCase();
+  if (["true", "1", "yes", "on"].includes(normalized)) {
+    return true;
+  }
+  if (["false", "0", "no", "off"].includes(normalized)) {
+    return false;
+  }
+  throw new Error(`${key} must be true or false`);
+};
+
+export const normalizeConfigKey = (key: string): NormalizedConfigKey => {
   const normalized = key.trim();
+  if (normalized === "telemetry.enabled") {
+    return normalized;
+  }
   const mapped = keyAliases[normalized];
   if (!mapped) {
     throw new Error(
-      `Unsupported config key '${key}'. Supported keys: baseUrl, frontendUrl, defaultProjectId, model, mode, outputFormat.`
+      `Unsupported config key '${key}'. Supported keys: baseUrl, frontendUrl, defaultProjectId, model, mode, outputFormat, telemetry.enabled.`
     );
   }
   return mapped;
@@ -161,6 +182,11 @@ export const readCliConfigValue = (
   key: string
 ): string | undefined => {
   const normalized = normalizeConfigKey(key);
+  if (normalized === "telemetry.enabled") {
+    return typeof config.telemetry?.enabled === "boolean"
+      ? String(config.telemetry.enabled)
+      : undefined;
+  }
   const value = config[normalized];
   return typeof value === "string" ? value : undefined;
 };
@@ -171,6 +197,15 @@ export const writeCliConfigValue = (
   value: string
 ): CliConfig => {
   const normalized = normalizeConfigKey(key);
+  if (normalized === "telemetry.enabled") {
+    return {
+      ...config,
+      telemetry: {
+        ...(config.telemetry || {}),
+        enabled: parseConfigBoolean("telemetry.enabled", value),
+      },
+    };
+  }
   const normalizedValue =
     normalized === "mode" ? normalizeCliMode(value) : value;
   return {
@@ -181,6 +216,19 @@ export const writeCliConfigValue = (
 
 export const unsetCliConfigValue = (config: CliConfig, key: string): CliConfig => {
   const normalized = normalizeConfigKey(key);
+  if (normalized === "telemetry.enabled") {
+    const next = { ...config };
+    if (next.telemetry) {
+      const telemetry = { ...next.telemetry };
+      delete telemetry.enabled;
+      if (Object.keys(telemetry).length > 0) {
+        next.telemetry = telemetry;
+      } else {
+        delete next.telemetry;
+      }
+    }
+    return next;
+  }
   const next = { ...config };
   delete next[normalized];
   return next;

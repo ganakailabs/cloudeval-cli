@@ -55,6 +55,12 @@ import {
 import { resolveLoginOnboardingMode } from "./loginOnboardingMode.js";
 import { warnIfAccessKeyFromCliOption } from "./authGuard.js";
 import { runLocalHooks, writeHookWarnings } from "./localHooks.js";
+import {
+  classifyTelemetryError,
+  createCliTelemetry,
+  getCommonTelemetryProperties,
+  type CliTelemetry,
+} from "./telemetry.js";
 
 const DEFAULT_BASE_URL = getDefaultBaseUrl();
 const ASK_STREAM_IDLE_TIMEOUT_MS = 90_000;
@@ -426,6 +432,122 @@ const sanitizeHeaders = (headers: Record<string, string>): Record<string, string
   return sanitized;
 };
 
+let activeTelemetry: CliTelemetry | undefined;
+let activeTelemetryStartedAt = 0;
+let activeTelemetryProperties: Record<string, unknown> = {};
+let activeTelemetryFinished = false;
+
+const enumLikeValue = (value: unknown): string | undefined => {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const normalized = value.trim().toLowerCase();
+  return /^[a-z][a-z0-9_-]{0,48}$/.test(normalized) ? normalized : undefined;
+};
+
+const versionLikeValue = (value: unknown): string | undefined => {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const normalized = value.trim();
+  if (normalized.toLowerCase() === "latest") {
+    return "latest";
+  }
+  return /^v?[0-9][0-9A-Za-z._-]{0,64}$/.test(normalized)
+    ? normalized
+    : undefined;
+};
+
+const commandPathParts = (command: Command): string[] => {
+  const parts: string[] = [];
+  let current: Command | null | undefined = command;
+  while (current) {
+    const name = current.name();
+    if (name && name !== "cloudeval") {
+      parts.unshift(name);
+    }
+    current = current.parent;
+  }
+  return parts;
+};
+
+const telemetryPropertiesForCommand = (
+  command: Command,
+  options: Record<string, unknown>
+): Record<string, unknown> => {
+  const [commandName = "root", ...subcommands] = commandPathParts(command);
+  const format = options.json
+    ? "json"
+    : enumLikeValue(options.format) ?? undefined;
+  const authMode =
+    options.accessKey || options.accessKeyStdin
+      ? "access_key"
+      : options.headless
+        ? "device_code"
+        : "stored";
+
+  return {
+    command: commandName,
+    subcommand: subcommands.join(" ") || undefined,
+    format,
+    interactive: Boolean(
+      !options.nonInteractive && process.stdin.isTTY && process.stdout.isTTY
+    ),
+    authMode,
+    tuiInitialTab: enumLikeValue(options.tab),
+    toolset: enumLikeValue(options.toolset),
+  };
+};
+
+const getActiveCliTelemetry = (): CliTelemetry | undefined => activeTelemetry;
+
+const initializeCommandTelemetry = async (
+  actionCommand: Command,
+  options: Record<string, unknown>
+) => {
+  activeTelemetryStartedAt = Date.now();
+  activeTelemetryFinished = false;
+  activeTelemetryProperties = telemetryPropertiesForCommand(actionCommand, options);
+  const config = await resolveCliConfig(actionCommand);
+  activeTelemetry = await createCliTelemetry({
+    config,
+    commonProperties: getCommonTelemetryProperties(activeTelemetryProperties),
+  });
+};
+
+const finishCommandTelemetry = async (
+  exitCode: number,
+  error?: unknown
+): Promise<void> => {
+  if (!activeTelemetry || activeTelemetryFinished) {
+    return;
+  }
+  activeTelemetryFinished = true;
+  const durationMs = Math.max(0, Date.now() - activeTelemetryStartedAt);
+  if (error) {
+    await activeTelemetry.track("cli.error", {
+      ...activeTelemetryProperties,
+      durationMs,
+      exitCode,
+      success: false,
+      errorCategory: classifyTelemetryError(error),
+    });
+  }
+  await activeTelemetry.track("cli.command", {
+    ...activeTelemetryProperties,
+    durationMs,
+    exitCode,
+    success: exitCode === 0,
+    ...(error ? { errorCategory: classifyTelemetryError(error) } : {}),
+  });
+  await activeTelemetry.flush();
+};
+
+const exitCli = async (exitCode: number, error?: unknown): Promise<never> => {
+  await finishCommandTelemetry(exitCode, error);
+  process.exit(exitCode);
+};
+
 const program = new Command();
 
 const resolveBaseUrl = async (
@@ -514,6 +636,7 @@ Examples:
       typeof actionCommand.optsWithGlobals === "function"
         ? actionCommand.optsWithGlobals()
         : thisCommand.opts();
+    await initializeCommandTelemetry(actionCommand, opts);
     setShowSensitiveIds(Boolean(opts.showSensitiveIds || opts.verbose));
     if (opts.verbose) {
       setVerbose(true);
@@ -524,6 +647,9 @@ Examples:
       args: process.argv.slice(2),
       options: opts,
     });
+  })
+  .hook("postAction", async () => {
+    await finishCommandTelemetry(0);
   });
 
 program.addHelpCommand(false);
@@ -560,6 +686,7 @@ program
         headless: headlessLogin,
       });
       const userStatus = await checkUserStatus(options.baseUrl, token);
+      getActiveCliTelemetry()?.setUserProperties(userStatus.user || {});
       if (userStatus.user?.id && userStatus.user.email) {
         const shouldRunQuickOnboard = !userStatus.onboardingCompleted;
         if (shouldRunQuickOnboard) {
@@ -603,11 +730,21 @@ program
       } else {
         verboseLog("Skipping Playground setup because authenticated user details were unavailable");
       }
+      await getActiveCliTelemetry()?.track("cli.auth", {
+        command: "login",
+        authMode: headlessLogin ? "device_code" : "browser",
+        success: true,
+      });
       console.log("✅ Login successful.");
-      process.exit(0);
+      await exitCli(0);
     } catch (error: any) {
+      await getActiveCliTelemetry()?.track("cli.auth", {
+        command: "login",
+        success: false,
+        errorCategory: classifyTelemetryError(error),
+      });
       console.error(`❌ Login failed: ${error?.message || "Unknown error"}`);
-      process.exit(1);
+      await exitCli(1, error);
     }
   });
 
@@ -633,10 +770,20 @@ program
       } else {
         console.log("✅ Logged out locally.");
       }
-      process.exit(0);
+      await getActiveCliTelemetry()?.track("cli.auth", {
+        command: "logout",
+        authMode: "stored",
+        success: true,
+      });
+      await exitCli(0);
     } catch (error: any) {
+      await getActiveCliTelemetry()?.track("cli.auth", {
+        command: "logout",
+        success: false,
+        errorCategory: classifyTelemetryError(error),
+      });
       console.error("❌ Logout failed:", error.message);
-      process.exit(1);
+      await exitCli(1, error);
     }
   });
 
@@ -696,9 +843,21 @@ authCommand
         data: options.format === "text" || !options.format ? textData : machineData,
         format: options.format as MachineOutputFormat,
       });
+      await getActiveCliTelemetry()?.track("cli.auth", {
+        command: "auth",
+        subcommand: "status",
+        authMode: "stored",
+        success: true,
+      });
     } catch (error: any) {
+      await getActiveCliTelemetry()?.track("cli.auth", {
+        command: "auth",
+        subcommand: "status",
+        success: false,
+        errorCategory: classifyTelemetryError(error),
+      });
       console.error(`❌ Failed to fetch auth status: ${error?.message || "Unknown error"}`);
-      process.exit(1);
+      await exitCli(1, error);
     }
   });
 
@@ -804,10 +963,50 @@ registerCapabilitiesCommand(program, {
 registerMcpCommand(program, {
   defaultBaseUrl: DEFAULT_BASE_URL,
   resolveBaseUrl,
+  getTelemetry: getActiveCliTelemetry,
+  finishTelemetry: finishCommandTelemetry,
 });
 
-registerUpdateCommand(program);
+registerUpdateCommand(program, { getTelemetry: getActiveCliTelemetry });
 registerUninstallCommand(program);
+
+const telemetryCommand = program
+  .command("__telemetry", { hidden: true })
+  .description("Internal telemetry utilities");
+
+telemetryCommand
+  .command("install")
+  .description("Track a completed installer run")
+  .option("--installer-type <type>", "Installer type")
+  .option("--requested-version <version>", "Requested version")
+  .option("--resolved-version <version>", "Resolved version")
+  .option("--platform <platform>", "Target platform")
+  .option("--aliases <state>", "Alias setup state")
+  .option("--completions <state>", "Completion setup state")
+  .option("--mcp-setup <state>", "MCP setup state")
+  .option("--result <result>", "Installer result", "success")
+  .action(async (options: {
+    installerType?: string;
+    requestedVersion?: string;
+    resolvedVersion?: string;
+    platform?: string;
+    aliases?: string;
+    completions?: string;
+    mcpSetup?: string;
+    result?: string;
+  }) => {
+    await getActiveCliTelemetry()?.track("cli.install", {
+      installerType: enumLikeValue(options.installerType),
+      requestedVersion: versionLikeValue(options.requestedVersion),
+      resolvedVersion: versionLikeValue(options.resolvedVersion),
+      platform: enumLikeValue(options.platform),
+      aliases: enumLikeValue(options.aliases),
+      completions: enumLikeValue(options.completions),
+      mcpSetup: enumLikeValue(options.mcpSetup),
+      installerResult: enumLikeValue(options.result) ?? "success",
+      success: options.result !== "failure",
+    });
+  });
 
 program
   .command("__complete")
@@ -827,14 +1026,14 @@ const completionCommand = program
   .description("Print or install shell completion scripts")
   .argument("[shell]", "Shell to generate completions for: bash, zsh, fish, powershell")
   .option("--bin <name>", "Primary binary name", "cloudeval")
-  .action((shellName, options) => {
+  .action(async (shellName, options) => {
     const detectedShell = process.env.SHELL?.split("/").pop();
     const shell = normalizeCompletionShell(shellName || detectedShell);
     if (!shell) {
       console.error(
         "Unsupported shell. Usage: cloudeval completion <bash|zsh|fish|powershell>"
       );
-      process.exit(1);
+      return await exitCli(1, new Error("unsupported_completion_shell"));
     }
     process.stdout.write(buildCompletionScript(shell, options.bin));
   });
@@ -851,7 +1050,7 @@ completionCommand
       console.error(
         "Unsupported shell. Usage: cloudeval completion install --shell <bash|zsh|fish|powershell>"
       );
-      process.exit(1);
+      return await exitCli(1, new Error("unsupported_completion_shell"));
     }
     const scriptPath = await installCompletionScript(shell, options.bin);
     process.stdout.write(`Installed ${shell} completion at ${scriptPath}\n`);
@@ -868,7 +1067,7 @@ completionCommand
       console.error(
         "Unsupported shell. Usage: cloudeval completion uninstall --shell <bash|zsh|fish|powershell>"
       );
-      process.exit(1);
+      return await exitCli(1, new Error("unsupported_completion_shell"));
     }
     const scriptPath = await uninstallCompletionScript(shell);
     process.stdout.write(`Removed ${shell} completion at ${scriptPath}\n`);
@@ -923,7 +1122,12 @@ program
       );
     }
 
-    render(
+    await getActiveCliTelemetry()?.track("cli.tui", {
+      command: "tui",
+      tuiInitialTab: enumLikeValue(options.tab) ?? "chat",
+      success: true,
+    });
+    const app = render(
       <App
         baseUrl={baseUrl}
         accessKey={accessKey}
@@ -941,6 +1145,7 @@ program
         skipHealthCheck={!options.healthCheck}
       />
     );
+    await app.waitUntilExit();
   });
 
 program
@@ -1011,7 +1216,12 @@ program
       }
     }
 
-    render(
+    await getActiveCliTelemetry()?.track("cli.tui", {
+      command: "chat",
+      tuiInitialTab: "chat",
+      success: true,
+    });
+    const app = render(
       <App
         baseUrl={baseUrl}
         accessKey={accessKey}
@@ -1028,6 +1238,7 @@ program
         skipHealthCheck={!options.healthCheck}
       />
     );
+    await app.waitUntilExit();
   });
 
 program
@@ -1201,7 +1412,7 @@ program
               });
               progressWriter.clear();
               console.error(`Login failed: ${loginError.message}`);
-              process.exit(1);
+              await exitCli(1, loginError);
             }
           } else {
             verboseLog("Authentication error (not recoverable):", {
@@ -1210,11 +1421,14 @@ program
             });
             progressWriter.clear();
             console.error(`Authentication failed: ${error.message}`);
-            process.exit(1);
+            await exitCli(1, error);
           }
         }
       } else {
         verboseLog("Using provided access key for authentication");
+      }
+      if (!token) {
+        return await exitCli(1, new Error("auth_unavailable"));
       }
 
       await assertModelAvailable({
@@ -1237,6 +1451,7 @@ program
         verboseLog("Using provided project ID:", selectedProjectId);
         try {
           const userStatus = await checkUserStatus(baseUrl, token);
+          getActiveCliTelemetry()?.setUserProperties(userStatus.user || {});
           authenticatedUserId = userStatus.user?.id;
         } catch {
           // Best effort; stream scope validation will fail safely if this is wrong.
@@ -1255,6 +1470,7 @@ program
         try {
           verboseLog("Checking user status", { baseUrl });
           const userStatus = await checkUserStatus(baseUrl, token);
+          getActiveCliTelemetry()?.setUserProperties(userStatus.user || {});
           authenticatedUserId = userStatus.user?.id;
           verboseLog("User status:", {
             hasUser: !!userStatus.user,
@@ -1294,7 +1510,7 @@ program
             "No project is available for this account. Run `cloudeval chat` to complete onboarding, then retry."
           );
           process.stderr.write("\n");
-          process.exit(1);
+          await exitCli(1, new Error("no_project_available"));
         }
       }
 
@@ -1623,7 +1839,7 @@ program
               await closeOutputStream();
               process.stderr.write(summary);
             }
-            process.exit(HITL_REQUIRED_EXIT_CODE);
+            await exitCli(HITL_REQUIRED_EXIT_CODE, new Error("hitl_required"));
           }
 
           const responses = await promptForHitlResponses(questions);
@@ -1699,7 +1915,7 @@ program
           await closeOutputStream();
           process.stderr.write(`Error: ${noResponseMessage}\n`);
         }
-        process.exit(1);
+        await exitCli(1, new Error(noResponseMessage));
       }
 
       if (streamTextOutput) {
@@ -1807,7 +2023,7 @@ program
       );
 
       verboseLog("Command completed successfully");
-      process.exit(0);
+      await exitCli(0);
     } catch (error: any) {
       try {
         writeHookWarnings(
@@ -1835,7 +2051,7 @@ program
       if (options.debug || options.verbose) {
         console.error(error.stack);
       }
-      process.exit(1);
+      await exitCli(1, error);
     }
   });
 
@@ -1858,7 +2074,7 @@ const argv = !process.argv.slice(2).length
   ? ["node", "cloudeval", "tui", ...process.argv.slice(2)]
   : process.argv;
 
-void program.parseAsync(argv).catch((error: Error) => {
+void program.parseAsync(argv).catch(async (error: Error) => {
   console.error(`❌ ${error.message}`);
-  process.exit(1);
+  await exitCli(1, error);
 });

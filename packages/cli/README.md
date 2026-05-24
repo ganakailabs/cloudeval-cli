@@ -50,6 +50,8 @@ The shell installer can detect Codex, Claude Desktop, Cursor, and VS Code,
 skip clients where CloudEval MCP is already configured, and offer setup only
 for missing clients that can be configured automatically. Manual-only clients
 are summarized with a follow-up command instead of forcing another prompt.
+It also asks whether to share limited CLI telemetry, defaulting to yes; decline
+or set `CLOUDEVAL_TELEMETRY=0` to write `telemetry.enabled=false`.
 When a CLI update exposes new MCP capabilities, restart or reload your MCP
 client when you are ready; CloudEval never restarts those apps automatically.
 
@@ -73,6 +75,27 @@ cloudeval reports list
 cloudeval mcp serve --toolset readonly
 cloudeval capabilities --format json
 ```
+
+## Telemetry
+
+Telemetry is default-on and uses curated Azure Application Insights custom
+events only. CloudEval records command family, success, duration, safe option
+enums, CLI/runtime versions, OS major version, architecture, install source,
+update/install outcomes, MCP tool names, and TUI metadata. After login, events
+may include signed-in email and first/last/full name.
+
+Telemetry does not include prompts, command output, tokens, local paths, project
+or resource IDs, account/session/tenant IDs, stack traces, raw error messages,
+or cloud resource names.
+
+```bash
+cloudeval config set telemetry.enabled false
+cloudeval config get telemetry.enabled --format json
+cloudeval config set telemetry.enabled true
+cloudeval config unset telemetry.enabled
+```
+
+For one run, use `CLOUDEVAL_TELEMETRY=0` or `CLOUDEVAL_TELEMETRY=1`.
 
 ## Uninstall
 

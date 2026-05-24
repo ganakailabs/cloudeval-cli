@@ -105,6 +105,9 @@ The smoke script verifies:
   provides them.
 - The installer creates `~/.local/bin/cloudeval`.
 - The installer creates the `eva` and `cloud` aliases on non-Windows platforms.
+- The installer discloses limited CLI telemetry, defaults to enabled, and writes
+  `telemetry.enabled=false` when the user declines or when
+  `CLOUDEVAL_TELEMETRY=0` / `CLOUDEVAL_TELEMETRY_DISABLED=1` is set.
 - The installer prints optional agent and credential setup guidance without
   running login, creating credentials, or writing MCP client config in CI.
 - Interactive update/install flows can offer optional MCP onboarding for
@@ -189,6 +192,8 @@ CLOUDEVAL_SMOKE_ARTIFACT_DIR=/tmp/cloudeval-smoke-debug
 CLOUDEVAL_INSTALL_AGENT_SETUP=0
 CLOUDEVAL_INSTALL_MCP_CLIENTS=codex,cursor
 CLOUDEVAL_INSTALL_AGENT_SETUP_PROMPT=1
+CLOUDEVAL_TELEMETRY=0
+CLOUDEVAL_TELEMETRY_DISABLED=1
 CLOUDEVAL_DOWNLOAD_PROGRESS=0
 CLOUDEVAL_CURL_MAX_TIME=900
 CLOUDEVAL_CURL_SPEED_TIME=30
@@ -212,6 +217,24 @@ comma-separated group such as `codex,cursor`; already configured clients are
 skipped. `CLOUDEVAL_INSTALL_AGENT_SETUP_PROMPT=1` is used by interactive update
 flows so the installer can skip install confirmation prompts while still asking
 about optional MCP onboarding.
+
+Telemetry smoke checks should cover both preferences:
+
+```bash
+cloudeval config set telemetry.enabled false
+cloudeval config get telemetry.enabled --format json
+CLOUDEVAL_TELEMETRY=0 cloudeval status --format json
+CLOUDEVAL_TELEMETRY=1 cloudeval --help
+```
+
+Release builds inject the CLI Application Insights connection string from
+`CLOUDEVAL_APPLICATIONINSIGHTS_CONNECTION_STRING`,
+`APPLICATIONINSIGHTS_CONNECTION_STRING`, or
+`NEXT_PUBLIC_APPLICATIONINSIGHTS_CONNECTION_STRING`. Confirm emitted events use
+the `cli.command`, `cli.install`, `cli.update`, `cli.auth`, `cli.mcp.tool`,
+`cli.tui`, and `cli.error` schema and do not contain prompts, output, tokens,
+paths, project/resource/account/session/tenant IDs, cloud resource names, stack
+traces, or raw error messages.
 
 ## Expected Output
 

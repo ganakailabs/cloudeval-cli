@@ -827,8 +827,88 @@ print_mcp_setup_summary() {
   fi
 }
 
+telemetry_env_disables() {
+  case "${CLOUDEVAL_TELEMETRY_DISABLED:-}" in
+    1|true|TRUE|yes|YES|on|ON)
+      return 0
+      ;;
+  esac
+  case "${CLOUDEVAL_TELEMETRY:-}" in
+    0|false|FALSE|no|NO|off|OFF)
+      return 0
+      ;;
+  esac
+  return 1
+}
+
+write_telemetry_opt_out() {
+  if "$DEST" config set telemetry.enabled false --format json >/dev/null 2>&1; then
+    echo -e "${GREEN}✓ Telemetry disabled in CloudEval CLI config.${NC}"
+    return 0
+  fi
+
+  echo -e "${YELLOW}⚠ Could not write telemetry preference automatically. Run:${NC}" >&2
+  echo -e "  ${BLUE}${BIN_NAME} config set telemetry.enabled false${NC}" >&2
+  return 1
+}
+
+print_telemetry_notice() {
+  echo -e "${BLUE}Telemetry${NC}"
+  echo -e "  CloudEval sends limited CLI usage events to Azure Application Insights to improve reliability."
+  echo -e "  It does not send prompts, command output, tokens, local paths, project/resource/account/session/tenant IDs, stack traces, or cloud resource names."
+  echo -e "  It may include CLI/runtime versions and signed-in email/name after login."
+}
+
+configure_telemetry_preference() {
+  echo ""
+  print_telemetry_notice
+
+  if telemetry_env_disables; then
+    write_telemetry_opt_out || true
+    return 0
+  fi
+
+  if [ -n "${CLOUDEVAL_SELF_TEST_TELEMETRY_ANSWER:-}" ]; then
+    case "$CLOUDEVAL_SELF_TEST_TELEMETRY_ANSWER" in
+      y|Y|yes|YES|true|TRUE|1)
+        echo -e "${GREEN}✓ Telemetry enabled. Disable later with: ${BIN_NAME} config set telemetry.enabled false${NC}"
+        return 0
+        ;;
+      *)
+        write_telemetry_opt_out || true
+        return 0
+        ;;
+    esac
+  fi
+
+  if can_prompt_on_tty; then
+    if ask_yes_no "Share limited CLI telemetry?" "y"; then
+      echo -e "${GREEN}✓ Telemetry enabled. Disable later with: ${BIN_NAME} config set telemetry.enabled false${NC}"
+    else
+      write_telemetry_opt_out || true
+    fi
+    return 0
+  fi
+
+  echo -e "${GREEN}✓ Telemetry enabled by default.${NC}"
+  echo -e "  Disable with ${GREEN}CLOUDEVAL_TELEMETRY=0${NC} or ${GREEN}${BIN_NAME} config set telemetry.enabled false${NC}."
+}
+
+track_install_telemetry() {
+  "$DEST" __telemetry install \
+    --installer-type shell \
+    --requested-version "$VERSION" \
+    --resolved-version "$RESOLVED_VERSION" \
+    --platform "${OS}-${ARCH}" \
+    --aliases "${INSTALL_ALIASES:-unknown}" \
+    --completions "${INSTALL_COMPLETIONS:-unknown}" \
+    --mcp-setup "${INSTALL_MCP_SETUP:-unknown}" \
+    --result success >/dev/null 2>&1 || true
+}
+
 run_optional_agent_setup() {
   if [ "${CLOUDEVAL_INSTALL_AGENT_SETUP:-1}" = "0" ]; then
+    INSTALL_MCP_SETUP="disabled"
     return 0
   fi
 
@@ -867,22 +947,26 @@ run_optional_agent_setup() {
     if [ -n "$configured_existing" ]; then
       print_mcp_restart_notice
     fi
+    INSTALL_MCP_SETUP="manual_only"
     return 0
   elif [ -n "$detected" ] && [ -z "${CLOUDEVAL_INSTALL_MCP_CLIENTS:-}" ]; then
     echo -e "  ${GREEN}✓ MCP already configured for detected clients; skipping setup prompt.${NC}"
     if [ -n "$configured_existing" ]; then
       print_mcp_restart_notice
     fi
+    INSTALL_MCP_SETUP="already_configured"
     return 0
   fi
 
   if ! can_prompt_on_tty; then
     print_agent_setup_next_steps
+    INSTALL_MCP_SETUP="skipped"
     return 0
   fi
 
   if [ -z "${CLOUDEVAL_INSTALL_MCP_CLIENTS:-}" ] && ! ask_agent_setup_yes_no "Set up CloudEval MCP for missing agents and IDEs now?" "n"; then
     print_agent_setup_next_steps
+    INSTALL_MCP_SETUP="declined"
     return 0
   fi
 
@@ -904,8 +988,10 @@ run_optional_agent_setup() {
     if [ -n "$configured_existing" ]; then
       echo -e "${GREEN}✓ Selected MCP clients are already configured. No MCP setup changes needed.${NC}"
       print_mcp_restart_notice
+      INSTALL_MCP_SETUP="already_configured"
     else
       echo -e "${YELLOW}Skipped MCP setup.${NC}"
+      INSTALL_MCP_SETUP="skipped"
     fi
   fi
 
@@ -944,6 +1030,13 @@ run_optional_agent_setup() {
 
   print_credentials_next_steps
   print_mcp_setup_summary "$configured" "$manual" "$failed" "$normalized"
+  if [ -n "$failed" ]; then
+    INSTALL_MCP_SETUP="partial"
+  elif [ -n "$configured$manual" ]; then
+    INSTALL_MCP_SETUP="configured"
+  else
+    INSTALL_MCP_SETUP="${INSTALL_MCP_SETUP:-skipped}"
+  fi
 }
 
 REPO="ganakailabs/cloudeval-cli"
@@ -987,6 +1080,21 @@ fi
 
 if [ "${1:-}" = "--self-test-mcp-summary" ]; then
   print_mcp_setup_summary "${2:-}" "${3:-}" "${4:-}" "${5:-}"
+  exit 0
+fi
+
+if [ "${1:-}" = "--self-test-telemetry-env" ]; then
+  if telemetry_env_disables; then
+    printf 'disabled\n'
+  else
+    printf 'enabled\n'
+  fi
+  exit 0
+fi
+
+if [ "${1:-}" = "--self-test-telemetry-configure" ]; then
+  DEST="${2:?missing fake cloudeval path}"
+  configure_telemetry_preference
   exit 0
 fi
 
@@ -1061,6 +1169,9 @@ DEST="${DEST_DIR}/${BIN_NAME}${EXT}"
 YOGA_DEST="${DEST_DIR}/yoga.wasm"
 LICENSE_DIR="${HOME}/.local/share/cloudeval/licenses"
 RESOLVED_VERSION="$(resolve_release_version)"
+INSTALL_ALIASES="not_applicable"
+INSTALL_COMPLETIONS="not_applicable"
+INSTALL_MCP_SETUP="not_run"
 
 echo -e "${BLUE}Installation Details:${NC}"
 echo -e "  Requested Version: ${GREEN}${VERSION}${NC}"
@@ -1141,7 +1252,10 @@ if [ "$OS" != "win" ]; then
   if ask_yes_no "Create 'eva' and 'cloud' alias symlinks?" "y"; then
     ln -sf "$DEST" "${DEST_DIR}/eva"
     ln -sf "$DEST" "${DEST_DIR}/cloud"
+    INSTALL_ALIASES="created"
     echo -e "${GREEN}✓ Created 'eva' and 'cloud' aliases${NC}"
+  else
+    INSTALL_ALIASES="declined"
   fi
 fi
 
@@ -1149,6 +1263,8 @@ echo ""
 echo -e "${GREEN}✓ Installation complete!${NC}"
 echo -e "  Binary installed to: ${GREEN}${DEST}${NC}"
 echo ""
+
+configure_telemetry_preference
 
 # Check if PATH needs to be updated
 case ":$PATH:" in
@@ -1192,18 +1308,26 @@ if [ "${CLOUDEVAL_INSTALL_COMPLETION:-1}" != "0" ] && [ "$OS" != "win" ]; then
     case "$shell_name" in
       zsh|bash|fish)
         if "$DEST" completion install --shell "$shell_name"; then
+          INSTALL_COMPLETIONS="installed"
           echo -e "${GREEN}✓ Installed ${shell_name} completions. Open a new terminal or reload your shell.${NC}"
         else
+          INSTALL_COMPLETIONS="failed"
           echo -e "${YELLOW}⚠ Could not install completions automatically. Run: ${BIN_NAME} completion install --shell ${shell_name}${NC}"
         fi
         ;;
       *)
+        INSTALL_COMPLETIONS="unsupported"
         echo -e "${YELLOW}⚠ Automatic install supports bash, zsh, and fish. Run:${NC}"
         echo -e "  ${BLUE}${BIN_NAME} completion install --shell powershell${NC} ${YELLOW}(PowerShell)${NC}"
         ;;
     esac
+  else
+    INSTALL_COMPLETIONS="declined"
   fi
   echo ""
+elif [ "${CLOUDEVAL_INSTALL_COMPLETION:-1}" = "0" ]; then
+  INSTALL_COMPLETIONS="disabled"
 fi
 
 run_optional_agent_setup
+track_install_telemetry

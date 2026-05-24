@@ -70,6 +70,7 @@ The installer:
 - creates the `eva` and `cloud` aliases on non-Windows platforms;
 - can install shell completions for bash, zsh, and fish;
 - can offer concise MCP setup for detected Codex, Claude Desktop, Cursor, and VS Code clients, skipping clients where CloudEval MCP is already configured and avoiding prompts when only manual-only setup remains;
+- asks whether to share limited CLI telemetry, defaulting to yes; declining writes `telemetry.enabled=false`;
 - explains credential setup but does not create access keys or write secrets into MCP client config;
 - shows compact labeled progress bars in interactive terminals;
 - uses connect/stall timeouts so slow CDN transfers fail clearly.
@@ -79,6 +80,7 @@ Useful controls:
 ```bash
 curl -fsSL https://cli.cloudeval.ai/install.sh | CLOUDEVAL_INSTALL_AGENT_SETUP=0 bash
 curl -fsSL https://cli.cloudeval.ai/install.sh | CLOUDEVAL_INSTALL_MCP_CLIENTS=codex,cursor bash
+curl -fsSL https://cli.cloudeval.ai/install.sh | CLOUDEVAL_TELEMETRY=0 bash
 ```
 
 ```powershell
@@ -92,6 +94,32 @@ notices, PATH, and optional PowerShell tab completions. Run `cloudeval mcp
 setup` afterward when you want MCP client configuration.
 
 </details>
+
+## Telemetry
+
+CloudEval CLI sends curated custom events to Azure Application Insights by
+default. Events cover command family, success, duration, safe option enums, CLI
+version, Node/runtime version, OS major version, architecture, install source,
+update/install outcomes, MCP tool names, and TUI launch/exit metadata. After
+login, events may include the signed-in email and first/last/full name.
+
+Telemetry never sends raw prompts, command output, tokens, local paths, project
+or resource identifiers, account/session/tenant identifiers, cloud resource
+names, stack traces, or raw error messages. Disable or re-enable it anytime:
+
+```bash
+cloudeval config set telemetry.enabled false
+cloudeval config get telemetry.enabled --format json
+cloudeval config set telemetry.enabled true
+cloudeval config unset telemetry.enabled
+```
+
+Environment overrides take precedence for a single run:
+
+```bash
+CLOUDEVAL_TELEMETRY=0 cloudeval status --format json
+CLOUDEVAL_TELEMETRY=1 cloudeval --help
+```
 
 Update later with:
 

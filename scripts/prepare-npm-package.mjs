@@ -18,6 +18,11 @@ const run = (args) => {
 };
 
 run(["license:artifacts"]);
+execFileSync("node", ["scripts/inject-cli-telemetry-connection-string.mjs"], {
+  cwd: repoRoot,
+  shell: useShell,
+  stdio: "inherit",
+});
 run(["--filter", "@cloudeval/shared", "build"]);
 run(["--filter", "@cloudeval/core", "build"]);
 run(["--filter", "@ganakailabs/cloudeval-cli", "build"]);

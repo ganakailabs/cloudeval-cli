@@ -88,8 +88,13 @@ jobs:
           pnpm --filter @cloudeval/core build
       - name: Build executable (bun)
         shell: bash
+        env:
+          CLOUDEVAL_APPLICATIONINSIGHTS_CONNECTION_STRING: ${{ secrets.CLOUDEVAL_APPLICATIONINSIGHTS_CONNECTION_STRING }}
+          APPLICATIONINSIGHTS_CONNECTION_STRING: ${{ secrets.APPLICATIONINSIGHTS_CONNECTION_STRING }}
+          NEXT_PUBLIC_APPLICATIONINSIGHTS_CONNECTION_STRING: ${{ secrets.NEXT_PUBLIC_APPLICATIONINSIGHTS_CONNECTION_STRING }}
         run: |
           mkdir -p packages/cli/dist/bin
+          node scripts/inject-cli-telemetry-connection-string.mjs
           node packages/cli/scripts/patch-yoga-wasm.js
           YOGA_WASM=$(node packages/cli/scripts/prepare-yoga-wasm.js)
           if [ "${{ matrix.platform }}" = "win" ]; then

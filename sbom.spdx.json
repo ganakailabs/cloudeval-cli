@@ -33,6 +33,182 @@
       "summary": "Efficiently modify strings containing ANSI escape codes"
     },
     {
+      "SPDXID": "SPDXRef-Package--azure-rest-core-client-2.6.0",
+      "name": "@azure-rest/core-client",
+      "versionInfo": "2.6.0",
+      "downloadLocation": "https://github.com/Azure/azure-sdk-for-js/blob/main/sdk/core/core-client-rest/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Microsoft Corporation",
+      "summary": "Core library for interfacing with Azure Rest Clients"
+    },
+    {
+      "SPDXID": "SPDXRef-Package--azure-abort-controller-2.1.2",
+      "name": "@azure/abort-controller",
+      "versionInfo": "2.1.2",
+      "downloadLocation": "https://github.com/Azure/azure-sdk-for-js/tree/main/sdk/core/abort-controller/README.md",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Microsoft Corporation",
+      "summary": "Microsoft Azure SDK for JavaScript - Aborter"
+    },
+    {
+      "SPDXID": "SPDXRef-Package--azure-core-auth-1.10.1",
+      "name": "@azure/core-auth",
+      "versionInfo": "1.10.1",
+      "downloadLocation": "https://github.com/Azure/azure-sdk-for-js/blob/main/sdk/core/core-auth/README.md",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Microsoft Corporation",
+      "summary": "Provides low-level interfaces and helper methods for authentication in Azure SDK"
+    },
+    {
+      "SPDXID": "SPDXRef-Package--azure-core-client-1.10.1",
+      "name": "@azure/core-client",
+      "versionInfo": "1.10.1",
+      "downloadLocation": "https://github.com/Azure/azure-sdk-for-js/blob/main/sdk/core/core-client/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Microsoft Corporation",
+      "summary": "Core library for interfacing with AutoRest generated code"
+    },
+    {
+      "SPDXID": "SPDXRef-Package--azure-core-rest-pipeline-1.23.0",
+      "name": "@azure/core-rest-pipeline",
+      "versionInfo": "1.23.0",
+      "downloadLocation": "https://github.com/Azure/azure-sdk-for-js/blob/main/sdk/core/core-rest-pipeline/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Microsoft Corporation",
+      "summary": "Isomorphic client library for making HTTP requests in node.js and browser."
+    },
+    {
+      "SPDXID": "SPDXRef-Package--azure-core-tracing-1.3.1",
+      "name": "@azure/core-tracing",
+      "versionInfo": "1.3.1",
+      "downloadLocation": "https://github.com/Azure/azure-sdk-for-js/blob/main/sdk/core/core-tracing/README.md",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Microsoft Corporation",
+      "summary": "Provides low-level interfaces and helper methods for tracing in Azure SDK"
+    },
+    {
+      "SPDXID": "SPDXRef-Package--azure-core-util-1.13.1",
+      "name": "@azure/core-util",
+      "versionInfo": "1.13.1",
+      "downloadLocation": "https://github.com/Azure/azure-sdk-for-js/blob/main/sdk/core/core-util/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Microsoft Corporation",
+      "summary": "Core library for shared utility methods"
+    },
+    {
+      "SPDXID": "SPDXRef-Package--azure-functions-3.5.1",
+      "name": "@azure/functions",
+      "versionInfo": "3.5.1",
+      "downloadLocation": "https://github.com/Azure/azure-functions-nodejs-library",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Microsoft",
+      "summary": "Microsoft Azure Functions NodeJS Framework"
+    },
+    {
+      "SPDXID": "SPDXRef-Package--azure-identity-4.13.1",
+      "name": "@azure/identity",
+      "versionInfo": "4.13.1",
+      "downloadLocation": "https://github.com/Azure/azure-sdk-for-js/tree/main/sdk/identity/identity/README.md",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Microsoft Corporation",
+      "summary": "Provides credential implementations for Azure SDK libraries that can authenticate with Microsoft Entra ID"
+    },
+    {
+      "SPDXID": "SPDXRef-Package--azure-logger-1.3.0",
+      "name": "@azure/logger",
+      "versionInfo": "1.3.0",
+      "downloadLocation": "https://github.com/Azure/azure-sdk-for-js/tree/main/sdk/core/logger/README.md",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Microsoft Corporation",
+      "summary": "Microsoft Azure SDK for JavaScript - Logger"
+    },
+    {
+      "SPDXID": "SPDXRef-Package--azure-monitor-opentelemetry-exporter-1.0.0-beta.41",
+      "name": "@azure/monitor-opentelemetry-exporter",
+      "versionInfo": "1.0.0-beta.41",
+      "downloadLocation": "https://github.com/Azure/azure-sdk-for-js/tree/main/sdk/monitor/monitor-opentelemetry-exporter/README.md",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Microsoft Corporation",
+      "summary": "Application Insights exporter for the OpenTelemetry JavaScript (Node.js) SDK"
+    },
+    {
+      "SPDXID": "SPDXRef-Package--azure-monitor-opentelemetry-1.18.0",
+      "name": "@azure/monitor-opentelemetry",
+      "versionInfo": "1.18.0",
+      "downloadLocation": "https://github.com/Azure/azure-sdk-for-js/tree/main/sdk/monitor/monitor-opentelemetry/README.md",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Microsoft Corporation",
+      "summary": "Azure Monitor OpenTelemetry (Node.js)"
+    },
+    {
+      "SPDXID": "SPDXRef-Package--azure-msal-browser-5.11.0",
+      "name": "@azure/msal-browser",
+      "versionInfo": "5.11.0",
+      "downloadLocation": "https://github.com/AzureAD/microsoft-authentication-library-for-js#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Microsoft",
+      "summary": "Microsoft Authentication Library for js"
+    },
+    {
+      "SPDXID": "SPDXRef-Package--azure-msal-common-16.6.2",
+      "name": "@azure/msal-common",
+      "versionInfo": "16.6.2",
+      "downloadLocation": "https://github.com/AzureAD/microsoft-authentication-library-for-js#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Microsoft",
+      "summary": "Microsoft Authentication Library for js"
+    },
+    {
+      "SPDXID": "SPDXRef-Package--azure-msal-node-5.2.2",
+      "name": "@azure/msal-node",
+      "versionInfo": "5.2.2",
+      "downloadLocation": "https://github.com/AzureAD/microsoft-authentication-library-for-js#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Microsoft",
+      "summary": "Microsoft Authentication Library for Node"
+    },
+    {
+      "SPDXID": "SPDXRef-Package--azure-opentelemetry-instrumentation-azure-sdk-1.0.0",
+      "name": "@azure/opentelemetry-instrumentation-azure-sdk",
+      "versionInfo": "1.0.0",
+      "downloadLocation": "https://github.com/Azure/azure-sdk-for-js/tree/main/sdk/instrumentation/opentelemetry-instrumentation-azure-sdk/README.md",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Microsoft Corporation",
+      "summary": "Instrumentation client for the Azure SDK."
+    },
+    {
       "SPDXID": "SPDXRef-Package--colors-colors-1.5.0",
       "name": "@colors/colors",
       "versionInfo": "1.5.0",
@@ -44,6 +220,644 @@
       "summary": "get colors in your node.js console"
     },
     {
+      "SPDXID": "SPDXRef-Package--colors-colors-1.6.0",
+      "name": "@colors/colors",
+      "versionInfo": "1.6.0",
+      "downloadLocation": "https://github.com/DABH/colors.js",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "DABH",
+      "summary": "get colors in your node.js console"
+    },
+    {
+      "SPDXID": "SPDXRef-Package--grpc-grpc-js-1.14.4",
+      "name": "@grpc/grpc-js",
+      "versionInfo": "1.14.4",
+      "downloadLocation": "https://grpc.io/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "copyrightText": "Google Inc.",
+      "summary": "gRPC Library for Node - pure JS implementation"
+    },
+    {
+      "SPDXID": "SPDXRef-Package--grpc-proto-loader-0.8.1",
+      "name": "@grpc/proto-loader",
+      "versionInfo": "0.8.1",
+      "downloadLocation": "https://grpc.io/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "copyrightText": "Google Inc.",
+      "summary": "gRPC utility library for loading .proto files"
+    },
+    {
+      "SPDXID": "SPDXRef-Package--js-sdsl-ordered-map-4.4.2",
+      "name": "@js-sdsl/ordered-map",
+      "versionInfo": "4.4.2",
+      "downloadLocation": "https://js-sdsl.org",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "ZLY201",
+      "summary": "javascript standard data structure library which benchmark against C++ STL"
+    },
+    {
+      "SPDXID": "SPDXRef-Package--microsoft-applicationinsights-web-snippet-1.2.3",
+      "name": "@microsoft/applicationinsights-web-snippet",
+      "versionInfo": "1.2.3",
+      "downloadLocation": "https://github.com/microsoft/ApplicationInsights-JS/tree/main#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "summary": "Microsoft Application Insights Web Snippet"
+    },
+    {
+      "SPDXID": "SPDXRef-Package--opentelemetry-api-logs-0.211.0",
+      "name": "@opentelemetry/api-logs",
+      "versionInfo": "0.211.0",
+      "downloadLocation": "https://github.com/open-telemetry/opentelemetry-js/tree/main/experimental/packages/api-logs",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "copyrightText": "OpenTelemetry Authors",
+      "summary": "Public logs API for OpenTelemetry"
+    },
+    {
+      "SPDXID": "SPDXRef-Package--opentelemetry-api-logs-0.217.0",
+      "name": "@opentelemetry/api-logs",
+      "versionInfo": "0.217.0",
+      "downloadLocation": "https://github.com/open-telemetry/opentelemetry-js/tree/main/experimental/packages/api-logs",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "copyrightText": "OpenTelemetry Authors",
+      "summary": "Public logs API for OpenTelemetry"
+    },
+    {
+      "SPDXID": "SPDXRef-Package--opentelemetry-api-1.9.1",
+      "name": "@opentelemetry/api",
+      "versionInfo": "1.9.1",
+      "downloadLocation": "https://github.com/open-telemetry/opentelemetry-js/tree/main/api",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "copyrightText": "OpenTelemetry Authors",
+      "summary": "Public API for OpenTelemetry"
+    },
+    {
+      "SPDXID": "SPDXRef-Package--opentelemetry-configuration-0.217.0",
+      "name": "@opentelemetry/configuration",
+      "versionInfo": "0.217.0",
+      "downloadLocation": "https://github.com/open-telemetry/opentelemetry-js/tree/main/experimental/packages/configuration",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "copyrightText": "OpenTelemetry Authors",
+      "summary": "OpenTelemetry Configuration"
+    },
+    {
+      "SPDXID": "SPDXRef-Package--opentelemetry-context-async-hooks-2.7.1",
+      "name": "@opentelemetry/context-async-hooks",
+      "versionInfo": "2.7.1",
+      "downloadLocation": "https://github.com/open-telemetry/opentelemetry-js/tree/main/packages/opentelemetry-context-async-hooks",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "copyrightText": "OpenTelemetry Authors",
+      "summary": "OpenTelemetry AsyncLocalStorage-based Context Manager"
+    },
+    {
+      "SPDXID": "SPDXRef-Package--opentelemetry-core-2.7.1",
+      "name": "@opentelemetry/core",
+      "versionInfo": "2.7.1",
+      "downloadLocation": "https://github.com/open-telemetry/opentelemetry-js/tree/main/packages/opentelemetry-core",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "copyrightText": "OpenTelemetry Authors",
+      "summary": "OpenTelemetry Core provides constants and utilities shared by all OpenTelemetry SDK packages."
+    },
+    {
+      "SPDXID": "SPDXRef-Package--opentelemetry-exporter-logs-otlp-grpc-0.217.0",
+      "name": "@opentelemetry/exporter-logs-otlp-grpc",
+      "versionInfo": "0.217.0",
+      "downloadLocation": "https://github.com/open-telemetry/opentelemetry-js/tree/main/experimental/packages/exporter-logs-otlp-grpc",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "copyrightText": "OpenTelemetry Authors",
+      "summary": "OpenTelemetry Collector Exporter allows user to send collected log records to the OpenTelemetry Collector"
+    },
+    {
+      "SPDXID": "SPDXRef-Package--opentelemetry-exporter-logs-otlp-http-0.217.0",
+      "name": "@opentelemetry/exporter-logs-otlp-http",
+      "versionInfo": "0.217.0",
+      "downloadLocation": "https://github.com/open-telemetry/opentelemetry-js/tree/main/experimental/packages/exporter-logs-otlp-http",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "copyrightText": "OpenTelemetry Authors",
+      "summary": "OpenTelemetry Collector Logs Exporter allows user to send collected logs to the OpenTelemetry Collector"
+    },
+    {
+      "SPDXID": "SPDXRef-Package--opentelemetry-exporter-logs-otlp-proto-0.217.0",
+      "name": "@opentelemetry/exporter-logs-otlp-proto",
+      "versionInfo": "0.217.0",
+      "downloadLocation": "https://github.com/open-telemetry/opentelemetry-js/tree/main/experimental/packages/exporter-logs-otlp-proto",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "copyrightText": "OpenTelemetry Authors",
+      "summary": "An OTLP exporter to send logs using protobuf over HTTP"
+    },
+    {
+      "SPDXID": "SPDXRef-Package--opentelemetry-exporter-metrics-otlp-grpc-0.217.0",
+      "name": "@opentelemetry/exporter-metrics-otlp-grpc",
+      "versionInfo": "0.217.0",
+      "downloadLocation": "https://github.com/open-telemetry/opentelemetry-js/tree/main/experimental/packages/opentelemetry-exporter-metrics-otlp-grpc",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "copyrightText": "OpenTelemetry Authors",
+      "summary": "OpenTelemetry Collector Metrics Exporter allows user to send collected metrics to the OpenTelemetry Collector"
+    },
+    {
+      "SPDXID": "SPDXRef-Package--opentelemetry-exporter-metrics-otlp-http-0.217.0",
+      "name": "@opentelemetry/exporter-metrics-otlp-http",
+      "versionInfo": "0.217.0",
+      "downloadLocation": "https://github.com/open-telemetry/opentelemetry-js/tree/main/experimental/packages/opentelemetry-exporter-metrics-otlp-http",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "copyrightText": "OpenTelemetry Authors",
+      "summary": "OpenTelemetry Collector Metrics Exporter allows user to send collected metrics to the OpenTelemetry Collector"
+    },
+    {
+      "SPDXID": "SPDXRef-Package--opentelemetry-exporter-metrics-otlp-proto-0.217.0",
+      "name": "@opentelemetry/exporter-metrics-otlp-proto",
+      "versionInfo": "0.217.0",
+      "downloadLocation": "https://github.com/open-telemetry/opentelemetry-js/tree/main/experimental/packages/opentelemetry-exporter-metrics-otlp-proto",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "copyrightText": "OpenTelemetry Authors",
+      "summary": "OpenTelemetry Collector Metrics Exporter allows user to send collected metrics to the OpenTelemetry Collector using protobuf over HTTP"
+    },
+    {
+      "SPDXID": "SPDXRef-Package--opentelemetry-exporter-prometheus-0.217.0",
+      "name": "@opentelemetry/exporter-prometheus",
+      "versionInfo": "0.217.0",
+      "downloadLocation": "https://github.com/open-telemetry/opentelemetry-js/tree/main/experimental/packages/opentelemetry-exporter-prometheus",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "copyrightText": "OpenTelemetry Authors",
+      "summary": "OpenTelemetry Exporter Prometheus provides a metrics endpoint for Prometheus"
+    },
+    {
+      "SPDXID": "SPDXRef-Package--opentelemetry-exporter-trace-otlp-grpc-0.217.0",
+      "name": "@opentelemetry/exporter-trace-otlp-grpc",
+      "versionInfo": "0.217.0",
+      "downloadLocation": "https://github.com/open-telemetry/opentelemetry-js/tree/main/experimental/packages/exporter-trace-otlp-grpc",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "copyrightText": "OpenTelemetry Authors",
+      "summary": "OpenTelemetry Collector Exporter allows user to send collected traces to the OpenTelemetry Collector"
+    },
+    {
+      "SPDXID": "SPDXRef-Package--opentelemetry-exporter-trace-otlp-http-0.217.0",
+      "name": "@opentelemetry/exporter-trace-otlp-http",
+      "versionInfo": "0.217.0",
+      "downloadLocation": "https://github.com/open-telemetry/opentelemetry-js/tree/main/experimental/packages/exporter-trace-otlp-http",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "copyrightText": "OpenTelemetry Authors",
+      "summary": "OpenTelemetry Collector Trace Exporter allows user to send collected traces to the OpenTelemetry Collector"
+    },
+    {
+      "SPDXID": "SPDXRef-Package--opentelemetry-exporter-trace-otlp-proto-0.217.0",
+      "name": "@opentelemetry/exporter-trace-otlp-proto",
+      "versionInfo": "0.217.0",
+      "downloadLocation": "https://github.com/open-telemetry/opentelemetry-js/tree/main/experimental/packages/exporter-trace-otlp-proto",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "copyrightText": "OpenTelemetry Authors",
+      "summary": "OpenTelemetry Collector Exporter allows user to send collected traces to the OpenTelemetry Collector using protobuf over HTTP"
+    },
+    {
+      "SPDXID": "SPDXRef-Package--opentelemetry-exporter-zipkin-2.7.1",
+      "name": "@opentelemetry/exporter-zipkin",
+      "versionInfo": "2.7.1",
+      "downloadLocation": "https://github.com/open-telemetry/opentelemetry-js/tree/main/packages/opentelemetry-exporter-zipkin",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "copyrightText": "OpenTelemetry Authors",
+      "summary": "OpenTelemetry Zipkin Exporter allows the user to send collected traces to Zipkin."
+    },
+    {
+      "SPDXID": "SPDXRef-Package--opentelemetry-instrumentation-bunyan-0.62.0",
+      "name": "@opentelemetry/instrumentation-bunyan",
+      "versionInfo": "0.62.0",
+      "downloadLocation": "https://github.com/open-telemetry/opentelemetry-js-contrib/tree/main/packages/instrumentation-bunyan#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "copyrightText": "OpenTelemetry Authors",
+      "summary": "OpenTelemetry instrumentation for `bunyan` logger"
+    },
+    {
+      "SPDXID": "SPDXRef-Package--opentelemetry-instrumentation-http-0.217.0",
+      "name": "@opentelemetry/instrumentation-http",
+      "versionInfo": "0.217.0",
+      "downloadLocation": "https://github.com/open-telemetry/opentelemetry-js/tree/main/experimental/packages/opentelemetry-instrumentation-http",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "copyrightText": "OpenTelemetry Authors",
+      "summary": "OpenTelemetry instrumentation for `node:http` and `node:https` http client and server modules"
+    },
+    {
+      "SPDXID": "SPDXRef-Package--opentelemetry-instrumentation-mongodb-0.70.0",
+      "name": "@opentelemetry/instrumentation-mongodb",
+      "versionInfo": "0.70.0",
+      "downloadLocation": "https://github.com/open-telemetry/opentelemetry-js-contrib/tree/main/packages/instrumentation-mongodb#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "copyrightText": "OpenTelemetry Authors",
+      "summary": "OpenTelemetry instrumentation for `mongodb` database client for MongoDB"
+    },
+    {
+      "SPDXID": "SPDXRef-Package--opentelemetry-instrumentation-mysql-0.63.0",
+      "name": "@opentelemetry/instrumentation-mysql",
+      "versionInfo": "0.63.0",
+      "downloadLocation": "https://github.com/open-telemetry/opentelemetry-js-contrib/tree/main/packages/instrumentation-mysql#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "copyrightText": "OpenTelemetry Authors",
+      "summary": "OpenTelemetry instrumentation for `mysql` database client for MySQL"
+    },
+    {
+      "SPDXID": "SPDXRef-Package--opentelemetry-instrumentation-pg-0.69.0",
+      "name": "@opentelemetry/instrumentation-pg",
+      "versionInfo": "0.69.0",
+      "downloadLocation": "https://github.com/open-telemetry/opentelemetry-js-contrib/tree/main/packages/instrumentation-pg#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "copyrightText": "OpenTelemetry Authors",
+      "summary": "OpenTelemetry instrumentation for `pg` and `pg-pool` database client for PostgreSQL"
+    },
+    {
+      "SPDXID": "SPDXRef-Package--opentelemetry-instrumentation-redis-0.65.0",
+      "name": "@opentelemetry/instrumentation-redis",
+      "versionInfo": "0.65.0",
+      "downloadLocation": "https://github.com/open-telemetry/opentelemetry-js-contrib/tree/main/packages/instrumentation-redis#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "copyrightText": "OpenTelemetry Authors",
+      "summary": "OpenTelemetry instrumentation for `redis` database client for Redis"
+    },
+    {
+      "SPDXID": "SPDXRef-Package--opentelemetry-instrumentation-winston-0.61.0",
+      "name": "@opentelemetry/instrumentation-winston",
+      "versionInfo": "0.61.0",
+      "downloadLocation": "https://github.com/open-telemetry/opentelemetry-js-contrib/tree/main/packages/instrumentation-winston#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "copyrightText": "OpenTelemetry Authors",
+      "summary": "OpenTelemetry instrumentation for `winston` logger"
+    },
+    {
+      "SPDXID": "SPDXRef-Package--opentelemetry-instrumentation-0.211.0",
+      "name": "@opentelemetry/instrumentation",
+      "versionInfo": "0.211.0",
+      "downloadLocation": "https://github.com/open-telemetry/opentelemetry-js/tree/main/experimental/packages/opentelemetry-instrumentation",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "copyrightText": "OpenTelemetry Authors",
+      "summary": "Base class for node which OpenTelemetry instrumentation modules extend"
+    },
+    {
+      "SPDXID": "SPDXRef-Package--opentelemetry-instrumentation-0.217.0",
+      "name": "@opentelemetry/instrumentation",
+      "versionInfo": "0.217.0",
+      "downloadLocation": "https://github.com/open-telemetry/opentelemetry-js/tree/main/experimental/packages/opentelemetry-instrumentation",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "copyrightText": "OpenTelemetry Authors",
+      "summary": "Base class for node which OpenTelemetry instrumentation modules extend"
+    },
+    {
+      "SPDXID": "SPDXRef-Package--opentelemetry-otlp-exporter-base-0.217.0",
+      "name": "@opentelemetry/otlp-exporter-base",
+      "versionInfo": "0.217.0",
+      "downloadLocation": "https://github.com/open-telemetry/opentelemetry-js/tree/main/experimental/packages/otlp-exporter-base",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "copyrightText": "OpenTelemetry Authors",
+      "summary": "OpenTelemetry OTLP Exporter base (for internal use only)"
+    },
+    {
+      "SPDXID": "SPDXRef-Package--opentelemetry-otlp-grpc-exporter-base-0.217.0",
+      "name": "@opentelemetry/otlp-grpc-exporter-base",
+      "versionInfo": "0.217.0",
+      "downloadLocation": "https://github.com/open-telemetry/opentelemetry-js/tree/main/experimental/packages/otlp-grpc-exporter-base",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "copyrightText": "OpenTelemetry Authors",
+      "summary": "OpenTelemetry OTLP-gRPC Exporter base (for internal use only)"
+    },
+    {
+      "SPDXID": "SPDXRef-Package--opentelemetry-otlp-transformer-0.217.0",
+      "name": "@opentelemetry/otlp-transformer",
+      "versionInfo": "0.217.0",
+      "downloadLocation": "https://github.com/open-telemetry/opentelemetry-js/tree/main/experimental/packages/otlp-transformer",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "copyrightText": "OpenTelemetry Authors",
+      "summary": "Transform OpenTelemetry SDK data into OTLP"
+    },
+    {
+      "SPDXID": "SPDXRef-Package--opentelemetry-propagator-b3-2.7.1",
+      "name": "@opentelemetry/propagator-b3",
+      "versionInfo": "2.7.1",
+      "downloadLocation": "https://github.com/open-telemetry/opentelemetry-js/tree/main/packages/opentelemetry-propagator-b3",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "copyrightText": "OpenTelemetry Authors",
+      "summary": "OpenTelemetry B3 propagator provides context propagation for systems that are using the B3 header format"
+    },
+    {
+      "SPDXID": "SPDXRef-Package--opentelemetry-propagator-jaeger-2.7.1",
+      "name": "@opentelemetry/propagator-jaeger",
+      "versionInfo": "2.7.1",
+      "downloadLocation": "https://github.com/open-telemetry/opentelemetry-js/tree/main/packages/opentelemetry-propagator-jaeger",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "copyrightText": "OpenTelemetry Authors",
+      "summary": "OpenTelemetry Jaeger propagator provides HTTP header propagation for systems that are using Jaeger HTTP header format."
+    },
+    {
+      "SPDXID": "SPDXRef-Package--opentelemetry-redis-common-0.38.3",
+      "name": "@opentelemetry/redis-common",
+      "versionInfo": "0.38.3",
+      "downloadLocation": "https://github.com/open-telemetry/opentelemetry-js-contrib/tree/main/packages/redis-common#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "copyrightText": "OpenTelemetry Authors",
+      "summary": "Redis utilities for redis instrumentations"
+    },
+    {
+      "SPDXID": "SPDXRef-Package--opentelemetry-resource-detector-azure-0.25.0",
+      "name": "@opentelemetry/resource-detector-azure",
+      "versionInfo": "0.25.0",
+      "downloadLocation": "https://github.com/open-telemetry/opentelemetry-js-contrib/tree/main/packages/resource-detector-azure#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "copyrightText": "OpenTelemetry Authors",
+      "summary": "OpenTelemetry SDK resource detector for Azure"
+    },
+    {
+      "SPDXID": "SPDXRef-Package--opentelemetry-resources-2.7.1",
+      "name": "@opentelemetry/resources",
+      "versionInfo": "2.7.1",
+      "downloadLocation": "https://github.com/open-telemetry/opentelemetry-js/tree/main/packages/opentelemetry-resources",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "copyrightText": "OpenTelemetry Authors",
+      "summary": "OpenTelemetry SDK resources"
+    },
+    {
+      "SPDXID": "SPDXRef-Package--opentelemetry-sdk-logs-0.217.0",
+      "name": "@opentelemetry/sdk-logs",
+      "versionInfo": "0.217.0",
+      "downloadLocation": "https://github.com/open-telemetry/opentelemetry-js/tree/main/experimental/packages/sdk-logs",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "copyrightText": "OpenTelemetry Authors",
+      "summary": "OpenTelemetry logs SDK"
+    },
+    {
+      "SPDXID": "SPDXRef-Package--opentelemetry-sdk-metrics-2.7.1",
+      "name": "@opentelemetry/sdk-metrics",
+      "versionInfo": "2.7.1",
+      "downloadLocation": "https://github.com/open-telemetry/opentelemetry-js/tree/main/packages/sdk-metrics",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "copyrightText": "OpenTelemetry Authors",
+      "summary": "OpenTelemetry metrics SDK"
+    },
+    {
+      "SPDXID": "SPDXRef-Package--opentelemetry-sdk-node-0.217.0",
+      "name": "@opentelemetry/sdk-node",
+      "versionInfo": "0.217.0",
+      "downloadLocation": "https://github.com/open-telemetry/opentelemetry-js/tree/main/experimental/packages/opentelemetry-sdk-node",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "copyrightText": "OpenTelemetry Authors",
+      "summary": "OpenTelemetry SDK for Node.js"
+    },
+    {
+      "SPDXID": "SPDXRef-Package--opentelemetry-sdk-trace-base-2.7.1",
+      "name": "@opentelemetry/sdk-trace-base",
+      "versionInfo": "2.7.1",
+      "downloadLocation": "https://github.com/open-telemetry/opentelemetry-js/tree/main/packages/opentelemetry-sdk-trace-base",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "copyrightText": "OpenTelemetry Authors",
+      "summary": "OpenTelemetry Tracing"
+    },
+    {
+      "SPDXID": "SPDXRef-Package--opentelemetry-sdk-trace-node-2.7.1",
+      "name": "@opentelemetry/sdk-trace-node",
+      "versionInfo": "2.7.1",
+      "downloadLocation": "https://github.com/open-telemetry/opentelemetry-js/tree/main/packages/opentelemetry-sdk-trace-node",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "copyrightText": "OpenTelemetry Authors",
+      "summary": "OpenTelemetry Node SDK provides automatic telemetry (tracing, metrics, etc) for Node.js applications"
+    },
+    {
+      "SPDXID": "SPDXRef-Package--opentelemetry-sdk-trace-web-2.7.1",
+      "name": "@opentelemetry/sdk-trace-web",
+      "versionInfo": "2.7.1",
+      "downloadLocation": "https://github.com/open-telemetry/opentelemetry-js/tree/main/packages/opentelemetry-sdk-trace-web",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "copyrightText": "OpenTelemetry Authors",
+      "summary": "OpenTelemetry Web Tracer"
+    },
+    {
+      "SPDXID": "SPDXRef-Package--opentelemetry-semantic-conventions-1.41.1",
+      "name": "@opentelemetry/semantic-conventions",
+      "versionInfo": "1.41.1",
+      "downloadLocation": "https://github.com/open-telemetry/opentelemetry-js/tree/main/semantic-conventions",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "copyrightText": "OpenTelemetry Authors",
+      "summary": "OpenTelemetry semantic conventions"
+    },
+    {
+      "SPDXID": "SPDXRef-Package--opentelemetry-sql-common-0.41.2",
+      "name": "@opentelemetry/sql-common",
+      "versionInfo": "0.41.2",
+      "downloadLocation": "https://github.com/open-telemetry/opentelemetry-js-contrib/tree/main/packages/sql-common#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "copyrightText": "OpenTelemetry Authors",
+      "summary": "Utilities for SQL instrumentations"
+    },
+    {
+      "SPDXID": "SPDXRef-Package--opentelemetry-winston-transport-0.27.0",
+      "name": "@opentelemetry/winston-transport",
+      "versionInfo": "0.27.0",
+      "downloadLocation": "https://github.com/open-telemetry/opentelemetry-js-contrib/tree/main/packages/winston-transport#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "copyrightText": "OpenTelemetry Authors",
+      "summary": "OpenTelemetry Transport for winston"
+    },
+    {
+      "SPDXID": "SPDXRef-Package--protobufjs-aspromise-1.1.2",
+      "name": "@protobufjs/aspromise",
+      "versionInfo": "1.1.2",
+      "downloadLocation": "https://github.com/dcodeIO/protobuf.js#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "BSD-3-Clause",
+      "licenseDeclared": "BSD-3-Clause",
+      "copyrightText": "Daniel Wirtz",
+      "summary": "Returns a promise from a node-style callback function."
+    },
+    {
+      "SPDXID": "SPDXRef-Package--protobufjs-base64-1.1.2",
+      "name": "@protobufjs/base64",
+      "versionInfo": "1.1.2",
+      "downloadLocation": "https://github.com/dcodeIO/protobuf.js#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "BSD-3-Clause",
+      "licenseDeclared": "BSD-3-Clause",
+      "copyrightText": "Daniel Wirtz",
+      "summary": "A minimal base64 implementation for number arrays."
+    },
+    {
+      "SPDXID": "SPDXRef-Package--protobufjs-codegen-2.0.5",
+      "name": "@protobufjs/codegen",
+      "versionInfo": "2.0.5",
+      "downloadLocation": "https://github.com/dcodeIO/protobuf.js#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "BSD-3-Clause",
+      "licenseDeclared": "BSD-3-Clause",
+      "copyrightText": "Daniel Wirtz",
+      "summary": "A minimalistic code generation utility."
+    },
+    {
+      "SPDXID": "SPDXRef-Package--protobufjs-eventemitter-1.1.1",
+      "name": "@protobufjs/eventemitter",
+      "versionInfo": "1.1.1",
+      "downloadLocation": "https://github.com/dcodeIO/protobuf.js#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "BSD-3-Clause",
+      "licenseDeclared": "BSD-3-Clause",
+      "copyrightText": "Daniel Wirtz",
+      "summary": "A minimal event emitter."
+    },
+    {
+      "SPDXID": "SPDXRef-Package--protobufjs-fetch-1.1.1",
+      "name": "@protobufjs/fetch",
+      "versionInfo": "1.1.1",
+      "downloadLocation": "https://github.com/dcodeIO/protobuf.js#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "BSD-3-Clause",
+      "licenseDeclared": "BSD-3-Clause",
+      "copyrightText": "Daniel Wirtz",
+      "summary": "Fetches the contents of a file accross node and browsers."
+    },
+    {
+      "SPDXID": "SPDXRef-Package--protobufjs-float-1.0.2",
+      "name": "@protobufjs/float",
+      "versionInfo": "1.0.2",
+      "downloadLocation": "https://github.com/dcodeIO/protobuf.js#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "BSD-3-Clause",
+      "licenseDeclared": "BSD-3-Clause",
+      "copyrightText": "Daniel Wirtz",
+      "summary": "Reads / writes floats / doubles from / to buffers in both modern and ancient browsers."
+    },
+    {
+      "SPDXID": "SPDXRef-Package--protobufjs-inquire-1.1.2",
+      "name": "@protobufjs/inquire",
+      "versionInfo": "1.1.2",
+      "downloadLocation": "https://github.com/dcodeIO/protobuf.js#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "BSD-3-Clause",
+      "licenseDeclared": "BSD-3-Clause",
+      "copyrightText": "Daniel Wirtz",
+      "summary": "Requires a module only if available and hides the require call from bundlers."
+    },
+    {
+      "SPDXID": "SPDXRef-Package--protobufjs-path-1.1.2",
+      "name": "@protobufjs/path",
+      "versionInfo": "1.1.2",
+      "downloadLocation": "https://github.com/dcodeIO/protobuf.js#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "BSD-3-Clause",
+      "licenseDeclared": "BSD-3-Clause",
+      "copyrightText": "Daniel Wirtz",
+      "summary": "A minimal path module to resolve Unix, Windows and URL paths alike."
+    },
+    {
+      "SPDXID": "SPDXRef-Package--protobufjs-pool-1.1.0",
+      "name": "@protobufjs/pool",
+      "versionInfo": "1.1.0",
+      "downloadLocation": "https://github.com/dcodeIO/protobuf.js#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "BSD-3-Clause",
+      "licenseDeclared": "BSD-3-Clause",
+      "copyrightText": "Daniel Wirtz",
+      "summary": "A general purpose buffer pool."
+    },
+    {
+      "SPDXID": "SPDXRef-Package--protobufjs-utf8-1.1.1",
+      "name": "@protobufjs/utf8",
+      "versionInfo": "1.1.1",
+      "downloadLocation": "https://github.com/dcodeIO/protobuf.js#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "BSD-3-Clause",
+      "licenseDeclared": "BSD-3-Clause",
+      "copyrightText": "Daniel Wirtz",
+      "summary": "A minimal UTF8 implementation for number arrays."
+    },
+    {
       "SPDXID": "SPDXRef-Package--sindresorhus-is-4.6.0",
       "name": "@sindresorhus/is",
       "versionInfo": "4.6.0",
@@ -53,6 +867,61 @@
       "licenseDeclared": "MIT",
       "copyrightText": "Sindre Sorhus",
       "summary": "Type check values"
+    },
+    {
+      "SPDXID": "SPDXRef-Package--types-bunyan-1.8.11",
+      "name": "@types/bunyan",
+      "versionInfo": "1.8.11",
+      "downloadLocation": "https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/bunyan",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "summary": "TypeScript definitions for bunyan"
+    },
+    {
+      "SPDXID": "SPDXRef-Package--types-mysql-2.15.27",
+      "name": "@types/mysql",
+      "versionInfo": "2.15.27",
+      "downloadLocation": "https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/mysql",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "summary": "TypeScript definitions for mysql"
+    },
+    {
+      "SPDXID": "SPDXRef-Package--types-node-20.19.27",
+      "name": "@types/node",
+      "versionInfo": "20.19.27",
+      "downloadLocation": "https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/node",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "summary": "TypeScript definitions for node"
+    },
+    {
+      "SPDXID": "SPDXRef-Package--types-pg-pool-2.0.7",
+      "name": "@types/pg-pool",
+      "versionInfo": "2.0.7",
+      "downloadLocation": "https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/pg-pool",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "summary": "TypeScript definitions for pg-pool"
+    },
+    {
+      "SPDXID": "SPDXRef-Package--types-pg-8.15.6",
+      "name": "@types/pg",
+      "versionInfo": "8.15.6",
+      "downloadLocation": "https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/pg",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "summary": "TypeScript definitions for pg"
     },
     {
       "SPDXID": "SPDXRef-Package--types-prop-types-15.7.15",
@@ -75,6 +944,61 @@
       "licenseDeclared": "MIT",
       "copyrightText": "NOASSERTION",
       "summary": "TypeScript definitions for react"
+    },
+    {
+      "SPDXID": "SPDXRef-Package--types-triple-beam-1.3.5",
+      "name": "@types/triple-beam",
+      "versionInfo": "1.3.5",
+      "downloadLocation": "https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/triple-beam",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "summary": "TypeScript definitions for triple-beam"
+    },
+    {
+      "SPDXID": "SPDXRef-Package--typespec-ts-http-runtime-0.3.5",
+      "name": "@typespec/ts-http-runtime",
+      "versionInfo": "0.3.5",
+      "downloadLocation": "https://github.com/Azure/azure-sdk-for-js/blob/main/sdk/core/ts-http-runtime/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Microsoft Corporation",
+      "summary": "Isomorphic client library for making HTTP requests in node.js and browser."
+    },
+    {
+      "SPDXID": "SPDXRef-Package-acorn-import-attributes-1.9.5",
+      "name": "acorn-import-attributes",
+      "versionInfo": "1.9.5",
+      "downloadLocation": "https://github.com/xtuc/acorn-import-attributes#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Sven Sauleau",
+      "summary": "Support for import attributes in acorn"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-acorn-8.15.0",
+      "name": "acorn",
+      "versionInfo": "8.15.0",
+      "downloadLocation": "https://github.com/acornjs/acorn",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "summary": "ECMAScript parser"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-agent-base-7.1.4",
+      "name": "agent-base",
+      "versionInfo": "7.1.4",
+      "downloadLocation": "https://github.com/TooTallNate/proxy-agents#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Nathan Rajlich",
+      "summary": "Turn a function into an `http.Agent` instance"
     },
     {
       "SPDXID": "SPDXRef-Package-ansi-escapes-6.2.1",
@@ -154,6 +1078,17 @@
       "summary": "Resolve any installed ES6 compatible promise"
     },
     {
+      "SPDXID": "SPDXRef-Package-applicationinsights-3.15.0",
+      "name": "applicationinsights",
+      "versionInfo": "3.15.0",
+      "downloadLocation": "https://github.com/microsoft/ApplicationInsights-node.js#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Microsoft Application Insights Team",
+      "summary": "Microsoft Application Insights module for Node.js"
+    },
+    {
       "SPDXID": "SPDXRef-Package-asciichart-1.5.25",
       "name": "asciichart",
       "versionInfo": "1.5.25",
@@ -174,6 +1109,28 @@
       "licenseDeclared": "MIT",
       "copyrightText": "Sindre Sorhus",
       "summary": "Automatically bind methods to their class instance"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-buffer-equal-constant-time-1.0.1",
+      "name": "buffer-equal-constant-time",
+      "versionInfo": "1.0.1",
+      "downloadLocation": "https://github.com/goinstant/buffer-equal-constant-time#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "BSD-3-Clause",
+      "licenseDeclared": "BSD-3-Clause",
+      "copyrightText": "GoInstant Inc., a salesforce.com company",
+      "summary": "Constant-time comparison of Buffers"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-bundle-name-4.1.0",
+      "name": "bundle-name",
+      "versionInfo": "4.1.0",
+      "downloadLocation": "https://github.com/sindresorhus/bundle-name#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Sindre Sorhus",
+      "summary": "Get bundle name from a bundle identifier (macOS): `com.apple.Safari` → `Safari`"
     },
     {
       "SPDXID": "SPDXRef-Package-chalk-4.1.2",
@@ -218,6 +1175,17 @@
       "licenseDeclared": "MIT",
       "copyrightText": "Thomas Watson Steen",
       "summary": "Get details about the current Continuous Integration environment"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-cjs-module-lexer-2.2.0",
+      "name": "cjs-module-lexer",
+      "versionInfo": "2.2.0",
+      "downloadLocation": "https://github.com/nodejs/cjs-module-lexer#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Guy Bedford",
+      "summary": "Lexes CommonJS modules, returning their named exports metadata"
     },
     {
       "SPDXID": "SPDXRef-Package-cli-boxes-3.0.0",
@@ -297,6 +1265,17 @@
       "summary": "easily create complex multi-column command-line-interfaces"
     },
     {
+      "SPDXID": "SPDXRef-Package-cliui-8.0.1",
+      "name": "cliui",
+      "versionInfo": "8.0.1",
+      "downloadLocation": "https://github.com/yargs/cliui#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "ISC",
+      "licenseDeclared": "ISC",
+      "copyrightText": "Ben Coe",
+      "summary": "easily create complex multi-column command-line-interfaces"
+    },
+    {
       "SPDXID": "SPDXRef-Package-code-excerpt-4.0.0",
       "name": "code-excerpt",
       "versionInfo": "4.0.0",
@@ -363,6 +1342,72 @@
       "summary": "Strict TypeScript and Flow types for style based on MDN data"
     },
     {
+      "SPDXID": "SPDXRef-Package-debug-4.4.3",
+      "name": "debug",
+      "versionInfo": "4.4.3",
+      "downloadLocation": "https://github.com/debug-js/debug#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Josh Junon",
+      "summary": "Lightweight debugging utility for Node.js and the browser"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-default-browser-id-5.0.1",
+      "name": "default-browser-id",
+      "versionInfo": "5.0.1",
+      "downloadLocation": "https://github.com/sindresorhus/default-browser-id#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Sindre Sorhus",
+      "summary": "Get the bundle identifier of the default browser (macOS). Example: com.apple.Safari"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-default-browser-5.5.0",
+      "name": "default-browser",
+      "versionInfo": "5.5.0",
+      "downloadLocation": "https://github.com/sindresorhus/default-browser#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Sindre Sorhus",
+      "summary": "Get the default browser"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-define-lazy-prop-3.0.0",
+      "name": "define-lazy-prop",
+      "versionInfo": "3.0.0",
+      "downloadLocation": "https://github.com/sindresorhus/define-lazy-prop#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Sindre Sorhus",
+      "summary": "Define a lazily evaluated property on an object"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-diagnostic-channel-publishers-1.0.8",
+      "name": "diagnostic-channel-publishers",
+      "versionInfo": "1.0.8",
+      "downloadLocation": "https://github.com/Microsoft/node-diagnostic-channel",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "summary": "A collection of pre-built module patches that enable existing npm modules to publish diagnostic data"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-diagnostic-channel-1.1.1",
+      "name": "diagnostic-channel",
+      "versionInfo": "1.1.1",
+      "downloadLocation": "https://github.com/Microsoft/node-diagnostic-channel",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "summary": "Provides a context-saving pub/sub channel to connect diagnostic event publishers and subscribers"
+    },
+    {
       "SPDXID": "SPDXRef-Package-eastasianwidth-0.2.0",
       "name": "eastasianwidth",
       "versionInfo": "0.2.0",
@@ -372,6 +1417,17 @@
       "licenseDeclared": "MIT",
       "copyrightText": "Masaki Komagata",
       "summary": "Get East Asian Width from a character."
+    },
+    {
+      "SPDXID": "SPDXRef-Package-ecdsa-sig-formatter-1.0.11",
+      "name": "ecdsa-sig-formatter",
+      "versionInfo": "1.0.11",
+      "downloadLocation": "https://github.com/Brightspace/node-ecdsa-sig-formatter#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "copyrightText": "D2L Corporation",
+      "summary": "Translate ECDSA signatures between ASN.1/DER and JOSE-style concatenation"
     },
     {
       "SPDXID": "SPDXRef-Package-emoji-regex-8.0.0",
@@ -440,6 +1496,28 @@
       "summary": "Escape RegExp special characters"
     },
     {
+      "SPDXID": "SPDXRef-Package-fecha-4.2.3",
+      "name": "fecha",
+      "versionInfo": "4.2.3",
+      "downloadLocation": "https://github.com/taylorhakes/fecha",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Taylor Hakes",
+      "summary": "Date formatting and parsing"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-forwarded-parse-2.1.2",
+      "name": "forwarded-parse",
+      "versionInfo": "2.1.2",
+      "downloadLocation": "https://github.com/lpinca/forwarded-parse",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Luigi Pinca",
+      "summary": "Parse the Forwarded header (RFC 7239) into an array of objects"
+    },
+    {
       "SPDXID": "SPDXRef-Package-get-caller-file-2.0.5",
       "name": "get-caller-file",
       "versionInfo": "2.0.5",
@@ -473,6 +1551,61 @@
       "summary": "Syntax highlighting with language autodetection."
     },
     {
+      "SPDXID": "SPDXRef-Package-http-proxy-agent-7.0.2",
+      "name": "http-proxy-agent",
+      "versionInfo": "7.0.2",
+      "downloadLocation": "https://github.com/TooTallNate/proxy-agents#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Nathan Rajlich",
+      "summary": "An HTTP(s) proxy `http.Agent` implementation for HTTP"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-https-proxy-agent-7.0.6",
+      "name": "https-proxy-agent",
+      "versionInfo": "7.0.6",
+      "downloadLocation": "https://github.com/TooTallNate/proxy-agents#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Nathan Rajlich",
+      "summary": "An HTTP(s) proxy `http.Agent` implementation for HTTPS"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-iconv-lite-0.6.3",
+      "name": "iconv-lite",
+      "versionInfo": "0.6.3",
+      "downloadLocation": "https://github.com/ashtuchkin/iconv-lite",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Alexander Shtuchkin",
+      "summary": "Convert character encodings in pure javascript."
+    },
+    {
+      "SPDXID": "SPDXRef-Package-import-in-the-middle-2.0.6",
+      "name": "import-in-the-middle",
+      "versionInfo": "2.0.6",
+      "downloadLocation": "https://github.com/nodejs/import-in-the-middle#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "copyrightText": "Bryan English",
+      "summary": "Intercept imports in Node.js"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-import-in-the-middle-3.0.1",
+      "name": "import-in-the-middle",
+      "versionInfo": "3.0.1",
+      "downloadLocation": "https://github.com/nodejs/import-in-the-middle#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "copyrightText": "Bryan English",
+      "summary": "Intercept imports in Node.js"
+    },
+    {
       "SPDXID": "SPDXRef-Package-indent-string-5.0.0",
       "name": "indent-string",
       "versionInfo": "5.0.0",
@@ -482,6 +1615,17 @@
       "licenseDeclared": "MIT",
       "copyrightText": "Sindre Sorhus",
       "summary": "Indent each line in a string"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-inherits-2.0.4",
+      "name": "inherits",
+      "versionInfo": "2.0.4",
+      "downloadLocation": "https://github.com/isaacs/inherits#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "ISC",
+      "licenseDeclared": "ISC",
+      "copyrightText": "NOASSERTION",
+      "summary": "Browser-friendly inheritance fully compatible with standard node.js inherits()"
     },
     {
       "SPDXID": "SPDXRef-Package-ink-scroll-view-0.3.6",
@@ -550,6 +1694,17 @@
       "summary": "Detect if the current environment is a CI server"
     },
     {
+      "SPDXID": "SPDXRef-Package-is-docker-3.0.0",
+      "name": "is-docker",
+      "versionInfo": "3.0.0",
+      "downloadLocation": "https://github.com/sindresorhus/is-docker#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Sindre Sorhus",
+      "summary": "Check if the process is running inside a Docker container"
+    },
+    {
       "SPDXID": "SPDXRef-Package-is-fullwidth-code-point-3.0.0",
       "name": "is-fullwidth-code-point",
       "versionInfo": "3.0.0",
@@ -570,6 +1725,17 @@
       "licenseDeclared": "MIT",
       "copyrightText": "Sindre Sorhus",
       "summary": "Check if the character represented by a given Unicode code point is fullwidth"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-is-inside-container-1.0.0",
+      "name": "is-inside-container",
+      "versionInfo": "1.0.0",
+      "downloadLocation": "https://github.com/sindresorhus/is-inside-container#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Sindre Sorhus",
+      "summary": "Check if the process is running inside a container (Docker/Podman)"
     },
     {
       "SPDXID": "SPDXRef-Package-is-lower-case-2.0.2",
@@ -594,6 +1760,17 @@
       "summary": "Returns `true` if the string is upper case only."
     },
     {
+      "SPDXID": "SPDXRef-Package-is-wsl-3.1.1",
+      "name": "is-wsl",
+      "versionInfo": "3.1.1",
+      "downloadLocation": "https://github.com/sindresorhus/is-wsl#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Sindre Sorhus",
+      "summary": "Check if the process is running inside Windows Subsystem for Linux (Bash on Windows)"
+    },
+    {
       "SPDXID": "SPDXRef-Package-js-tokens-4.0.0",
       "name": "js-tokens",
       "versionInfo": "4.0.0",
@@ -605,6 +1782,127 @@
       "summary": "A regex that tokenizes JavaScript."
     },
     {
+      "SPDXID": "SPDXRef-Package-jsonwebtoken-9.0.3",
+      "name": "jsonwebtoken",
+      "versionInfo": "9.0.3",
+      "downloadLocation": "https://github.com/auth0/node-jsonwebtoken#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "auth0",
+      "summary": "JSON Web Token implementation (symmetric and asymmetric)"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-jwa-2.0.1",
+      "name": "jwa",
+      "versionInfo": "2.0.1",
+      "downloadLocation": "https://github.com/brianloveswords/node-jwa#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Brian J. Brennan",
+      "summary": "JWA implementation (supports all JWS algorithms)"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-jws-4.0.1",
+      "name": "jws",
+      "versionInfo": "4.0.1",
+      "downloadLocation": "https://github.com/brianloveswords/node-jws#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Brian J Brennan",
+      "summary": "Implementation of JSON Web Signatures"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-lodash.camelcase-4.3.0",
+      "name": "lodash.camelcase",
+      "versionInfo": "4.3.0",
+      "downloadLocation": "https://lodash.com/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "John-David Dalton",
+      "summary": "The lodash method `_.camelCase` exported as a module."
+    },
+    {
+      "SPDXID": "SPDXRef-Package-lodash.includes-4.3.0",
+      "name": "lodash.includes",
+      "versionInfo": "4.3.0",
+      "downloadLocation": "https://lodash.com/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "John-David Dalton",
+      "summary": "The lodash method `_.includes` exported as a module."
+    },
+    {
+      "SPDXID": "SPDXRef-Package-lodash.isboolean-3.0.3",
+      "name": "lodash.isboolean",
+      "versionInfo": "3.0.3",
+      "downloadLocation": "https://lodash.com/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "John-David Dalton",
+      "summary": "The lodash method `_.isBoolean` exported as a module."
+    },
+    {
+      "SPDXID": "SPDXRef-Package-lodash.isinteger-4.0.4",
+      "name": "lodash.isinteger",
+      "versionInfo": "4.0.4",
+      "downloadLocation": "https://lodash.com/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "John-David Dalton",
+      "summary": "The lodash method `_.isInteger` exported as a module."
+    },
+    {
+      "SPDXID": "SPDXRef-Package-lodash.isnumber-3.0.3",
+      "name": "lodash.isnumber",
+      "versionInfo": "3.0.3",
+      "downloadLocation": "https://lodash.com/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "John-David Dalton",
+      "summary": "The lodash method `_.isNumber` exported as a module."
+    },
+    {
+      "SPDXID": "SPDXRef-Package-lodash.isplainobject-4.0.6",
+      "name": "lodash.isplainobject",
+      "versionInfo": "4.0.6",
+      "downloadLocation": "https://lodash.com/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "John-David Dalton",
+      "summary": "The lodash method `_.isPlainObject` exported as a module."
+    },
+    {
+      "SPDXID": "SPDXRef-Package-lodash.isstring-4.0.1",
+      "name": "lodash.isstring",
+      "versionInfo": "4.0.1",
+      "downloadLocation": "https://lodash.com/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "John-David Dalton",
+      "summary": "The lodash method `_.isString` exported as a module."
+    },
+    {
+      "SPDXID": "SPDXRef-Package-lodash.once-4.1.1",
+      "name": "lodash.once",
+      "versionInfo": "4.1.1",
+      "downloadLocation": "https://lodash.com/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "John-David Dalton",
+      "summary": "The lodash method `_.once` exported as a module."
+    },
+    {
       "SPDXID": "SPDXRef-Package-lodash-4.18.1",
       "name": "lodash",
       "versionInfo": "4.18.1",
@@ -614,6 +1912,39 @@
       "licenseDeclared": "MIT",
       "copyrightText": "John-David Dalton",
       "summary": "Lodash modular utilities."
+    },
+    {
+      "SPDXID": "SPDXRef-Package-logform-2.7.0",
+      "name": "logform",
+      "versionInfo": "2.7.0",
+      "downloadLocation": "https://github.com/winstonjs/logform#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Charlie Robbins",
+      "summary": "An mutable object-based log format designed for chaining & objectMode streams."
+    },
+    {
+      "SPDXID": "SPDXRef-Package-long-4.0.0",
+      "name": "long",
+      "versionInfo": "4.0.0",
+      "downloadLocation": "https://github.com/dcodeIO/long.js#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "copyrightText": "Daniel Wirtz",
+      "summary": "A Long class for representing a 64-bit two's-complement integer value."
+    },
+    {
+      "SPDXID": "SPDXRef-Package-long-5.3.2",
+      "name": "long",
+      "versionInfo": "5.3.2",
+      "downloadLocation": "https://github.com/dcodeIO/long.js#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "copyrightText": "Daniel Wirtz",
+      "summary": "A Long class for representing a 64-bit two's-complement integer value."
     },
     {
       "SPDXID": "SPDXRef-Package-loose-envify-1.4.0",
@@ -660,6 +1991,28 @@
       "summary": "Make a function mimic another one"
     },
     {
+      "SPDXID": "SPDXRef-Package-module-details-from-path-1.0.4",
+      "name": "module-details-from-path",
+      "versionInfo": "1.0.4",
+      "downloadLocation": "https://github.com/watson/module-details-from-path#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Thomas Watson",
+      "summary": "Resolve npm package details, like name and base path, given an absolute path to a file inside a package"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-ms-2.1.3",
+      "name": "ms",
+      "versionInfo": "2.1.3",
+      "downloadLocation": "https://github.com/vercel/ms#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "summary": "Tiny millisecond conversion utility"
+    },
+    {
       "SPDXID": "SPDXRef-Package-mz-2.7.0",
       "name": "mz",
       "versionInfo": "2.7.0",
@@ -702,6 +2055,17 @@
       "licenseDeclared": "MIT",
       "copyrightText": "Sindre Sorhus",
       "summary": "Ensure a function is only called once"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-open-10.2.0",
+      "name": "open",
+      "versionInfo": "10.2.0",
+      "downloadLocation": "https://github.com/sindresorhus/open#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Sindre Sorhus",
+      "summary": "Open stuff like URLs, files, executables. Cross-platform."
     },
     {
       "SPDXID": "SPDXRef-Package-parse5-htmlparser2-tree-adapter-6.0.1",
@@ -748,6 +2112,105 @@
       "summary": "Patch console methods to intercept output"
     },
     {
+      "SPDXID": "SPDXRef-Package-pg-int8-1.0.1",
+      "name": "pg-int8",
+      "versionInfo": "1.0.1",
+      "downloadLocation": "https://github.com/charmander/pg-int8#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "ISC",
+      "licenseDeclared": "ISC",
+      "copyrightText": "NOASSERTION",
+      "summary": "64-bit big-endian signed integer-to-string conversion"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-pg-protocol-1.14.0",
+      "name": "pg-protocol",
+      "versionInfo": "1.14.0",
+      "downloadLocation": "https://github.com/brianc/node-postgres#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "summary": "The postgres client/server binary protocol, implemented in TypeScript"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-pg-types-2.2.0",
+      "name": "pg-types",
+      "versionInfo": "2.2.0",
+      "downloadLocation": "https://github.com/brianc/node-pg-types",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Brian M. Carlson",
+      "summary": "Query result type converters for node-postgres"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-postgres-array-2.0.0",
+      "name": "postgres-array",
+      "versionInfo": "2.0.0",
+      "downloadLocation": "https://github.com/bendrucker/postgres-array#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Ben Drucker",
+      "summary": "Parse postgres array columns"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-postgres-bytea-1.0.1",
+      "name": "postgres-bytea",
+      "versionInfo": "1.0.1",
+      "downloadLocation": "https://github.com/bendrucker/postgres-bytea#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Ben Drucker",
+      "summary": "Postgres bytea parser"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-postgres-date-1.0.7",
+      "name": "postgres-date",
+      "versionInfo": "1.0.7",
+      "downloadLocation": "https://github.com/bendrucker/postgres-date#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Ben Drucker",
+      "summary": "Postgres date column parser"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-postgres-interval-1.2.0",
+      "name": "postgres-interval",
+      "versionInfo": "1.2.0",
+      "downloadLocation": "https://github.com/bendrucker/postgres-interval#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Ben Drucker",
+      "summary": "Parse Postgres interval columns"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-protobufjs-7.6.1",
+      "name": "protobufjs",
+      "versionInfo": "7.6.1",
+      "downloadLocation": "https://protobufjs.github.io/protobuf.js/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "BSD-3-Clause",
+      "licenseDeclared": "BSD-3-Clause",
+      "copyrightText": "Daniel Wirtz",
+      "summary": "Protocol Buffers for JavaScript (& TypeScript)."
+    },
+    {
+      "SPDXID": "SPDXRef-Package-protobufjs-8.0.1",
+      "name": "protobufjs",
+      "versionInfo": "8.0.1",
+      "downloadLocation": "https://protobufjs.github.io/protobuf.js/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "BSD-3-Clause",
+      "licenseDeclared": "BSD-3-Clause",
+      "copyrightText": "Daniel Wirtz",
+      "summary": "Protocol Buffers for JavaScript (& TypeScript)."
+    },
+    {
       "SPDXID": "SPDXRef-Package-react-devtools-core-4.28.5",
       "name": "react-devtools-core",
       "versionInfo": "4.28.5",
@@ -781,6 +2244,17 @@
       "summary": "React is a JavaScript library for building user interfaces."
     },
     {
+      "SPDXID": "SPDXRef-Package-readable-stream-3.6.2",
+      "name": "readable-stream",
+      "versionInfo": "3.6.2",
+      "downloadLocation": "https://github.com/nodejs/readable-stream#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "summary": "Streams3, a user-land copy of the stream library from Node.js"
+    },
+    {
       "SPDXID": "SPDXRef-Package-require-directory-2.1.1",
       "name": "require-directory",
       "versionInfo": "2.1.1",
@@ -790,6 +2264,17 @@
       "licenseDeclared": "MIT",
       "copyrightText": "Troy Goode",
       "summary": "Recursively iterates over specified directory, require()'ing each file, and returning a nested hash structure containing those modules."
+    },
+    {
+      "SPDXID": "SPDXRef-Package-require-in-the-middle-8.0.1",
+      "name": "require-in-the-middle",
+      "versionInfo": "8.0.1",
+      "downloadLocation": "https://github.com/nodejs/require-in-the-middle#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Thomas Watson Steen",
+      "summary": "Module to hook into the Node.js require function"
     },
     {
       "SPDXID": "SPDXRef-Package-restore-cursor-4.0.0",
@@ -803,6 +2288,50 @@
       "summary": "Gracefully restore the CLI cursor on exit"
     },
     {
+      "SPDXID": "SPDXRef-Package-run-applescript-7.1.0",
+      "name": "run-applescript",
+      "versionInfo": "7.1.0",
+      "downloadLocation": "https://github.com/sindresorhus/run-applescript#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Sindre Sorhus",
+      "summary": "Run AppleScript and get the result"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-safe-buffer-5.2.1",
+      "name": "safe-buffer",
+      "versionInfo": "5.2.1",
+      "downloadLocation": "https://github.com/feross/safe-buffer",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Feross Aboukhadijeh",
+      "summary": "Safer Node.js Buffer API"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-safe-stable-stringify-2.5.0",
+      "name": "safe-stable-stringify",
+      "versionInfo": "2.5.0",
+      "downloadLocation": "https://github.com/BridgeAR/safe-stable-stringify#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Ruben Bridgewater",
+      "summary": "Deterministic and safely JSON.stringify to quickly serialize JavaScript objects"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-safer-buffer-2.1.2",
+      "name": "safer-buffer",
+      "versionInfo": "2.1.2",
+      "downloadLocation": "https://github.com/ChALkeR/safer-buffer#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Nikita Skovoroda",
+      "summary": "Modern Buffer API polyfill without footguns"
+    },
+    {
       "SPDXID": "SPDXRef-Package-scheduler-0.23.2",
       "name": "scheduler",
       "versionInfo": "0.23.2",
@@ -812,6 +2341,17 @@
       "licenseDeclared": "MIT",
       "copyrightText": "NOASSERTION",
       "summary": "Cooperative scheduler for the browser environment."
+    },
+    {
+      "SPDXID": "SPDXRef-Package-semver-7.7.3",
+      "name": "semver",
+      "versionInfo": "7.7.3",
+      "downloadLocation": "https://github.com/npm/node-semver#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "ISC",
+      "licenseDeclared": "ISC",
+      "copyrightText": "GitHub Inc.",
+      "summary": "The semantic version parser used by npm."
     },
     {
       "SPDXID": "SPDXRef-Package-shell-quote-1.8.3",
@@ -889,6 +2429,17 @@
       "licenseDeclared": "MIT",
       "copyrightText": "James Talmage",
       "summary": "Captures and cleans stack traces"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-string-decoder-1.3.0",
+      "name": "string_decoder",
+      "versionInfo": "1.3.0",
+      "downloadLocation": "https://github.com/nodejs/string_decoder",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "summary": "The string_decoder module from Node core"
     },
     {
       "SPDXID": "SPDXRef-Package-string-width-4.2.3",
@@ -979,6 +2530,17 @@
       "summary": "Promisify a callback-based function"
     },
     {
+      "SPDXID": "SPDXRef-Package-triple-beam-1.4.1",
+      "name": "triple-beam",
+      "versionInfo": "1.4.1",
+      "downloadLocation": "https://github.com/winstonjs/triple-beam#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Charlie Robbins",
+      "summary": "Definitions of levels for logging purposes & shareable Symbol constants."
+    },
+    {
       "SPDXID": "SPDXRef-Package-tslib-2.8.1",
       "name": "tslib",
       "versionInfo": "2.8.1",
@@ -1012,6 +2574,17 @@
       "summary": "A collection of essential TypeScript types"
     },
     {
+      "SPDXID": "SPDXRef-Package-undici-types-6.21.0",
+      "name": "undici-types",
+      "versionInfo": "6.21.0",
+      "downloadLocation": "https://undici.nodejs.org",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "summary": "A stand-alone types package for Undici"
+    },
+    {
       "SPDXID": "SPDXRef-Package-unicode-emoji-modifier-base-1.0.0",
       "name": "unicode-emoji-modifier-base",
       "versionInfo": "1.0.0",
@@ -1023,6 +2596,28 @@
       "summary": "The set of Unicode symbols that can serve as a base for emoji modifiers, i.e. those with the `Emoji_Modifier_Base` property set to `Yes`."
     },
     {
+      "SPDXID": "SPDXRef-Package-util-deprecate-1.0.2",
+      "name": "util-deprecate",
+      "versionInfo": "1.0.2",
+      "downloadLocation": "https://github.com/TooTallNate/util-deprecate",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Nathan Rajlich",
+      "summary": "The Node.js `util.deprecate()` function with browser support"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-uuid-8.3.2",
+      "name": "uuid",
+      "versionInfo": "8.3.2",
+      "downloadLocation": "https://github.com/uuidjs/uuid#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "summary": "RFC4122 (v1, v4, and v5) UUIDs"
+    },
+    {
       "SPDXID": "SPDXRef-Package-widest-line-4.0.1",
       "name": "widest-line",
       "versionInfo": "4.0.1",
@@ -1032,6 +2627,17 @@
       "licenseDeclared": "MIT",
       "copyrightText": "Sindre Sorhus",
       "summary": "Get the visual width of the widest line in a string - the number of columns required to display it"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-winston-transport-4.9.0",
+      "name": "winston-transport",
+      "versionInfo": "4.9.0",
+      "downloadLocation": "https://github.com/winstonjs/winston-transport#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Charlie Robbins",
+      "summary": "Base stream implementations for winston@3 and up."
     },
     {
       "SPDXID": "SPDXRef-Package-wrap-ansi-7.0.0",
@@ -1078,6 +2684,28 @@
       "summary": "Simple to use, blazing fast and thoroughly tested websocket client and server for Node.js"
     },
     {
+      "SPDXID": "SPDXRef-Package-wsl-utils-0.1.0",
+      "name": "wsl-utils",
+      "versionInfo": "0.1.0",
+      "downloadLocation": "https://github.com/sindresorhus/wsl-utils#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Sindre Sorhus",
+      "summary": "Utilities for working with Windows Subsystem for Linux (WSL)"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-xtend-4.0.2",
+      "name": "xtend",
+      "versionInfo": "4.0.2",
+      "downloadLocation": "https://github.com/Raynos/xtend",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Raynos",
+      "summary": "extend like a boss"
+    },
+    {
       "SPDXID": "SPDXRef-Package-y18n-5.0.8",
       "name": "y18n",
       "versionInfo": "5.0.8",
@@ -1087,6 +2715,17 @@
       "licenseDeclared": "ISC",
       "copyrightText": "Ben Coe",
       "summary": "the bare-bones internationalization library used by yargs"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-yaml-2.9.0",
+      "name": "yaml",
+      "versionInfo": "2.9.0",
+      "downloadLocation": "https://eemeli.org/yaml/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "ISC",
+      "licenseDeclared": "ISC",
+      "copyrightText": "Eemeli Aro",
+      "summary": "JavaScript parser and stringifier for YAML"
     },
     {
       "SPDXID": "SPDXRef-Package-yargs-parser-20.2.9",
@@ -1100,9 +2739,31 @@
       "summary": "the mighty option parser used by yargs"
     },
     {
+      "SPDXID": "SPDXRef-Package-yargs-parser-21.1.1",
+      "name": "yargs-parser",
+      "versionInfo": "21.1.1",
+      "downloadLocation": "https://github.com/yargs/yargs-parser#readme",
+      "filesAnalyzed": false,
+      "licenseConcluded": "ISC",
+      "licenseDeclared": "ISC",
+      "copyrightText": "Ben Coe",
+      "summary": "the mighty option parser used by yargs"
+    },
+    {
       "SPDXID": "SPDXRef-Package-yargs-16.2.0",
       "name": "yargs",
       "versionInfo": "16.2.0",
+      "downloadLocation": "https://yargs.js.org/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "summary": "yargs the modern, pirate-themed, successor to optimist."
+    },
+    {
+      "SPDXID": "SPDXRef-Package-yargs-17.7.2",
+      "name": "yargs",
+      "versionInfo": "17.7.2",
       "downloadLocation": "https://yargs.js.org/",
       "filesAnalyzed": false,
       "licenseConcluded": "MIT",
@@ -1131,12 +2792,407 @@
     {
       "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
       "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--azure-rest-core-client-2.6.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--azure-abort-controller-2.1.2"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--azure-core-auth-1.10.1"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--azure-core-client-1.10.1"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--azure-core-rest-pipeline-1.23.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--azure-core-tracing-1.3.1"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--azure-core-util-1.13.1"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--azure-functions-3.5.1"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--azure-identity-4.13.1"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--azure-logger-1.3.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--azure-monitor-opentelemetry-exporter-1.0.0-beta.41"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--azure-monitor-opentelemetry-1.18.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--azure-msal-browser-5.11.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--azure-msal-common-16.6.2"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--azure-msal-node-5.2.2"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--azure-opentelemetry-instrumentation-azure-sdk-1.0.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
       "relatedSpdxElement": "SPDXRef-Package--colors-colors-1.5.0"
     },
     {
       "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
       "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--colors-colors-1.6.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--grpc-grpc-js-1.14.4"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--grpc-proto-loader-0.8.1"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--js-sdsl-ordered-map-4.4.2"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--microsoft-applicationinsights-web-snippet-1.2.3"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--opentelemetry-api-logs-0.211.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--opentelemetry-api-logs-0.217.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--opentelemetry-api-1.9.1"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--opentelemetry-configuration-0.217.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--opentelemetry-context-async-hooks-2.7.1"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--opentelemetry-core-2.7.1"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--opentelemetry-exporter-logs-otlp-grpc-0.217.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--opentelemetry-exporter-logs-otlp-http-0.217.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--opentelemetry-exporter-logs-otlp-proto-0.217.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--opentelemetry-exporter-metrics-otlp-grpc-0.217.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--opentelemetry-exporter-metrics-otlp-http-0.217.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--opentelemetry-exporter-metrics-otlp-proto-0.217.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--opentelemetry-exporter-prometheus-0.217.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--opentelemetry-exporter-trace-otlp-grpc-0.217.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--opentelemetry-exporter-trace-otlp-http-0.217.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--opentelemetry-exporter-trace-otlp-proto-0.217.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--opentelemetry-exporter-zipkin-2.7.1"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--opentelemetry-instrumentation-bunyan-0.62.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--opentelemetry-instrumentation-http-0.217.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--opentelemetry-instrumentation-mongodb-0.70.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--opentelemetry-instrumentation-mysql-0.63.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--opentelemetry-instrumentation-pg-0.69.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--opentelemetry-instrumentation-redis-0.65.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--opentelemetry-instrumentation-winston-0.61.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--opentelemetry-instrumentation-0.211.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--opentelemetry-instrumentation-0.217.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--opentelemetry-otlp-exporter-base-0.217.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--opentelemetry-otlp-grpc-exporter-base-0.217.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--opentelemetry-otlp-transformer-0.217.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--opentelemetry-propagator-b3-2.7.1"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--opentelemetry-propagator-jaeger-2.7.1"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--opentelemetry-redis-common-0.38.3"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--opentelemetry-resource-detector-azure-0.25.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--opentelemetry-resources-2.7.1"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--opentelemetry-sdk-logs-0.217.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--opentelemetry-sdk-metrics-2.7.1"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--opentelemetry-sdk-node-0.217.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--opentelemetry-sdk-trace-base-2.7.1"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--opentelemetry-sdk-trace-node-2.7.1"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--opentelemetry-sdk-trace-web-2.7.1"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--opentelemetry-semantic-conventions-1.41.1"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--opentelemetry-sql-common-0.41.2"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--opentelemetry-winston-transport-0.27.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--protobufjs-aspromise-1.1.2"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--protobufjs-base64-1.1.2"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--protobufjs-codegen-2.0.5"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--protobufjs-eventemitter-1.1.1"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--protobufjs-fetch-1.1.1"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--protobufjs-float-1.0.2"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--protobufjs-inquire-1.1.2"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--protobufjs-path-1.1.2"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--protobufjs-pool-1.1.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--protobufjs-utf8-1.1.1"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
       "relatedSpdxElement": "SPDXRef-Package--sindresorhus-is-4.6.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--types-bunyan-1.8.11"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--types-mysql-2.15.27"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--types-node-20.19.27"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--types-pg-pool-2.0.7"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--types-pg-8.15.6"
     },
     {
       "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
@@ -1147,6 +3203,31 @@
       "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
       "relationshipType": "DEPENDS_ON",
       "relatedSpdxElement": "SPDXRef-Package--types-react-18.3.27"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--types-triple-beam-1.3.5"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--typespec-ts-http-runtime-0.3.5"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-acorn-import-attributes-1.9.5"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-acorn-8.15.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-agent-base-7.1.4"
     },
     {
       "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
@@ -1186,12 +3267,27 @@
     {
       "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
       "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-applicationinsights-3.15.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
       "relatedSpdxElement": "SPDXRef-Package-asciichart-1.5.25"
     },
     {
       "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
       "relationshipType": "DEPENDS_ON",
       "relatedSpdxElement": "SPDXRef-Package-auto-bind-5.0.1"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-buffer-equal-constant-time-1.0.1"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-bundle-name-4.1.0"
     },
     {
       "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
@@ -1212,6 +3308,11 @@
       "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
       "relationshipType": "DEPENDS_ON",
       "relatedSpdxElement": "SPDXRef-Package-ci-info-3.9.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-cjs-module-lexer-2.2.0"
     },
     {
       "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
@@ -1251,6 +3352,11 @@
     {
       "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
       "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-cliui-8.0.1"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
       "relatedSpdxElement": "SPDXRef-Package-code-excerpt-4.0.0"
     },
     {
@@ -1281,7 +3387,42 @@
     {
       "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
       "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-debug-4.4.3"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-default-browser-id-5.0.1"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-default-browser-5.5.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-define-lazy-prop-3.0.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-diagnostic-channel-publishers-1.0.8"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-diagnostic-channel-1.1.1"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
       "relatedSpdxElement": "SPDXRef-Package-eastasianwidth-0.2.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-ecdsa-sig-formatter-1.0.11"
     },
     {
       "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
@@ -1316,6 +3457,16 @@
     {
       "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
       "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-fecha-4.2.3"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-forwarded-parse-2.1.2"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
       "relatedSpdxElement": "SPDXRef-Package-get-caller-file-2.0.5"
     },
     {
@@ -1331,7 +3482,37 @@
     {
       "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
       "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-http-proxy-agent-7.0.2"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-https-proxy-agent-7.0.6"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-iconv-lite-0.6.3"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-import-in-the-middle-2.0.6"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-import-in-the-middle-3.0.1"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
       "relatedSpdxElement": "SPDXRef-Package-indent-string-5.0.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-inherits-2.0.4"
     },
     {
       "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
@@ -1366,12 +3547,22 @@
     {
       "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
       "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-is-docker-3.0.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
       "relatedSpdxElement": "SPDXRef-Package-is-fullwidth-code-point-3.0.0"
     },
     {
       "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
       "relationshipType": "DEPENDS_ON",
       "relatedSpdxElement": "SPDXRef-Package-is-fullwidth-code-point-4.0.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-is-inside-container-1.0.0"
     },
     {
       "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
@@ -1386,12 +3577,87 @@
     {
       "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
       "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-is-wsl-3.1.1"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
       "relatedSpdxElement": "SPDXRef-Package-js-tokens-4.0.0"
     },
     {
       "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
       "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-jsonwebtoken-9.0.3"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-jwa-2.0.1"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-jws-4.0.1"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-lodash.camelcase-4.3.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-lodash.includes-4.3.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-lodash.isboolean-3.0.3"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-lodash.isinteger-4.0.4"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-lodash.isnumber-3.0.3"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-lodash.isplainobject-4.0.6"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-lodash.isstring-4.0.1"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-lodash.once-4.1.1"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
       "relatedSpdxElement": "SPDXRef-Package-lodash-4.18.1"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-logform-2.7.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-long-4.0.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-long-5.3.2"
     },
     {
       "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
@@ -1416,6 +3682,16 @@
     {
       "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
       "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-module-details-from-path-1.0.4"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-ms-2.1.3"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
       "relatedSpdxElement": "SPDXRef-Package-mz-2.7.0"
     },
     {
@@ -1432,6 +3708,11 @@
       "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
       "relationshipType": "DEPENDS_ON",
       "relatedSpdxElement": "SPDXRef-Package-onetime-5.1.2"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-open-10.2.0"
     },
     {
       "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
@@ -1456,6 +3737,51 @@
     {
       "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
       "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-pg-int8-1.0.1"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-pg-protocol-1.14.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-pg-types-2.2.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-postgres-array-2.0.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-postgres-bytea-1.0.1"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-postgres-date-1.0.7"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-postgres-interval-1.2.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-protobufjs-7.6.1"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-protobufjs-8.0.1"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
       "relatedSpdxElement": "SPDXRef-Package-react-devtools-core-4.28.5"
     },
     {
@@ -1471,7 +3797,17 @@
     {
       "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
       "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-readable-stream-3.6.2"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
       "relatedSpdxElement": "SPDXRef-Package-require-directory-2.1.1"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-require-in-the-middle-8.0.1"
     },
     {
       "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
@@ -1481,7 +3817,32 @@
     {
       "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
       "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-run-applescript-7.1.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-safe-buffer-5.2.1"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-safe-stable-stringify-2.5.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-safer-buffer-2.1.2"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
       "relatedSpdxElement": "SPDXRef-Package-scheduler-0.23.2"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-semver-7.7.3"
     },
     {
       "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
@@ -1517,6 +3878,11 @@
       "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
       "relationshipType": "DEPENDS_ON",
       "relatedSpdxElement": "SPDXRef-Package-stack-utils-2.0.6"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-string-decoder-1.3.0"
     },
     {
       "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
@@ -1561,6 +3927,11 @@
     {
       "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
       "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-triple-beam-1.4.1"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
       "relatedSpdxElement": "SPDXRef-Package-tslib-2.8.1"
     },
     {
@@ -1576,12 +3947,32 @@
     {
       "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
       "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-undici-types-6.21.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
       "relatedSpdxElement": "SPDXRef-Package-unicode-emoji-modifier-base-1.0.0"
     },
     {
       "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
       "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-util-deprecate-1.0.2"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-uuid-8.3.2"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
       "relatedSpdxElement": "SPDXRef-Package-widest-line-4.0.1"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-winston-transport-4.9.0"
     },
     {
       "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
@@ -1606,7 +3997,22 @@
     {
       "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
       "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-wsl-utils-0.1.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-xtend-4.0.2"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
       "relatedSpdxElement": "SPDXRef-Package-y18n-5.0.8"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-yaml-2.9.0"
     },
     {
       "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
@@ -1616,7 +4022,17 @@
     {
       "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
       "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-yargs-parser-21.1.1"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
       "relatedSpdxElement": "SPDXRef-Package-yargs-16.2.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-yargs-17.7.2"
     },
     {
       "spdxElementId": "SPDXRef-Package-CloudEval-CLI",

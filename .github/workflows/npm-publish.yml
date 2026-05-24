@@ -94,6 +94,10 @@ jobs:
       - name: Publish package
         if: steps.publish-needed.outputs.should_publish == 'true'
         working-directory: packages/cli
+        env:
+          CLOUDEVAL_APPLICATIONINSIGHTS_CONNECTION_STRING: ${{ secrets.CLOUDEVAL_APPLICATIONINSIGHTS_CONNECTION_STRING }}
+          APPLICATIONINSIGHTS_CONNECTION_STRING: ${{ secrets.APPLICATIONINSIGHTS_CONNECTION_STRING }}
+          NEXT_PUBLIC_APPLICATIONINSIGHTS_CONNECTION_STRING: ${{ secrets.NEXT_PUBLIC_APPLICATIONINSIGHTS_CONNECTION_STRING }}
         run: npm publish --access public
       - name: Verify GitHub and npm are in sync after publish
         env:

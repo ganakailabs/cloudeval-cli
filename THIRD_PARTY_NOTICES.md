@@ -221,7 +221,7 @@ This notice is not a substitute for legal review before public or enterprise dis
 | postgres-date | 1.0.7 | MIT | Ben Drucker | https://github.com/bendrucker/postgres-date#readme |
 | postgres-interval | 1.2.0 | MIT | Ben Drucker | https://github.com/bendrucker/postgres-interval#readme |
 | protobufjs | 7.6.1 | BSD-3-Clause | Daniel Wirtz | https://protobufjs.github.io/protobuf.js/ |
-| protobufjs | 8.0.1 | BSD-3-Clause | Daniel Wirtz | https://protobufjs.github.io/protobuf.js/ |
+| protobufjs | 8.0.2 | BSD-3-Clause | Daniel Wirtz | https://protobufjs.github.io/protobuf.js/ |
 | react-devtools-core | 4.28.5 | MIT | NOASSERTION | https://github.com/facebook/react#readme |
 | react-reconciler | 0.29.2 | MIT | NOASSERTION | https://reactjs.org/ |
 | react | 18.3.1 | MIT | NOASSERTION | https://reactjs.org/ |

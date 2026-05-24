@@ -14,7 +14,7 @@
     {
       "SPDXID": "SPDXRef-Package-CloudEval-CLI",
       "name": "CloudEval CLI",
-      "versionInfo": "0.23.0",
+      "versionInfo": "0.24.0",
       "downloadLocation": "https://github.com/ganakailabs/cloudeval-cli",
       "filesAnalyzed": false,
       "licenseConcluded": "LicenseRef-CloudEval-CLI",
@@ -2200,9 +2200,9 @@
       "summary": "Protocol Buffers for JavaScript (& TypeScript)."
     },
     {
-      "SPDXID": "SPDXRef-Package-protobufjs-8.0.1",
+      "SPDXID": "SPDXRef-Package-protobufjs-8.0.2",
       "name": "protobufjs",
-      "versionInfo": "8.0.1",
+      "versionInfo": "8.0.2",
       "downloadLocation": "https://protobufjs.github.io/protobuf.js/",
       "filesAnalyzed": false,
       "licenseConcluded": "BSD-3-Clause",
@@ -3777,7 +3777,7 @@
     {
       "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
       "relationshipType": "DEPENDS_ON",
-      "relatedSpdxElement": "SPDXRef-Package-protobufjs-8.0.1"
+      "relatedSpdxElement": "SPDXRef-Package-protobufjs-8.0.2"
     },
     {
       "spdxElementId": "SPDXRef-Package-CloudEval-CLI",

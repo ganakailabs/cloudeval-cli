@@ -1,6 +1,6 @@
 {
   "name": "@ganakailabs/cloudeval-cli",
-  "version": "0.24.0",
+  "version": "0.24.1",
   "license": "LicenseRef-CloudEval-CLI",
   "type": "module",
   "description": "CloudEval CLI for cloud architecture, cost, report, automation, and MCP workflows.",

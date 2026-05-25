@@ -1,0 +1,22 @@
+{
+  "content": "There are 3 VMs in scope [Squery_0]. Storage is encrypted [S_tool_security_docs_0].",
+  "tools_used": [
+    {
+      "source_id": "query_0",
+      "tool_name": "Execute query",
+      "output": { "count": 3, "resource": "virtualMachines" }
+    },
+    {
+      "source_id": "tool_security_docs_0",
+      "tool_name": "Web search",
+      "tool_friendly_name": "Web search",
+      "output": { "content": "Storage encryption is enabled for all accounts." },
+      "source_url": "https://example.com/security"
+    }
+  ],
+  "expected_source_order": ["query_0", "tool_security_docs_0"],
+  "expected_pill_numbers": {
+    "query_0": 1,
+    "tool_security_docs_0": 2
+  }
+}

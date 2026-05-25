@@ -8,6 +8,11 @@ import { join, resolve } from "node:path";
 import { Banner } from "./components/Banner.js";
 import { Loader } from "./components/Loader.js";
 import { Transcript } from "./components/Transcript.js";
+import { CitationSourceInspector } from "./components/CitationSourceInspector.js";
+import {
+  buildCitationReferences,
+  type CitationReference,
+} from "./citationContent.js";
 import {
   InputBox,
   estimateCommandCompletionRows,
@@ -1322,6 +1327,8 @@ export const App: React.FC<AppProps> = ({
   const [chatMiddleScrollOffset, setChatMiddleScrollOffset] = useState(0);
   const [chatMiddleContentHeight, setChatMiddleContentHeight] = useState(0);
   const [chatMiddleViewportHeight, setChatMiddleViewportHeight] = useState(12);
+  const [citationInspectorRef, setCitationInspectorRef] =
+    useState<CitationReference | null>(null);
   const apiBase = useMemo(() => normalizeApiBase(baseUrl), [baseUrl]);
   const frontendBaseUrl = useMemo(
     () => resolveFrontendBaseUrl(apiBase, frontendUrl),
@@ -3636,6 +3643,49 @@ export const App: React.FC<AppProps> = ({
          }
        }
 
+       if (
+         phase === "ready" &&
+         activeWorkspaceTab === "chat" &&
+         !input.trim() &&
+         key.escape &&
+         citationInspectorRef
+       ) {
+         setCitationInspectorRef(null);
+         return;
+       }
+
+       if (
+         phase === "ready" &&
+         activeWorkspaceTab === "chat" &&
+         !input.trim() &&
+         !activeSelector &&
+         /^[1-9]$/.test(inputKey)
+       ) {
+         const citationNumber = Number.parseInt(inputKey, 10);
+         const lastAssistant = [...displayedMessages]
+           .reverse()
+           .find(
+             (message) =>
+               message.role === "assistant" &&
+               typeof message.content === "string" &&
+               message.content.trim().length > 0
+           );
+         if (lastAssistant) {
+           const references = buildCitationReferences({
+             content: lastAssistant.content,
+             toolsUsed: lastAssistant.toolsUsed,
+             citations: lastAssistant.citations,
+           });
+           const match = references.find(
+             (reference) => reference.number === citationNumber
+           );
+           if (match) {
+             setCitationInspectorRef(match);
+             return;
+           }
+         }
+       }
+
        if (phase === "ready" && key.ctrl && lowerInput === "t") {
          setActiveWorkspaceTab((current) => nextWorkspaceTab(current));
          setActiveSelector(null);
@@ -4243,6 +4293,10 @@ export const App: React.FC<AppProps> = ({
               expandedThinkingMessageIds={expandedThinkingMessageIds}
               emptyLabel={isSearching ? "No matching messages." : "Thread is empty."}
               animate={animationsEnabled}
+            />
+            <CitationSourceInspector
+              reference={citationInspectorRef}
+              onClose={() => setCitationInspectorRef(null)}
             />
           </ScrollView>
         </Box>

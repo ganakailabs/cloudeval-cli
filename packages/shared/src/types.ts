@@ -156,6 +156,9 @@ export interface ChatCitationMarker {
   end?: number;
   source_index?: number;
   source_id?: string;
+  tag_start?: number;
+  tag_end?: number;
+  origin?: "model" | "repaired" | "fallback";
   [key: string]: unknown;
 }
 
@@ -165,6 +168,17 @@ export interface ChatCitationEntry {
   url?: string;
   quote?: string;
   loc?: string;
+  alignment_score?: number;
+  origin?: "model" | "repaired" | "fallback";
+  [key: string]: unknown;
+}
+
+export interface ChatCitationAlignmentStats {
+  checked?: number;
+  reassigned?: number;
+  dropped?: number;
+  low_confidence?: number;
+  min_alignment_score?: number;
   [key: string]: unknown;
 }
 

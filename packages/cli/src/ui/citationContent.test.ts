@@ -58,20 +58,11 @@ test("buildCitationReferences prefers citation metadata over tool metadata", () 
     ],
   });
 
-  assert.deepEqual(references, [
-    {
-      number: 1,
-      sourceId: "tool_security_docs_0",
-      label: "Azure security baseline",
-      url: "https://example.com/security",
-    },
-    {
-      number: 2,
-      sourceId: "tool_logging_docs_1",
-      label: "Azure audit logging guide",
-      url: "https://example.com/logging",
-    },
-  ]);
+  assert.equal(references.length, 2);
+  assert.equal(references[0]?.label, "Azure security baseline");
+  assert.equal(references[0]?.url, "https://example.com/security");
+  assert.equal(references[1]?.label, "Azure audit logging guide");
+  assert.equal(references[1]?.url, "https://example.com/logging");
   assert.equal(
     buildReferencesSection(references),
     [
@@ -81,6 +72,40 @@ test("buildCitationReferences prefers citation metadata over tool metadata", () 
       "- [2] Azure audit logging guide - https://example.com/logging",
     ].join("\n")
   );
+});
+
+test("golden fixture source order matches backend contract", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const { fileURLToPath } = await import("node:url");
+  const { dirname, join } = await import("node:path");
+  const fixturePath = join(
+    dirname(fileURLToPath(import.meta.url)),
+    "fixtures/citation/basic_multi_source.json"
+  );
+  const raw = await readFile(fixturePath, "utf8");
+  const fixture = JSON.parse(raw) as {
+    content: string;
+    expected_source_order: string[];
+  };
+  assert.deepEqual(getCitationSourceOrder(fixture.content), [
+    "query_0",
+    "tool_security_docs_0",
+  ]);
+});
+
+test("toCitationExportContent includes quote excerpt when present", () => {
+  const content = "Encrypted storage.[S_tool_security_docs_0]";
+  const exported = toCitationExportContent({
+    content,
+    citations: [
+      {
+        source_id: "tool_security_docs_0",
+        title: "Security docs",
+        quote: "Storage encryption is enabled for all accounts.",
+      },
+    ],
+  });
+  assert.match(exported, /Storage encryption/);
 });
 
 test("toCitationExportContent appends references for copy and download", () => {

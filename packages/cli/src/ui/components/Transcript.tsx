@@ -184,13 +184,37 @@ const CitationReferences: React.FC<{ references: CitationReference[] }> = ({
   return (
     <Box flexDirection="column" marginTop={1}>
       <Text color={terminalTheme.brand}>Sources</Text>
-      {references.map((reference) => (
-        <Text key={reference.sourceId} dimColor wrap="wrap">
-          <Text color={terminalTheme.brand}>[{reference.number}]</Text>{" "}
-          {reference.label}
-          {reference.url ? ` - ${reference.url}` : ""}
-        </Text>
-      ))}
+      {references.map((reference) => {
+        const lowConfidence =
+          typeof reference.alignment_score === "number" &&
+          reference.alignment_score < 70;
+        return (
+          <Box key={reference.sourceId} flexDirection="column">
+            <Text dimColor wrap="wrap">
+              <Text color={terminalTheme.brand}>[{reference.number}]</Text>{" "}
+              {reference.label}
+              {reference.url ? ` - ${reference.url}` : ""}
+              {lowConfidence ? (
+                <Text color={terminalTheme.warning}> ~low confidence</Text>
+              ) : null}
+            </Text>
+            {reference.quote ? (
+              <Text dimColor wrap="wrap">
+                {"  "}
+                {reference.quote.length > 120
+                  ? `${reference.quote.slice(0, 119)}…`
+                  : reference.quote}
+              </Text>
+            ) : null}
+            {reference.loc ? (
+              <Text dimColor wrap="wrap">
+                {"  "}
+                {reference.loc}
+              </Text>
+            ) : null}
+          </Box>
+        );
+      })}
     </Box>
   );
 };

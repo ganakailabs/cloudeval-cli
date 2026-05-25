@@ -1,8 +1,10 @@
 import type { ChatCitationEntry, ChatToolSourceEntry } from "@cloudeval/shared";
 
-const CITATION_TAG_RE = /\[S([A-Za-z0-9_.:-]+)\]/g;
-const CITATION_TAG_ALT_RE = /\[(tool_[A-Za-z0-9_.:-]+)\]/g;
+const CITATION_TAG_RE = /\[S([A-Za-z0-9_\-]+)\]/g;
+const CITATION_TAG_ALT_RE = /\[(tool_[A-Za-z0-9_\-]+)\]/g;
 const DEFAULT_MAX_INLINE_CITATIONS_PER_SOURCE = 3;
+const ALIGNMENT_LOW_SCORE = 70;
+const QUOTE_EXCERPT_MAX = 120;
 
 interface CitationMatch {
   index: number;
@@ -15,6 +17,10 @@ export interface CitationReference {
   sourceId: string;
   label: string;
   url?: string;
+  quote?: string;
+  loc?: string;
+  alignment_score?: number;
+  origin?: string;
 }
 
 export const normalizeCitationSourceId = (sourceId: string): string =>
@@ -165,6 +171,10 @@ export const buildCitationReferences = ({
   return order.map((sourceId, index) => {
     const tool = toolBySourceId.get(sourceId);
     const citation = citationBySourceId.get(sourceId);
+    const alignmentScore =
+      typeof citation?.alignment_score === "number"
+        ? citation.alignment_score
+        : undefined;
     return {
       number: index + 1,
       sourceId,
@@ -176,9 +186,19 @@ export const buildCitationReferences = ({
           tool?.tool_name
         ) ?? fallbackSourceLabel(sourceId),
       url: firstString(citation?.url, tool?.source_url),
+      quote: firstString(citation?.quote),
+      loc: firstString(citation?.loc),
+      alignment_score: alignmentScore,
+      origin:
+        typeof citation?.origin === "string" ? citation.origin : undefined,
     };
   });
 };
+
+const truncateQuote = (quote: string): string =>
+  quote.length <= QUOTE_EXCERPT_MAX
+    ? quote
+    : `${quote.slice(0, QUOTE_EXCERPT_MAX - 1)}…`;
 
 export const buildReferencesSection = (
   references: CitationReference[]
@@ -189,12 +209,19 @@ export const buildReferencesSection = (
   return [
     "---",
     "## References",
-    ...references.map(
-      (reference) =>
-        `- [${reference.number}] ${reference.label}${
-          reference.url ? ` - ${reference.url}` : ""
-        }`
-    ),
+    ...references.map((reference) => {
+      const lowConfidence =
+        typeof reference.alignment_score === "number" &&
+        reference.alignment_score < ALIGNMENT_LOW_SCORE;
+      const quotePart = reference.quote
+        ? ` — "${truncateQuote(reference.quote)}"`
+        : "";
+      const locPart = reference.loc ? ` (${reference.loc})` : "";
+      const confidencePart = lowConfidence ? " ~low confidence" : "";
+      return `- [${reference.number}] ${reference.label}${
+        reference.url ? ` - ${reference.url}` : ""
+      }${quotePart}${locPart}${confidencePart}`;
+    }),
   ].join("\n");
 };
 

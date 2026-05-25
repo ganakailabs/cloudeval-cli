@@ -1,5 +1,6 @@
 const fs = require("node:fs");
 const path = require("node:path");
+const { execFileSync } = require("node:child_process");
 
 const root = path.resolve(__dirname, "..");
 
@@ -26,4 +27,9 @@ module.exports.prepare = async (_pluginConfig, context) => {
     path.join(root, "packages/cli/src/version.ts"),
     `// Updated by semantic-release before each published release.\nexport const CLI_VERSION = ${JSON.stringify(version)};\n`
   );
+
+  execFileSync("node", ["scripts/generate-license-artifacts.mjs"], {
+    cwd: root,
+    stdio: "inherit",
+  });
 };

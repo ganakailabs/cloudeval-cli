@@ -4,6 +4,7 @@ import {
   buildTelemetryUserProperties,
   classifyTelemetryError,
   createCliTelemetry,
+  disableDiskRetryCaching,
   resolveTelemetryConnectionString,
   resolveTelemetryEnabled,
   sanitizeTelemetryProperties,
@@ -184,6 +185,20 @@ test("createCliTelemetry sends sanitized events and isolates flush errors", asyn
       measurements: { durationMs: 12 },
     },
   ]);
+});
+
+test("disableDiskRetryCaching ignores unsupported SDK compatibility methods", () => {
+  let calls = 0;
+  assert.doesNotThrow(() => {
+    disableDiskRetryCaching({
+      trackEvent: () => {},
+      setUseDiskRetryCaching: () => {
+        calls += 1;
+        throw new Error("Not implemented");
+      },
+    });
+  });
+  assert.equal(calls, 1);
 });
 
 test("classifyTelemetryError emits stable categories instead of raw messages", () => {

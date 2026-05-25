@@ -22,6 +22,7 @@ export interface TelemetryClientLike {
   }): void;
   flush?(callback?: (error?: Error) => void): Promise<void> | void;
   shutdown?(): Promise<void>;
+  setUseDiskRetryCaching?(enabled: boolean): void;
 }
 
 export interface CliTelemetry {
@@ -271,8 +272,17 @@ const createApplicationInsightsClient = async (
   const client = new appInsights.TelemetryClient(connectionString, {
     useGlobalProviders: false,
   });
-  client.setUseDiskRetryCaching(false);
+  disableDiskRetryCaching(client);
   return client;
+};
+
+export const disableDiskRetryCaching = (client: TelemetryClientLike): void => {
+  try {
+    client.setUseDiskRetryCaching?.(false);
+  } catch {
+    // applicationinsights v3 exposes this compatibility method but throws
+    // "Not implemented"; telemetry should still use the in-memory exporter.
+  }
 };
 
 const flushClient = async (client: TelemetryClientLike): Promise<void> => {

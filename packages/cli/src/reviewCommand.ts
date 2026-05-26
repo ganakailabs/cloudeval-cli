@@ -554,6 +554,7 @@ const waitForJob = async ({
   baseUrl,
   token,
   userId,
+  projectId,
   jobId,
   pollIntervalMs,
   waitTimeoutMs,
@@ -561,6 +562,7 @@ const waitForJob = async ({
   baseUrl: string;
   token?: string;
   userId?: string;
+  projectId: string;
   jobId: string;
   pollIntervalMs: number;
   waitTimeoutMs: number;
@@ -568,11 +570,14 @@ const waitForJob = async ({
   const startedAt = Date.now();
   let lastStatus: Record<string, any> | undefined;
   for (;;) {
-    const query = userId ? `?user_id=${encodeURIComponent(userId)}` : "";
+    const query = new URLSearchParams({ project_id: projectId });
+    if (userId) {
+      query.set("user_id", userId);
+    }
     lastStatus = await fetchCloudEvalJson<Record<string, any>>({
       baseUrl,
       authToken: token,
-      path: `/jobs/${encodeURIComponent(jobId)}${query}`,
+      path: `/jobs/${encodeURIComponent(jobId)}?${query.toString()}`,
     });
     const status = String(lastStatus.status ?? "unknown");
     process.stderr.write(`github sync job ${jobId}: ${status}\n`);
@@ -812,6 +817,7 @@ export const registerReviewCommand = (
               baseUrl: context.baseUrl,
               token: context.token,
               userId: context.user?.id,
+              projectId,
               jobId: extractJobId(sync)!,
               pollIntervalMs: parsePositiveInteger(
                 options.pollInterval,

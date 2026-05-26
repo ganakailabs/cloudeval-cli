@@ -9,6 +9,7 @@ export type CloudEvalRequestOptions = {
   method?: "GET" | "POST";
   query?: Record<string, QueryValue>;
   body?: unknown;
+  idempotencyKey?: string;
 };
 
 const responseErrorMessage = async (response: Response): Promise<string> => {
@@ -38,6 +39,7 @@ export const fetchCloudEvalJson = async <T = unknown>({
   method = "GET",
   query = {},
   body,
+  idempotencyKey,
 }: CloudEvalRequestOptions): Promise<T> => {
   const url = new URL(`${normalizeApiBase(baseUrl)}${path}`);
   for (const [key, value] of Object.entries(query)) {
@@ -48,7 +50,10 @@ export const fetchCloudEvalJson = async <T = unknown>({
 
   const response = await fetch(url, {
     method,
-    headers: getCLIHeaders(authToken),
+    headers: {
+      ...getCLIHeaders(authToken),
+      ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
+    },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
   if (!response.ok) {

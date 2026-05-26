@@ -13,6 +13,7 @@ import {
 } from "./shellCompletion.js";
 import { completeCliWords } from "./completionEngine.js";
 import { registerReportsCommand } from "./reports/reportCommand.js";
+import { registerReviewCommand } from "./reviewCommand.js";
 import { registerRecipesCommand } from "./recipesCommand.js";
 import { registerSkillsCommand } from "./skillsCommand.js";
 import { getFirstNameForDisplay } from "./ui/userDisplayName.js";
@@ -64,6 +65,7 @@ import {
 
 const DEFAULT_BASE_URL = getDefaultBaseUrl();
 const ASK_STREAM_IDLE_TIMEOUT_MS = 90_000;
+const AGENT_STREAM_IDLE_TIMEOUT_MS = 180_000;
 const LEGACY_API_KEY_MESSAGE =
   "API key auth was renamed in beta. Use --access-key or CLOUDEVAL_ACCESS_KEY.";
 const STREAM_OUTPUT_NODES = new Set([
@@ -867,6 +869,13 @@ registerReportsCommand(program, {
   readStdinValue,
 });
 
+registerReviewCommand(program, {
+  defaultBaseUrl: DEFAULT_BASE_URL,
+  resolveBaseUrl,
+  readStdinValue,
+  isHeadlessEnvironment,
+});
+
 registerRecipesCommand(program, {
   defaultBaseUrl: DEFAULT_BASE_URL,
   resolveBaseUrl,
@@ -1327,8 +1336,6 @@ program
         streamChat,
         reduceChunk,
         getAuthToken,
-        getProjects,
-        ensurePlaygroundProject,
         checkUserStatus,
         extractEmailFromToken,
         initialChatState,
@@ -1438,81 +1445,47 @@ program
         normalizeApiBase,
       });
 
-      // Get project
+      // Get project (full record with connection_ids — required for tool/citation streams)
       verboseLog("Determining project to use");
       progressWriter.write({
         type: "request",
         step: "project",
         message: selectedProjectId ? `Using project ${selectedProjectId}` : "Resolving project",
       });
-      let project: Project | undefined;
       let authenticatedUserId: string | undefined;
-      if (selectedProjectId) {
-        verboseLog("Using provided project ID:", selectedProjectId);
-        try {
-          const userStatus = await checkUserStatus(baseUrl, token);
-          getActiveCliTelemetry()?.setUserProperties(userStatus.user || {});
-          authenticatedUserId = userStatus.user?.id;
-        } catch {
-          // Best effort; stream scope validation will fail safely if this is wrong.
-        }
-        // If project ID provided, we'd need to fetch it
-        // For now, use a basic project object
-        project = {
-          id: selectedProjectId,
-          name: "Selected Project",
-          user_id: authenticatedUserId,
-          cloud_provider: "azure",
-        };
-      } else {
-        verboseLog("No project ID provided, attempting to fetch user projects");
-        // Try to get user and fetch projects
-        try {
-          verboseLog("Checking user status", { baseUrl });
-          const userStatus = await checkUserStatus(baseUrl, token);
-          getActiveCliTelemetry()?.setUserProperties(userStatus.user || {});
-          authenticatedUserId = userStatus.user?.id;
-          verboseLog("User status:", {
-            hasUser: !!userStatus.user,
-            userId: userStatus.user?.id,
-            onboardingCompleted: userStatus.onboardingCompleted,
-          });
-          if (authenticatedUserId) {
-            verboseLog("Fetching projects for user", { userId: authenticatedUserId });
-            const projects = await getProjects(baseUrl, token, authenticatedUserId);
-            verboseLog("Projects fetched:", { count: projects.length, names: projects.map((p: any) => p.name) });
-            const playgroundProject = projects.find((p: any) => p.name === "Playground");
-            if (playgroundProject) {
-              project = playgroundProject;
-            } else if (userStatus.user?.email) {
-              verboseLog("Playground project missing; running shared onboarding repair");
-              project = await ensurePlaygroundProject(baseUrl, token, {
-                id: authenticatedUserId,
-                email: userStatus.user.email,
-                full_name: userStatus.user.full_name,
-                name: userStatus.user.name,
-              });
-            } else {
-              project = projects[0] || undefined;
-            }
-            verboseLog("Selected project:", project ? { id: project.id, name: project.name } : "none");
-          }
-        } catch (error: any) {
-          verboseLog("Failed to fetch projects, using default:", {
-            message: error.message,
-            stack: error.stack,
-          });
-          // Fallback to default project
-        }
-
-      if (!project) {
-          process.stderr.write(
-            "No project is available for this account. Run `cloudeval chat` to complete onboarding, then retry."
-          );
-          process.stderr.write("\n");
-          await exitCli(1, new Error("no_project_available"));
-        }
+      let authenticatedUser: Awaited<ReturnType<typeof checkUserStatus>>["user"];
+      try {
+        const userStatus = await checkUserStatus(baseUrl, token);
+        getActiveCliTelemetry()?.setUserProperties(userStatus.user || {});
+        authenticatedUserId = userStatus.user?.id;
+        authenticatedUser = userStatus.user;
+        verboseLog("User status:", {
+          hasUser: !!userStatus.user,
+          userId: userStatus.user?.id,
+          onboardingCompleted: userStatus.onboardingCompleted,
+        });
+      } catch (error: any) {
+        verboseLog("Failed to check user status before project resolve:", {
+          message: error.message,
+        });
       }
+
+      const { resolveAskProject } = await import("./resolveAskProject.js");
+      let project: Project;
+      try {
+        project = await resolveAskProject({
+          baseUrl,
+          token,
+          selectedProjectId,
+          authenticatedUserId,
+          authenticatedUser,
+        });
+      } catch (error: any) {
+        progressWriter.clear();
+        console.error(error?.message ?? "Failed to resolve project");
+        await exitCli(1, error);
+      }
+      verboseLog("Selected project:", { id: project.id, name: project.name });
 
       // Get user name from token
       let userName = "You";
@@ -1660,7 +1633,10 @@ program
                 debug: options.debug,
                 completeAfterResponse: true,
                 responseCompletionGraceMs: 5000,
-                streamIdleTimeoutMs: ASK_STREAM_IDLE_TIMEOUT_MS,
+                streamIdleTimeoutMs:
+                  selectedMode === "agent"
+                    ? AGENT_STREAM_IDLE_TIMEOUT_MS
+                    : ASK_STREAM_IDLE_TIMEOUT_MS,
                 hitlResume,
               })) {
                 totalChunkCount++;
@@ -1877,7 +1853,27 @@ program
       const finalMessage = [...chatState.messages]
         .reverse()
         .find((m) => m.role === "assistant");
-      const finalResponse = collapseRepeatedAssistantText(finalMessage?.content || responseText || "");
+      let finalResponse = collapseRepeatedAssistantText(
+        finalMessage?.content || responseText || ""
+      );
+
+      if (!finalResponse.trim() && chatState.threadId) {
+        const { fetchLastAssistantContent } = await import(
+          "./fetchLastAssistantContent.js"
+        );
+        const persisted = await fetchLastAssistantContent({
+          baseUrl,
+          authToken: token,
+          threadId: chatState.threadId,
+          normalizeApiBase,
+        });
+        if (persisted) {
+          finalResponse = collapseRepeatedAssistantText(persisted);
+          verboseLog("Recovered final response from thread history", {
+            length: finalResponse.length,
+          });
+        }
+      }
 
       if (!finalResponse.trim()) {
         const noResponseMessage = `No final response returned by CloudEval (last stream status: ${chatState.status ?? "unknown"}). Retry with --verbose or --format ndjson to inspect stream progress.`;

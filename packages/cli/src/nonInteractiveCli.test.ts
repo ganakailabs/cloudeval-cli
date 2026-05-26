@@ -64,6 +64,19 @@ const parameterFileFixture = {
   },
 };
 
+const githubProject = {
+  ...project,
+  id: "project-github",
+  name: "GitHub IaC Project",
+  iac_source: {
+    type: "github",
+    repo_full_name: "ganakailabs/cloudeval-github-sync-e2e",
+    ref: "main",
+    source_root: "infra",
+    commit_sha: "old-sha",
+  },
+};
+
 const credentialTemplate = {
   id: "ci",
   name: "GitHub Actions CI",
@@ -348,6 +361,17 @@ const startBackend = async (
         ...(options.projects ?? [project]),
         ...createdProjects,
       ]);
+    }
+    if (
+      url.pathname === "/api/v1/projects/project-github/github/sync" &&
+      req.method === "POST"
+    ) {
+      const payload = JSON.parse(body || "{}");
+      return json(res, {
+        job: "background",
+        project_id: "project-github",
+        commit_sha: payload.commit_sha ?? null,
+      });
     }
     if (url.pathname === "/api/v1/credential-templates") {
       return json(res, { templates: [credentialTemplate] });
@@ -1215,6 +1239,28 @@ const parseJsonError = (result: Awaited<ReturnType<typeof runCli>>) => {
   assert.notEqual(result.exitCode, 0);
   assert.equal(result.stderr, "");
   return JSON.parse(result.stdout);
+};
+
+const runProcess = async (
+  command: string,
+  args: string[],
+  cwd: string,
+): Promise<void> => {
+  const child = spawn(command, args, {
+    cwd,
+    env: process.env,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  const stderr: Buffer[] = [];
+  child.stderr.on("data", (chunk) => stderr.push(Buffer.from(chunk)));
+  const exitCode = await new Promise<number | null>((resolve) =>
+    child.on("exit", resolve),
+  );
+  assert.equal(
+    exitCode,
+    0,
+    Buffer.concat(stderr).toString("utf8"),
+  );
 };
 
 const bumpPatchVersion = (version: string): string => {
@@ -3230,6 +3276,88 @@ test("report list, show, cost, waf, rules, and download commands return report d
   }
 });
 
+test("review command blocks dirty local working trees unless explicitly ignored", async () => {
+  const backend = await startBackend({ projects: [githubProject] });
+  const repoDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "cloudeval-review-repo-"),
+  );
+  try {
+    await runProcess("git", ["init", "-b", "main"], repoDir);
+    await runProcess("git", ["config", "user.email", "test@example.com"], repoDir);
+    await runProcess("git", ["config", "user.name", "Test User"], repoDir);
+    await runProcess("git", [
+      "remote",
+      "add",
+      "origin",
+      "https://github.com/ganakailabs/cloudeval-github-sync-e2e.git",
+    ], repoDir);
+    await fs.writeFile(path.join(repoDir, "azuredeploy.json"), '{"resources":[]}\n');
+    await runProcess("git", ["add", "azuredeploy.json"], repoDir);
+    await runProcess("git", ["commit", "-m", "initial"], repoDir);
+    const headSha = (
+      await new Promise<string>((resolve, reject) => {
+        const child = spawn("git", ["rev-parse", "HEAD"], { cwd: repoDir });
+        const stdout: Buffer[] = [];
+        const stderr: Buffer[] = [];
+        child.stdout.on("data", (chunk) => stdout.push(Buffer.from(chunk)));
+        child.stderr.on("data", (chunk) => stderr.push(Buffer.from(chunk)));
+        child.on("exit", (code) => {
+          if (code === 0) {
+            resolve(Buffer.concat(stdout).toString("utf8").trim());
+          } else {
+            reject(new Error(Buffer.concat(stderr).toString("utf8")));
+          }
+        });
+      })
+    );
+    await fs.writeFile(path.join(repoDir, "dirty.txt"), "local-only\n");
+
+    const common = [
+      "review",
+      "--base-url",
+      backend.baseUrl,
+      "--access-key",
+      "test-token",
+      "--project",
+      "project-github",
+      "--format",
+      "json",
+      "--non-interactive",
+    ];
+
+    const blocked = await runCli(common, { cwd: repoDir });
+    assert.equal(blocked.exitCode, 1);
+    assert.match(
+      blocked.stderr,
+      /Reviews pushed commits only\. Add --ignore-dirty to review HEAD anyway\./,
+    );
+    assert.equal(
+      backend.requests.some(
+        (request) => request.path === "/api/v1/projects/project-github/github/sync",
+      ),
+      false,
+    );
+
+    const ignored = parseJson(
+      await runCli([...common, "--ignore-dirty"], { cwd: repoDir }),
+    );
+    assert.equal(ignored.command, "review");
+    assert.equal(ignored.data.projectId, "project-github");
+    assert.equal(ignored.data.repo, "ganakailabs/cloudeval-github-sync-e2e");
+    assert.equal(ignored.data.commitSha, headSha);
+    assert.equal(ignored.data.gate.status, "warn");
+
+    const syncRequest = backend.requests.find(
+      (request) => request.path === "/api/v1/projects/project-github/github/sync",
+    );
+    assert(syncRequest);
+    assert.deepEqual(JSON.parse(syncRequest.body), { commit_sha: headSha });
+  } finally {
+    await fs.rm(repoDir, { recursive: true, force: true });
+    await backend.close();
+  }
+});
+
 test("billing and credits commands are non-interactive and JSON-safe", async () => {
   const backend = await startBackend();
   try {
@@ -3683,6 +3811,39 @@ test("ask streams a single answer non-interactively with selected project and mo
     assert.equal(payload.settings.model, "gpt-5-mini");
     assert.equal(payload.settings.mode, "ask");
     assert.equal(streamRequest.authorization, "Bearer test-token");
+  } finally {
+    await fs.rm(home, { recursive: true, force: true });
+    await backend.close();
+  }
+});
+
+test("ask fails when --project id is not visible to the authenticated user", async () => {
+  const backend = await startBackend();
+  const home = await fs.mkdtemp(
+    path.join(os.tmpdir(), "cloudeval-cli-missing-project-"),
+  );
+  try {
+    const result = await runCli(
+      [
+        "ask",
+        "Hello",
+        "--base-url",
+        backend.baseUrl,
+        "--access-key",
+        "test-token",
+        "--project",
+        "missing-project",
+        "--format",
+        "json",
+        "--non-interactive",
+      ],
+      { home },
+    );
+    assert.equal(result.exitCode, 1);
+    assert.match(
+      result.stderr,
+      /missing-project was not found for authenticated user user-1/,
+    );
   } finally {
     await fs.rm(home, { recursive: true, force: true });
     await backend.close();

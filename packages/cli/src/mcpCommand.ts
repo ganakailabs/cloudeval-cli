@@ -2287,15 +2287,8 @@ const resolveProject = async (
     stringValue(args.projectId) ?? config.defaultProjectId;
   const userId = auth.user?.id;
   if (!userId) {
-    if (requestedProjectId) {
-      return {
-        id: requestedProjectId,
-        name: "Selected Project",
-        cloud_provider: "azure",
-      };
-    }
     throw new Error(
-      "Could not determine the authenticated user. Provide projectId.",
+      "Could not determine the authenticated user. Run `cloudeval login` and retry.",
     );
   }
 
@@ -2305,14 +2298,16 @@ const resolveProject = async (
     userId,
   );
   if (requestedProjectId) {
-    return (
-      projects.find((project: any) => project.id === requestedProjectId) ?? {
-        id: requestedProjectId,
-        name: "Selected Project",
-        user_id: userId,
-        cloud_provider: "azure",
-      }
+    const match = projects.find(
+      (project: any) => project.id === requestedProjectId,
     );
+    if (!match) {
+      throw new Error(
+        `Project ${requestedProjectId} was not found for authenticated user ${userId}. ` +
+          "Run `cloudeval projects list` to choose a visible project.",
+      );
+    }
+    return match;
   }
 
   const selected =

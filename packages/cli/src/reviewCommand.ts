@@ -259,6 +259,20 @@ const firstRecord = (...values: unknown[]): Record<string, any> | undefined => {
   return undefined;
 };
 
+const entriesAsNamedRecords = (
+  value: unknown,
+  amountKey = "amount",
+): Array<Record<string, any>> => {
+  const record = firstRecord(value);
+  if (!record) {
+    return [];
+  }
+  return Object.entries(record).map(([name, amount]) => ({
+    name,
+    [amountKey]: amount,
+  }));
+};
+
 type ReviewPillar = {
   id: string;
   label: string;
@@ -289,9 +303,11 @@ const extractPillars = (waf?: Record<string, any>): ReviewPillar[] => {
       .filter((pillar): pillar is ReviewPillar => pillar !== undefined);
   }
   const scores = firstRecord(
+    waf?.pillar_scores,
     waf?.parsed?.pillar_scores,
     waf?.parsed?.score?.pillar_scores,
     waf?.raw?.pillar_scores,
+    waf?.report?.pillar_scores,
   );
   if (!scores) return [];
   return Object.entries(scores)
@@ -358,27 +374,40 @@ const evaluateGate = ({
 }) => {
   const gateConfig = parseGateConfig(configText);
   const overallScore = numberFrom(
+    waf?.overall_score,
+    waf?.report?.overall_score,
     waf?.parsed?.score?.overall,
     waf?.parsed?.overall_score,
     waf?.raw?.score,
   );
   const highRisk = numberFrom(
+    waf?.critical_issues_count !== undefined || waf?.high_issues_count !== undefined
+      ? (numberFrom(waf?.critical_issues_count) ?? 0) + (numberFrom(waf?.high_issues_count) ?? 0)
+      : undefined,
+    waf?.report?.critical_issues_count !== undefined || waf?.report?.high_issues_count !== undefined
+      ? (numberFrom(waf?.report?.critical_issues_count) ?? 0) + (numberFrom(waf?.report?.high_issues_count) ?? 0)
+      : undefined,
     waf?.parsed?.counts?.highRisk,
     waf?.parsed?.counts?.high_count,
     waf?.parsed?.highRisk,
   );
   const monthlyCost = numberFrom(
+    cost?.report?.processed?.total_monthly_cost,
+    cost?.report?.processed?.totalMonthlyCost,
     cost?.parsed?.totalSpend?.amount,
     cost?.parsed?.total_spend?.amount,
     cost?.raw?.total,
   );
   const currency = String(
-    cost?.parsed?.totalSpend?.currency ??
+    cost?.report?.metadata?.currency ??
+      cost?.parsed?.totalSpend?.currency ??
       cost?.parsed?.total_spend?.currency ??
       cost?.raw?.currency ??
       "",
   ) || undefined;
   const savings = numberFrom(
+    cost?.report?.processed?.opportunity_summary?.total_monthly_savings,
+    cost?.report?.processed?.opportunitySummary?.totalMonthlySavings,
     cost?.parsed?.estimatedSavings?.amount,
     cost?.parsed?.estimated_savings?.amount,
   );
@@ -429,12 +458,18 @@ const evaluateGate = ({
       amount: savings,
       currency,
     },
-    topServices: Array.isArray(cost?.parsed?.serviceGroups)
-      ? cost.parsed.serviceGroups.slice(0, 5)
-      : [],
-    recommendations: Array.isArray(cost?.parsed?.recommendations)
-      ? cost.parsed.recommendations.slice(0, 5)
-      : [],
+    topServices: (
+      Array.isArray(cost?.parsed?.serviceGroups)
+        ? cost.parsed.serviceGroups
+        : entriesAsNamedRecords(cost?.report?.processed?.cost_by_service_family)
+    ).slice(0, 5),
+    recommendations: (
+      Array.isArray(cost?.parsed?.recommendations)
+        ? cost.parsed.recommendations
+        : Array.isArray(cost?.report?.processed?.optimization_recommendations)
+          ? cost.report.processed.optimization_recommendations
+          : []
+    ).slice(0, 5),
   };
   if (!gateConfig) {
     return {
@@ -613,6 +648,90 @@ const fetchProjectById = async ({
     .find((project) => project.id === projectId);
 };
 
+const userScopedPath = (pathValue: string, userId?: string): string => {
+  if (!userId) {
+    return pathValue;
+  }
+  const [pathPart, queryPart = ""] = pathValue.split("?");
+  const query = new URLSearchParams(queryPart);
+  query.set("user_id", userId);
+  const suffix = query.toString();
+  return suffix ? `${pathPart}?${suffix}` : pathPart;
+};
+
+const sleep = (ms: number): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, ms));
+
+const fetchReviewReports = async ({
+  baseUrl,
+  token,
+  projectId,
+  userId,
+}: {
+  baseUrl: string;
+  token?: string;
+  projectId: string;
+  userId?: string;
+}): Promise<{
+  cost?: Record<string, any>;
+  waf?: Record<string, any>;
+  preload?: Record<string, any>;
+}> => {
+  const [cost, waf, preload] = await Promise.all([
+    safeFetch<Record<string, any>>({
+      baseUrl,
+      authToken: token,
+      path: userScopedPath(`/cost-reports/${projectId}/full`, userId),
+    }),
+    safeFetch<Record<string, any>>({
+      baseUrl,
+      authToken: token,
+      path: userScopedPath(`/well-architected-reports/${projectId}/full`, userId),
+    }),
+    userId
+      ? safeFetch<Record<string, any>>({
+          baseUrl,
+          authToken: token,
+          path: `/reports/preload/${encodeURIComponent(projectId)}?user_id=${encodeURIComponent(userId)}&include_payload=true`,
+        })
+      : Promise.resolve(undefined),
+  ]);
+  return { cost, waf, preload };
+};
+
+const waitForReviewReports = async ({
+  baseUrl,
+  token,
+  projectId,
+  userId,
+  wait,
+  pollIntervalMs,
+  waitTimeoutMs,
+}: {
+  baseUrl: string;
+  token?: string;
+  projectId: string;
+  userId?: string;
+  wait: boolean;
+  pollIntervalMs: number;
+  waitTimeoutMs: number;
+}): Promise<{
+  cost?: Record<string, any>;
+  waf?: Record<string, any>;
+  preload?: Record<string, any>;
+}> => {
+  const startedAt = Date.now();
+  let latest = await fetchReviewReports({ baseUrl, token, projectId, userId });
+  while (wait && (!latest.cost || !latest.waf)) {
+    if (Date.now() - startedAt > waitTimeoutMs) {
+      return latest;
+    }
+    await sleep(pollIntervalMs);
+    latest = await fetchReviewReports({ baseUrl, token, projectId, userId });
+  }
+  return latest;
+};
+
 const buildAiSummaryPrompt = (data: Record<string, any>): string => [
   "Write a concise CloudEval pull request review summary in Markdown.",
   "Focus on gate status, Well-Architected posture, cost posture, and security/operational risks.",
@@ -623,9 +742,9 @@ const buildAiSummaryPrompt = (data: Record<string, any>): string => [
   `Ref: ${data.ref ?? "unknown"}`,
   `Commit: ${data.commitSha ?? "unknown"}`,
   `Gate: ${String(data.gate?.status ?? "unknown").toUpperCase()}`,
-  `Well-Architected score: ${data.gate?.overallScore ?? "unknown"}`,
-  `High-risk findings: ${data.gate?.highRisk ?? "unknown"}`,
-  `Monthly cost: ${data.gate?.monthlyCost ?? "unknown"}`,
+  `Well-Architected score: ${data.gate?.wellArchitected?.overall?.score ?? data.gate?.overallScore ?? "unknown"}`,
+  `High-risk findings: ${data.gate?.wellArchitected?.risks?.high ?? data.gate?.highRisk ?? "unknown"}`,
+  `Monthly cost: ${data.gate?.cost?.monthly?.amount ?? data.gate?.monthlyCost ?? "unknown"}`,
   `Validation: PSRule failed ${data.gate?.validation?.psRule?.failed ?? "unknown"}, unit tests failed ${data.gate?.validation?.unitTests?.failed ?? "unknown"}`,
   Array.isArray(data.gate?.failures) && data.gate.failures.length
     ? `Gate failures: ${data.gate.failures.join("; ")}`
@@ -686,7 +805,7 @@ const generateAiSummary = async ({
     ...(mode === "agent" ? { agentProfileId: agentProfileId ?? "architecture" } : {}),
     completeAfterResponse: true,
     responseCompletionGraceMs: 250,
-    streamIdleTimeoutMs: 30000,
+    streamIdleTimeoutMs: 120000,
   })) {
     const content = (chunk as any)?.content;
     if (chunk.type === "responding" && typeof content === "string") {
@@ -810,13 +929,23 @@ export const registerReviewCommand = (
         body: commitSha ? { commit_sha: commitSha } : {},
         idempotencyKey: `cloudeval-review-${projectId}-${commitSha ?? "head"}`,
       });
+      const project = await fetchProjectById({
+        baseUrl: context.baseUrl,
+        token: context.token,
+        projectId,
+      });
+      const projectUserId =
+        typeof project?.user_id === "string" && project.user_id.trim()
+          ? project.user_id
+          : undefined;
+      const scopedUserId = context.user?.id ?? projectUserId;
       const finalStatus = options.wait === false
         ? undefined
         : extractJobId(sync)
           ? await waitForJob({
               baseUrl: context.baseUrl,
               token: context.token,
-              userId: context.user?.id,
+              userId: scopedUserId,
               projectId,
               jobId: extractJobId(sync)!,
               pollIntervalMs: parsePositiveInteger(
@@ -831,31 +960,26 @@ export const registerReviewCommand = (
               ),
             })
           : undefined;
-      const [cost, waf, configText] = await Promise.all([
-        safeFetch<Record<string, any>>({
+      const [{ cost, waf, preload }, configText] = await Promise.all([
+        waitForReviewReports({
           baseUrl: context.baseUrl,
-          authToken: context.token,
-          path: `/cost-reports/${projectId}/full`,
-        }),
-        safeFetch<Record<string, any>>({
-          baseUrl: context.baseUrl,
-          authToken: context.token,
-          path: `/well-architected-reports/${projectId}/full`,
+          token: context.token,
+          projectId,
+          userId: scopedUserId,
+          wait: options.wait !== false,
+          pollIntervalMs: parsePositiveInteger(
+            options.pollInterval,
+            "--poll-interval",
+            5000,
+          ),
+          waitTimeoutMs: parsePositiveInteger(
+            options.waitTimeout,
+            "--wait-timeout",
+            900000,
+          ),
         }),
         readConfigText(cwd, options),
       ]);
-      const project = await fetchProjectById({
-        baseUrl: context.baseUrl,
-        token: context.token,
-        projectId,
-      });
-      const preload = context.user?.id
-        ? await safeFetch<Record<string, any>>({
-            baseUrl: context.baseUrl,
-            authToken: context.token,
-            path: `/reports/preload/${encodeURIComponent(projectId)}?user_id=${encodeURIComponent(context.user.id)}&include_payload=true`,
-          })
-        : undefined;
       const data: Record<string, any> = {
         projectId,
         repo,

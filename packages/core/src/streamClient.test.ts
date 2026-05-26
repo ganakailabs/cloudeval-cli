@@ -566,8 +566,10 @@ test("streamChat sends HITL resume payloads like the web client", async () => {
 test("streamChat uses project user_id for backend payloads when caller keeps cli-user", async () => {
   const originalFetch = global.fetch;
   let requestBody = "";
+  let requestedUrl = "";
 
-  global.fetch = async (_input, init) => {
+  global.fetch = async (input, init) => {
+    requestedUrl = String(input);
     requestBody = typeof init?.body === "string" ? init.body : "";
     return responseFromText(
       'data: {"type":"metadata","thread_id":"thread-4"}\n\n',
@@ -590,6 +592,10 @@ test("streamChat uses project user_id for backend payloads when caller keeps cli
       // drain stream
     }
 
+    assert.equal(
+      requestedUrl,
+      "http://127.0.0.1:8787/api/v1/chat/stream?project_id=project-1",
+    );
     assert.match(requestBody, /"user":\{"id":"user-actual","name":"User"\}/);
   } finally {
     global.fetch = originalFetch;

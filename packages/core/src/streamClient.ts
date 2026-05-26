@@ -403,7 +403,11 @@ export async function* streamChat(
   assertSecureBaseUrl(options.baseUrl);
   const payload = buildPayload(options);
   const apiBase = normalizeApiBase(options.baseUrl);
-  const url = `${apiBase}/chat/stream`;
+  const streamUrl = new URL(`${apiBase}/chat/stream`);
+  if (options.project?.id) {
+    streamUrl.searchParams.set("project_id", options.project.id);
+  }
+  const url = streamUrl.toString();
   const streamIdleTimeoutMs =
     typeof options.streamIdleTimeoutMs === "number" &&
     Number.isFinite(options.streamIdleTimeoutMs) &&

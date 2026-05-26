@@ -837,6 +837,7 @@ const startBackend = async (
       });
     }
     if (url.pathname === "/api/v1/jobs/job-github-sync-1") {
+      assert.equal(url.searchParams.get("project_id"), githubProject.id);
       assert.equal(url.searchParams.get("user_id"), user.id);
       return json(res, {
         job_id: "job-github-sync-1",
@@ -3454,7 +3455,9 @@ test("review command waits by default and can skip waiting explicitly", async ()
     assert.equal(waited.data.gate.monthlyCost, 42);
     assert(
       backend.requests.some(
-        (request) => request.path === "/api/v1/jobs/job-github-sync-1",
+        (request) =>
+          request.path === "/api/v1/jobs/job-github-sync-1" &&
+          request.query.get("project_id") === "project-github",
       ),
     );
 
@@ -3464,7 +3467,9 @@ test("review command waits by default and can skip waiting explicitly", async ()
     assert.equal(noWait.data.sync.finalStatus, undefined);
     assert.equal(
       backend.requests.some(
-        (request) => request.path === "/api/v1/jobs/job-github-sync-1",
+        (request) =>
+          request.path === "/api/v1/jobs/job-github-sync-1" &&
+          request.query.get("project_id") === "project-github",
       ),
       false,
     );

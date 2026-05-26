@@ -267,12 +267,15 @@ const startBackend = async (
     authUser?: typeof user;
     projects?: (typeof project)[];
     expireFirstStreamToken?: boolean;
+    fullReportShape?: boolean;
+    wafFullReportFailures?: number;
   } = {},
 ) => {
   const requests: RecordedRequest[] = [];
   const createdProjects: any[] = [];
   const authUser = options.authUser ?? user;
   let expiredStreamResponses = 0;
+  let wafFullReportRequests = 0;
 
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url ?? "/", "http://127.0.0.1");
@@ -714,6 +717,24 @@ const startBackend = async (
       url.pathname === `/api/v1/cost-reports/${project.id}/full` ||
       url.pathname === `/api/v1/cost-reports/${githubProject.id}/full`
     ) {
+      assert.equal(url.searchParams.get("user_id"), user.id);
+      if (options.fullReportShape) {
+        return json(res, {
+          project_id: githubProject.id,
+          project_name: githubProject.name,
+          report: {
+            metadata: { currency: "USD" },
+            processed: {
+              total_monthly_cost: 42,
+              opportunity_summary: { total_monthly_savings: 7 },
+              cost_by_service_family: { Compute: 30 },
+              optimization_recommendations: [
+                { description: "Rightsize VM", monthly_savings: 7 },
+              ],
+            },
+          },
+        });
+      }
       return json(res, {
         raw: costReport.raw,
         parsed: costReport.parsed,
@@ -725,6 +746,22 @@ const startBackend = async (
       url.pathname ===
         `/api/v1/well-architected-reports/${githubProject.id}/full`
     ) {
+      assert.equal(url.searchParams.get("user_id"), user.id);
+      wafFullReportRequests++;
+      if (wafFullReportRequests <= (options.wafFullReportFailures ?? 0)) {
+        return json(res, { detail: "WAF report is still generating" }, 404);
+      }
+      if (options.fullReportShape) {
+        return json(res, {
+          project_id: githubProject.id,
+          project_name: githubProject.name,
+          overall_score: 91,
+          pillar_scores: { Security: 91 },
+          critical_issues_count: 0,
+          high_issues_count: 0,
+          top_critical_issues: [],
+        });
+      }
       return json(res, {
         raw: wafReport.raw,
         parsed: wafReport.parsed,
@@ -3479,7 +3516,11 @@ test("review command waits by default and can skip waiting explicitly", async ()
 });
 
 test("review command includes well architected, cost, and validation gate drilldown", async () => {
-  const backend = await startBackend({ projects: [githubProject] });
+  const backend = await startBackend({
+    projects: [githubProject],
+    fullReportShape: true,
+    wafFullReportFailures: 1,
+  });
   const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "cloudeval-review-gate-"));
   try {
     await fs.mkdir(path.join(cwd, ".cloudeval"), { recursive: true });
@@ -3541,9 +3582,6 @@ test("review command includes well architected, cost, and validation gate drilld
         score: 91,
         threshold: 85,
         status: "pass",
-        passed: 9,
-        warned: 1,
-        failed: 0,
       },
     ]);
     assert.equal(result.data.gate.cost.monthly.amount, 42);
@@ -3668,7 +3706,9 @@ test("review command writes AI summary into json and markdown artifacts", async 
     assert.match(result.data.aiSummary.markdown, /Mock answer from Cloudeval AI/);
     assert(
       backend.requests.some(
-        (request) => request.path === "/api/v1/chat/stream",
+        (request) =>
+          request.path === "/api/v1/chat/stream" &&
+          request.query.get("project_id") === "project-github",
       ),
     );
 
@@ -3725,6 +3765,7 @@ test("review command can generate AI summary through agent mode", async () => {
       (request) => request.path === "/api/v1/chat/stream",
     );
     assert(streamRequest);
+    assert.equal(streamRequest.query.get("project_id"), "project-github");
     const streamPayload = JSON.parse(streamRequest.body);
     assert.equal(streamPayload.settings.mode, "agent");
     assert.equal(streamPayload.agent_profile_id, "architecture");

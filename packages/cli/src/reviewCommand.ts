@@ -28,6 +28,8 @@ type ReviewOptions = AuthGuardOptions & {
   waitTimeout?: string;
   pollInterval?: string;
   aiSummary?: boolean;
+  aiSummaryMode?: string;
+  aiSummaryProfile?: string;
   ignoreDirty?: boolean;
   output?: string;
   format?: MachineOutputFormat;
@@ -173,14 +175,22 @@ const readConfigText = async (cwd: string, options: ReviewOptions): Promise<stri
 
 const parseGateConfig = (configText?: string):
   | {
+      enforcement: "required" | "warn";
       overallScoreMin: number;
+      pillarScoreMin?: number;
+      pillarScoreMins: Record<string, number>;
       failOnHighRisk: boolean;
+      failOnValidationErrors: boolean;
       maxMonthlyCost?: number;
     }
   | undefined => {
   if (!configText || !/^\s*ci\s*:/m.test(configText) || !/^\s*gates\s*:/m.test(configText)) {
     return undefined;
   }
+  const stringValue = (key: string): string | undefined => {
+    const match = configText.match(new RegExp(`^\\s*${key}\\s*:\\s*([^\\s#]+)`, "m"));
+    return match ? match[1].trim() : undefined;
+  };
   const numberValue = (key: string): number | undefined => {
     const match = configText.match(new RegExp(`^\\s*${key}\\s*:\\s*([0-9]+(?:\\.[0-9]+)?)`, "m"));
     return match ? Number(match[1]) : undefined;
@@ -189,9 +199,35 @@ const parseGateConfig = (configText?: string):
     const match = configText.match(new RegExp(`^\\s*${key}\\s*:\\s*(true|false)`, "im"));
     return match ? match[1].toLowerCase() === "true" : undefined;
   };
+  const pillarScoreMins: Record<string, number> = {};
+  const pillarBlock = configText.match(/^(\s*)pillars\s*:\s*$(?<body>(?:\n\s+[-\w]+\s*:\s*[0-9]+(?:\.[0-9]+)?\s*)+)/m);
+  const pillarBody = pillarBlock?.groups?.body ?? "";
+  for (const line of pillarBody.split("\n")) {
+    const match = line.match(/^\s+([-\w]+)\s*:\s*([0-9]+(?:\.[0-9]+)?)/);
+    if (match) {
+      pillarScoreMins[match[1].replace(/-/g, "_").toLowerCase()] = Number(match[2]);
+    }
+  }
+  for (const key of [
+    "security",
+    "reliability",
+    "operational_excellence",
+    "performance_efficiency",
+    "cost_optimization",
+  ]) {
+    const value = numberValue(`${key}_score_min`);
+    if (value !== undefined) {
+      pillarScoreMins[key] = value;
+    }
+  }
+  const enforcement = stringValue("enforcement")?.toLowerCase();
   return {
+    enforcement: enforcement === "warn" ? "warn" : "required",
     overallScoreMin: numberValue("overall_score_min") ?? 80,
+    pillarScoreMin: numberValue("pillar_score_min"),
+    pillarScoreMins,
     failOnHighRisk: booleanValue("fail_on_high_risk") ?? true,
+    failOnValidationErrors: booleanValue("fail_on_validation_errors") ?? true,
     maxMonthlyCost: numberValue("max_monthly_cost"),
   };
 };
@@ -208,14 +244,117 @@ const numberFrom = (...values: unknown[]): number | undefined => {
   return undefined;
 };
 
+const normalizeKey = (value: unknown): string =>
+  String(value ?? "")
+    .trim()
+    .replace(/[\s-]+/g, "_")
+    .toLowerCase();
+
+const firstRecord = (...values: unknown[]): Record<string, any> | undefined => {
+  for (const value of values) {
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      return value as Record<string, any>;
+    }
+  }
+  return undefined;
+};
+
+type ReviewPillar = {
+  id: string;
+  label: string;
+  score: number;
+  passed?: number;
+  warned?: number;
+  failed?: number;
+};
+
+const extractPillars = (waf?: Record<string, any>): ReviewPillar[] => {
+  const fromArray = waf?.parsed?.score?.pillars;
+  if (Array.isArray(fromArray)) {
+    return fromArray
+      .map((pillar): ReviewPillar | undefined => {
+        const record = asRecord(pillar);
+        const id = normalizeKey(record.id ?? record.name ?? record.label);
+        const score = numberFrom(record.score, record.value);
+        if (!id || score === undefined) return undefined;
+        return {
+          id,
+          label: String(record.label ?? record.name ?? id),
+          score,
+          passed: numberFrom(record.passed, record.passed_rules),
+          warned: numberFrom(record.warned, record.warning_rules),
+          failed: numberFrom(record.failed, record.failed_rules),
+        };
+      })
+      .filter((pillar): pillar is ReviewPillar => pillar !== undefined);
+  }
+  const scores = firstRecord(
+    waf?.parsed?.pillar_scores,
+    waf?.parsed?.score?.pillar_scores,
+    waf?.raw?.pillar_scores,
+  );
+  if (!scores) return [];
+  return Object.entries(scores)
+    .map(([id, score]) => ({
+      id: normalizeKey(id),
+      label: id,
+      score: numberFrom(score),
+    }))
+    .filter((pillar): pillar is ReviewPillar => pillar.score !== undefined);
+};
+
+const extractValidation = ({
+  waf,
+  preload,
+  project,
+}: {
+  waf?: Record<string, any>;
+  preload?: Record<string, any>;
+  project?: Record<string, any>;
+}) => {
+  const psRuleSummary = firstRecord(
+    waf?.parsed?.validation_summary,
+    waf?.raw?.validation_summary,
+    waf?.validation_summary,
+  );
+  const rules = Array.isArray(waf?.parsed?.rules) ? waf?.parsed?.rules : [];
+  const failedRules = rules.filter((rule: any) =>
+    ["fail", "failed", "error"].includes(String(rule?.status ?? rule?.outcome ?? "").toLowerCase()),
+  );
+  const unitSummary = firstRecord(
+    preload?.latest_payloads?.unit_tests?.summary,
+    preload?.reports?.unit_tests?.metrics,
+    project?.status?.unit_tests,
+  );
+  return {
+    psRule: {
+      total: numberFrom(psRuleSummary?.total_rules, psRuleSummary?.totalRules, rules.length),
+      passed: numberFrom(psRuleSummary?.passed_rules, psRuleSummary?.passedRules),
+      failed: numberFrom(psRuleSummary?.failed_rules, psRuleSummary?.failedRules, failedRules.length),
+      errors: numberFrom(psRuleSummary?.error_rules, psRuleSummary?.errorRules),
+    },
+    unitTests: {
+      status: unitSummary?.status,
+      total: numberFrom(unitSummary?.total_tests, unitSummary?.totalTests),
+      passed: numberFrom(unitSummary?.passed_tests, unitSummary?.passedTests),
+      failed: numberFrom(unitSummary?.failed_tests, unitSummary?.failedTests),
+      skipped: numberFrom(unitSummary?.skipped_tests, unitSummary?.skippedTests),
+    },
+  };
+};
+
 const evaluateGate = ({
   configText,
   waf,
   cost,
+  preload,
+  project,
 }: {
   configText?: string;
   waf?: Record<string, any>;
   cost?: Record<string, any>;
+  preload?: Record<string, any>;
+  project?: Record<string, any>;
 }) => {
   const gateConfig = parseGateConfig(configText);
   const overallScore = numberFrom(
@@ -233,13 +372,81 @@ const evaluateGate = ({
     cost?.parsed?.total_spend?.amount,
     cost?.raw?.total,
   );
+  const currency = String(
+    cost?.parsed?.totalSpend?.currency ??
+      cost?.parsed?.total_spend?.currency ??
+      cost?.raw?.currency ??
+      "",
+  ) || undefined;
+  const savings = numberFrom(
+    cost?.parsed?.estimatedSavings?.amount,
+    cost?.parsed?.estimated_savings?.amount,
+  );
+  const pillars = extractPillars(waf).map((pillar) => {
+    const threshold =
+      gateConfig?.pillarScoreMins[pillar.id] ??
+      gateConfig?.pillarScoreMin;
+    return {
+      ...pillar,
+      threshold,
+      status:
+        threshold !== undefined && pillar.score < threshold ? "fail" : "pass",
+    };
+  });
+  const validation = extractValidation({ waf, preload, project });
+  const wellArchitected = {
+    overall: {
+      score: overallScore,
+      threshold: gateConfig?.overallScoreMin,
+      status:
+        gateConfig && overallScore !== undefined && overallScore < gateConfig.overallScoreMin
+          ? "fail"
+          : "pass",
+    },
+    pillars,
+    risks: {
+      high: highRisk,
+      medium: numberFrom(waf?.parsed?.counts?.mediumRisk, waf?.parsed?.counts?.medium_count),
+      critical: numberFrom(waf?.parsed?.counts?.criticalRisk, waf?.parsed?.counts?.critical_count),
+    },
+    topFindings: Array.isArray(waf?.parsed?.rules)
+      ? waf.parsed.rules.slice(0, 5)
+      : [],
+  };
+  const costSummary = {
+    monthly: {
+      amount: monthlyCost,
+      currency,
+      threshold: gateConfig?.maxMonthlyCost,
+      status:
+        gateConfig?.maxMonthlyCost !== undefined &&
+        monthlyCost !== undefined &&
+        monthlyCost > gateConfig.maxMonthlyCost
+          ? "fail"
+          : "pass",
+    },
+    estimatedSavings: {
+      amount: savings,
+      currency,
+    },
+    topServices: Array.isArray(cost?.parsed?.serviceGroups)
+      ? cost.parsed.serviceGroups.slice(0, 5)
+      : [],
+    recommendations: Array.isArray(cost?.parsed?.recommendations)
+      ? cost.parsed.recommendations.slice(0, 5)
+      : [],
+  };
   if (!gateConfig) {
     return {
       status: "warn",
       reason: "ci.gates is not configured in .cloudeval/config.yaml.",
+      enforcement: "warn",
       overallScore,
       highRisk,
       monthlyCost,
+      wellArchitected,
+      cost: costSummary,
+      validation,
     };
   }
   const failures: string[] = [];
@@ -251,6 +458,18 @@ const evaluateGate = ({
   if (gateConfig.failOnHighRisk && highRisk !== undefined && highRisk > 0) {
     failures.push(`${highRisk} high-risk architecture findings`);
   }
+  for (const pillar of pillars) {
+    if (pillar.status === "fail") {
+      failures.push(`${pillar.label} score ${pillar.score} is below ${pillar.threshold}`);
+    }
+  }
+  const failedPsRules = validation.psRule.failed ?? 0;
+  const failedUnitTests = validation.unitTests.failed ?? 0;
+  if (gateConfig.failOnValidationErrors && (failedPsRules > 0 || failedUnitTests > 0)) {
+    failures.push(
+      `validation has ${failedPsRules} failed PSRule checks and ${failedUnitTests} failed unit tests`,
+    );
+  }
   if (
     gateConfig.maxMonthlyCost !== undefined &&
     monthlyCost !== undefined &&
@@ -258,13 +477,19 @@ const evaluateGate = ({
   ) {
     failures.push(`monthly cost ${monthlyCost} exceeds ${gateConfig.maxMonthlyCost}`);
   }
+  const wouldFail = failures.length > 0;
   return {
-    status: failures.length ? "fail" : "pass",
+    status: wouldFail && gateConfig.enforcement === "required" ? "fail" : wouldFail ? "warn" : "pass",
+    enforcement: gateConfig.enforcement,
+    wouldFail,
     failures,
     thresholds: gateConfig,
     overallScore,
     highRisk,
     monthlyCost,
+    wellArchitected,
+    cost: costSummary,
+    validation,
   };
 };
 
@@ -396,6 +621,7 @@ const buildAiSummaryPrompt = (data: Record<string, any>): string => [
   `Well-Architected score: ${data.gate?.overallScore ?? "unknown"}`,
   `High-risk findings: ${data.gate?.highRisk ?? "unknown"}`,
   `Monthly cost: ${data.gate?.monthlyCost ?? "unknown"}`,
+  `Validation: PSRule failed ${data.gate?.validation?.psRule?.failed ?? "unknown"}, unit tests failed ${data.gate?.validation?.unitTests?.failed ?? "unknown"}`,
   Array.isArray(data.gate?.failures) && data.gate.failures.length
     ? `Gate failures: ${data.gate.failures.join("; ")}`
     : "Gate failures: none reported",
@@ -407,6 +633,8 @@ const generateAiSummary = async ({
   user,
   project,
   model,
+  mode,
+  agentProfileId,
   data,
 }: {
   baseUrl: string;
@@ -414,6 +642,8 @@ const generateAiSummary = async ({
   user?: { id?: string; email?: string; full_name?: string; name?: string };
   project?: Record<string, any>;
   model?: string;
+  mode: "ask" | "agent";
+  agentProfileId?: string;
   data: Record<string, any>;
 }): Promise<Record<string, any>> => {
   const core = await import("@cloudeval/core");
@@ -445,9 +675,10 @@ const generateAiSummary = async ({
           name: String(data.projectId),
     },
     settings: {
-      mode: "ask",
+      mode,
       ...(model ? { model } : {}),
     },
+    ...(mode === "agent" ? { agentProfileId: agentProfileId ?? "architecture" } : {}),
     completeAfterResponse: true,
     responseCompletionGraceMs: 250,
     streamIdleTimeoutMs: 30000,
@@ -459,7 +690,8 @@ const generateAiSummary = async ({
   }
   return {
     enabled: true,
-    mode: "ask",
+    mode,
+    ...(mode === "agent" ? { agentProfileId: agentProfileId ?? "architecture" } : {}),
     ...(model ? { model } : {}),
     markdown: markdown.trim(),
     threadId,
@@ -469,7 +701,14 @@ const generateAiSummary = async ({
 const buildMarkdownSummary = (data: Record<string, any>): string => {
   const gateStatus = String(data.gate?.status ?? "unknown").toUpperCase();
   const score = data.gate?.overallScore ?? "unknown";
-  const cost = data.gate?.monthlyCost ?? "unknown";
+  const cost = data.gate?.cost?.monthly;
+  const validation = data.gate?.validation;
+  const pillarLines = Array.isArray(data.gate?.wellArchitected?.pillars)
+    ? data.gate.wellArchitected.pillars.map(
+        (pillar: Record<string, any>) =>
+          `  - ${pillar.label}: ${pillar.score}${pillar.threshold !== undefined ? ` (min ${pillar.threshold})` : ""} - ${String(pillar.status ?? "unknown").toUpperCase()}`,
+      )
+    : [];
   const lines = [
     "### CloudEval review",
     "",
@@ -479,8 +718,31 @@ const buildMarkdownSummary = (data: Record<string, any>): string => {
     `- **Commit:** \`${String(data.commitSha ?? "unknown").slice(0, 12)}\``,
     `- **Gate:** ${gateStatus}`,
     `- **Well-Architected score:** ${score}`,
-    `- **Monthly cost:** ${cost}`,
+    `- **Cost:** ${cost?.amount ?? "unknown"} ${cost?.currency ?? ""}`.trim(),
+    `- **Validation:** PSRule ${validation?.psRule?.failed ?? "unknown"} failed, unit tests ${validation?.unitTests?.failed ?? "unknown"} failed`,
   ];
+  if (Array.isArray(data.gate?.failures) && data.gate.failures.length) {
+    lines.push("", "#### Gate failures", "", ...data.gate.failures.map((failure: string) => `- ${failure}`));
+  }
+  if (pillarLines.length) {
+    lines.push("", "#### Well-Architected drilldown", "", ...pillarLines);
+  }
+  if (cost?.amount !== undefined || cost?.threshold !== undefined) {
+    lines.push(
+      "",
+      "#### Cost drilldown",
+      "",
+      `- Cost: ${cost?.amount ?? "unknown"} ${cost?.currency ?? ""}${cost?.threshold !== undefined ? ` (max ${cost.threshold})` : ""}`.trim(),
+    );
+  }
+  if (validation) {
+    lines.push(
+      "",
+      "#### Validation drilldown",
+      "",
+      `- Validation: PSRule ${validation.psRule?.failed ?? "unknown"} failed, unit tests ${validation.unitTests?.failed ?? "unknown"} failed`,
+    );
+  }
   if (data.aiSummary?.markdown) {
     lines.push("", "## AI summary", "", data.aiSummary.markdown);
   }
@@ -505,6 +767,8 @@ export const registerReviewCommand = (
     .option("--wait-timeout <ms>", "Maximum time to wait for GitHub sync.", "900000")
     .option("--poll-interval <ms>", "Polling interval while waiting for GitHub sync.", "5000")
     .option("--no-ai-summary", "Skip the AI-written review summary.")
+    .option("--ai-summary-mode <mode>", "AI summary mode: ask or agent.", "ask")
+    .option("--ai-summary-profile <profile-id>", "Agent Profile id when --ai-summary-mode agent is used.", "architecture")
     .option("--ignore-dirty", "Review HEAD even if the local working tree has uncommitted changes.", false)
     .option("--output <dir>", "Write review.json and review.md into a directory.")
     .option("--quiet", "Accepted for CI parity; review output stays machine-readable.", false)
@@ -579,6 +843,13 @@ export const registerReviewCommand = (
         token: context.token,
         projectId,
       });
+      const preload = context.user?.id
+        ? await safeFetch<Record<string, any>>({
+            baseUrl: context.baseUrl,
+            authToken: context.token,
+            path: `/reports/preload/${encodeURIComponent(projectId)}?user_id=${encodeURIComponent(context.user.id)}&include_payload=true`,
+          })
+        : undefined;
       const data: Record<string, any> = {
         projectId,
         repo,
@@ -589,17 +860,24 @@ export const registerReviewCommand = (
         reports: {
           cost,
           waf,
+          preload,
         },
-        gate: evaluateGate({ configText, waf, cost }),
+        gate: evaluateGate({ configText, waf, cost, preload, project }),
       };
       if (options.aiSummary !== false) {
         try {
+          const aiSummaryMode = String(options.aiSummaryMode ?? "ask").toLowerCase();
+          if (!["ask", "agent"].includes(aiSummaryMode)) {
+            throw new Error("--ai-summary-mode must be ask or agent.");
+          }
           data.aiSummary = await generateAiSummary({
             baseUrl: context.baseUrl,
             token: context.token,
             user: context.user,
             project,
             model: options.model,
+            mode: aiSummaryMode as "ask" | "agent",
+            agentProfileId: options.aiSummaryProfile,
             data,
           });
         } catch (error: any) {

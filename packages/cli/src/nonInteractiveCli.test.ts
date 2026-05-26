@@ -732,6 +732,49 @@ const startBackend = async (
       });
     }
     if (
+      url.pathname === `/api/v1/reports/preload/${githubProject.id}` &&
+      url.searchParams.get("include_payload") === "true"
+    ) {
+      return json(res, {
+        project_id: githubProject.id,
+        reports: {
+          architecture: {
+            report_type: "architecture",
+            metrics: {
+              overall_score: 91,
+              pillar_scores: { security: 91 },
+              total_rules: 10,
+            },
+          },
+          cost: {
+            report_type: "cost",
+            metrics: { monthly_cost: 42, currency: "USD" },
+          },
+          unit_tests: {
+            report_type: "unit_tests",
+            metrics: {
+              success: true,
+              total_tests: 4,
+              passed_tests: 4,
+              failed_tests: 0,
+              skipped_tests: 0,
+            },
+          },
+        },
+        latest_payloads: {
+          unit_tests: {
+            summary: {
+              success: true,
+              total_tests: 4,
+              passed_tests: 4,
+              failed_tests: 0,
+              skipped_tests: 0,
+            },
+          },
+        },
+      });
+    }
+    if (
       url.pathname === `/api/v1/cost-reports/${project.id}/regenerate` &&
       req.method === "POST"
     ) {
@@ -3430,6 +3473,161 @@ test("review command waits by default and can skip waiting explicitly", async ()
   }
 });
 
+test("review command includes well architected, cost, and validation gate drilldown", async () => {
+  const backend = await startBackend({ projects: [githubProject] });
+  const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "cloudeval-review-gate-"));
+  try {
+    await fs.mkdir(path.join(cwd, ".cloudeval"), { recursive: true });
+    await fs.writeFile(
+      path.join(cwd, ".cloudeval", "config.yaml"),
+      [
+        "ci:",
+        "  gates:",
+        "    enforcement: required",
+        "    overall_score_min: 90",
+        "    pillar_score_min: 85",
+        "    fail_on_high_risk: true",
+        "    fail_on_validation_errors: true",
+        "    max_monthly_cost: 100",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+
+    const outputDir = path.join(cwd, "review-output");
+    const result = parseJson(
+      await runCli(
+        [
+          "review",
+          "--base-url",
+          backend.baseUrl,
+          "--access-key",
+          "test-token",
+          "--project",
+          "project-github",
+          "--repo",
+          "ganakailabs/cloudeval-github-sync-e2e",
+          "--ref",
+          "main",
+          "--commit-sha",
+          "sha-review-drilldown",
+          "--ignore-dirty",
+          "--no-ai-summary",
+          "--poll-interval",
+          "10",
+          "--format",
+          "json",
+          "--output",
+          outputDir,
+          "--non-interactive",
+        ],
+        { cwd },
+      ),
+    );
+
+    assert.equal(result.data.gate.status, "pass");
+    assert.equal(result.data.gate.enforcement, "required");
+    assert.equal(result.data.gate.wellArchitected.overall.score, 91);
+    assert.equal(result.data.gate.wellArchitected.overall.threshold, 90);
+    assert.deepEqual(result.data.gate.wellArchitected.pillars, [
+      {
+        id: "security",
+        label: "Security",
+        score: 91,
+        threshold: 85,
+        status: "pass",
+        passed: 9,
+        warned: 1,
+        failed: 0,
+      },
+    ]);
+    assert.equal(result.data.gate.cost.monthly.amount, 42);
+    assert.equal(result.data.gate.cost.monthly.threshold, 100);
+    assert.equal(result.data.gate.validation.unitTests.failed, 0);
+    assert.equal(result.data.gate.validation.psRule.failed, 0);
+
+    const markdownArtifact = await fs.readFile(
+      path.join(outputDir, "review.md"),
+      "utf8",
+    );
+    assert.match(markdownArtifact, /Well-Architected drilldown/);
+    assert.match(markdownArtifact, /Security: 91/);
+    assert.match(markdownArtifact, /Validation: PSRule 0 failed, unit tests 0 failed/);
+    assert.match(markdownArtifact, /Cost: 42 USD/);
+  } finally {
+    await fs.rm(cwd, { recursive: true, force: true });
+    await backend.close();
+  }
+});
+
+test("review command supports required and warn gate enforcement", async () => {
+  const backend = await startBackend({ projects: [githubProject] });
+  const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "cloudeval-review-enforcement-"));
+  try {
+    const configDir = path.join(cwd, ".cloudeval");
+    await fs.mkdir(configDir, { recursive: true });
+    await fs.writeFile(
+      path.join(configDir, "config.yaml"),
+      [
+        "ci:",
+        "  gates:",
+        "    enforcement: required",
+        "    overall_score_min: 95",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+    const common = [
+      "review",
+      "--base-url",
+      backend.baseUrl,
+      "--access-key",
+      "test-token",
+      "--project",
+      "project-github",
+      "--repo",
+      "ganakailabs/cloudeval-github-sync-e2e",
+      "--ref",
+      "main",
+      "--commit-sha",
+      "sha-review-enforcement",
+      "--ignore-dirty",
+      "--no-ai-summary",
+      "--poll-interval",
+      "10",
+      "--format",
+      "json",
+      "--non-interactive",
+    ];
+
+    const required = await runCli(common, { cwd });
+    assert.equal(required.exitCode, 1);
+    const requiredJson = JSON.parse(required.stdout);
+    assert.equal(requiredJson.data.gate.status, "fail");
+    assert.equal(requiredJson.data.gate.enforcement, "required");
+
+    await fs.writeFile(
+      path.join(configDir, "config.yaml"),
+      [
+        "ci:",
+        "  gates:",
+        "    enforcement: warn",
+        "    overall_score_min: 95",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+    const warn = parseJson(await runCli(common, { cwd }));
+    assert.equal(warn.data.gate.status, "warn");
+    assert.equal(warn.data.gate.enforcement, "warn");
+    assert.equal(warn.data.gate.wouldFail, true);
+    assert.match(warn.data.gate.failures[0], /overall score 91 is below 95/);
+  } finally {
+    await fs.rm(cwd, { recursive: true, force: true });
+    await backend.close();
+  }
+});
+
 test("review command writes AI summary into json and markdown artifacts", async () => {
   const backend = await startBackend({ projects: [githubProject] });
   const outputDir = await fs.mkdtemp(
@@ -3482,6 +3680,50 @@ test("review command writes AI summary into json and markdown artifacts", async 
     assert.match(markdownArtifact, /Mock answer from Cloudeval AI/);
   } finally {
     await fs.rm(outputDir, { recursive: true, force: true });
+    await backend.close();
+  }
+});
+
+test("review command can generate AI summary through agent mode", async () => {
+  const backend = await startBackend({ projects: [githubProject] });
+  try {
+    const result = parseJson(
+      await runCli([
+        "review",
+        "--base-url",
+        backend.baseUrl,
+        "--access-key",
+        "test-token",
+        "--project",
+        "project-github",
+        "--repo",
+        "ganakailabs/cloudeval-github-sync-e2e",
+        "--ref",
+        "main",
+        "--commit-sha",
+        "sha-review-agent-ai",
+        "--ignore-dirty",
+        "--poll-interval",
+        "10",
+        "--ai-summary-mode",
+        "agent",
+        "--format",
+        "json",
+        "--non-interactive",
+      ]),
+    );
+
+    assert.equal(result.data.aiSummary.enabled, true);
+    assert.equal(result.data.aiSummary.mode, "agent");
+    assert.equal(result.data.aiSummary.agentProfileId, "architecture");
+    const streamRequest = backend.requests.find(
+      (request) => request.path === "/api/v1/chat/stream",
+    );
+    assert(streamRequest);
+    const streamPayload = JSON.parse(streamRequest.body);
+    assert.equal(streamPayload.settings.mode, "agent");
+    assert.equal(streamPayload.agent_profile_id, "architecture");
+  } finally {
     await backend.close();
   }
 });

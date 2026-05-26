@@ -24,6 +24,10 @@ type ReviewOptions = AuthGuardOptions & {
   commitSha?: string;
   sourceRoot?: string;
   config?: string;
+  wait?: boolean;
+  waitTimeout?: string;
+  pollInterval?: string;
+  aiSummary?: boolean;
   ignoreDirty?: boolean;
   output?: string;
   format?: MachineOutputFormat;
@@ -272,11 +276,201 @@ const safeFetch = async <T>(input: Parameters<typeof fetchCloudEvalJson<T>>[0]):
   }
 };
 
+const parsePositiveInteger = (
+  value: string | undefined,
+  flagName: string,
+  fallback: number,
+): number => {
+  if (value === undefined || value === "") {
+    return fallback;
+  }
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    throw new Error(`${flagName} must be a positive number of milliseconds.`);
+  }
+  return Math.floor(parsed);
+};
+
+const extractJobId = (value: unknown): string | undefined => {
+  const record = asRecord(value);
+  const job = asRecord(record.job);
+  const candidates = [
+    record.job_id,
+    record.jobId,
+    record.id,
+    job.job_id,
+    job.jobId,
+    job.id,
+  ];
+  return candidates.find((candidate): candidate is string =>
+    typeof candidate === "string" && candidate.trim().length > 0,
+  );
+};
+
+const isTerminalJobStatus = (value: unknown): boolean => {
+  const status = String(asRecord(value).status ?? "").toUpperCase();
+  return [
+    "COMPLETED",
+    "SUCCEEDED",
+    "SUCCESS",
+    "FAILED",
+    "CANCELLED",
+    "CANCELED",
+    "ERROR",
+  ].includes(status);
+};
+
+const isFailedJobStatus = (value: unknown): boolean => {
+  const status = String(asRecord(value).status ?? "").toUpperCase();
+  return ["FAILED", "CANCELLED", "CANCELED", "ERROR"].includes(status);
+};
+
+const waitForJob = async ({
+  baseUrl,
+  token,
+  userId,
+  jobId,
+  pollIntervalMs,
+  waitTimeoutMs,
+}: {
+  baseUrl: string;
+  token?: string;
+  userId?: string;
+  jobId: string;
+  pollIntervalMs: number;
+  waitTimeoutMs: number;
+}): Promise<Record<string, any>> => {
+  const startedAt = Date.now();
+  let lastStatus: Record<string, any> | undefined;
+  for (;;) {
+    const query = userId ? `?user_id=${encodeURIComponent(userId)}` : "";
+    lastStatus = await fetchCloudEvalJson<Record<string, any>>({
+      baseUrl,
+      authToken: token,
+      path: `/jobs/${encodeURIComponent(jobId)}${query}`,
+    });
+    const status = String(lastStatus.status ?? "unknown");
+    process.stderr.write(`github sync job ${jobId}: ${status}\n`);
+    if (isTerminalJobStatus(lastStatus)) {
+      if (isFailedJobStatus(lastStatus)) {
+        throw new Error(`GitHub sync job ${jobId} finished with status ${status}.`);
+      }
+      return lastStatus;
+    }
+    if (Date.now() - startedAt > waitTimeoutMs) {
+      throw new Error(`Timed out waiting for GitHub sync job ${jobId}.`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+  }
+};
+
+const fetchProjectById = async ({
+  baseUrl,
+  token,
+  projectId,
+}: {
+  baseUrl: string;
+  token?: string;
+  projectId: string;
+}): Promise<Record<string, any> | undefined> => {
+  const projects = await safeFetch<unknown[]>({
+    baseUrl,
+    authToken: token,
+    path: "/projects",
+  });
+  return projects
+    ?.map(asRecord)
+    .find((project) => project.id === projectId);
+};
+
+const buildAiSummaryPrompt = (data: Record<string, any>): string => [
+  "Write a concise CloudEval pull request review summary in Markdown.",
+  "Focus on gate status, Well-Architected posture, cost posture, and security/operational risks.",
+  "Keep it under 160 words. Do not invent facts not present below.",
+  "",
+  `Project: ${data.projectId}`,
+  `Repository: ${data.repo ?? "unknown"}`,
+  `Ref: ${data.ref ?? "unknown"}`,
+  `Commit: ${data.commitSha ?? "unknown"}`,
+  `Gate: ${String(data.gate?.status ?? "unknown").toUpperCase()}`,
+  `Well-Architected score: ${data.gate?.overallScore ?? "unknown"}`,
+  `High-risk findings: ${data.gate?.highRisk ?? "unknown"}`,
+  `Monthly cost: ${data.gate?.monthlyCost ?? "unknown"}`,
+  Array.isArray(data.gate?.failures) && data.gate.failures.length
+    ? `Gate failures: ${data.gate.failures.join("; ")}`
+    : "Gate failures: none reported",
+].join("\n");
+
+const generateAiSummary = async ({
+  baseUrl,
+  token,
+  user,
+  project,
+  model,
+  data,
+}: {
+  baseUrl: string;
+  token?: string;
+  user?: { id?: string; email?: string; full_name?: string; name?: string };
+  project?: Record<string, any>;
+  model?: string;
+  data: Record<string, any>;
+}): Promise<Record<string, any>> => {
+  const core = await import("@cloudeval/core");
+  const threadId = `review-${data.projectId}-${Date.now()}`;
+  let markdown = "";
+  for await (const chunk of core.streamChat({
+    baseUrl,
+    authToken: token,
+    message: buildAiSummaryPrompt(data),
+    threadId,
+    user: {
+      id: String(project?.user_id ?? user?.id ?? "cli-user"),
+      name: String(user?.full_name ?? user?.name ?? user?.email ?? "CloudEval CI"),
+    },
+    project: project
+      ? {
+          id: String(project.id ?? data.projectId),
+          name: String(project.name ?? data.projectId),
+          user_id: typeof project.user_id === "string" ? project.user_id : undefined,
+          cloud_provider:
+            typeof project.cloud_provider === "string" ? project.cloud_provider : undefined,
+          type: typeof project.type === "string" ? project.type : undefined,
+          connection_ids: Array.isArray(project.connection_ids)
+            ? project.connection_ids
+            : undefined,
+        }
+      : {
+          id: String(data.projectId),
+          name: String(data.projectId),
+    },
+    settings: {
+      mode: "ask",
+      ...(model ? { model } : {}),
+    },
+    completeAfterResponse: true,
+    responseCompletionGraceMs: 250,
+    streamIdleTimeoutMs: 30000,
+  })) {
+    const content = (chunk as any)?.content;
+    if (chunk.type === "responding" && typeof content === "string") {
+      markdown += content;
+    }
+  }
+  return {
+    enabled: true,
+    mode: "ask",
+    ...(model ? { model } : {}),
+    markdown: markdown.trim(),
+    threadId,
+  };
+};
+
 const buildMarkdownSummary = (data: Record<string, any>): string => {
   const gateStatus = String(data.gate?.status ?? "unknown").toUpperCase();
   const score = data.gate?.overallScore ?? "unknown";
   const cost = data.gate?.monthlyCost ?? "unknown";
-  return [
+  const lines = [
     "### CloudEval review",
     "",
     `- **Project:** \`${data.projectId}\``,
@@ -286,7 +480,11 @@ const buildMarkdownSummary = (data: Record<string, any>): string => {
     `- **Gate:** ${gateStatus}`,
     `- **Well-Architected score:** ${score}`,
     `- **Monthly cost:** ${cost}`,
-  ].join("\n");
+  ];
+  if (data.aiSummary?.markdown) {
+    lines.push("", "## AI summary", "", data.aiSummary.markdown);
+  }
+  return lines.join("\n");
 };
 
 export const registerReviewCommand = (
@@ -303,6 +501,10 @@ export const registerReviewCommand = (
     .option("--commit-sha <sha>", "Commit SHA to sync/review. Defaults to local HEAD.")
     .option("--source-root <path>", "GitHub source root used by the CloudEval project.")
     .option("--config <path>", "Path to .cloudeval/config.yaml for gate thresholds.")
+    .option("--no-wait", "Submit GitHub sync and return without waiting for analysis.")
+    .option("--wait-timeout <ms>", "Maximum time to wait for GitHub sync.", "900000")
+    .option("--poll-interval <ms>", "Polling interval while waiting for GitHub sync.", "5000")
+    .option("--no-ai-summary", "Skip the AI-written review summary.")
     .option("--ignore-dirty", "Review HEAD even if the local working tree has uncommitted changes.", false)
     .option("--output <dir>", "Write review.json and review.md into a directory.")
     .option("--quiet", "Accepted for CI parity; review output stays machine-readable.", false)
@@ -339,6 +541,26 @@ export const registerReviewCommand = (
         body: commitSha ? { commit_sha: commitSha } : {},
         idempotencyKey: `cloudeval-review-${projectId}-${commitSha ?? "head"}`,
       });
+      const finalStatus = options.wait === false
+        ? undefined
+        : extractJobId(sync)
+          ? await waitForJob({
+              baseUrl: context.baseUrl,
+              token: context.token,
+              userId: context.user?.id,
+              jobId: extractJobId(sync)!,
+              pollIntervalMs: parsePositiveInteger(
+                options.pollInterval,
+                "--poll-interval",
+                5000,
+              ),
+              waitTimeoutMs: parsePositiveInteger(
+                options.waitTimeout,
+                "--wait-timeout",
+                900000,
+              ),
+            })
+          : undefined;
       const [cost, waf, configText] = await Promise.all([
         safeFetch<Record<string, any>>({
           baseUrl: context.baseUrl,
@@ -352,15 +574,44 @@ export const registerReviewCommand = (
         }),
         readConfigText(cwd, options),
       ]);
-      const data = {
+      const project = await fetchProjectById({
+        baseUrl: context.baseUrl,
+        token: context.token,
+        projectId,
+      });
+      const data: Record<string, any> = {
         projectId,
         repo,
         ref,
         commitSha,
         sourceRoot,
-        sync,
+        sync: finalStatus ? { ...asRecord(sync), finalStatus } : sync,
+        reports: {
+          cost,
+          waf,
+        },
         gate: evaluateGate({ configText, waf, cost }),
       };
+      if (options.aiSummary !== false) {
+        try {
+          data.aiSummary = await generateAiSummary({
+            baseUrl: context.baseUrl,
+            token: context.token,
+            user: context.user,
+            project,
+            model: options.model,
+            data,
+          });
+        } catch (error: any) {
+          data.aiSummary = {
+            enabled: true,
+            status: "failed",
+            error: error?.message ?? "AI summary failed",
+          };
+        }
+      } else {
+        data.aiSummary = { enabled: false };
+      }
       const summaryMarkdown = buildMarkdownSummary(data);
       const filesWritten: string[] = [];
       if (options.output) {
@@ -381,6 +632,7 @@ export const registerReviewCommand = (
       if (data.gate.status === "fail") {
         process.exit(1);
       }
+      process.exit(0);
     } catch (error: any) {
       console.error(error?.message ?? "Review failed");
       process.exit(1);

@@ -368,7 +368,11 @@ const startBackend = async (
     ) {
       const payload = JSON.parse(body || "{}");
       return json(res, {
-        job: "background",
+        job: {
+          job_id: "job-github-sync-1",
+          status: "QUEUED",
+          operation: "github_repo_sync",
+        },
         project_id: "project-github",
         commit_sha: payload.commit_sha ?? null,
       });
@@ -706,7 +710,10 @@ const startBackend = async (
     if (url.pathname === "/api/v1/reports/cost-current") {
       return json(res, costReport);
     }
-    if (url.pathname === `/api/v1/cost-reports/${project.id}/full`) {
+    if (
+      url.pathname === `/api/v1/cost-reports/${project.id}/full` ||
+      url.pathname === `/api/v1/cost-reports/${githubProject.id}/full`
+    ) {
       return json(res, {
         raw: costReport.raw,
         parsed: costReport.parsed,
@@ -714,7 +721,9 @@ const startBackend = async (
       });
     }
     if (
-      url.pathname === `/api/v1/well-architected-reports/${project.id}/full`
+      url.pathname === `/api/v1/well-architected-reports/${project.id}/full` ||
+      url.pathname ===
+        `/api/v1/well-architected-reports/${githubProject.id}/full`
     ) {
       return json(res, {
         raw: wafReport.raw,
@@ -781,6 +790,15 @@ const startBackend = async (
       return json(res, {
         job_id: "job-cost-1",
         status: "completed",
+        progress: 100,
+      });
+    }
+    if (url.pathname === "/api/v1/jobs/job-github-sync-1") {
+      assert.equal(url.searchParams.get("user_id"), user.id);
+      return json(res, {
+        job_id: "job-github-sync-1",
+        status: "SUCCEEDED",
+        operation: "github_repo_sync",
         progress: 100,
       });
     }
@@ -3320,6 +3338,8 @@ test("review command blocks dirty local working trees unless explicitly ignored"
       "test-token",
       "--project",
       "project-github",
+      "--no-wait",
+      "--no-ai-summary",
       "--format",
       "json",
       "--non-interactive",
@@ -3354,6 +3374,114 @@ test("review command blocks dirty local working trees unless explicitly ignored"
     assert.deepEqual(JSON.parse(syncRequest.body), { commit_sha: headSha });
   } finally {
     await fs.rm(repoDir, { recursive: true, force: true });
+    await backend.close();
+  }
+});
+
+test("review command waits by default and can skip waiting explicitly", async () => {
+  const backend = await startBackend({ projects: [githubProject] });
+  try {
+    const common = [
+      "review",
+      "--base-url",
+      backend.baseUrl,
+      "--access-key",
+      "test-token",
+      "--project",
+      "project-github",
+      "--repo",
+      "ganakailabs/cloudeval-github-sync-e2e",
+      "--ref",
+      "main",
+      "--commit-sha",
+      "sha-review-1",
+      "--ignore-dirty",
+      "--no-ai-summary",
+      "--poll-interval",
+      "10",
+      "--format",
+      "json",
+      "--non-interactive",
+    ];
+
+    const waited = parseJson(await runCli(common));
+    assert.equal(waited.command, "review");
+    assert.equal(waited.data.sync.finalStatus.status, "SUCCEEDED");
+    assert.equal(waited.data.gate.overallScore, 91);
+    assert.equal(waited.data.gate.monthlyCost, 42);
+    assert(
+      backend.requests.some(
+        (request) => request.path === "/api/v1/jobs/job-github-sync-1",
+      ),
+    );
+
+    backend.requests.length = 0;
+    const noWait = parseJson(await runCli([...common, "--no-wait"]));
+    assert.equal(noWait.command, "review");
+    assert.equal(noWait.data.sync.finalStatus, undefined);
+    assert.equal(
+      backend.requests.some(
+        (request) => request.path === "/api/v1/jobs/job-github-sync-1",
+      ),
+      false,
+    );
+  } finally {
+    await backend.close();
+  }
+});
+
+test("review command writes AI summary into json and markdown artifacts", async () => {
+  const backend = await startBackend({ projects: [githubProject] });
+  const outputDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "cloudeval-review-output-"),
+  );
+  try {
+    const result = parseJson(
+      await runCli([
+        "review",
+        "--base-url",
+        backend.baseUrl,
+        "--access-key",
+        "test-token",
+        "--project",
+        "project-github",
+        "--repo",
+        "ganakailabs/cloudeval-github-sync-e2e",
+        "--ref",
+        "main",
+        "--commit-sha",
+        "sha-review-ai",
+        "--ignore-dirty",
+        "--poll-interval",
+        "10",
+        "--format",
+        "json",
+        "--output",
+        outputDir,
+        "--non-interactive",
+      ]),
+    );
+    assert.equal(result.data.aiSummary.enabled, true);
+    assert.match(result.data.aiSummary.markdown, /Mock answer from Cloudeval AI/);
+    assert(
+      backend.requests.some(
+        (request) => request.path === "/api/v1/chat/stream",
+      ),
+    );
+
+    const jsonArtifact = JSON.parse(
+      await fs.readFile(path.join(outputDir, "review.json"), "utf8"),
+    );
+    assert.match(jsonArtifact.aiSummary.markdown, /Mock answer from Cloudeval AI/);
+
+    const markdownArtifact = await fs.readFile(
+      path.join(outputDir, "review.md"),
+      "utf8",
+    );
+    assert.match(markdownArtifact, /## AI summary/);
+    assert.match(markdownArtifact, /Mock answer from Cloudeval AI/);
+  } finally {
+    await fs.rm(outputDir, { recursive: true, force: true });
     await backend.close();
   }
 });

@@ -231,6 +231,8 @@ export const cliCommands: CliCommandMetadata[] = [
       "--wait-timeout",
       "--poll-interval",
       "--no-ai-summary",
+      "--ai-summary-mode",
+      "--ai-summary-profile",
       "--ignore-dirty",
       "--output",
       "--format",

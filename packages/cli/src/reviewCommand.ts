@@ -291,9 +291,7 @@ const formatMoney = (
 };
 
 const formatValidation = (validation?: Record<string, any>): string => {
-  const policyFailed = displayNumber(
-    validation?.policyChecks?.failed ?? validation?.psRule?.failed,
-  );
+  const policyFailed = displayNumber(validation?.policyChecks?.failed);
   const unitFailed = displayNumber(validation?.unitTests?.failed);
   return `Policy checks ${policyFailed} failed, unit tests ${unitFailed} failed`;
 };
@@ -353,7 +351,7 @@ const extractValidation = ({
   preload?: Record<string, any>;
   project?: Record<string, any>;
 }) => {
-  const psRuleSummary = firstRecord(
+  const policySummary = firstRecord(
     waf?.parsed?.validation_summary,
     waf?.raw?.validation_summary,
     waf?.validation_summary,
@@ -368,17 +366,11 @@ const extractValidation = ({
     project?.status?.unit_tests,
   );
   return {
-    psRule: {
-      total: numberFrom(psRuleSummary?.total_rules, psRuleSummary?.totalRules, rules.length),
-      passed: numberFrom(psRuleSummary?.passed_rules, psRuleSummary?.passedRules),
-      failed: numberFrom(psRuleSummary?.failed_rules, psRuleSummary?.failedRules, failedRules.length),
-      errors: numberFrom(psRuleSummary?.error_rules, psRuleSummary?.errorRules),
-    },
     policyChecks: {
-      total: numberFrom(psRuleSummary?.total_rules, psRuleSummary?.totalRules, rules.length),
-      passed: numberFrom(psRuleSummary?.passed_rules, psRuleSummary?.passedRules),
-      failed: numberFrom(psRuleSummary?.failed_rules, psRuleSummary?.failedRules, failedRules.length),
-      errors: numberFrom(psRuleSummary?.error_rules, psRuleSummary?.errorRules),
+      total: numberFrom(policySummary?.total_rules, policySummary?.totalRules, rules.length),
+      passed: numberFrom(policySummary?.passed_rules, policySummary?.passedRules),
+      failed: numberFrom(policySummary?.failed_rules, policySummary?.failedRules, failedRules.length),
+      errors: numberFrom(policySummary?.error_rules, policySummary?.errorRules),
     },
     unitTests: {
       status: unitSummary?.status,
@@ -541,11 +533,11 @@ const evaluateGate = ({
       failures.push(`${pillar.label} score ${pillar.score} is below ${pillar.threshold}`);
     }
   }
-  const failedPsRules = validation.psRule.failed ?? 0;
+  const failedPolicyChecks = validation.policyChecks.failed ?? 0;
   const failedUnitTests = validation.unitTests.failed ?? 0;
-  if (gateConfig.failOnValidationErrors && (failedPsRules > 0 || failedUnitTests > 0)) {
+  if (gateConfig.failOnValidationErrors && (failedPolicyChecks > 0 || failedUnitTests > 0)) {
     failures.push(
-      `validation has ${failedPsRules} failed policy checks and ${failedUnitTests} failed unit tests`,
+      `validation has ${failedPolicyChecks} failed policy checks and ${failedUnitTests} failed unit tests`,
     );
   }
   if (

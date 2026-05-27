@@ -283,10 +283,11 @@ const formatMoney = (
   currency?: string,
   fallback = "not available",
 ): string => {
-  if (amount === undefined) {
+  const numericAmount = numberFrom(amount);
+  if (numericAmount === undefined) {
     return fallback;
   }
-  return [amount, currency].filter(Boolean).join(" ");
+  return currency ? `${numericAmount} ${currency}` : String(numericAmount);
 };
 
 const formatValidation = (validation?: Record<string, any>): string => {

@@ -230,6 +230,8 @@ const wafReport = {
         title: "Enable managed identity",
         status: "warn",
         severity: "medium",
+        moduleName: "PSRule.Rules.Azure",
+        helpUri: "https://azure.github.io/PSRule.Rules.Azure/en/rules/Azure.ManagedIdentity/",
       },
     ],
   },
@@ -3676,6 +3678,78 @@ test("review command uses public labels and falls back to preload cost metrics",
     assert.doesNotMatch(markdownArtifact, /PSRule/);
     assert.match(markdownArtifact, /Policy checks 0 failed, unit tests 0 failed/);
     assert.match(markdownArtifact, /Cost: 42 USD/);
+  } finally {
+    await fs.rm(cwd, { recursive: true, force: true });
+    await backend.close();
+  }
+});
+
+test("review command does not expose internal validation provider details", async () => {
+  const backend = await startBackend({
+    projects: [githubProject],
+  });
+  const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "cloudeval-review-public-output-"));
+  try {
+    await fs.mkdir(path.join(cwd, ".cloudeval"), { recursive: true });
+    await fs.writeFile(
+      path.join(cwd, ".cloudeval", "config.yaml"),
+      [
+        "ci:",
+        "  gates:",
+        "    enforcement: required",
+        "    overall_score_min: 90",
+        "    fail_on_validation_errors: true",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+
+    const outputDir = path.join(cwd, "review-output");
+    const runResult = await runCli(
+      [
+        "review",
+        "--base-url",
+        backend.baseUrl,
+        "--access-key",
+        "test-token",
+        "--project",
+        "project-github",
+        "--repo",
+        "ganakailabs/cloudeval-github-sync-e2e",
+        "--ref",
+        "main",
+        "--commit-sha",
+        "sha-review-public-output",
+        "--ignore-dirty",
+        "--no-ai-summary",
+        "--poll-interval",
+        "10",
+        "--format",
+        "json",
+        "--output",
+        outputDir,
+        "--non-interactive",
+      ],
+      { cwd },
+    );
+    const result = parseJson(runResult);
+
+    assert.equal(result.data.gate.validation.policyChecks.failed, 0);
+    assert.equal(result.data.reports.wellArchitected.available, true);
+    assert.doesNotMatch(runResult.stdout, /psRule|PSRule/);
+    assert.doesNotMatch(JSON.stringify(result.data), /psRule|PSRule/);
+
+    const jsonArtifact = await fs.readFile(
+      path.join(outputDir, "review.json"),
+      "utf8",
+    );
+    const markdownArtifact = await fs.readFile(
+      path.join(outputDir, "review.md"),
+      "utf8",
+    );
+    assert.doesNotMatch(jsonArtifact, /psRule|PSRule/);
+    assert.doesNotMatch(markdownArtifact, /psRule|PSRule/);
+    assert.match(markdownArtifact, /Policy checks 0 failed/);
   } finally {
     await fs.rm(cwd, { recursive: true, force: true });
     await backend.close();

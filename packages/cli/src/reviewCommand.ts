@@ -273,6 +273,32 @@ const entriesAsNamedRecords = (
   }));
 };
 
+const publicFinding = (rule: Record<string, any>): Record<string, any> => ({
+  id: rule.id ?? rule.rule_id ?? rule.ruleId,
+  pillar: rule.pillar,
+  title: rule.title ?? rule.name,
+  status: rule.status ?? rule.outcome,
+  severity: rule.severity,
+});
+
+const reviewReportStatus = (report: unknown): Record<string, any> => ({
+  available: Boolean(report),
+});
+
+const reviewReportStatuses = ({
+  cost,
+  waf,
+  preload,
+}: {
+  cost?: Record<string, any>;
+  waf?: Record<string, any>;
+  preload?: Record<string, any>;
+}): Record<string, any> => ({
+  cost: reviewReportStatus(cost),
+  wellArchitected: reviewReportStatus(waf),
+  preload: reviewReportStatus(preload),
+});
+
 const displayNumber = (value: unknown, fallback = "not available"): string => {
   const number = numberFrom(value);
   return number === undefined ? fallback : String(number);
@@ -474,7 +500,7 @@ const evaluateGate = ({
       critical: numberFrom(waf?.parsed?.counts?.criticalRisk, waf?.parsed?.counts?.critical_count),
     },
     topFindings: Array.isArray(waf?.parsed?.rules)
-      ? waf.parsed.rules.slice(0, 5)
+      ? waf.parsed.rules.slice(0, 5).map((rule: any) => publicFinding(asRecord(rule)))
       : [],
   };
   const costSummary = {
@@ -1022,11 +1048,7 @@ export const registerReviewCommand = (
         commitSha,
         sourceRoot,
         sync: finalStatus ? { ...asRecord(sync), finalStatus } : sync,
-        reports: {
-          cost,
-          waf,
-          preload,
-        },
+        reports: reviewReportStatuses({ cost, waf, preload }),
         gate: evaluateGate({ configText, waf, cost, preload, project }),
       };
       if (options.aiSummary !== false) {

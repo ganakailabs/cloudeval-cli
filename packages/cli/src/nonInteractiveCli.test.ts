@@ -379,6 +379,9 @@ const startBackend = async (
           job_id: "job-github-sync-1",
           status: "QUEUED",
           operation: "github_repo_sync",
+          user_id: "internal-user-id",
+          result_ref: { result_blob_path: "internal/result.json" },
+          events_channel: "user:internal-user-id",
         },
         project_id: "project-github",
         commit_sha: payload.commit_sha ?? null,
@@ -888,6 +891,9 @@ const startBackend = async (
         status: "SUCCEEDED",
         operation: "github_repo_sync",
         progress: 100,
+        user_id: "internal-user-id",
+        result_ref: { result_blob_path: "internal/result.json" },
+        events_channel: "user:internal-user-id",
       });
     }
     if (url.pathname === "/api/v1/jobs/job-template-validation-1") {
@@ -3737,7 +3743,9 @@ test("review command does not expose internal validation provider details", asyn
     assert.equal(result.data.gate.validation.policyChecks.failed, 0);
     assert.equal(result.data.reports.wellArchitected.available, true);
     assert.doesNotMatch(runResult.stdout, /psRule|PSRule/);
+    assert.doesNotMatch(runResult.stdout, /internal-user-id|result_ref|events_channel/);
     assert.doesNotMatch(JSON.stringify(result.data), /psRule|PSRule/);
+    assert.doesNotMatch(JSON.stringify(result.data), /internal-user-id|result_ref|events_channel/);
 
     const jsonArtifact = await fs.readFile(
       path.join(outputDir, "review.json"),
@@ -3748,6 +3756,7 @@ test("review command does not expose internal validation provider details", asyn
       "utf8",
     );
     assert.doesNotMatch(jsonArtifact, /psRule|PSRule/);
+    assert.doesNotMatch(jsonArtifact, /internal-user-id|result_ref|events_channel/);
     assert.doesNotMatch(markdownArtifact, /psRule|PSRule/);
     assert.match(markdownArtifact, /Policy checks 0 failed/);
   } finally {

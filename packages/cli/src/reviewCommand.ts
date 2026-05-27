@@ -299,6 +299,35 @@ const reviewReportStatuses = ({
   preload: reviewReportStatus(preload),
 });
 
+const publicJobStatus = (value: unknown): Record<string, any> | undefined => {
+  const record = firstRecord(value);
+  if (!record) {
+    return undefined;
+  }
+  return {
+    jobId: record.job_id ?? record.jobId ?? record.id,
+    status: record.status,
+    operation: record.operation,
+    progress: record.progress,
+    submittedAt: record.submitted_at ?? record.submittedAt,
+    startedAt: record.started_at ?? record.startedAt,
+    completedAt: record.completed_at ?? record.completedAt,
+  };
+};
+
+const reviewSyncStatus = (
+  sync: unknown,
+  finalStatus?: unknown,
+): Record<string, any> => {
+  const syncRecord = asRecord(sync);
+  return {
+    job: publicJobStatus(syncRecord.job ?? syncRecord),
+    projectId: syncRecord.project_id ?? syncRecord.projectId,
+    commitSha: syncRecord.commit_sha ?? syncRecord.commitSha,
+    finalStatus: publicJobStatus(finalStatus),
+  };
+};
+
 const displayNumber = (value: unknown, fallback = "not available"): string => {
   const number = numberFrom(value);
   return number === undefined ? fallback : String(number);
@@ -1047,7 +1076,7 @@ export const registerReviewCommand = (
         ref,
         commitSha,
         sourceRoot,
-        sync: finalStatus ? { ...asRecord(sync), finalStatus } : sync,
+        sync: reviewSyncStatus(sync, finalStatus),
         reports: reviewReportStatuses({ cost, waf, preload }),
         gate: evaluateGate({ configText, waf, cost, preload, project }),
       };

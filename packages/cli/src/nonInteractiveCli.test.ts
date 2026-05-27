@@ -269,6 +269,7 @@ const startBackend = async (
     expireFirstStreamToken?: boolean;
     fullReportShape?: boolean;
     wafFullReportFailures?: number;
+    emptyCostFullReport?: boolean;
   } = {},
 ) => {
   const requests: RecordedRequest[] = [];
@@ -718,6 +719,9 @@ const startBackend = async (
       url.pathname === `/api/v1/cost-reports/${githubProject.id}/full`
     ) {
       assert.equal(url.searchParams.get("user_id"), user.id);
+      if (options.emptyCostFullReport) {
+        return json(res, {});
+      }
       if (options.fullReportShape) {
         return json(res, {
           project_id: githubProject.id,
@@ -3595,7 +3599,78 @@ test("review command includes well architected, cost, and validation gate drilld
     );
     assert.match(markdownArtifact, /Well-Architected drilldown/);
     assert.match(markdownArtifact, /Security: 91/);
-    assert.match(markdownArtifact, /Validation: PSRule 0 failed, unit tests 0 failed/);
+    assert.match(markdownArtifact, /Validation: Policy checks 0 failed, unit tests 0 failed/);
+    assert.match(markdownArtifact, /Cost: 42 USD/);
+  } finally {
+    await fs.rm(cwd, { recursive: true, force: true });
+    await backend.close();
+  }
+});
+
+test("review command uses public labels and falls back to preload cost metrics", async () => {
+  const backend = await startBackend({
+    projects: [githubProject],
+    fullReportShape: true,
+    emptyCostFullReport: true,
+  });
+  const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "cloudeval-review-public-summary-"));
+  try {
+    await fs.mkdir(path.join(cwd, ".cloudeval"), { recursive: true });
+    await fs.writeFile(
+      path.join(cwd, ".cloudeval", "config.yaml"),
+      [
+        "ci:",
+        "  gates:",
+        "    enforcement: required",
+        "    overall_score_min: 90",
+        "    pillar_score_min: 85",
+        "    fail_on_validation_errors: true",
+        "    max_monthly_cost: 100",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+
+    const outputDir = path.join(cwd, "review-output");
+    const result = parseJson(
+      await runCli(
+        [
+          "review",
+          "--base-url",
+          backend.baseUrl,
+          "--access-key",
+          "test-token",
+          "--project",
+          "project-github",
+          "--repo",
+          "ganakailabs/cloudeval-github-sync-e2e",
+          "--ref",
+          "main",
+          "--commit-sha",
+          "sha-review-public-summary",
+          "--ignore-dirty",
+          "--no-ai-summary",
+          "--poll-interval",
+          "10",
+          "--format",
+          "json",
+          "--output",
+          outputDir,
+          "--non-interactive",
+        ],
+        { cwd },
+      ),
+    );
+
+    assert.equal(result.data.gate.cost.monthly.amount, 42);
+    assert.equal(result.data.gate.cost.monthly.currency, "USD");
+
+    const markdownArtifact = await fs.readFile(
+      path.join(outputDir, "review.md"),
+      "utf8",
+    );
+    assert.doesNotMatch(markdownArtifact, /PSRule/);
+    assert.match(markdownArtifact, /Policy checks 0 failed, unit tests 0 failed/);
     assert.match(markdownArtifact, /Cost: 42 USD/);
   } finally {
     await fs.rm(cwd, { recursive: true, force: true });

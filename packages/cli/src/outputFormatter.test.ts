@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
+import { Writable } from "node:stream";
 import test from "node:test";
 import {
   formatOutput,
   formatErrorEnvelope,
   formatSuccessEnvelope,
+  writeTextToStream,
 } from "./outputFormatter";
 
 test("formatSuccessEnvelope creates stable machine envelope", () => {
@@ -217,6 +219,25 @@ test("formatErrorEnvelope redacts access keys from error messages", () => {
 
   assert.doesNotMatch(JSON.stringify(envelope), new RegExp(accessKey));
   assert.match(envelope.error.message, /\[redacted\]/);
+});
+
+test("writeTextToStream waits for drain when output is piped", async () => {
+  let captured = "";
+  const stream = new Writable({
+    highWaterMark: 1,
+    write(chunk, _encoding, callback) {
+      setImmediate(() => {
+        captured += chunk.toString();
+        callback();
+      });
+    },
+  });
+  const text = JSON.stringify({ data: { body: "x".repeat(100_000) } });
+
+  await writeTextToStream(stream, text);
+  await new Promise<void>((resolve) => stream.end(resolve));
+
+  assert.equal(JSON.parse(captured).data.body.length, 100_000);
 });
 
 test("formatOutput can show sensitive identifiers when explicitly requested", () => {

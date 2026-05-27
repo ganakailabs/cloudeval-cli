@@ -273,6 +273,30 @@ const entriesAsNamedRecords = (
   }));
 };
 
+const displayNumber = (value: unknown, fallback = "not available"): string => {
+  const number = numberFrom(value);
+  return number === undefined ? fallback : String(number);
+};
+
+const formatMoney = (
+  amount?: number,
+  currency?: string,
+  fallback = "not available",
+): string => {
+  if (amount === undefined) {
+    return fallback;
+  }
+  return [amount, currency].filter(Boolean).join(" ");
+};
+
+const formatValidation = (validation?: Record<string, any>): string => {
+  const policyFailed = displayNumber(
+    validation?.policyChecks?.failed ?? validation?.psRule?.failed,
+  );
+  const unitFailed = displayNumber(validation?.unitTests?.failed);
+  return `Policy checks ${policyFailed} failed, unit tests ${unitFailed} failed`;
+};
+
 type ReviewPillar = {
   id: string;
   label: string;
@@ -349,6 +373,12 @@ const extractValidation = ({
       failed: numberFrom(psRuleSummary?.failed_rules, psRuleSummary?.failedRules, failedRules.length),
       errors: numberFrom(psRuleSummary?.error_rules, psRuleSummary?.errorRules),
     },
+    policyChecks: {
+      total: numberFrom(psRuleSummary?.total_rules, psRuleSummary?.totalRules, rules.length),
+      passed: numberFrom(psRuleSummary?.passed_rules, psRuleSummary?.passedRules),
+      failed: numberFrom(psRuleSummary?.failed_rules, psRuleSummary?.failedRules, failedRules.length),
+      errors: numberFrom(psRuleSummary?.error_rules, psRuleSummary?.errorRules),
+    },
     unitTests: {
       status: unitSummary?.status,
       total: numberFrom(unitSummary?.total_tests, unitSummary?.totalTests),
@@ -397,12 +427,20 @@ const evaluateGate = ({
     cost?.parsed?.totalSpend?.amount,
     cost?.parsed?.total_spend?.amount,
     cost?.raw?.total,
+    preload?.reports?.cost?.metrics?.monthly_cost,
+    preload?.reports?.cost?.metrics?.monthlyCost,
+    preload?.latest_payloads?.cost?.summary?.monthly_cost,
+    preload?.latest_payloads?.cost?.summary?.monthlyCost,
+    preload?.latest_payloads?.cost?.summary?.total_monthly_cost,
+    preload?.latest_payloads?.cost?.summary?.totalMonthlyCost,
   );
   const currency = String(
     cost?.report?.metadata?.currency ??
       cost?.parsed?.totalSpend?.currency ??
       cost?.parsed?.total_spend?.currency ??
       cost?.raw?.currency ??
+      preload?.reports?.cost?.metrics?.currency ??
+      preload?.latest_payloads?.cost?.summary?.currency ??
       "",
   ) || undefined;
   const savings = numberFrom(
@@ -410,6 +448,10 @@ const evaluateGate = ({
     cost?.report?.processed?.opportunitySummary?.totalMonthlySavings,
     cost?.parsed?.estimatedSavings?.amount,
     cost?.parsed?.estimated_savings?.amount,
+    preload?.reports?.cost?.metrics?.estimated_savings,
+    preload?.reports?.cost?.metrics?.estimatedSavings,
+    preload?.latest_payloads?.cost?.summary?.estimated_savings,
+    preload?.latest_payloads?.cost?.summary?.estimatedSavings,
   );
   const pillars = extractPillars(waf).map((pillar) => {
     const threshold =
@@ -502,7 +544,7 @@ const evaluateGate = ({
   const failedUnitTests = validation.unitTests.failed ?? 0;
   if (gateConfig.failOnValidationErrors && (failedPsRules > 0 || failedUnitTests > 0)) {
     failures.push(
-      `validation has ${failedPsRules} failed PSRule checks and ${failedUnitTests} failed unit tests`,
+      `validation has ${failedPsRules} failed policy checks and ${failedUnitTests} failed unit tests`,
     );
   }
   if (
@@ -744,8 +786,8 @@ const buildAiSummaryPrompt = (data: Record<string, any>): string => [
   `Gate: ${String(data.gate?.status ?? "unknown").toUpperCase()}`,
   `Well-Architected score: ${data.gate?.wellArchitected?.overall?.score ?? data.gate?.overallScore ?? "unknown"}`,
   `High-risk findings: ${data.gate?.wellArchitected?.risks?.high ?? data.gate?.highRisk ?? "unknown"}`,
-  `Monthly cost: ${data.gate?.cost?.monthly?.amount ?? data.gate?.monthlyCost ?? "unknown"}`,
-  `Validation: PSRule failed ${data.gate?.validation?.psRule?.failed ?? "unknown"}, unit tests failed ${data.gate?.validation?.unitTests?.failed ?? "unknown"}`,
+  `Monthly cost: ${formatMoney(data.gate?.cost?.monthly?.amount ?? data.gate?.monthlyCost, data.gate?.cost?.monthly?.currency)}`,
+  `Validation: ${formatValidation(data.gate?.validation)}`,
   Array.isArray(data.gate?.failures) && data.gate.failures.length
     ? `Gate failures: ${data.gate.failures.join("; ")}`
     : "Gate failures: none reported",
@@ -842,8 +884,8 @@ const buildMarkdownSummary = (data: Record<string, any>): string => {
     `- **Commit:** \`${String(data.commitSha ?? "unknown").slice(0, 12)}\``,
     `- **Gate:** ${gateStatus}`,
     `- **Well-Architected score:** ${score}`,
-    `- **Cost:** ${cost?.amount ?? "unknown"} ${cost?.currency ?? ""}`.trim(),
-    `- **Validation:** PSRule ${validation?.psRule?.failed ?? "unknown"} failed, unit tests ${validation?.unitTests?.failed ?? "unknown"} failed`,
+    `- **Cost:** ${formatMoney(cost?.amount, cost?.currency)}`,
+    `- **Validation:** ${formatValidation(validation)}`,
   ];
   if (Array.isArray(data.gate?.failures) && data.gate.failures.length) {
     lines.push("", "#### Gate failures", "", ...data.gate.failures.map((failure: string) => `- ${failure}`));
@@ -856,7 +898,7 @@ const buildMarkdownSummary = (data: Record<string, any>): string => {
       "",
       "#### Cost drilldown",
       "",
-      `- Cost: ${cost?.amount ?? "unknown"} ${cost?.currency ?? ""}${cost?.threshold !== undefined ? ` (max ${cost.threshold})` : ""}`.trim(),
+      `- Cost: ${formatMoney(cost?.amount, cost?.currency)}${cost?.threshold !== undefined ? ` (max ${cost.threshold})` : ""}`,
     );
   }
   if (validation) {
@@ -864,7 +906,7 @@ const buildMarkdownSummary = (data: Record<string, any>): string => {
       "",
       "#### Validation drilldown",
       "",
-      `- Validation: PSRule ${validation.psRule?.failed ?? "unknown"} failed, unit tests ${validation.unitTests?.failed ?? "unknown"} failed`,
+      `- Validation: ${formatValidation(validation)}`,
     );
   }
   if (data.aiSummary?.markdown) {

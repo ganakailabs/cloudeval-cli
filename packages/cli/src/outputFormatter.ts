@@ -1,4 +1,5 @@
 import { redactSensitiveSecrets, redactSensitiveText } from "@cloudeval/shared";
+import { once } from "node:events";
 
 export type MachineOutputFormat = "text" | "json" | "ndjson" | "markdown";
 
@@ -384,6 +385,15 @@ export const formatOutput = <T>(input: {
   return formatTextRecord(data);
 };
 
+export const writeTextToStream = async (
+  stream: NodeJS.WritableStream,
+  text: string,
+): Promise<void> => {
+  if (!stream.write(text)) {
+    await once(stream, "drain");
+  }
+};
+
 export const writeFormattedOutput = async <T>(input: {
   command: string;
   data: T;
@@ -401,7 +411,7 @@ export const writeFormattedOutput = async <T>(input: {
     await writePrivateOutputFile(input.output, text);
     return;
   }
-  process.stdout.write(text);
+  await writeTextToStream(process.stdout, text);
 };
 
 export const writePrivateOutputFile = async (output: string, text: string) => {

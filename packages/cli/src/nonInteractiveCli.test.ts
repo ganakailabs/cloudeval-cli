@@ -270,6 +270,7 @@ const startBackend = async (
     fullReportShape?: boolean;
     wafFullReportFailures?: number;
     emptyCostFullReport?: boolean;
+    costMonthlyAmount?: number;
   } = {},
 ) => {
   const requests: RecordedRequest[] = [];
@@ -729,7 +730,7 @@ const startBackend = async (
           report: {
             metadata: { currency: "USD" },
             processed: {
-              total_monthly_cost: 42,
+              total_monthly_cost: options.costMonthlyAmount ?? 42,
               opportunity_summary: { total_monthly_savings: 7 },
               cost_by_service_family: { Compute: 30 },
               optimization_recommendations: [
@@ -3672,6 +3673,73 @@ test("review command uses public labels and falls back to preload cost metrics",
     assert.doesNotMatch(markdownArtifact, /PSRule/);
     assert.match(markdownArtifact, /Policy checks 0 failed, unit tests 0 failed/);
     assert.match(markdownArtifact, /Cost: 42 USD/);
+  } finally {
+    await fs.rm(cwd, { recursive: true, force: true });
+    await backend.close();
+  }
+});
+
+test("review command renders zero monthly cost with currency", async () => {
+  const backend = await startBackend({
+    projects: [githubProject],
+    fullReportShape: true,
+    costMonthlyAmount: 0,
+  });
+  const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "cloudeval-review-zero-cost-"));
+  try {
+    await fs.mkdir(path.join(cwd, ".cloudeval"), { recursive: true });
+    await fs.writeFile(
+      path.join(cwd, ".cloudeval", "config.yaml"),
+      [
+        "ci:",
+        "  gates:",
+        "    enforcement: required",
+        "    overall_score_min: 90",
+        "    max_monthly_cost: 100",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+
+    const outputDir = path.join(cwd, "review-output");
+    const result = parseJson(
+      await runCli(
+        [
+          "review",
+          "--base-url",
+          backend.baseUrl,
+          "--access-key",
+          "test-token",
+          "--project",
+          "project-github",
+          "--repo",
+          "ganakailabs/cloudeval-github-sync-e2e",
+          "--ref",
+          "main",
+          "--commit-sha",
+          "sha-review-zero-cost",
+          "--ignore-dirty",
+          "--no-ai-summary",
+          "--poll-interval",
+          "10",
+          "--format",
+          "json",
+          "--output",
+          outputDir,
+          "--non-interactive",
+        ],
+        { cwd },
+      ),
+    );
+
+    assert.equal(result.data.gate.cost.monthly.amount, 0);
+    assert.equal(result.data.gate.cost.monthly.currency, "USD");
+
+    const markdownArtifact = await fs.readFile(
+      path.join(outputDir, "review.md"),
+      "utf8",
+    );
+    assert.match(markdownArtifact, /Cost: 0 USD/);
   } finally {
     await fs.rm(cwd, { recursive: true, force: true });
     await backend.close();

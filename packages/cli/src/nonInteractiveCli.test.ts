@@ -3592,7 +3592,8 @@ test("review command includes well architected, cost, and validation gate drilld
     assert.equal(result.data.gate.cost.monthly.amount, 42);
     assert.equal(result.data.gate.cost.monthly.threshold, 100);
     assert.equal(result.data.gate.validation.unitTests.failed, 0);
-    assert.equal(result.data.gate.validation.psRule.failed, 0);
+    assert.equal(result.data.gate.validation.policyChecks.failed, 0);
+    assert.doesNotMatch(JSON.stringify(result.data), /psRule|PSRule/);
 
     const markdownArtifact = await fs.readFile(
       path.join(outputDir, "review.md"),
@@ -3665,6 +3666,8 @@ test("review command uses public labels and falls back to preload cost metrics",
 
     assert.equal(result.data.gate.cost.monthly.amount, 42);
     assert.equal(result.data.gate.cost.monthly.currency, "USD");
+    assert.equal(result.data.gate.validation.policyChecks.failed, 0);
+    assert.doesNotMatch(JSON.stringify(result.data), /psRule|PSRule/);
 
     const markdownArtifact = await fs.readFile(
       path.join(outputDir, "review.md"),

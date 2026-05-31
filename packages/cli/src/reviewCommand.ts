@@ -854,16 +854,27 @@ const buildAiSummaryPrompt = (data: Record<string, any>): string => [
     : "Gate failures: none reported",
 ].join("\n");
 
-const generateAiSummary = async ({
-  baseUrl,
-  token,
-  user,
-  project,
-  model,
-  mode,
-  agentProfileId,
-  data,
-}: {
+const isTransientAiSummaryText = (text?: string): boolean => {
+  if (!text?.trim()) {
+    return false;
+  }
+  return /too many requests|rate[- ]?limit|try again in a moment|temporarily unavailable/i.test(
+    text,
+  );
+};
+
+const aiSummaryRetryDelaysMs = (): number[] => {
+  const raw = process.env.CLOUDEVAL_REVIEW_AI_RETRY_DELAYS_MS;
+  if (raw?.trim()) {
+    return raw
+      .split(",")
+      .map((value) => Number.parseInt(value.trim(), 10))
+      .filter((value) => Number.isFinite(value) && value >= 0);
+  }
+  return [5000, 15000];
+};
+
+type GenerateAiSummaryInput = {
   baseUrl: string;
   token?: string;
   user?: { id?: string; email?: string; full_name?: string; name?: string };
@@ -872,7 +883,18 @@ const generateAiSummary = async ({
   mode: "ask" | "agent";
   agentProfileId?: string;
   data: Record<string, any>;
-}): Promise<Record<string, any>> => {
+};
+
+const generateAiSummaryAttempt = async ({
+  baseUrl,
+  token,
+  user,
+  project,
+  model,
+  mode,
+  agentProfileId,
+  data,
+}: GenerateAiSummaryInput): Promise<Record<string, any>> => {
   const core = await import("@cloudeval/core");
   const threadId = `review-${data.projectId}-${Date.now()}`;
   let markdown = "";
@@ -901,7 +923,7 @@ const generateAiSummary = async ({
       : {
           id: String(data.projectId),
           name: String(data.projectId),
-    },
+        },
     settings: {
       mode,
       ...(model ? { model } : {}),
@@ -934,11 +956,50 @@ const generateAiSummary = async ({
     .find((message: any) => message.role === "assistant");
   return {
     enabled: true,
+    status: "ok",
     mode,
     ...(mode === "agent" ? { agentProfileId: agentProfileId ?? "architecture" } : {}),
     ...(model ? { model } : {}),
     markdown: String(finalMessage?.content || markdown).trim(),
     threadId,
+  };
+};
+
+const generateAiSummary = async (
+  input: GenerateAiSummaryInput,
+): Promise<Record<string, any>> => {
+  const retryDelays = aiSummaryRetryDelaysMs();
+  let lastResult: Record<string, any> | undefined;
+
+  for (let attemptIndex = 0; attemptIndex <= retryDelays.length; attemptIndex += 1) {
+    const result = await generateAiSummaryAttempt(input);
+    result.attempts = attemptIndex + 1;
+    lastResult = result;
+
+    if (!isTransientAiSummaryText(result.markdown)) {
+      return result;
+    }
+
+    const retryDelay = retryDelays[attemptIndex];
+    if (retryDelay === undefined) {
+      break;
+    }
+    await sleep(retryDelay);
+  }
+
+  return {
+    ...(lastResult ?? {}),
+    enabled: true,
+    status: "unavailable",
+    mode: input.mode,
+    ...(input.mode === "agent"
+      ? { agentProfileId: input.agentProfileId ?? "architecture" }
+      : {}),
+    ...(input.model ? { model: input.model } : {}),
+    attempts: lastResult?.attempts ?? retryDelays.length + 1,
+    error: lastResult?.markdown || "AI summary unavailable",
+    markdown:
+      "AI summary unavailable: CloudEval AI was rate-limited. Retry the workflow or rerun `cloudeval review`.",
   };
 };
 

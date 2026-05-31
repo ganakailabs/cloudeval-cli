@@ -405,7 +405,7 @@ const compactValidation = (validation?: Record<string, any>): string => {
   const policyFailed = numberFrom(validation?.policyChecks?.failed);
   const unitFailed = numberFrom(validation?.unitTests?.failed);
   if (policyFailed === 0 && unitFailed === 0) {
-    return "validation **clean**";
+    return "Validation **clean**";
   }
   const parts: string[] = [];
   if (unitFailed !== undefined) {
@@ -422,7 +422,7 @@ const compactValidation = (validation?: Record<string, any>): string => {
         : `🔴 **${policyFailed} policy checks failed**`,
     );
   }
-  return parts.length ? `Validation: ${parts.join(", ")}` : "Validation **not available**";
+  return parts.length ? `Validation ${parts.join(", ")}` : "Validation **not available**";
 };
 
 const validationDetailLines = (validation?: Record<string, any>): string[] => {
@@ -1075,6 +1075,21 @@ const isTransientAiSummaryText = (text?: string): boolean => {
   );
 };
 
+const normalizeAiSummaryMarkdown = (text?: string): string => {
+  const trimmed = String(text ?? "").trim();
+  if (!trimmed) {
+    return "";
+  }
+  const withNewlines = trimmed.replace(/\\n/g, "\n");
+  const requestMatch = /\bRequest:\s*/i.exec(withNewlines);
+  if (!requestMatch) {
+    return withNewlines;
+  }
+  const afterRequest = withNewlines.slice(requestMatch.index + requestMatch[0].length).trim();
+  const [summary] = afterRequest.split(/\n\s*\nThe request reached\b/i);
+  return summary.trim() || withNewlines;
+};
+
 const aiSummaryAttemptTimeoutMs = (): number => {
   const raw = process.env.CLOUDEVAL_REVIEW_AI_ATTEMPT_TIMEOUT_MS;
   if (raw?.trim()) {
@@ -1204,13 +1219,14 @@ const generateAiSummaryAttempt = async ({
   const finalMessage = [...(chatState.messages ?? [])]
     .reverse()
     .find((message: any) => message.role === "assistant");
+  const rawMarkdown = String(finalMessage?.content || markdown).trim();
   return {
     enabled: true,
     status: "ok",
     mode,
     ...(mode === "agent" ? { agentProfileId: agentProfileId ?? "architecture" } : {}),
     ...(model ? { model } : {}),
-    markdown: String(finalMessage?.content || markdown).trim(),
+    markdown: normalizeAiSummaryMarkdown(rawMarkdown),
     threadId,
   };
 };
@@ -1220,11 +1236,13 @@ const generateAiSummary = async (
 ): Promise<Record<string, any>> => {
   const retryDelays = aiSummaryRetryDelaysMs();
   let lastResult: Record<string, any> | undefined;
+  let activeInput = input;
+  let fallbackFromMode: "agent" | undefined;
 
   for (let attemptIndex = 0; attemptIndex <= retryDelays.length; attemptIndex += 1) {
     let result: Record<string, any>;
     try {
-      result = await generateAiSummaryAttempt(input);
+      result = await generateAiSummaryAttempt(activeInput);
     } catch (error: any) {
       const message = error?.message ?? "AI summary failed";
       if (!isTransientAiSummaryText(message)) {
@@ -1233,16 +1251,28 @@ const generateAiSummary = async (
       result = {
         enabled: true,
         status: "transient_error",
-        mode: input.mode,
-        ...(input.mode === "agent"
-          ? { agentProfileId: input.agentProfileId ?? "architecture" }
+        mode: activeInput.mode,
+        ...(activeInput.mode === "agent"
+          ? { agentProfileId: activeInput.agentProfileId ?? "architecture" }
           : {}),
-        ...(input.model ? { model: input.model } : {}),
+        ...(activeInput.model ? { model: activeInput.model } : {}),
         markdown: message,
         error: message,
       };
     }
     result.attempts = attemptIndex + 1;
+    if (fallbackFromMode) {
+      result.fallbackFromMode = fallbackFromMode;
+    }
+    result.markdown = normalizeAiSummaryMarkdown(result.markdown);
+    if (isTransientAiSummaryText(result.markdown)) {
+      const normalizedError = normalizeAiSummaryMarkdown(result.error);
+      if (normalizedError && !isTransientAiSummaryText(normalizedError)) {
+        result.markdown = normalizedError;
+        result.status = "ok";
+        delete result.error;
+      }
+    }
     lastResult = result;
 
     if (!isTransientAiSummaryText(result.markdown)) {
@@ -1254,17 +1284,26 @@ const generateAiSummary = async (
       break;
     }
     await sleep(retryDelay);
+    if (activeInput.mode === "agent") {
+      fallbackFromMode = "agent";
+      activeInput = {
+        ...input,
+        mode: "ask",
+        agentProfileId: undefined,
+      };
+    }
   }
 
   return {
     ...(lastResult ?? {}),
     enabled: true,
     status: "unavailable",
-    mode: input.mode,
-    ...(input.mode === "agent"
-      ? { agentProfileId: input.agentProfileId ?? "architecture" }
+    mode: activeInput.mode,
+    ...(activeInput.mode === "agent"
+      ? { agentProfileId: activeInput.agentProfileId ?? "architecture" }
       : {}),
     ...(input.model ? { model: input.model } : {}),
+    ...(fallbackFromMode ? { fallbackFromMode } : {}),
     attempts: lastResult?.attempts ?? retryDelays.length + 1,
     error: lastResult?.markdown || "AI summary unavailable",
     markdown:
@@ -1307,7 +1346,7 @@ const buildMarkdownSummary = (data: Record<string, any>): string => {
     .filter(([, value]) => numberFrom(value) !== undefined)
     .map(([label, value]) => `- ${label}: **${displayNumber(value)}**`);
   const lines = [
-    `${statusIcon(data.gate?.status)} **${gateStatus}** for ${projectDisplay}: Well-Architected **${formatScore(score)}**, cost **${formatMonthlyMoney(cost?.amount, cost?.currency)}**, ${compactValidation(validation)}.`,
+    `${statusIcon(data.gate?.status)} **${gateStatus}** ${projectDisplay} · Well-Architected **${formatScore(score)}** · Cost **${formatMonthlyMoney(cost?.amount, cost?.currency)}** · ${compactValidation(validation)}`,
     "",
     `Source: \`${source}\` · commit \`${commit}\``,
   ];
@@ -1323,7 +1362,6 @@ const buildMarkdownSummary = (data: Record<string, any>): string => {
       "<details>",
       "<summary>Well-Architected drilldown</summary>",
       "",
-      `- Overall score: **${formatScore(score)}**`,
       ...riskLines,
       "",
       "| Pillar | Score | Status |",
@@ -1334,7 +1372,7 @@ const buildMarkdownSummary = (data: Record<string, any>): string => {
     );
   }
   if (cost?.amount !== undefined || cost?.threshold !== undefined) {
-    const costLines = [`- Monthly estimate: **${formatMonthlyMoney(cost?.amount, cost?.currency)}**`];
+    const costLines: string[] = [];
     if (data.gate?.cost?.estimatedSavings?.amount !== undefined) {
       costLines.push(
         `- Estimated savings: **${formatMonthlyMoney(data.gate.cost.estimatedSavings.amount, data.gate.cost.estimatedSavings.currency)}**`,
@@ -1362,15 +1400,17 @@ const buildMarkdownSummary = (data: Record<string, any>): string => {
         "```",
       );
     }
-    lines.push(
-      "",
-      "<details>",
-      "<summary>Cost drilldown</summary>",
-      "",
-      ...costLines,
-      "",
-      "</details>",
-    );
+    if (costLines.length) {
+      lines.push(
+        "",
+        "<details>",
+        "<summary>Cost drilldown</summary>",
+        "",
+        ...costLines,
+        "",
+        "</details>",
+      );
+    }
   }
   if (validation) {
     lines.push(
@@ -1379,8 +1419,6 @@ const buildMarkdownSummary = (data: Record<string, any>): string => {
       "<summary>Validation details</summary>",
       "",
       ...validationDetailLines(validation),
-      "",
-      `Summary: ${formatValidation(validation)}`,
       "",
       "</details>",
     );

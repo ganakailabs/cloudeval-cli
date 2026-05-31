@@ -270,6 +270,7 @@ const startBackend = async (
     projects?: (typeof project)[];
     expireFirstStreamToken?: boolean;
     streamAssistantMessageOnly?: boolean;
+    aiSummaryRateLimitResponses?: number;
     fullReportShape?: boolean;
     wafFullReportFailures?: number;
     emptyCostFullReport?: boolean;
@@ -280,6 +281,7 @@ const startBackend = async (
   const createdProjects: any[] = [];
   const authUser = options.authUser ?? user;
   let expiredStreamResponses = 0;
+  let aiSummaryRateLimitResponses = 0;
   let wafFullReportRequests = 0;
 
   const server = http.createServer(async (req, res) => {
@@ -1188,7 +1190,15 @@ const startBackend = async (
         `data: ${JSON.stringify({ type: "metadata", thread_id: "thread-test", trace_id: "trace-test" })}\n\n`,
       );
       const message = String(payload.message ?? "");
-      if (message.includes("empty agent result")) {
+      if (
+        message.includes("Write a concise CloudEval pull request review summary") &&
+        aiSummaryRateLimitResponses < (options.aiSummaryRateLimitResponses ?? 0)
+      ) {
+        aiSummaryRateLimitResponses += 1;
+        res.write(
+          `data: ${JSON.stringify({ type: "responding", node: "generate_response", content: "I'm receiving too many requests right now. Please try again in a moment.", status: "completed" })}\n\n`,
+        );
+      } else if (message.includes("empty agent result")) {
         res.write(
           `data: ${JSON.stringify({ type: "thinking", node: "load_reports", status: "streaming", description: "Loading cost reports" })}\n\n`,
         );
@@ -4007,6 +4017,125 @@ test("review command captures AI summary from assistant message chunks", async (
       "utf8",
     );
     assert.match(markdownArtifact, /AI summary from assistant message/);
+  } finally {
+    await fs.rm(outputDir, { recursive: true, force: true });
+    await backend.close();
+  }
+});
+
+test("review command retries transient AI summary rate limits", async () => {
+  const backend = await startBackend({
+    projects: [githubProject],
+    aiSummaryRateLimitResponses: 1,
+  });
+  const outputDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "cloudeval-review-retry-summary-"),
+  );
+  try {
+    const result = parseJson(
+      await runCli(
+        [
+          "review",
+          "--base-url",
+          backend.baseUrl,
+          "--access-key",
+          "test-token",
+          "--project",
+          "project-github",
+          "--repo",
+          "ganakailabs/cloudeval-github-sync-e2e",
+          "--ref",
+          "main",
+          "--commit-sha",
+          "sha-review-ai-retry",
+          "--ignore-dirty",
+          "--poll-interval",
+          "10",
+          "--format",
+          "json",
+          "--output",
+          outputDir,
+          "--non-interactive",
+        ],
+        {
+          env: { CLOUDEVAL_REVIEW_AI_RETRY_DELAYS_MS: "1" },
+        },
+      ),
+    );
+
+    assert.equal(result.data.aiSummary.enabled, true);
+    assert.equal(result.data.aiSummary.status, "ok");
+    assert.equal(result.data.aiSummary.attempts, 2);
+    assert.match(result.data.aiSummary.markdown, /Mock answer from Cloudeval AI/);
+    assert.equal(
+      backend.requests.filter((request) => request.path === "/api/v1/chat/stream")
+        .length,
+      2,
+    );
+
+    const markdownArtifact = await fs.readFile(
+      path.join(outputDir, "review.md"),
+      "utf8",
+    );
+    assert.match(markdownArtifact, /Mock answer from Cloudeval AI/);
+    assert.doesNotMatch(markdownArtifact, /receiving too many requests/i);
+  } finally {
+    await fs.rm(outputDir, { recursive: true, force: true });
+    await backend.close();
+  }
+});
+
+test("review command marks AI summary unavailable after retry exhaustion", async () => {
+  const backend = await startBackend({
+    projects: [githubProject],
+    aiSummaryRateLimitResponses: 3,
+  });
+  const outputDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "cloudeval-review-unavailable-summary-"),
+  );
+  try {
+    const result = parseJson(
+      await runCli(
+        [
+          "review",
+          "--base-url",
+          backend.baseUrl,
+          "--access-key",
+          "test-token",
+          "--project",
+          "project-github",
+          "--repo",
+          "ganakailabs/cloudeval-github-sync-e2e",
+          "--ref",
+          "main",
+          "--commit-sha",
+          "sha-review-ai-unavailable",
+          "--ignore-dirty",
+          "--poll-interval",
+          "10",
+          "--format",
+          "json",
+          "--output",
+          outputDir,
+          "--non-interactive",
+        ],
+        {
+          env: { CLOUDEVAL_REVIEW_AI_RETRY_DELAYS_MS: "1" },
+        },
+      ),
+    );
+
+    assert.equal(result.data.aiSummary.enabled, true);
+    assert.equal(result.data.aiSummary.status, "unavailable");
+    assert.equal(result.data.aiSummary.attempts, 2);
+    assert.match(result.data.aiSummary.markdown, /AI summary unavailable/i);
+
+    const markdownArtifact = await fs.readFile(
+      path.join(outputDir, "review.md"),
+      "utf8",
+    );
+    assert.match(markdownArtifact, /AI summary unavailable/i);
+    assert.doesNotMatch(markdownArtifact, /receiving too many requests/i);
   } finally {
     await fs.rm(outputDir, { recursive: true, force: true });
     await backend.close();

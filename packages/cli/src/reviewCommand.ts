@@ -1070,9 +1070,20 @@ const isTransientAiSummaryText = (text?: string): boolean => {
   if (!text?.trim()) {
     return false;
   }
-  return /too many requests|rate[- ]?limit|try again in a moment|temporarily unavailable/i.test(
+  return /too many requests|rate[- ]?limit|try again in a moment|temporarily unavailable|something went wrong while processing|please try again or ask a different question|did not complete within/i.test(
     text,
   );
+};
+
+const aiSummaryAttemptTimeoutMs = (): number => {
+  const raw = process.env.CLOUDEVAL_REVIEW_AI_ATTEMPT_TIMEOUT_MS;
+  if (raw?.trim()) {
+    const parsed = Number.parseInt(raw.trim(), 10);
+    if (Number.isFinite(parsed) && parsed > 0) {
+      return parsed;
+    }
+  }
+  return 180000;
 };
 
 const aiSummaryRetryDelaysMs = (): number[] => {
@@ -1111,7 +1122,19 @@ const generateAiSummaryAttempt = async ({
   const threadId = `review-${data.projectId}-${Date.now()}`;
   let markdown = "";
   let chatState: any = { ...core.initialChatState, threadId };
-  for await (const chunk of core.streamChat({
+  const attemptTimeoutMs = aiSummaryAttemptTimeoutMs();
+  let timedOut = false;
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      timedOut = true;
+      reject(
+        new Error(`AI summary did not complete within ${attemptTimeoutMs}ms.`),
+      );
+    }, attemptTimeoutMs);
+    timeoutId.unref?.();
+  });
+  const iterator = core.streamChat({
     baseUrl,
     authToken: token,
     message: buildAiSummaryPrompt(data),
@@ -1144,23 +1167,38 @@ const generateAiSummaryAttempt = async ({
     completeAfterResponse: true,
     responseCompletionGraceMs: 250,
     streamIdleTimeoutMs: 120000,
-  })) {
-    chatState = core.reduceChunk(chatState, chunk as any);
-    const latestMessage = [...(chatState.messages ?? [])]
-      .reverse()
-      .find((message: any) => message.role === "assistant");
-    const chunkAssistantMessage = Array.isArray((chunk as any)?.messages)
-      ? [...((chunk as any).messages as any[])]
-          .reverse()
-          .find((message: any) => message?.role === "assistant" && typeof message?.content === "string")
-          ?.content
-      : undefined;
-    const content = (chunk as any)?.content;
-    if (typeof chunkAssistantMessage === "string" && chunkAssistantMessage.trim()) {
-      markdown = chunkAssistantMessage;
+  });
+  try {
+    while (true) {
+      const next = await Promise.race([iterator.next(), timeoutPromise]);
+      if (next.done) {
+        break;
+      }
+      const chunk = next.value;
+      chatState = core.reduceChunk(chatState, chunk as any);
+      const latestMessage = [...(chatState.messages ?? [])]
+        .reverse()
+        .find((message: any) => message.role === "assistant");
+      const chunkAssistantMessage = Array.isArray((chunk as any)?.messages)
+        ? [...((chunk as any).messages as any[])]
+            .reverse()
+            .find((message: any) => message?.role === "assistant" && typeof message?.content === "string")
+            ?.content
+        : undefined;
+      const content = (chunk as any)?.content;
+      if (typeof chunkAssistantMessage === "string" && chunkAssistantMessage.trim()) {
+        markdown = chunkAssistantMessage;
+      }
+      if (chunk.type === "responding" && typeof content === "string") {
+        markdown = latestMessage?.content || `${markdown}${content}`;
+      }
     }
-    if (chunk.type === "responding" && typeof content === "string") {
-      markdown = latestMessage?.content || `${markdown}${content}`;
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+    if (timedOut) {
+      await iterator.return?.(undefined).catch(() => undefined);
     }
   }
   const finalMessage = [...(chatState.messages ?? [])]
@@ -1184,7 +1222,26 @@ const generateAiSummary = async (
   let lastResult: Record<string, any> | undefined;
 
   for (let attemptIndex = 0; attemptIndex <= retryDelays.length; attemptIndex += 1) {
-    const result = await generateAiSummaryAttempt(input);
+    let result: Record<string, any>;
+    try {
+      result = await generateAiSummaryAttempt(input);
+    } catch (error: any) {
+      const message = error?.message ?? "AI summary failed";
+      if (!isTransientAiSummaryText(message)) {
+        throw error;
+      }
+      result = {
+        enabled: true,
+        status: "transient_error",
+        mode: input.mode,
+        ...(input.mode === "agent"
+          ? { agentProfileId: input.agentProfileId ?? "architecture" }
+          : {}),
+        ...(input.model ? { model: input.model } : {}),
+        markdown: message,
+        error: message,
+      };
+    }
     result.attempts = attemptIndex + 1;
     lastResult = result;
 

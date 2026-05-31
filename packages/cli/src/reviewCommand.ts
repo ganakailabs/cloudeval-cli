@@ -13,6 +13,7 @@ import {
   writeFormattedOutput,
   type MachineOutputFormat,
 } from "./outputFormatter.js";
+import { buildFrontendUrl, resolveFrontendBaseUrl } from "./frontendLinks.js";
 
 const DIRTY_REVIEW_MESSAGE =
   "Reviews pushed commits only. Add --ignore-dirty to review HEAD anyway.";
@@ -350,6 +351,18 @@ const formatValidation = (validation?: Record<string, any>): string => {
   const unitFailed = displayNumber(validation?.unitTests?.failed);
   return `Policy checks ${policyFailed} failed, unit tests ${unitFailed} failed`;
 };
+
+const compactValidation = (validation?: Record<string, any>): string => {
+  const policyFailed = numberFrom(validation?.policyChecks?.failed);
+  const unitFailed = numberFrom(validation?.unitTests?.failed);
+  if (policyFailed === 0 && unitFailed === 0) {
+    return "validation clean";
+  }
+  return formatValidation(validation);
+};
+
+const markdownLink = (label: string, url?: string): string =>
+  url ? `[${label}](${url})` : label;
 
 type ReviewPillar = {
   id: string;
@@ -863,6 +876,7 @@ const generateAiSummary = async ({
   const core = await import("@cloudeval/core");
   const threadId = `review-${data.projectId}-${Date.now()}`;
   let markdown = "";
+  let chatState: any = { ...core.initialChatState, threadId };
   for await (const chunk of core.streamChat({
     baseUrl,
     authToken: token,
@@ -897,17 +911,33 @@ const generateAiSummary = async ({
     responseCompletionGraceMs: 250,
     streamIdleTimeoutMs: 120000,
   })) {
+    chatState = core.reduceChunk(chatState, chunk as any);
+    const latestMessage = [...(chatState.messages ?? [])]
+      .reverse()
+      .find((message: any) => message.role === "assistant");
+    const chunkAssistantMessage = Array.isArray((chunk as any)?.messages)
+      ? [...((chunk as any).messages as any[])]
+          .reverse()
+          .find((message: any) => message?.role === "assistant" && typeof message?.content === "string")
+          ?.content
+      : undefined;
     const content = (chunk as any)?.content;
+    if (typeof chunkAssistantMessage === "string" && chunkAssistantMessage.trim()) {
+      markdown = chunkAssistantMessage;
+    }
     if (chunk.type === "responding" && typeof content === "string") {
-      markdown += content;
+      markdown = latestMessage?.content || `${markdown}${content}`;
     }
   }
+  const finalMessage = [...(chatState.messages ?? [])]
+    .reverse()
+    .find((message: any) => message.role === "assistant");
   return {
     enabled: true,
     mode,
     ...(mode === "agent" ? { agentProfileId: agentProfileId ?? "architecture" } : {}),
     ...(model ? { model } : {}),
-    markdown: markdown.trim(),
+    markdown: String(finalMessage?.content || markdown).trim(),
     threadId,
   };
 };
@@ -917,50 +947,67 @@ const buildMarkdownSummary = (data: Record<string, any>): string => {
   const score = data.gate?.overallScore ?? "unknown";
   const cost = data.gate?.cost?.monthly;
   const validation = data.gate?.validation;
+  const projectLabel = String(data.project?.name ?? data.projectName ?? data.projectId);
+  const projectDisplay = markdownLink(projectLabel, data.project?.url ?? data.projectUrl);
+  const source = data.repo
+    ? `${data.repo}${data.ref ? ` @ ${data.ref}` : ""}`
+    : data.ref ?? "unknown source";
+  const commit = String(data.commitSha ?? "unknown").slice(0, 12);
   const pillarLines = Array.isArray(data.gate?.wellArchitected?.pillars)
     ? data.gate.wellArchitected.pillars.map(
         (pillar: Record<string, any>) =>
-          `  - ${pillar.label}: ${pillar.score}${pillar.threshold !== undefined ? ` (min ${pillar.threshold})` : ""} - ${String(pillar.status ?? "unknown").toUpperCase()}`,
+          `- ${pillar.label}: ${pillar.score} - ${String(pillar.status ?? "unknown").toUpperCase()}`,
       )
     : [];
   const lines = [
-    "### CloudEval review",
+    `**${gateStatus}** for ${projectDisplay}: Well-Architected ${score}, cost ${formatMoney(cost?.amount, cost?.currency)}, ${compactValidation(validation)}.`,
     "",
-    `- **Project:** \`${data.projectId}\``,
-    `- **Repository:** \`${data.repo ?? "unknown"}\``,
-    `- **Ref:** \`${data.ref ?? "unknown"}\``,
-    `- **Commit:** \`${String(data.commitSha ?? "unknown").slice(0, 12)}\``,
-    `- **Gate:** ${gateStatus}`,
-    `- **Well-Architected score:** ${score}`,
-    `- **Cost:** ${formatMoney(cost?.amount, cost?.currency)}`,
-    `- **Validation:** ${formatValidation(validation)}`,
+    `Source: \`${source}\` · commit \`${commit}\``,
   ];
+  if (data.aiSummary?.markdown) {
+    lines.push("", "#### AI summary", "", data.aiSummary.markdown);
+  }
   if (Array.isArray(data.gate?.failures) && data.gate.failures.length) {
     lines.push("", "#### Gate failures", "", ...data.gate.failures.map((failure: string) => `- ${failure}`));
   }
   if (pillarLines.length) {
-    lines.push("", "#### Well-Architected drilldown", "", ...pillarLines);
+    lines.push(
+      "",
+      "<details>",
+      "<summary>Well-Architected details</summary>",
+      "",
+      `- Overall score: ${score}`,
+      ...pillarLines,
+      "",
+      "</details>",
+    );
   }
   if (cost?.amount !== undefined || cost?.threshold !== undefined) {
     lines.push(
       "",
-      "#### Cost drilldown",
+      "<details>",
+      "<summary>Cost details</summary>",
       "",
-      `- Cost: ${formatMoney(cost?.amount, cost?.currency)}${cost?.threshold !== undefined ? ` (max ${cost.threshold})` : ""}`,
+      `- Monthly estimate: ${formatMoney(cost?.amount, cost?.currency)}`,
+      data.gate?.cost?.estimatedSavings?.amount !== undefined
+        ? `- Estimated savings: ${formatMoney(data.gate.cost.estimatedSavings.amount, data.gate.cost.estimatedSavings.currency)}`
+        : undefined,
+      "",
+      "</details>",
     );
   }
   if (validation) {
     lines.push(
       "",
-      "#### Validation drilldown",
+      "<details>",
+      "<summary>Validation details</summary>",
       "",
-      `- Validation: ${formatValidation(validation)}`,
+      `- ${formatValidation(validation)}`,
+      "",
+      "</details>",
     );
   }
-  if (data.aiSummary?.markdown) {
-    lines.push("", "## AI summary", "", data.aiSummary.markdown);
-  }
-  return lines.join("\n");
+  return lines.filter((line) => line !== undefined).join("\n");
 };
 
 export const registerReviewCommand = (
@@ -1072,6 +1119,17 @@ export const registerReviewCommand = (
       ]);
       const data: Record<string, any> = {
         projectId,
+        project: {
+          id: projectId,
+          name: String(project?.name ?? projectId),
+          url: buildFrontendUrl({
+            baseUrl: resolveFrontendBaseUrl({ apiBaseUrl: context.baseUrl }),
+            target: "project",
+            projectId,
+            view: "preview",
+            layout: "architecture",
+          }),
+        },
         repo,
         ref,
         commitSha,

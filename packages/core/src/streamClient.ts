@@ -142,6 +142,19 @@ const objectArrayOrUndefined = <T extends Record<string, unknown>>(
   return records.length ? records : undefined;
 };
 
+const assistantMessageContent = (value: unknown): string | undefined => {
+  const messages = objectArrayOrUndefined<{ role?: unknown; content?: unknown }>(value);
+  const message = messages
+    ? [...messages]
+        .reverse()
+        .find(
+          (entry) =>
+            entry.role === "assistant" && typeof entry.content === "string"
+        )
+    : undefined;
+  return typeof message?.content === "string" ? message.content : undefined;
+};
+
 const isResponseOutputChunk = (chunk: Chunk): chunk is RespondingChunk =>
   chunk.type === "responding" &&
   (!chunk.node || RESPONSE_OUTPUT_NODES.has(chunk.node));
@@ -254,7 +267,11 @@ const normalizeChunk = (raw: unknown, receivedAt: number): Chunk | null => {
         description:
           typeof raw.description === "string" ? raw.description : undefined,
         message: typeof raw.message === "string" ? raw.message : undefined,
-        content: typeof raw.content === "string" ? raw.content : undefined,
+        content:
+          typeof raw.content === "string"
+            ? raw.content
+            : assistantMessageContent(raw.messages) ??
+              assistantMessageContent(data?.messages),
         source: stringOrUndefined(raw.source),
         tools_used:
           objectArrayOrUndefined<ChatToolSourceEntry>(raw.tools_used) ??

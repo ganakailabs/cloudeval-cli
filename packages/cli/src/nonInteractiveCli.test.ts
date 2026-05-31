@@ -275,6 +275,16 @@ const startBackend = async (
     wafFullReportFailures?: number;
     emptyCostFullReport?: boolean;
     costMonthlyAmount?: number;
+    costServiceFamilies?: Record<string, number>;
+    unitTestMetrics?: {
+      success: boolean;
+      total_tests: number;
+      passed_tests: number;
+      failed_tests: number;
+      skipped_tests: number;
+    };
+    reviewGraph?: boolean;
+    architectureMetrics?: Record<string, number>;
   } = {},
 ) => {
   const requests: RecordedRequest[] = [];
@@ -628,6 +638,32 @@ const startBackend = async (
         edges: [],
       });
     }
+    if (
+      options.reviewGraph &&
+      url.pathname === `/api/v1/projects/${githubProject.id}/graph` &&
+      req.method === "GET"
+    ) {
+      assert.equal(req.headers.authorization, "Bearer test-token");
+      assert.equal(url.searchParams.get("user_id"), user.id);
+      return json(res, {
+        project_id: githubProject.id,
+        nodes: [
+          { id: "vm-1", type: "Microsoft.Compute/virtualMachines" },
+          { id: "vm-2", type: "Microsoft.Compute/virtualMachines" },
+          { id: "vnet-1", type: "Microsoft.Network/virtualNetworks" },
+          { id: "subnet-1", type: "Microsoft.Network/virtualNetworks/subnets" },
+          { id: "nsg-1", type: "Microsoft.Network/networkSecurityGroups" },
+          { id: "storage-1", type: "Microsoft.Storage/storageAccounts" },
+          { id: "kv-1", type: "Microsoft.KeyVault/vaults" },
+          { id: "id-1", type: "Microsoft.ManagedIdentity/userAssignedIdentities" },
+        ],
+        edges: Array.from({ length: 11 }, (_, index) => ({
+          id: `edge-${index + 1}`,
+          source: "vm-1",
+          target: "vnet-1",
+        })),
+      });
+    }
     if (url.pathname === "/api/v1/connection/" && req.method === "POST") {
       return json(
         res,
@@ -740,7 +776,7 @@ const startBackend = async (
             processed: {
               total_monthly_cost: options.costMonthlyAmount ?? 42,
               opportunity_summary: { total_monthly_savings: 7 },
-              cost_by_service_family: { Compute: 30 },
+              cost_by_service_family: options.costServiceFamilies ?? { Compute: 30 },
               optimization_recommendations: [
                 { description: "Rightsize VM", monthly_savings: 7 },
               ],
@@ -794,6 +830,7 @@ const startBackend = async (
               overall_score: 91,
               pillar_scores: { security: 91 },
               total_rules: 10,
+              ...(options.architectureMetrics ?? {}),
             },
           },
           cost: {
@@ -802,7 +839,7 @@ const startBackend = async (
           },
           unit_tests: {
             report_type: "unit_tests",
-            metrics: {
+            metrics: options.unitTestMetrics ?? {
               success: true,
               total_tests: 4,
               passed_tests: 4,
@@ -813,7 +850,7 @@ const startBackend = async (
         },
         latest_payloads: {
           unit_tests: {
-            summary: {
+            summary: options.unitTestMetrics ?? {
               success: true,
               total_tests: 4,
               passed_tests: 4,
@@ -3622,12 +3659,105 @@ test("review command includes well architected, cost, and validation gate drilld
       path.join(outputDir, "review.md"),
       "utf8",
     );
-    assert.match(markdownArtifact, /Well-Architected details/);
-    assert.match(markdownArtifact, /Security: 91/);
-    assert.match(markdownArtifact, /Policy checks 0 failed, unit tests 0 failed/);
-    assert.match(markdownArtifact, /cost 42 USD/);
-    assert.match(markdownArtifact, /\*\*PASS\*\* for \[GitHub IaC Project\]\(http:\/\/localhost:3000\/app\/projects\/project-github\?view=preview&layout=architecture\)/);
+    assert.match(markdownArtifact, /Well-Architected drilldown/);
+    assert.match(markdownArtifact, /\| Security \| \*\*91\/100\*\* \| 🟢 PASS \|/);
+    assert.match(markdownArtifact, /validation \*\*clean\*\*/);
+    assert.match(markdownArtifact, /cost \*\*42 USD\/mo\*\*/);
+    assert.match(markdownArtifact, /🟢 \*\*PASS\*\* for \[GitHub IaC Project\]\(http:\/\/localhost:3000\/app\/projects\/project-github\?view=preview&layout=architecture\)/);
     assert.doesNotMatch(markdownArtifact, /\bmin 85\b|\bmax 100\b/);
+  } finally {
+    await fs.rm(cwd, { recursive: true, force: true });
+    await backend.close();
+  }
+});
+
+test("review command writes visual markdown drilldowns for PR comments", async () => {
+  const backend = await startBackend({
+    projects: [githubProject],
+    fullReportShape: true,
+    costServiceFamilies: { Compute: 30, Networking: 12 },
+    reviewGraph: true,
+    unitTestMetrics: {
+      success: false,
+      total_tests: 5,
+      passed_tests: 2,
+      failed_tests: 3,
+      skipped_tests: 0,
+    },
+  });
+  const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "cloudeval-review-visual-md-"));
+  try {
+    await fs.mkdir(path.join(cwd, ".cloudeval"), { recursive: true });
+    await fs.writeFile(
+      path.join(cwd, ".cloudeval", "config.yaml"),
+      [
+        "ci:",
+        "  gates:",
+        "    enforcement: warn",
+        "    overall_score_min: 90",
+        "    pillar_score_min: 85",
+        "    fail_on_validation_errors: true",
+        "    max_monthly_cost: 100",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+
+    const outputDir = path.join(cwd, "review-output");
+    const result = parseJson(
+      await runCli(
+        [
+          "review",
+          "--base-url",
+          backend.baseUrl,
+          "--access-key",
+          "test-token",
+          "--project",
+          "project-github",
+          "--repo",
+          "ganakailabs/cloudeval-github-sync-e2e",
+          "--ref",
+          "main",
+          "--commit-sha",
+          "sha-review-visual-md",
+          "--ignore-dirty",
+          "--no-ai-summary",
+          "--poll-interval",
+          "10",
+          "--format",
+          "json",
+          "--output",
+          outputDir,
+          "--non-interactive",
+        ],
+        { cwd },
+      ),
+    );
+
+    assert.equal(result.data.gate.status, "warn");
+    assert.equal(result.data.gate.validation.unitTests.failed, 3);
+
+    const markdownArtifact = await fs.readFile(
+      path.join(outputDir, "review.md"),
+      "utf8",
+    );
+    assert.match(markdownArtifact, /^🟡 \*\*WARN\*\* for \[GitHub IaC Project\]/);
+    assert.match(markdownArtifact, /Well-Architected \*\*91\/100\*\*/);
+    assert.match(markdownArtifact, /cost \*\*42 USD\/mo\*\*/);
+    assert.match(markdownArtifact, /Validation: 🔴 \*\*3 unit tests failed\*\*, 🟢 policy checks clean/);
+    assert.match(markdownArtifact, /\| Security \| \*\*91\/100\*\* \| 🟢 PASS \|/);
+    assert.match(markdownArtifact, /```mermaid\npie title Monthly cost by service\n  "Compute" : 30\n  "Networking" : 12\n```/);
+    assert.match(markdownArtifact, /Unit tests: \*\*2 passed\*\*, \*\*3 failed\*\*, 5 total/);
+    assert.match(markdownArtifact, /Architecture insights/);
+    assert.match(markdownArtifact, /Resources: \*\*8\*\*/);
+    assert.match(markdownArtifact, /Relationships: \*\*11\*\*/);
+    assert.match(markdownArtifact, /Resource types: \*\*7\*\*/);
+    assert.doesNotMatch(markdownArtifact, /PSRule/);
+    assert(
+      backend.requests.some(
+        (request) => request.path === `/api/v1/projects/${githubProject.id}/graph`,
+      ),
+    );
   } finally {
     await fs.rm(cwd, { recursive: true, force: true });
     await backend.close();
@@ -3699,8 +3829,8 @@ test("review command uses public labels and falls back to preload cost metrics",
       "utf8",
     );
     assert.doesNotMatch(markdownArtifact, /PSRule/);
-    assert.match(markdownArtifact, /Policy checks 0 failed, unit tests 0 failed/);
-    assert.match(markdownArtifact, /cost 42 USD/);
+    assert.match(markdownArtifact, /validation \*\*clean\*\*/);
+    assert.match(markdownArtifact, /cost \*\*42 USD\/mo\*\*/);
   } finally {
     await fs.rm(cwd, { recursive: true, force: true });
     await backend.close();
@@ -3775,7 +3905,7 @@ test("review command does not expose internal validation provider details", asyn
     assert.doesNotMatch(jsonArtifact, /psRule|PSRule/);
     assert.doesNotMatch(jsonArtifact, /internal-user-id|result_ref|events_channel/);
     assert.doesNotMatch(markdownArtifact, /psRule|PSRule/);
-    assert.match(markdownArtifact, /Policy checks 0 failed/);
+    assert.match(markdownArtifact, /validation \*\*clean\*\*/);
   } finally {
     await fs.rm(cwd, { recursive: true, force: true });
     await backend.close();
@@ -3842,7 +3972,7 @@ test("review command renders zero monthly cost with currency", async () => {
       path.join(outputDir, "review.md"),
       "utf8",
     );
-    assert.match(markdownArtifact, /cost 0 USD/);
+    assert.match(markdownArtifact, /cost \*\*0 USD\/mo\*\*/);
   } finally {
     await fs.rm(cwd, { recursive: true, force: true });
     await backend.close();

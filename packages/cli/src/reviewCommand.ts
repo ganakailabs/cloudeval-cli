@@ -290,14 +290,17 @@ const reviewReportStatuses = ({
   cost,
   waf,
   preload,
+  graph,
 }: {
   cost?: Record<string, any>;
   waf?: Record<string, any>;
   preload?: Record<string, any>;
+  graph?: Record<string, any>;
 }): Record<string, any> => ({
   cost: reviewReportStatus(cost),
   wellArchitected: reviewReportStatus(waf),
   preload: reviewReportStatus(preload),
+  graph: reviewReportStatus(graph),
 });
 
 const publicJobStatus = (value: unknown): Record<string, any> | undefined => {
@@ -346,20 +349,151 @@ const formatMoney = (
   return currency ? `${numericAmount} ${currency}` : String(numericAmount);
 };
 
+const trimNumber = (value: number, fractionDigits = 2): string =>
+  Number.isInteger(value) ? String(value) : String(Number(value.toFixed(fractionDigits)));
+
+const formatScore = (value: unknown, fallback = "unknown"): string => {
+  const numericValue = numberFrom(value);
+  return numericValue === undefined ? fallback : `${trimNumber(numericValue)}/100`;
+};
+
+const formatMonthlyMoney = (
+  amount?: number,
+  currency?: string,
+  fallback = "not available",
+): string => {
+  const value = formatMoney(amount, currency, fallback);
+  return value === fallback ? value : `${value}/mo`;
+};
+
+const statusIcon = (status: unknown): string => {
+  switch (String(status ?? "").toLowerCase()) {
+    case "pass":
+    case "passed":
+    case "success":
+    case "succeeded":
+      return "🟢";
+    case "warn":
+    case "warning":
+      return "🟡";
+    case "fail":
+    case "failed":
+    case "error":
+      return "🔴";
+    default:
+      return "⚪";
+  }
+};
+
 const formatValidation = (validation?: Record<string, any>): string => {
-  const policyFailed = displayNumber(validation?.policyChecks?.failed);
-  const unitFailed = displayNumber(validation?.unitTests?.failed);
-  return `Policy checks ${policyFailed} failed, unit tests ${unitFailed} failed`;
+  const policyFailed = numberFrom(validation?.policyChecks?.failed);
+  const unitFailed = numberFrom(validation?.unitTests?.failed);
+  if (policyFailed === 0 && unitFailed === 0) {
+    return "Validation clean";
+  }
+  const parts: string[] = [];
+  if (unitFailed !== undefined) {
+    parts.push(unitFailed === 0 ? "unit tests clean" : `${unitFailed} unit tests failed`);
+  }
+  if (policyFailed !== undefined) {
+    parts.push(policyFailed === 0 ? "policy checks clean" : `${policyFailed} policy checks failed`);
+  }
+  return parts.length ? parts.join(", ") : "Validation not available";
 };
 
 const compactValidation = (validation?: Record<string, any>): string => {
   const policyFailed = numberFrom(validation?.policyChecks?.failed);
   const unitFailed = numberFrom(validation?.unitTests?.failed);
   if (policyFailed === 0 && unitFailed === 0) {
-    return "validation clean";
+    return "validation **clean**";
   }
-  return formatValidation(validation);
+  const parts: string[] = [];
+  if (unitFailed !== undefined) {
+    parts.push(
+      unitFailed === 0
+        ? "🟢 unit tests clean"
+        : `🔴 **${unitFailed} unit tests failed**`,
+    );
+  }
+  if (policyFailed !== undefined) {
+    parts.push(
+      policyFailed === 0
+        ? "🟢 policy checks clean"
+        : `🔴 **${policyFailed} policy checks failed**`,
+    );
+  }
+  return parts.length ? `Validation: ${parts.join(", ")}` : "Validation **not available**";
 };
+
+const validationDetailLines = (validation?: Record<string, any>): string[] => {
+  if (!validation) {
+    return ["- Validation data was not available."];
+  }
+  const lines: string[] = [];
+  const unitTotal = numberFrom(validation.unitTests?.total);
+  const unitPassed = numberFrom(validation.unitTests?.passed);
+  const unitFailed = numberFrom(validation.unitTests?.failed);
+  if (
+    unitTotal !== undefined ||
+    unitPassed !== undefined ||
+    unitFailed !== undefined
+  ) {
+    const parts: string[] = [];
+    if (unitPassed !== undefined) parts.push(`**${unitPassed} passed**`);
+    if (unitFailed !== undefined) parts.push(`**${unitFailed} failed**`);
+    if (unitTotal !== undefined) parts.push(`${unitTotal} total`);
+    lines.push(`- Unit tests: ${parts.join(", ")}`);
+  }
+  const policyTotal = numberFrom(validation.policyChecks?.total);
+  const policyPassed = numberFrom(validation.policyChecks?.passed);
+  const policyFailed = numberFrom(validation.policyChecks?.failed);
+  if (
+    policyTotal !== undefined ||
+    policyPassed !== undefined ||
+    policyFailed !== undefined
+  ) {
+    const parts: string[] = [];
+    if (policyPassed !== undefined) parts.push(`**${policyPassed} passed**`);
+    if (policyFailed !== undefined) parts.push(`**${policyFailed} failed**`);
+    if (policyTotal !== undefined) parts.push(`${policyTotal} total`);
+    lines.push(`- Policy checks: ${parts.join(", ")}`);
+  }
+  return lines.length ? lines : ["- Validation data was not available."];
+};
+
+const namedAmount = (record: Record<string, any>): number | undefined =>
+  numberFrom(
+    record.amount,
+    record.monthly_cost,
+    record.monthlyCost,
+    record.cost,
+    record.value,
+  );
+
+const namedLabel = (record: Record<string, any>, fallback: string): string =>
+  String(record.name ?? record.service ?? record.label ?? record.category ?? fallback);
+
+const mermaidLabel = (value: string): string => value.replace(/"/g, "'");
+
+const costServiceRows = (
+  services: unknown,
+  currency?: string,
+): Array<{ name: string; amount: number; currency?: string }> =>
+  (Array.isArray(services) ? services : [])
+    .map((service, index) => {
+      const record = asRecord(service);
+      const amount = namedAmount(record);
+      if (amount === undefined) {
+        return undefined;
+      }
+      const rowCurrency = String(record.currency ?? currency ?? "") || undefined;
+      return {
+        name: namedLabel(record, `Service ${index + 1}`),
+        amount,
+        ...(rowCurrency ? { currency: rowCurrency } : {}),
+      };
+    })
+    .filter((service): service is { name: string; amount: number; currency?: string } => service !== undefined);
 
 const markdownLink = (label: string, url?: string): string =>
   url ? `[${label}](${url})` : label;
@@ -450,17 +584,83 @@ const extractValidation = ({
   };
 };
 
+const extractArchitectureInsights = ({
+  waf,
+  preload,
+  graph,
+  project,
+}: {
+  waf?: Record<string, any>;
+  preload?: Record<string, any>;
+  graph?: Record<string, any>;
+  project?: Record<string, any>;
+}) => {
+  const graphNodes = Array.isArray(graph?.nodes) ? graph.nodes : [];
+  const graphEdges = Array.isArray(graph?.edges) ? graph.edges : [];
+  const graphResourceTypes = new Set(
+    graphNodes
+      .map((node) => asRecord(node).type)
+      .filter((type): type is string => typeof type === "string" && type.trim().length > 0),
+  );
+  const metrics = firstRecord(
+    preload?.reports?.architecture?.metrics,
+    preload?.latest_payloads?.architecture?.summary,
+    waf?.architecture,
+    waf?.parsed?.architecture,
+    project?.architecture,
+    project?.graph,
+  );
+  const resources = numberFrom(
+    metrics?.resource_count,
+    metrics?.resourceCount,
+    metrics?.resources,
+    metrics?.node_count,
+    metrics?.nodeCount,
+    graphNodes.length || undefined,
+  );
+  const relationships = numberFrom(
+    metrics?.relationship_count,
+    metrics?.relationshipCount,
+    metrics?.relationships,
+    metrics?.edge_count,
+    metrics?.edgeCount,
+    graphEdges.length || undefined,
+  );
+  const resourceTypes = numberFrom(
+    metrics?.resource_type_count,
+    metrics?.resourceTypeCount,
+    metrics?.types,
+    metrics?.resource_types,
+    metrics?.resourceTypes,
+    graphResourceTypes.size || undefined,
+  );
+  if (
+    resources === undefined &&
+    relationships === undefined &&
+    resourceTypes === undefined
+  ) {
+    return undefined;
+  }
+  return {
+    resources,
+    relationships,
+    resourceTypes,
+  };
+};
+
 const evaluateGate = ({
   configText,
   waf,
   cost,
   preload,
+  graph,
   project,
 }: {
   configText?: string;
   waf?: Record<string, any>;
   cost?: Record<string, any>;
   preload?: Record<string, any>;
+  graph?: Record<string, any>;
   project?: Record<string, any>;
 }) => {
   const gateConfig = parseGateConfig(configText);
@@ -526,6 +726,7 @@ const evaluateGate = ({
     };
   });
   const validation = extractValidation({ waf, preload, project });
+  const architecture = extractArchitectureInsights({ waf, preload, graph, project });
   const wellArchitected = {
     overall: {
       score: overallScore,
@@ -585,6 +786,7 @@ const evaluateGate = ({
       wellArchitected,
       cost: costSummary,
       validation,
+      architecture,
     };
   }
   const failures: string[] = [];
@@ -628,6 +830,7 @@ const evaluateGate = ({
     wellArchitected,
     cost: costSummary,
     validation,
+    architecture,
   };
 };
 
@@ -779,8 +982,9 @@ const fetchReviewReports = async ({
   cost?: Record<string, any>;
   waf?: Record<string, any>;
   preload?: Record<string, any>;
+  graph?: Record<string, any>;
 }> => {
-  const [cost, waf, preload] = await Promise.all([
+  const [cost, waf, preload, graph] = await Promise.all([
     safeFetch<Record<string, any>>({
       baseUrl,
       authToken: token,
@@ -798,8 +1002,15 @@ const fetchReviewReports = async ({
           path: `/reports/preload/${encodeURIComponent(projectId)}?user_id=${encodeURIComponent(userId)}&include_payload=true`,
         })
       : Promise.resolve(undefined),
+    userId
+      ? safeFetch<Record<string, any>>({
+          baseUrl,
+          authToken: token,
+          path: `/projects/${encodeURIComponent(projectId)}/graph?user_id=${encodeURIComponent(userId)}`,
+        })
+      : Promise.resolve(undefined),
   ]);
-  return { cost, waf, preload };
+  return { cost, waf, preload, graph };
 };
 
 const waitForReviewReports = async ({
@@ -822,6 +1033,7 @@ const waitForReviewReports = async ({
   cost?: Record<string, any>;
   waf?: Record<string, any>;
   preload?: Record<string, any>;
+  graph?: Record<string, any>;
 }> => {
   const startedAt = Date.now();
   let latest = await fetchReviewReports({ baseUrl, token, projectId, userId });
@@ -1005,9 +1217,10 @@ const generateAiSummary = async (
 
 const buildMarkdownSummary = (data: Record<string, any>): string => {
   const gateStatus = String(data.gate?.status ?? "unknown").toUpperCase();
-  const score = data.gate?.overallScore ?? "unknown";
+  const score = data.gate?.overallScore ?? data.gate?.wellArchitected?.overall?.score;
   const cost = data.gate?.cost?.monthly;
   const validation = data.gate?.validation;
+  const architecture = data.gate?.architecture;
   const projectLabel = String(data.project?.name ?? data.projectName ?? data.projectId);
   const projectDisplay = markdownLink(projectLabel, data.project?.url ?? data.projectUrl);
   const source = data.repo
@@ -1015,13 +1228,29 @@ const buildMarkdownSummary = (data: Record<string, any>): string => {
     : data.ref ?? "unknown source";
   const commit = String(data.commitSha ?? "unknown").slice(0, 12);
   const pillarLines = Array.isArray(data.gate?.wellArchitected?.pillars)
-    ? data.gate.wellArchitected.pillars.map(
-        (pillar: Record<string, any>) =>
-          `- ${pillar.label}: ${pillar.score} - ${String(pillar.status ?? "unknown").toUpperCase()}`,
-      )
+    ? data.gate.wellArchitected.pillars.map((pillar: Record<string, any>) => {
+        const status = String(pillar.status ?? "unknown").toUpperCase();
+        return `| ${pillar.label} | **${formatScore(pillar.score)}** | ${statusIcon(pillar.status)} ${status} |`;
+      })
     : [];
+  const riskLines = [
+    ["High-risk findings", data.gate?.wellArchitected?.risks?.high],
+    ["Medium-risk findings", data.gate?.wellArchitected?.risks?.medium],
+    ["Critical findings", data.gate?.wellArchitected?.risks?.critical],
+  ]
+    .filter(([, value]) => numberFrom(value) !== undefined)
+    .map(([label, value]) => `- ${label}: **${displayNumber(value)}**`);
+  const costServices = costServiceRows(data.gate?.cost?.topServices, cost?.currency);
+  const positiveCostServices = costServices.filter((service) => service.amount > 0);
+  const architectureLines = [
+    ["Resources", architecture?.resources],
+    ["Relationships", architecture?.relationships],
+    ["Resource types", architecture?.resourceTypes],
+  ]
+    .filter(([, value]) => numberFrom(value) !== undefined)
+    .map(([label, value]) => `- ${label}: **${displayNumber(value)}**`);
   const lines = [
-    `**${gateStatus}** for ${projectDisplay}: Well-Architected ${score}, cost ${formatMoney(cost?.amount, cost?.currency)}, ${compactValidation(validation)}.`,
+    `${statusIcon(data.gate?.status)} **${gateStatus}** for ${projectDisplay}: Well-Architected **${formatScore(score)}**, cost **${formatMonthlyMoney(cost?.amount, cost?.currency)}**, ${compactValidation(validation)}.`,
     "",
     `Source: \`${source}\` · commit \`${commit}\``,
   ];
@@ -1035,25 +1264,51 @@ const buildMarkdownSummary = (data: Record<string, any>): string => {
     lines.push(
       "",
       "<details>",
-      "<summary>Well-Architected details</summary>",
+      "<summary>Well-Architected drilldown</summary>",
       "",
-      `- Overall score: ${score}`,
+      `- Overall score: **${formatScore(score)}**`,
+      ...riskLines,
+      "",
+      "| Pillar | Score | Status |",
+      "| --- | ---: | --- |",
       ...pillarLines,
       "",
       "</details>",
     );
   }
   if (cost?.amount !== undefined || cost?.threshold !== undefined) {
-    const costLines = [`- Monthly estimate: ${formatMoney(cost?.amount, cost?.currency)}`];
+    const costLines = [`- Monthly estimate: **${formatMonthlyMoney(cost?.amount, cost?.currency)}**`];
     if (data.gate?.cost?.estimatedSavings?.amount !== undefined) {
       costLines.push(
-        `- Estimated savings: ${formatMoney(data.gate.cost.estimatedSavings.amount, data.gate.cost.estimatedSavings.currency)}`,
+        `- Estimated savings: **${formatMonthlyMoney(data.gate.cost.estimatedSavings.amount, data.gate.cost.estimatedSavings.currency)}**`,
+      );
+    }
+    if (costServices.length) {
+      costLines.push(
+        "",
+        "| Service | Monthly cost |",
+        "| --- | ---: |",
+        ...costServices.map(
+          (service) =>
+            `| ${service.name} | **${formatMonthlyMoney(service.amount, service.currency)}** |`,
+        ),
+      );
+    }
+    if (positiveCostServices.length) {
+      costLines.push(
+        "",
+        "```mermaid",
+        "pie title Monthly cost by service",
+        ...positiveCostServices.map(
+          (service) => `  "${mermaidLabel(service.name)}" : ${trimNumber(service.amount, 3)}`,
+        ),
+        "```",
       );
     }
     lines.push(
       "",
       "<details>",
-      "<summary>Cost details</summary>",
+      "<summary>Cost drilldown</summary>",
       "",
       ...costLines,
       "",
@@ -1066,7 +1321,20 @@ const buildMarkdownSummary = (data: Record<string, any>): string => {
       "<details>",
       "<summary>Validation details</summary>",
       "",
-      `- ${formatValidation(validation)}`,
+      ...validationDetailLines(validation),
+      "",
+      `Summary: ${formatValidation(validation)}`,
+      "",
+      "</details>",
+    );
+  }
+  if (architectureLines.length) {
+    lines.push(
+      "",
+      "<details>",
+      "<summary>Architecture insights</summary>",
+      "",
+      ...architectureLines,
       "",
       "</details>",
     );
@@ -1161,7 +1429,7 @@ export const registerReviewCommand = (
               ),
             })
           : undefined;
-      const [{ cost, waf, preload }, configText] = await Promise.all([
+      const [{ cost, waf, preload, graph }, configText] = await Promise.all([
         waitForReviewReports({
           baseUrl: context.baseUrl,
           token: context.token,
@@ -1199,8 +1467,8 @@ export const registerReviewCommand = (
         commitSha,
         sourceRoot,
         sync: reviewSyncStatus(sync, finalStatus),
-        reports: reviewReportStatuses({ cost, waf, preload }),
-        gate: evaluateGate({ configText, waf, cost, preload, project }),
+        reports: reviewReportStatuses({ cost, waf, preload, graph }),
+        gate: evaluateGate({ configText, waf, cost, preload, graph, project }),
       };
       if (options.aiSummary !== false) {
         try {

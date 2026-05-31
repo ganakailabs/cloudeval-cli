@@ -81,12 +81,14 @@ cloudeval capabilities --format json
 Telemetry is default-on and uses curated Azure Application Insights custom
 events only. CloudEval records command family, success, duration, safe option
 enums, CLI/runtime versions, OS major version, architecture, install source,
-update/install outcomes, MCP tool names, and TUI metadata. After login, events
-may include signed-in email and first/last/full name.
+update/install outcomes, MCP tool names, TUI metadata, a W3C `traceId`, and a
+per-command `requestId` for backend correlation. After login, events may include
+a hashed internal user ID only.
 
 Telemetry does not include prompts, command output, tokens, local paths, project
-or resource IDs, account/session/tenant IDs, stack traces, raw error messages,
-or cloud resource names.
+or resource IDs, raw email/name fields, account/session/tenant IDs, stack
+traces, raw error messages, command arguments, cwd, file paths, or cloud
+resource names.
 
 ```bash
 cloudeval config set telemetry.enabled false

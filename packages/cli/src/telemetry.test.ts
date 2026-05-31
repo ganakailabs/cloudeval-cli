@@ -8,6 +8,7 @@ import {
   resolveTelemetryConnectionString,
   resolveTelemetryEnabled,
   sanitizeTelemetryProperties,
+  TELEMETRY_SCHEMA_VERSION,
 } from "./telemetry";
 
 test("resolveTelemetryEnabled applies hard disable, env override, config, then default on", () => {
@@ -63,10 +64,14 @@ test("resolveTelemetryConnectionString reuses frontend and server environment co
 test("sanitizeTelemetryProperties keeps only the approved CLI telemetry shape", () => {
   const sanitized = sanitizeTelemetryProperties({
     cliVersion: "0.23.0",
+    telemetrySchemaVersion: "2",
+    traceId: "4bf92f3577b34da6a3ce929d0e0e4736",
+    requestId: "request-1",
     command: "ask",
     subcommand: "run",
     format: "json",
     interactive: false,
+    authMode: "access_key",
     success: true,
     durationMs: 42,
     exitCode: 0,
@@ -84,35 +89,32 @@ test("sanitizeTelemetryProperties keeps only the approved CLI telemetry shape", 
 
   assert.deepEqual(sanitized.properties, {
     cliVersion: "0.23.0",
+    telemetrySchemaVersion: "2",
+    traceId: "4bf92f3577b34da6a3ce929d0e0e4736",
+    requestId: "request-1",
     command: "ask",
     subcommand: "run",
     format: "json",
     interactive: "false",
+    authMode: "access_key",
     success: "true",
     exitCode: "0",
-    email: "user@example.test",
-    fullName: "Prateek Singh",
   });
   assert.deepEqual(sanitized.measurements, { durationMs: 42 });
 });
 
-test("buildTelemetryUserProperties includes email and derived first and last name", () => {
-  assert.deepEqual(
-    buildTelemetryUserProperties({
-      email: "person@example.test",
-      full_name: "Prateek Kumar Singh",
-    }),
-    {
-      email: "person@example.test",
-      firstName: "Prateek",
-      lastName: "Singh",
-      fullName: "Prateek Kumar Singh",
-    },
-  );
-  assert.deepEqual(buildTelemetryUserProperties({ name: "Manu" }), {
-    firstName: "Manu",
-    fullName: "Manu",
+test("buildTelemetryUserProperties never emits raw email or names", () => {
+  const properties = buildTelemetryUserProperties({
+    id: "user-00000000-0000-4000-8000-000000000001",
+    email: "person@example.test",
+    full_name: "Prateek Kumar Singh",
+    firstName: "Prateek",
+    lastName: "Singh",
   });
+  assert.match(properties.user_hash, /^h_[0-9a-f]{32}$/);
+  assert(!Object.values(properties).includes("person@example.test"));
+  assert(!Object.values(properties).includes("Prateek Kumar Singh"));
+  assert.deepEqual(buildTelemetryUserProperties({ email: "person@example.test", name: "Manu" }), {});
 });
 
 test("createCliTelemetry no-ops when disabled or unconfigured", async () => {
@@ -151,7 +153,9 @@ test("createCliTelemetry sends sanitized events and isolates flush errors", asyn
     env: { CLOUDEVAL_APPLICATIONINSIGHTS_CONNECTION_STRING: "InstrumentationKey=test" } as any,
     commonProperties: {
       cliVersion: "0.23.0",
-      telemetrySchemaVersion: "1",
+      telemetrySchemaVersion: TELEMETRY_SCHEMA_VERSION,
+      traceId: "4bf92f3577b34da6a3ce929d0e0e4736",
+      requestId: "request-1",
       os: "darwin",
     },
     clientFactory: () => ({
@@ -177,7 +181,9 @@ test("createCliTelemetry sends sanitized events and isolates flush errors", asyn
       name: "cli.command",
       properties: {
         cliVersion: "0.23.0",
-        telemetrySchemaVersion: "1",
+        telemetrySchemaVersion: "2",
+        traceId: "4bf92f3577b34da6a3ce929d0e0e4736",
+        requestId: "request-1",
         os: "darwin",
         command: "ask",
         success: "true",

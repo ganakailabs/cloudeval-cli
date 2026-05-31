@@ -19,6 +19,7 @@ import {
 } from "@cloudeval/shared";
 import { normalizeApiBase } from "./auth";
 import { withIdempotencyHeader } from "./idempotency";
+import { getActiveCLITraceHeaders } from "./observability";
 
 export interface StreamChatOptions {
   baseUrl: string;
@@ -437,6 +438,7 @@ export async function* streamChat(
     Accept: "text/event-stream",
     "X-Client-Type": "cloudeval-cli",
     "X-Client-Version": "0.1.0",
+    ...getActiveCLITraceHeaders(),
   });
 
   if (options.authToken) {

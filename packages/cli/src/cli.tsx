@@ -3,6 +3,11 @@ import "./runtime/prepareInk.js";
 import React from "react";
 import { Command } from "commander";
 import { isSensitiveSecretKey, redactSensitiveSecrets } from "@cloudeval/shared";
+import {
+  clearActiveCLITraceContext,
+  createCLITraceContext,
+  setActiveCLITraceContext,
+} from "@cloudeval/core";
 import type { WriteStream } from "node:fs";
 import { promises as fs } from "node:fs";
 import os from "node:os";
@@ -509,7 +514,13 @@ const initializeCommandTelemetry = async (
 ) => {
   activeTelemetryStartedAt = Date.now();
   activeTelemetryFinished = false;
-  activeTelemetryProperties = telemetryPropertiesForCommand(actionCommand, options);
+  const traceContext = createCLITraceContext();
+  setActiveCLITraceContext(traceContext);
+  activeTelemetryProperties = {
+    ...telemetryPropertiesForCommand(actionCommand, options),
+    traceId: traceContext.traceId,
+    requestId: traceContext.requestId,
+  };
   const config = await resolveCliConfig(actionCommand);
   activeTelemetry = await createCliTelemetry({
     config,
@@ -522,27 +533,33 @@ const finishCommandTelemetry = async (
   error?: unknown
 ): Promise<void> => {
   if (!activeTelemetry || activeTelemetryFinished) {
+    clearActiveCLITraceContext();
     return;
   }
   activeTelemetryFinished = true;
   const durationMs = Math.max(0, Date.now() - activeTelemetryStartedAt);
-  if (error) {
-    await activeTelemetry.track("cli.error", {
+  try {
+    if (error) {
+      await activeTelemetry.track("cli.error", {
+        ...activeTelemetryProperties,
+        durationMs,
+        exitCode,
+        success: false,
+        errorCategory: classifyTelemetryError(error),
+      });
+    }
+    await activeTelemetry.track("cli.command", {
       ...activeTelemetryProperties,
       durationMs,
       exitCode,
-      success: false,
-      errorCategory: classifyTelemetryError(error),
+      success: exitCode === 0,
+      ...(error ? { errorCategory: classifyTelemetryError(error) } : {}),
     });
+    await activeTelemetry.flush();
+  } finally {
+    clearActiveCLITraceContext();
+    activeTelemetry = undefined;
   }
-  await activeTelemetry.track("cli.command", {
-    ...activeTelemetryProperties,
-    durationMs,
-    exitCode,
-    success: exitCode === 0,
-    ...(error ? { errorCategory: classifyTelemetryError(error) } : {}),
-  });
-  await activeTelemetry.flush();
 };
 
 const exitCli = async (exitCode: number, error?: unknown): Promise<never> => {

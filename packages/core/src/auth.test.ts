@@ -69,6 +69,28 @@ test("assertSecureBaseUrl rejects insecure non-localhost URLs", async () => {
   );
 });
 
+test("getCLIHeaders injects active W3C trace context", async () => {
+  const tempHome = await mkdtemp(path.join(os.tmpdir(), "cloudeval-auth-"));
+  const {
+    clearActiveCLITraceContext,
+    createCLITraceContext,
+    getCLIHeaders,
+    setActiveCLITraceContext,
+  } = await importFreshAuthModule(tempHome);
+  const traceContext = createCLITraceContext();
+
+  setActiveCLITraceContext(traceContext);
+  try {
+    const headers = getCLIHeaders("token-1");
+    assert.equal(headers.traceparent, traceContext.traceparent);
+    assert.equal(headers["x-request-id"], traceContext.requestId);
+    assert.equal(headers["x-correlation-id"], traceContext.requestId);
+    assert.equal(headers.Authorization, "Bearer token-1");
+  } finally {
+    clearActiveCLITraceContext();
+  }
+});
+
 test("getAccessibleProjects fetches the identity-scoped project collection", async () => {
   const tempHome = await mkdtemp(path.join(os.tmpdir(), "cloudeval-auth-"));
   const { getAccessibleProjects } = await importFreshAuthModule(tempHome);

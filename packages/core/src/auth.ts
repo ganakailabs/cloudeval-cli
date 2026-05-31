@@ -3,6 +3,15 @@ import os from "node:os";
 import path from "node:path";
 import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { redactSensitiveText } from "@cloudeval/shared";
+import { getActiveCLITraceHeaders } from "./observability";
+
+export {
+  clearActiveCLITraceContext,
+  createCLITraceContext,
+  getActiveCLITraceContext,
+  getActiveCLITraceHeaders,
+  setActiveCLITraceContext,
+} from "./observability";
 
 const DEFAULT_BASE_URL = "https://cloudeval.ai/api/proxy/v1";
 const DEFAULT_FRONTEND_URL = "https://cloudeval.ai";
@@ -971,6 +980,7 @@ export const getCLIHeaders = (token?: string): Record<string, string> => {
     "X-Client-Type": "cloudeval-cli",
     "X-Client-Version": "0.1.0",
     "Content-Type": "application/json",
+    ...getActiveCLITraceHeaders(),
   };
   if (token) {
     headers.Authorization = `Bearer ${token}`;

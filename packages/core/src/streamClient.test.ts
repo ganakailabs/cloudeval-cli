@@ -5,6 +5,11 @@ import {
   isExpiredDeviceTokenStreamError,
   streamChat,
 } from "./streamClient";
+import {
+  clearActiveCLITraceContext,
+  createCLITraceContext,
+  setActiveCLITraceContext,
+} from "./observability";
 
 const responseFromText = (body: string) =>
   new Response(body, {
@@ -53,6 +58,40 @@ test("streamChat normalizes the API base URL", async () => {
     assert.equal(chunks[0]?.type, "metadata");
     assert.equal(chunks[1]?.type, "responding");
   } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test("streamChat sends the active CLI trace headers", async () => {
+  const originalFetch = global.fetch;
+  const traceContext = createCLITraceContext();
+  let requestHeaders: Record<string, string> = {};
+
+  setActiveCLITraceContext(traceContext);
+  global.fetch = async (_input, init) => {
+    requestHeaders = init?.headers as Record<string, string>;
+    return responseFromText(
+      '{"type":"metadata","thread_id":"thread-1"}\n' +
+        '{"type":"responding","node":"generate_response","content":"hi","status":"completed"}\n',
+    );
+  };
+
+  try {
+    for await (const _chunk of streamChat({
+      baseUrl: "http://127.0.0.1:8787",
+      authToken: "token",
+      message: "hello",
+      threadId: "thread-1",
+      user: { id: "user-1", name: "User" },
+    })) {
+      // drain stream
+    }
+
+    assert.equal(requestHeaders.traceparent, traceContext.traceparent);
+    assert.equal(requestHeaders["x-request-id"], traceContext.requestId);
+    assert.equal(requestHeaders["x-correlation-id"], traceContext.requestId);
+  } finally {
+    clearActiveCLITraceContext();
     global.fetch = originalFetch;
   }
 });

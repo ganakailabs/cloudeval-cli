@@ -1,9 +1,10 @@
 import os from "node:os";
+import { createHash } from "node:crypto";
 import type { CliConfig } from "./cliConfig.js";
 import { CLI_VERSION } from "./version.js";
 import { PACKAGED_APPLICATIONINSIGHTS_CONNECTION_STRING } from "./telemetryConnectionString.generated.js";
 
-export const TELEMETRY_SCHEMA_VERSION = "1";
+export const TELEMETRY_SCHEMA_VERSION = "2";
 
 export type TelemetryEventName =
   | "cli.command"
@@ -51,23 +52,20 @@ const PROPERTY_ALLOWLIST = new Set([
   "command",
   "completionShell",
   "completions",
-  "email",
   "errorCategory",
   "exitCode",
-  "firstName",
   "format",
-  "fullName",
   "installSource",
   "installerResult",
   "installerType",
   "interactive",
-  "lastName",
   "mcpSetup",
   "nodeVersion",
   "os",
   "osVersionMajor",
   "previousCliVersion",
   "requestedVersion",
+  "requestId",
   "resolvedVersion",
   "runtime",
   "subcommand",
@@ -77,8 +75,10 @@ const PROPERTY_ALLOWLIST = new Set([
   "toolName",
   "toolset",
   "targetCliVersion",
+  "traceId",
   "tuiInitialTab",
   "updateAction",
+  "user_hash",
 ]);
 
 const MEASUREMENT_ALLOWLIST = new Set(["durationMs"]);
@@ -183,22 +183,21 @@ export const buildTelemetryUserProperties = (
     return {};
   }
 
-  const email = trimString(user.email);
-  const fullName =
-    trimString(user.fullName) ||
-    trimString(user.full_name) ||
-    trimString(user.name);
-  const firstName = trimString(user.firstName);
-  const lastName = trimString(user.lastName);
-  const nameParts = fullName?.split(/\s+/).filter(Boolean) || [];
-
+  const internalId =
+    trimString(user.id) ||
+    trimString(user.userId) ||
+    trimString(user.user_id) ||
+    trimString(user.accountId) ||
+    trimString(user.account_id);
+  if (!internalId) {
+    return {};
+  }
   return {
-    ...(email ? { email } : {}),
-    ...(firstName || nameParts[0] ? { firstName: firstName || nameParts[0] } : {}),
-    ...(lastName || nameParts.length > 1
-      ? { lastName: lastName || nameParts[nameParts.length - 1] }
-      : {}),
-    ...(fullName ? { fullName } : {}),
+    user_hash: `h_${createHash("sha256")
+      .update("cloudeval-cli:user:")
+      .update(internalId)
+      .digest("hex")
+      .slice(0, 32)}`,
   };
 };
 
@@ -276,6 +275,18 @@ const createApplicationInsightsClient = async (
   return client;
 };
 
+const setTelemetryClientRole = (client: TelemetryClientLike): void => {
+  try {
+    const context = (client as any).context;
+    const cloudRoleKey = context?.keys?.cloudRole;
+    if (cloudRoleKey && context?.tags) {
+      context.tags[cloudRoleKey] = "cloudeval-cli";
+    }
+  } catch {
+    // Role tagging is best-effort across applicationinsights SDK versions.
+  }
+};
+
 export const disableDiskRetryCaching = (client: TelemetryClientLike): void => {
   try {
     client.setUseDiskRetryCaching?.(false);
@@ -346,6 +357,7 @@ export const createCliTelemetry = async (
     client = options.clientFactory
       ? options.clientFactory(connectionString)
       : await createApplicationInsightsClient(connectionString);
+    setTelemetryClientRole(client);
   } catch {
     return createNoopTelemetry();
   }

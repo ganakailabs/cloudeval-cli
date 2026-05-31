@@ -983,15 +983,18 @@ const buildMarkdownSummary = (data: Record<string, any>): string => {
     );
   }
   if (cost?.amount !== undefined || cost?.threshold !== undefined) {
+    const costLines = [`- Monthly estimate: ${formatMoney(cost?.amount, cost?.currency)}`];
+    if (data.gate?.cost?.estimatedSavings?.amount !== undefined) {
+      costLines.push(
+        `- Estimated savings: ${formatMoney(data.gate.cost.estimatedSavings.amount, data.gate.cost.estimatedSavings.currency)}`,
+      );
+    }
     lines.push(
       "",
       "<details>",
       "<summary>Cost details</summary>",
       "",
-      `- Monthly estimate: ${formatMoney(cost?.amount, cost?.currency)}`,
-      data.gate?.cost?.estimatedSavings?.amount !== undefined
-        ? `- Estimated savings: ${formatMoney(data.gate.cost.estimatedSavings.amount, data.gate.cost.estimatedSavings.currency)}`
-        : undefined,
+      ...costLines,
       "",
       "</details>",
     );

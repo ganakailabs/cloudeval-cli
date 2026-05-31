@@ -91,6 +91,35 @@ test("streamChat parses SSE data events", async () => {
   }
 });
 
+test("streamChat uses assistant messages as responding content when content is absent", async () => {
+  const originalFetch = global.fetch;
+
+  global.fetch = async () =>
+    responseFromText(
+      'data: {"type":"responding","node":"generate_response","messages":[{"role":"assistant","content":"Assistant message response."}],"status":"completed"}\n\n' +
+        "data: [DONE]\n\n",
+    );
+
+  try {
+    const chunks = [];
+    for await (const chunk of streamChat({
+      baseUrl: "http://127.0.0.1:8787/api/v1",
+      authToken: "token",
+      message: "hello",
+      threadId: "thread-message",
+      user: { id: "user-1", name: "User" },
+    })) {
+      chunks.push(chunk);
+    }
+
+    assert.equal(chunks.length, 1);
+    assert.equal(chunks[0]?.type, "responding");
+    assert.equal(chunks[0]?.content, "Assistant message response.");
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
 test("streamChat preserves citation metadata on responding chunks", async () => {
   const originalFetch = global.fetch;
 

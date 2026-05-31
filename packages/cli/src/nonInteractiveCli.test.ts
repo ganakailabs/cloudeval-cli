@@ -269,6 +269,7 @@ const startBackend = async (
     authUser?: typeof user;
     projects?: (typeof project)[];
     expireFirstStreamToken?: boolean;
+    streamAssistantMessageOnly?: boolean;
     fullReportShape?: boolean;
     wafFullReportFailures?: number;
     emptyCostFullReport?: boolean;
@@ -1243,6 +1244,10 @@ const startBackend = async (
         );
         res.write(
           `data: ${JSON.stringify({ type: "responding", node: "generate_response", content: "Mock duplicate answer." })}\n\n`,
+        );
+      } else if (options.streamAssistantMessageOnly) {
+        res.write(
+          `data: ${JSON.stringify({ type: "responding", node: "generate_response", messages: [{ role: "assistant", content: "AI summary from assistant message." }] })}\n\n`,
         );
       } else {
         res.write(
@@ -3607,10 +3612,12 @@ test("review command includes well architected, cost, and validation gate drilld
       path.join(outputDir, "review.md"),
       "utf8",
     );
-    assert.match(markdownArtifact, /Well-Architected drilldown/);
+    assert.match(markdownArtifact, /Well-Architected details/);
     assert.match(markdownArtifact, /Security: 91/);
-    assert.match(markdownArtifact, /Validation: Policy checks 0 failed, unit tests 0 failed/);
-    assert.match(markdownArtifact, /Cost: 42 USD/);
+    assert.match(markdownArtifact, /Policy checks 0 failed, unit tests 0 failed/);
+    assert.match(markdownArtifact, /cost 42 USD/);
+    assert.match(markdownArtifact, /\*\*PASS\*\* for \[GitHub IaC Project\]\(http:\/\/localhost:3000\/app\/projects\/project-github\?view=preview&layout=architecture\)/);
+    assert.doesNotMatch(markdownArtifact, /\bmin 85\b|\bmax 100\b/);
   } finally {
     await fs.rm(cwd, { recursive: true, force: true });
     await backend.close();
@@ -3683,7 +3690,7 @@ test("review command uses public labels and falls back to preload cost metrics",
     );
     assert.doesNotMatch(markdownArtifact, /PSRule/);
     assert.match(markdownArtifact, /Policy checks 0 failed, unit tests 0 failed/);
-    assert.match(markdownArtifact, /Cost: 42 USD/);
+    assert.match(markdownArtifact, /cost 42 USD/);
   } finally {
     await fs.rm(cwd, { recursive: true, force: true });
     await backend.close();
@@ -3825,7 +3832,7 @@ test("review command renders zero monthly cost with currency", async () => {
       path.join(outputDir, "review.md"),
       "utf8",
     );
-    assert.match(markdownArtifact, /Cost: 0 USD/);
+    assert.match(markdownArtifact, /cost 0 USD/);
   } finally {
     await fs.rm(cwd, { recursive: true, force: true });
     await backend.close();
@@ -3952,6 +3959,54 @@ test("review command writes AI summary into json and markdown artifacts", async 
     );
     assert.match(markdownArtifact, /## AI summary/);
     assert.match(markdownArtifact, /Mock answer from Cloudeval AI/);
+  } finally {
+    await fs.rm(outputDir, { recursive: true, force: true });
+    await backend.close();
+  }
+});
+
+test("review command captures AI summary from assistant message chunks", async () => {
+  const backend = await startBackend({
+    projects: [githubProject],
+    streamAssistantMessageOnly: true,
+  });
+  const outputDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "cloudeval-review-message-summary-"),
+  );
+  try {
+    const result = parseJson(
+      await runCli([
+        "review",
+        "--base-url",
+        backend.baseUrl,
+        "--access-key",
+        "test-token",
+        "--project",
+        "project-github",
+        "--repo",
+        "ganakailabs/cloudeval-github-sync-e2e",
+        "--ref",
+        "main",
+        "--commit-sha",
+        "sha-review-ai-message",
+        "--ignore-dirty",
+        "--poll-interval",
+        "10",
+        "--format",
+        "json",
+        "--output",
+        outputDir,
+        "--non-interactive",
+      ]),
+    );
+    assert.equal(result.data.aiSummary.enabled, true);
+    assert.match(result.data.aiSummary.markdown, /AI summary from assistant message/);
+
+    const markdownArtifact = await fs.readFile(
+      path.join(outputDir, "review.md"),
+      "utf8",
+    );
+    assert.match(markdownArtifact, /AI summary from assistant message/);
   } finally {
     await fs.rm(outputDir, { recursive: true, force: true });
     await backend.close();

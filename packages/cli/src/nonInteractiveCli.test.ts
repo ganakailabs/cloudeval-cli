@@ -271,6 +271,8 @@ const startBackend = async (
     expireFirstStreamToken?: boolean;
     streamAssistantMessageOnly?: boolean;
     aiSummaryRateLimitResponses?: number;
+    aiSummaryGenericFailureResponses?: number;
+    aiSummaryNeverCompletes?: boolean;
     fullReportShape?: boolean;
     wafFullReportFailures?: number;
     emptyCostFullReport?: boolean;
@@ -292,6 +294,7 @@ const startBackend = async (
   const authUser = options.authUser ?? user;
   let expiredStreamResponses = 0;
   let aiSummaryRateLimitResponses = 0;
+  let aiSummaryGenericFailureResponses = 0;
   let wafFullReportRequests = 0;
 
   const server = http.createServer(async (req, res) => {
@@ -1235,6 +1238,24 @@ const startBackend = async (
         res.write(
           `data: ${JSON.stringify({ type: "responding", node: "generate_response", content: "I'm receiving too many requests right now. Please try again in a moment.", status: "completed" })}\n\n`,
         );
+      } else if (
+        message.includes("Write a concise CloudEval pull request review summary") &&
+        aiSummaryGenericFailureResponses < (options.aiSummaryGenericFailureResponses ?? 0)
+      ) {
+        aiSummaryGenericFailureResponses += 1;
+        res.write(
+          `data: ${JSON.stringify({ type: "responding", node: "generate_response", content: "I'm sorry, something went wrong while processing your request. Please try again or ask a different question about your Azure infrastructure.", status: "completed" })}\n\n`,
+        );
+      } else if (
+        message.includes("Write a concise CloudEval pull request review summary") &&
+        options.aiSummaryNeverCompletes
+      ) {
+        setTimeout(() => {
+          if (!res.writableEnded) {
+            res.end();
+          }
+        }, 100);
+        return undefined;
       } else if (message.includes("empty agent result")) {
         res.write(
           `data: ${JSON.stringify({ type: "thinking", node: "load_reports", status: "streaming", description: "Loading cost reports" })}\n\n`,
@@ -4215,6 +4236,63 @@ test("review command retries transient AI summary rate limits", async () => {
   }
 });
 
+test("review command retries generic AI summary backend fallback text", async () => {
+  const backend = await startBackend({
+    projects: [githubProject],
+    aiSummaryGenericFailureResponses: 1,
+  });
+  const outputDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "cloudeval-review-retry-generic-summary-"),
+  );
+  try {
+    const result = parseJson(
+      await runCli(
+        [
+          "review",
+          "--base-url",
+          backend.baseUrl,
+          "--access-key",
+          "test-token",
+          "--project",
+          "project-github",
+          "--repo",
+          "ganakailabs/cloudeval-github-sync-e2e",
+          "--ref",
+          "main",
+          "--commit-sha",
+          "sha-review-ai-generic-retry",
+          "--ignore-dirty",
+          "--poll-interval",
+          "10",
+          "--format",
+          "json",
+          "--output",
+          outputDir,
+          "--non-interactive",
+        ],
+        {
+          env: { CLOUDEVAL_REVIEW_AI_RETRY_DELAYS_MS: "1" },
+        },
+      ),
+    );
+
+    assert.equal(result.data.aiSummary.enabled, true);
+    assert.equal(result.data.aiSummary.status, "ok");
+    assert.equal(result.data.aiSummary.attempts, 2);
+    assert.match(result.data.aiSummary.markdown, /Mock answer from Cloudeval AI/);
+
+    const markdownArtifact = await fs.readFile(
+      path.join(outputDir, "review.md"),
+      "utf8",
+    );
+    assert.match(markdownArtifact, /Mock answer from Cloudeval AI/);
+    assert.doesNotMatch(markdownArtifact, /something went wrong/i);
+  } finally {
+    await fs.rm(outputDir, { recursive: true, force: true });
+    await backend.close();
+  }
+});
+
 test("review command marks AI summary unavailable after retry exhaustion", async () => {
   const backend = await startBackend({
     projects: [githubProject],
@@ -4266,6 +4344,64 @@ test("review command marks AI summary unavailable after retry exhaustion", async
     );
     assert.match(markdownArtifact, /AI summary unavailable/i);
     assert.doesNotMatch(markdownArtifact, /receiving too many requests/i);
+  } finally {
+    await fs.rm(outputDir, { recursive: true, force: true });
+    await backend.close();
+  }
+});
+
+test("review command times out never-completing AI summary streams", async () => {
+  const backend = await startBackend({
+    projects: [githubProject],
+    aiSummaryNeverCompletes: true,
+  });
+  const outputDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "cloudeval-review-timeout-summary-"),
+  );
+  try {
+    const result = parseJson(
+      await runCli(
+        [
+          "review",
+          "--base-url",
+          backend.baseUrl,
+          "--access-key",
+          "test-token",
+          "--project",
+          "project-github",
+          "--repo",
+          "ganakailabs/cloudeval-github-sync-e2e",
+          "--ref",
+          "main",
+          "--commit-sha",
+          "sha-review-ai-timeout",
+          "--ignore-dirty",
+          "--poll-interval",
+          "10",
+          "--format",
+          "json",
+          "--output",
+          outputDir,
+          "--non-interactive",
+        ],
+        {
+          env: {
+            CLOUDEVAL_REVIEW_AI_ATTEMPT_TIMEOUT_MS: "25",
+            CLOUDEVAL_REVIEW_AI_RETRY_DELAYS_MS: "none",
+          },
+        },
+      ),
+    );
+
+    assert.equal(result.data.aiSummary.enabled, true);
+    assert.equal(result.data.aiSummary.status, "unavailable");
+    assert.match(result.data.aiSummary.error, /did not complete within 25ms/i);
+
+    const markdownArtifact = await fs.readFile(
+      path.join(outputDir, "review.md"),
+      "utf8",
+    );
+    assert.match(markdownArtifact, /AI summary unavailable/i);
   } finally {
     await fs.rm(outputDir, { recursive: true, force: true });
     await backend.close();

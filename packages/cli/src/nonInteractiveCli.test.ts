@@ -274,6 +274,7 @@ const startBackend = async (
     aiSummaryRateLimitFallbackResponses?: number;
     aiSummaryGenericFailureResponses?: number;
     aiSummaryNeverCompletes?: boolean;
+    aiSummaryGraphInsightResponse?: boolean;
     fullReportShape?: boolean;
     wafFullReportFailures?: number;
     emptyCostFullReport?: boolean;
@@ -1266,6 +1267,13 @@ const startBackend = async (
           }
         }, 100);
         return undefined;
+      } else if (
+        message.includes("Write a concise CloudEval pull request review summary") &&
+        options.aiSummaryGraphInsightResponse
+      ) {
+        res.write(
+          `data: ${JSON.stringify({ type: "responding", node: "generate_response", content: "Address high-risk findings first. [S_tool_architecture_dashboard_0]\\n\\n<!-- graph-insight:compact -->\\n\\n## **Top priorities**\\n- Harden public access and rerun unit tests. [S_tool_architecture_dashboard_0]", status: "completed" })}\n\n`,
+        );
       } else if (message.includes("empty agent result")) {
         res.write(
           `data: ${JSON.stringify({ type: "thinking", node: "load_reports", status: "streaming", description: "Loading cost reports" })}\n\n`,
@@ -3691,10 +3699,11 @@ test("review command includes well architected, cost, and validation gate drilld
       "utf8",
     );
     assert.match(markdownArtifact, /Well-Architected drilldown/);
-    assert.match(markdownArtifact, /\| Security \| \*\*91\/100\*\* \| 🟢 PASS \|/);
-    assert.match(markdownArtifact, /Validation \*\*clean\*\*/);
-    assert.match(markdownArtifact, /Cost \*\*42 USD\/mo\*\*/);
+    assert.match(markdownArtifact, /\| Security \| \*\*91\/100\*\* \| 🟢 EXCELLENT \|/);
+    assert.match(markdownArtifact, /🟢 Policy checks: GOOD/);
+    assert.match(markdownArtifact, /🟢 Cost: 42 USD\/mo/);
     assert.match(markdownArtifact, /🟢 \*\*PASS\*\* \[GitHub IaC Project\]\(http:\/\/localhost:3000\/app\/projects\/project-github\?view=preview&layout=architecture\)/);
+    assert.match(markdownArtifact, /🟢 Well-Architected Score: 91\/100 \(EXCELLENT\)/);
     assert.doesNotMatch(markdownArtifact, /\bmin 85\b|\bmax 100\b/);
   } finally {
     await fs.rm(cwd, { recursive: true, force: true });
@@ -3772,20 +3781,23 @@ test("review command writes visual markdown drilldowns for PR comments", async (
       path.join(outputDir, "review.md"),
       "utf8",
     );
-    assert.match(markdownArtifact, /^🟡 \*\*WARN\*\* \[GitHub IaC Project\]/);
-    assert.match(markdownArtifact, /Well-Architected \*\*91\/100\*\*/);
-    assert.match(markdownArtifact, /Cost \*\*42 USD\/mo\*\*/);
-    assert.match(markdownArtifact, /Validation 🔴 \*\*3 unit tests failed\*\*, 🟢 policy checks clean/);
+    assert.match(markdownArtifact, /^🟡 \*\*WARN\*\* \[GitHub IaC Project\]\(http:\/\/localhost:3000\/app\/projects\/project-github\?view=preview&layout=architecture\)/);
+    assert.match(markdownArtifact, /🟢 Well-Architected Score: 91\/100 \(EXCELLENT\)/);
+    assert.match(markdownArtifact, /🔴 Validation: 3 unit tests failed/);
+    assert.match(markdownArtifact, /🟢 Policy checks: GOOD/);
+    assert.match(markdownArtifact, /🟢 Cost: 42 USD\/mo/);
     assert.doesNotMatch(markdownArtifact, /- Overall score:/);
     assert.doesNotMatch(markdownArtifact, /- Monthly estimate:/);
     assert.doesNotMatch(markdownArtifact, /Summary: 3 unit tests failed/);
-    assert.match(markdownArtifact, /\| Security \| \*\*91\/100\*\* \| 🟢 PASS \|/);
+    assert.match(markdownArtifact, /\| Security \| \*\*91\/100\*\* \| 🟢 EXCELLENT \|/);
     assert.match(markdownArtifact, /```mermaid\npie title Monthly cost by service\n  "Compute" : 30\n  "Networking" : 12\n```/);
     assert.match(markdownArtifact, /Unit tests: \*\*2 passed\*\*, \*\*3 failed\*\*, 5 total/);
     assert.match(markdownArtifact, /Architecture insights/);
     assert.match(markdownArtifact, /Resources: \*\*8\*\*/);
     assert.match(markdownArtifact, /Relationships: \*\*11\*\*/);
     assert.match(markdownArtifact, /Resource types: \*\*7\*\*/);
+    assert.match(markdownArtifact, /Graph connectivity: \*\*1.38 relationships per resource\*\*/);
+    assert.match(markdownArtifact, /Resource diversity: \*\*7 types across 8 resources\*\*/);
     assert.doesNotMatch(markdownArtifact, /PSRule/);
     assert(
       backend.requests.some(
@@ -3863,8 +3875,8 @@ test("review command uses public labels and falls back to preload cost metrics",
       "utf8",
     );
     assert.doesNotMatch(markdownArtifact, /PSRule/);
-    assert.match(markdownArtifact, /Validation \*\*clean\*\*/);
-    assert.match(markdownArtifact, /Cost \*\*42 USD\/mo\*\*/);
+    assert.match(markdownArtifact, /🟢 Validation: GOOD/);
+    assert.match(markdownArtifact, /🟢 Cost: 42 USD\/mo/);
   } finally {
     await fs.rm(cwd, { recursive: true, force: true });
     await backend.close();
@@ -3939,7 +3951,7 @@ test("review command does not expose internal validation provider details", asyn
     assert.doesNotMatch(jsonArtifact, /psRule|PSRule/);
     assert.doesNotMatch(jsonArtifact, /internal-user-id|result_ref|events_channel/);
     assert.doesNotMatch(markdownArtifact, /psRule|PSRule/);
-    assert.match(markdownArtifact, /Validation \*\*clean\*\*/);
+    assert.match(markdownArtifact, /🟢 Validation: GOOD/);
   } finally {
     await fs.rm(cwd, { recursive: true, force: true });
     await backend.close();
@@ -4006,7 +4018,9 @@ test("review command renders zero monthly cost with currency", async () => {
       path.join(outputDir, "review.md"),
       "utf8",
     );
-    assert.match(markdownArtifact, /Cost \*\*0 USD\/mo\*\*/);
+    assert.match(markdownArtifact, /🟢 Cost: 0 USD\/mo/);
+    assert.doesNotMatch(markdownArtifact, /Compute \| \*\*30 USD\/mo\*\*/);
+    assert.match(markdownArtifact, /Reported total \| \*\*0 USD\/mo\*\*/);
   } finally {
     await fs.rm(cwd, { recursive: true, force: true });
     await backend.close();
@@ -4376,6 +4390,57 @@ test("review command preserves useful AI fallback summaries that mention rate li
     );
     assert.match(markdownArtifact, /The PR passes gate/);
     assert.doesNotMatch(markdownArtifact, /AI summary unavailable/i);
+  } finally {
+    await fs.rm(outputDir, { recursive: true, force: true });
+    await backend.close();
+  }
+});
+
+test("review command strips internal AI summary markers from PR markdown", async () => {
+  const backend = await startBackend({
+    projects: [githubProject],
+    aiSummaryGraphInsightResponse: true,
+  });
+  const outputDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "cloudeval-review-ai-summary-sanitize-"),
+  );
+  try {
+    const result = parseJson(
+      await runCli([
+        "review",
+        "--base-url",
+        backend.baseUrl,
+        "--access-key",
+        "test-token",
+        "--project",
+        "project-github",
+        "--repo",
+        "ganakailabs/cloudeval-github-sync-e2e",
+        "--ref",
+        "main",
+        "--commit-sha",
+        "sha-review-ai-sanitize",
+        "--ignore-dirty",
+        "--poll-interval",
+        "10",
+        "--format",
+        "json",
+        "--output",
+        outputDir,
+        "--non-interactive",
+      ]),
+    );
+
+    assert.equal(result.data.aiSummary.status, "ok");
+    assert.doesNotMatch(result.data.aiSummary.markdown, /S_tool_|graph-insight/);
+    assert.match(result.data.aiSummary.markdown, /\*\*Top priorities\*\*/);
+
+    const markdownArtifact = await fs.readFile(
+      path.join(outputDir, "review.md"),
+      "utf8",
+    );
+    assert.doesNotMatch(markdownArtifact, /S_tool_|graph-insight/);
+    assert.match(markdownArtifact, /\*\*Top priorities\*\*/);
   } finally {
     await fs.rm(outputDir, { recursive: true, force: true });
     await backend.close();

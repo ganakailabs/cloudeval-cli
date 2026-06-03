@@ -357,6 +357,40 @@ const formatScore = (value: unknown, fallback = "unknown"): string => {
   return numericValue === undefined ? fallback : `${trimNumber(numericValue)}/100`;
 };
 
+type ScoreRating = "EXCELLENT" | "GOOD" | "FAIR" | "POOR";
+
+const scoreRating = (value: unknown): ScoreRating | undefined => {
+  const numericValue = numberFrom(value);
+  if (numericValue === undefined) {
+    return undefined;
+  }
+  if (numericValue >= 90) {
+    return "EXCELLENT";
+  }
+  if (numericValue >= 75) {
+    return "GOOD";
+  }
+  if (numericValue >= 50) {
+    return "FAIR";
+  }
+  return "POOR";
+};
+
+const scoreRatingIcon = (rating?: ScoreRating): string => {
+  switch (rating) {
+    case "EXCELLENT":
+      return "🟢";
+    case "GOOD":
+      return "🔵";
+    case "FAIR":
+      return "🟡";
+    case "POOR":
+      return "🔴";
+    default:
+      return "⚪";
+  }
+};
+
 const formatMonthlyMoney = (
   amount?: number,
   currency?: string,
@@ -401,28 +435,24 @@ const formatValidation = (validation?: Record<string, any>): string => {
   return parts.length ? parts.join(", ") : "Validation not available";
 };
 
-const compactValidation = (validation?: Record<string, any>): string => {
-  const policyFailed = numberFrom(validation?.policyChecks?.failed);
+const validationSummaryLine = (validation?: Record<string, any>): string => {
   const unitFailed = numberFrom(validation?.unitTests?.failed);
-  if (policyFailed === 0 && unitFailed === 0) {
-    return "Validation **clean**";
+  if (unitFailed === undefined) {
+    return "⚪ Validation: not available";
   }
-  const parts: string[] = [];
-  if (unitFailed !== undefined) {
-    parts.push(
-      unitFailed === 0
-        ? "🟢 unit tests clean"
-        : `🔴 **${unitFailed} unit tests failed**`,
-    );
+  return unitFailed > 0
+    ? `🔴 Validation: ${unitFailed} unit tests failed`
+    : "🟢 Validation: GOOD";
+};
+
+const policySummaryLine = (validation?: Record<string, any>): string => {
+  const policyFailed = numberFrom(validation?.policyChecks?.failed);
+  if (policyFailed === undefined) {
+    return "⚪ Policy checks: not available";
   }
-  if (policyFailed !== undefined) {
-    parts.push(
-      policyFailed === 0
-        ? "🟢 policy checks clean"
-        : `🔴 **${policyFailed} policy checks failed**`,
-    );
-  }
-  return parts.length ? `Validation ${parts.join(", ")}` : "Validation **not available**";
+  return policyFailed > 0
+    ? `🔴 Policy checks: ${policyFailed} failed`
+    : "🟢 Policy checks: GOOD";
 };
 
 const validationDetailLines = (validation?: Record<string, any>): string[] => {
@@ -494,6 +524,39 @@ const costServiceRows = (
       };
     })
     .filter((service): service is { name: string; amount: number; currency?: string } => service !== undefined);
+
+const reconcileCostServiceRows = (
+  services: Array<{ name: string; amount: number; currency?: string }>,
+  totalAmount?: number,
+  currency?: string,
+): Array<{ name: string; amount: number; currency?: string }> => {
+  const total = numberFrom(totalAmount);
+  if (total === undefined || services.length === 0) {
+    return services;
+  }
+  const serviceSum = services.reduce((sum, service) => sum + service.amount, 0);
+  if (serviceSum > total + 0.001) {
+    return [
+      {
+        name: "Reported total",
+        amount: total,
+        ...(currency ? { currency } : {}),
+      },
+    ];
+  }
+  const delta = Number((total - serviceSum).toFixed(3));
+  if (delta > 0.001) {
+    return [
+      ...services,
+      {
+        name: "Other",
+        amount: delta,
+        ...(currency ? { currency } : {}),
+      },
+    ];
+  }
+  return services;
+};
 
 const markdownLink = (label: string, url?: string): string =>
   url ? `[${label}](${url})` : label;
@@ -645,6 +708,10 @@ const extractArchitectureInsights = ({
     resources,
     relationships,
     resourceTypes,
+    relationshipDensity:
+      resources !== undefined && resources > 0 && relationships !== undefined
+        ? relationships / resources
+        : undefined,
   };
 };
 
@@ -1050,6 +1117,7 @@ const waitForReviewReports = async ({
 const buildAiSummaryPrompt = (data: Record<string, any>): string => [
   "Write a concise CloudEval pull request review summary in Markdown.",
   "Focus on gate status, Well-Architected posture, cost posture, and security/operational risks.",
+  "Use bold Markdown labels for important sections, for example **Key risks:**, **Cost posture:**, and **Recommendation:**.",
   "Keep it under 160 words. Do not invent facts not present below.",
   "",
   `Project: ${data.projectId}`,
@@ -1080,14 +1148,32 @@ const normalizeAiSummaryMarkdown = (text?: string): string => {
   if (!trimmed) {
     return "";
   }
-  const withNewlines = trimmed.replace(/\\n/g, "\n");
+  const withNewlines = sanitizeAiSummaryMarkdown(trimmed.replace(/\\n/g, "\n"));
   const requestMatch = /\bRequest:\s*/i.exec(withNewlines);
   if (!requestMatch) {
-    return withNewlines;
+    return emphasizeAiSummaryMarkdown(withNewlines);
   }
   const afterRequest = withNewlines.slice(requestMatch.index + requestMatch[0].length).trim();
   const [summary] = afterRequest.split(/\n\s*\nThe request reached\b/i);
-  return summary.trim() || withNewlines;
+  return emphasizeAiSummaryMarkdown(summary.trim() || withNewlines);
+};
+
+const sanitizeAiSummaryMarkdown = (text: string): string =>
+  text
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/\s*\[S_[A-Za-z0-9_:-]+\]/g, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
+const emphasizeAiSummaryMarkdown = (text: string): string => {
+  if (!text.trim() || text.includes("**")) {
+    return text;
+  }
+  return text
+    .replace(/\bKey risks include\b/i, "**Key risks include**")
+    .replace(/\bCost posture is\b/i, "**Cost posture:**")
+    .replace(/\bRecommend(?:ation)?:?\s*/i, "**Recommendation:** ")
+    .replace(/\bThe high-risk finding count\b/i, "**Risk posture:** The high-risk finding count");
 };
 
 const aiSummaryAttemptTimeoutMs = (): number => {
@@ -1325,8 +1411,8 @@ const buildMarkdownSummary = (data: Record<string, any>): string => {
   const commit = String(data.commitSha ?? "unknown").slice(0, 12);
   const pillarLines = Array.isArray(data.gate?.wellArchitected?.pillars)
     ? data.gate.wellArchitected.pillars.map((pillar: Record<string, any>) => {
-        const status = String(pillar.status ?? "unknown").toUpperCase();
-        return `| ${pillar.label} | **${formatScore(pillar.score)}** | ${statusIcon(pillar.status)} ${status} |`;
+        const rating = scoreRating(pillar.score);
+        return `| ${pillar.label} | **${formatScore(pillar.score)}** | ${scoreRatingIcon(rating)} ${rating ?? "UNKNOWN"} |`;
       })
     : [];
   const riskLines = [
@@ -1336,7 +1422,11 @@ const buildMarkdownSummary = (data: Record<string, any>): string => {
   ]
     .filter(([, value]) => numberFrom(value) !== undefined)
     .map(([label, value]) => `- ${label}: **${displayNumber(value)}**`);
-  const costServices = costServiceRows(data.gate?.cost?.topServices, cost?.currency);
+  const costServices = reconcileCostServiceRows(
+    costServiceRows(data.gate?.cost?.topServices, cost?.currency),
+    cost?.amount,
+    cost?.currency,
+  );
   const positiveCostServices = costServices.filter((service) => service.amount > 0);
   const architectureLines = [
     ["Resources", architecture?.resources],
@@ -1345,8 +1435,26 @@ const buildMarkdownSummary = (data: Record<string, any>): string => {
   ]
     .filter(([, value]) => numberFrom(value) !== undefined)
     .map(([label, value]) => `- ${label}: **${displayNumber(value)}**`);
+  const density = numberFrom(architecture?.relationshipDensity);
+  if (density !== undefined) {
+    architectureLines.push(
+      `- Graph connectivity: **${trimNumber(density, 2)} relationships per resource**`,
+    );
+  }
+  const resourceCount = numberFrom(architecture?.resources);
+  const resourceTypeCount = numberFrom(architecture?.resourceTypes);
+  if (resourceCount !== undefined && resourceTypeCount !== undefined) {
+    architectureLines.push(
+      `- Resource diversity: **${displayNumber(resourceTypeCount)} types across ${displayNumber(resourceCount)} resources**`,
+    );
+  }
+  const overallRating = scoreRating(score);
   const lines = [
-    `${statusIcon(data.gate?.status)} **${gateStatus}** ${projectDisplay} · Well-Architected **${formatScore(score)}** · Cost **${formatMonthlyMoney(cost?.amount, cost?.currency)}** · ${compactValidation(validation)}`,
+    `${statusIcon(data.gate?.status)} **${gateStatus}** ${projectDisplay}`,
+    `${scoreRatingIcon(overallRating)} Well-Architected Score: ${formatScore(score)} (${overallRating ?? "UNKNOWN"})`,
+    validationSummaryLine(validation),
+    policySummaryLine(validation),
+    `${statusIcon(cost?.status)} Cost: ${formatMonthlyMoney(cost?.amount, cost?.currency)}`,
     "",
     `Source: \`${source}\` · commit \`${commit}\``,
   ];
@@ -1364,7 +1472,7 @@ const buildMarkdownSummary = (data: Record<string, any>): string => {
       "",
       ...riskLines,
       "",
-      "| Pillar | Score | Status |",
+      "| Pillar | Score | Rating |",
       "| --- | ---: | --- |",
       ...pillarLines,
       "",

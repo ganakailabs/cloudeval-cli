@@ -275,6 +275,7 @@ const startBackend = async (
     aiSummaryGenericFailureResponses?: number;
     aiSummaryNeverCompletes?: boolean;
     aiSummaryGraphInsightResponse?: boolean;
+    aiSummaryRecommendedNextStepResponse?: boolean;
     fullReportShape?: boolean;
     wafScore?: number;
     wafFullReportFailures?: number;
@@ -1272,6 +1273,13 @@ const startBackend = async (
           }
         }, 100);
         return undefined;
+      } else if (
+        message.includes("Write a concise CloudEval pull request review summary") &&
+        options.aiSummaryRecommendedNextStepResponse
+      ) {
+        res.write(
+          `data: ${JSON.stringify({ type: "responding", node: "generate_response", content: "Short Summary: The gate passes, but the architecture posture is critical and validation has failing tests.\\n\\nDetails:\\n**Key risks:** Public access and weak network controls need attention.\\n**Recommended next step:** Fix the critical findings, rerun validation, and keep the pull request blocked until the gate is clean.", status: "completed" })}\n\n`,
+        );
       } else if (
         message.includes("Write a concise CloudEval pull request review summary") &&
         options.aiSummaryGraphInsightResponse
@@ -2889,6 +2897,8 @@ test("projects create uploads a nested ARM workspace directory", async () => {
     assert.match(connectionRequest.body, /name="workspace_file_paths"/);
     assert.match(connectionRequest.body, /nested\/network\.json/);
     assert.match(connectionRequest.body, /\.cloudeval\/config\.yaml/);
+    assert.match(connectionRequest.body, /Visualization source for diagrams and reports/);
+    assert.match(connectionRequest.body, /Optional CI gates for `cloudeval review` and GitHub Actions/);
 
     const pipelineRequest = backend.requests.find(
       (request) =>
@@ -3706,9 +3716,10 @@ test("review command includes well architected, cost, and validation gate drilld
     assert.match(markdownArtifact, /Well-Architected drilldown/);
     assert.match(markdownArtifact, /\| Security \| \*\*91\/100\*\* \| 🟢 EXCELLENT \|/);
     assert.match(markdownArtifact, /🟢 Policy checks: GOOD/);
-    assert.match(markdownArtifact, /🟢 Cost: 42 USD\/mo/);
-    assert.match(markdownArtifact, /🟢 \*\*PASS\*\* \[GitHub IaC Project\]\(http:\/\/localhost:3000\/app\/projects\/project-github\?view=preview&layout=architecture\)/);
-    assert.match(markdownArtifact, /🟢 Well-Architected Score: 91\/100 \(EXCELLENT\)/);
+    assert.match(markdownArtifact, /🟢 Cost: 42 USD\/mo \(under 100 USD\/mo budget\)/);
+    assert.match(markdownArtifact, /^🟢 \*\*Overall\*\* : PASS/m);
+    assert.match(markdownArtifact, /\*\*Cloudeval Project\*\*: \[GitHub IaC Project\]\(http:\/\/localhost:3000\/app\/projects\/project-github\?view=preview&layout=architecture\)/);
+    assert.match(markdownArtifact, /🟢 Well-Architected Posture: 91\/100 \(EXCELLENT\)/);
     assert.doesNotMatch(markdownArtifact, /\bmin 85\b|\bmax 100\b/);
   } finally {
     await fs.rm(cwd, { recursive: true, force: true });
@@ -3786,11 +3797,12 @@ test("review command writes visual markdown drilldowns for PR comments", async (
       path.join(outputDir, "review.md"),
       "utf8",
     );
-    assert.match(markdownArtifact, /^🟡 \*\*WARN\*\* \[GitHub IaC Project\]\(http:\/\/localhost:3000\/app\/projects\/project-github\?view=preview&layout=architecture\)/);
-    assert.match(markdownArtifact, /🟢 Well-Architected Score: 91\/100 \(EXCELLENT\)/);
+    assert.match(markdownArtifact, /^🟡 \*\*Overall\*\* : WARN/m);
+    assert.match(markdownArtifact, /🟢 Well-Architected Posture: 91\/100 \(EXCELLENT\)/);
     assert.match(markdownArtifact, /🔴 Validation: 3 unit tests failed/);
     assert.match(markdownArtifact, /🟢 Policy checks: GOOD/);
-    assert.match(markdownArtifact, /🟢 Cost: 42 USD\/mo/);
+    assert.match(markdownArtifact, /🟢 Cost: 42 USD\/mo \(under 100 USD\/mo budget\)/);
+    assert.match(markdownArtifact, /\*\*Cloudeval Project\*\*: \[GitHub IaC Project\]\(http:\/\/localhost:3000\/app\/projects\/project-github\?view=preview&layout=architecture\)/);
     assert.doesNotMatch(markdownArtifact, /- Overall score:/);
     assert.doesNotMatch(markdownArtifact, /- Monthly estimate:/);
     assert.doesNotMatch(markdownArtifact, /Summary: 3 unit tests failed/);
@@ -3834,7 +3846,7 @@ test("review command uses public labels and falls back to preload cost metrics",
         "    overall_score_min: 1",
         "    pillar_score_min: 1",
         "    fail_on_validation_errors: true",
-        "    max_monthly_cost: 100",
+        "    max_monthly_cost: 100000",
         "",
       ].join("\n"),
       "utf8",
@@ -3881,11 +3893,13 @@ test("review command uses public labels and falls back to preload cost metrics",
       "utf8",
     );
     assert.doesNotMatch(markdownArtifact, /PSRule/);
-    assert.match(markdownArtifact, /🔴 Well-Architected Score: 23.1\/100 \(CRITICAL\)/);
+    assert.match(markdownArtifact, /^🟢 \*\*Overall\*\* : PASS/m);
+    assert.match(markdownArtifact, /🔴 Well-Architected Posture: 23.1\/100 \(CRITICAL\)/);
     assert.match(markdownArtifact, /\| Security \| \*\*23.1\/100\*\* \| 🔴 CRITICAL \|/);
     assert.match(markdownArtifact, /🟢 Validation: GOOD/);
     assert.match(markdownArtifact, /🟢 Policy checks: GOOD/);
-    assert.match(markdownArtifact, /🟢 Cost: 42 USD\/mo/);
+    assert.match(markdownArtifact, /🟢 Cost: 42 USD\/mo \(under 100K budget\)/);
+    assert.match(markdownArtifact, /\*\*Cloudeval Project\*\*: \[GitHub IaC Project\]\(http:\/\/localhost:3000\/app\/projects\/project-github\?view=preview&layout=architecture\)/);
   } finally {
     await fs.rm(cwd, { recursive: true, force: true });
     await backend.close();
@@ -4027,7 +4041,7 @@ test("review command renders zero monthly cost with currency", async () => {
       path.join(outputDir, "review.md"),
       "utf8",
     );
-    assert.match(markdownArtifact, /🟢 Cost: 0 USD\/mo/);
+    assert.match(markdownArtifact, /🟢 Cost: 0 USD\/mo \(under 100 USD\/mo budget\)/);
     assert.doesNotMatch(markdownArtifact, /Compute \| \*\*30 USD\/mo\*\*/);
     assert.match(markdownArtifact, /Reported total \| \*\*0 USD\/mo\*\*/);
   } finally {
@@ -4154,7 +4168,8 @@ test("review command writes AI summary into json and markdown artifacts", async 
       path.join(outputDir, "review.md"),
       "utf8",
     );
-    assert.match(markdownArtifact, /## AI summary/);
+    assert.match(markdownArtifact, /#### AI summary/);
+    assert.match(markdownArtifact, /\*\*Short summary:\*\* Mock answer from Cloudeval AI\./);
     assert.match(markdownArtifact, /Mock answer from Cloudeval AI/);
   } finally {
     await fs.rm(outputDir, { recursive: true, force: true });
@@ -4450,6 +4465,60 @@ test("review command strips internal AI summary markers from PR markdown", async
     );
     assert.doesNotMatch(markdownArtifact, /S_tool_|graph-insight/);
     assert.match(markdownArtifact, /\*\*Top priorities\*\*/);
+  } finally {
+    await fs.rm(outputDir, { recursive: true, force: true });
+    await backend.close();
+  }
+});
+
+test("review command splits AI summary into short summary and details without mangling prose", async () => {
+  const backend = await startBackend({
+    projects: [githubProject],
+    aiSummaryRecommendedNextStepResponse: true,
+  });
+  const outputDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "cloudeval-review-ai-summary-sections-"),
+  );
+  try {
+    const result = parseJson(
+      await runCli([
+        "review",
+        "--base-url",
+        backend.baseUrl,
+        "--access-key",
+        "test-token",
+        "--project",
+        "project-github",
+        "--repo",
+        "ganakailabs/cloudeval-github-sync-e2e",
+        "--ref",
+        "main",
+        "--commit-sha",
+        "sha-review-ai-sections",
+        "--ignore-dirty",
+        "--poll-interval",
+        "10",
+        "--format",
+        "json",
+        "--output",
+        outputDir,
+        "--non-interactive",
+      ]),
+    );
+
+    assert.equal(result.data.aiSummary.status, "ok");
+    assert.match(result.data.aiSummary.shortSummary, /gate passes, but the architecture posture is critical/i);
+    assert.match(result.data.aiSummary.detailsMarkdown, /\*\*Recommended next step:\*\* Fix the critical findings/);
+    assert.doesNotMatch(result.data.aiSummary.markdown, /\*\*Recommendation:\*\* ed next step/i);
+
+    const markdownArtifact = await fs.readFile(
+      path.join(outputDir, "review.md"),
+      "utf8",
+    );
+    assert.match(markdownArtifact, /\*\*Short summary:\*\* The gate passes/);
+    assert.match(markdownArtifact, /<summary>AI details<\/summary>/);
+    assert.match(markdownArtifact, /\*\*Recommended next step:\*\* Fix the critical findings/);
+    assert.doesNotMatch(markdownArtifact, /\*\*Recommendation:\*\* ed next step/i);
   } finally {
     await fs.rm(outputDir, { recursive: true, force: true });
     await backend.close();

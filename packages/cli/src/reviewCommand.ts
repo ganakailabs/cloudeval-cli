@@ -405,6 +405,35 @@ const formatMonthlyMoney = (
   return value === fallback ? value : `${value}/mo`;
 };
 
+const compactBudgetLabel = (amount?: number, currency?: string): string | undefined => {
+  if (amount === undefined || !Number.isFinite(amount)) {
+    return undefined;
+  }
+  if (Math.abs(amount) >= 1_000_000) {
+    return `${trimNumber(amount / 1_000_000, 1)}M`;
+  }
+  if (Math.abs(amount) >= 1_000) {
+    return `${trimNumber(amount / 1_000, 1)}K`;
+  }
+  return formatMonthlyMoney(amount, currency);
+};
+
+const costSummaryLine = (cost?: Record<string, any>): string => {
+  const amount = numberFrom(cost?.amount);
+  if (amount === undefined) {
+    return "⚪ Cost: not available";
+  }
+  const formattedCost = formatMonthlyMoney(amount, cost?.currency);
+  const threshold = numberFrom(cost?.threshold);
+  if (threshold === undefined) {
+    return `⚪ Cost: ${formattedCost} (not gated)`;
+  }
+  const budget = compactBudgetLabel(threshold, cost?.currency) ?? "configured";
+  return String(cost?.status ?? "").toLowerCase() === "fail"
+    ? `🔴 Cost: ${formattedCost} (over ${budget} budget)`
+    : `🟢 Cost: ${formattedCost} (under ${budget} budget)`;
+};
+
 const statusIcon = (status: unknown): string => {
   switch (String(status ?? "").toLowerCase()) {
     case "pass":
@@ -1121,9 +1150,11 @@ const waitForReviewReports = async ({
 
 const buildAiSummaryPrompt = (data: Record<string, any>): string => [
   "Write a concise CloudEval pull request review summary in Markdown.",
-  "Focus on gate status, Well-Architected posture, cost posture, and security/operational risks.",
-  "Use bold Markdown labels for important sections, for example **Key risks:**, **Cost posture:**, and **Recommendation:**.",
-  "Keep it under 160 words. Do not invent facts not present below.",
+  "Return exactly two sections: Short Summary and Details.",
+  "Short Summary: one dense paragraph under 45 words with gate status, Well-Architected posture, validation, and cost.",
+  "Details: short bullets with bold labels only when useful, such as **Key risks:**, **Cost posture:**, and **Recommended next step:**.",
+  "Keep the full response under 180 words. Do not invent facts not present below.",
+  "Do not include citations, source markers, hidden tool ids, or HTML comments.",
   "",
   `Project: ${data.projectId}`,
   `Repository: ${data.repo ?? "unknown"}`,
@@ -1149,18 +1180,31 @@ const isTransientAiSummaryText = (text?: string): boolean => {
 };
 
 const normalizeAiSummaryMarkdown = (text?: string): string => {
+  return normalizeAiSummarySections(text).markdown;
+};
+
+const normalizeAiSummarySections = (text?: string): {
+  shortSummary: string;
+  detailsMarkdown: string;
+  markdown: string;
+} => {
   const trimmed = String(text ?? "").trim();
   if (!trimmed) {
-    return "";
+    return { shortSummary: "", detailsMarkdown: "", markdown: "" };
   }
   const withNewlines = sanitizeAiSummaryMarkdown(trimmed.replace(/\\n/g, "\n"));
   const requestMatch = /\bRequest:\s*/i.exec(withNewlines);
-  if (!requestMatch) {
-    return emphasizeAiSummaryMarkdown(withNewlines);
-  }
-  const afterRequest = withNewlines.slice(requestMatch.index + requestMatch[0].length).trim();
-  const [summary] = afterRequest.split(/\n\s*\nThe request reached\b/i);
-  return emphasizeAiSummaryMarkdown(summary.trim() || withNewlines);
+  const sourceText = requestMatch
+    ? withNewlines
+        .slice(requestMatch.index + requestMatch[0].length)
+        .split(/\n\s*\nThe request reached\b/i)[0]
+        .trim() || withNewlines
+    : withNewlines;
+  const sections = splitAiSummarySections(sourceText);
+  return {
+    ...sections,
+    markdown: renderAiSummarySections(sections.shortSummary, sections.detailsMarkdown),
+  };
 };
 
 const sanitizeAiSummaryMarkdown = (text: string): string =>
@@ -1170,15 +1214,68 @@ const sanitizeAiSummaryMarkdown = (text: string): string =>
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 
-const emphasizeAiSummaryMarkdown = (text: string): string => {
-  if (!text.trim() || text.includes("**")) {
-    return text;
+const stripAiSectionLabel = (text: string, label: string): string =>
+  text
+    .replace(new RegExp(`^\\s*#{0,6}\\s*\\*\\*?${label}\\*\\*?\\s*:?\\s*`, "i"), "")
+    .replace(new RegExp(`^\\s*${label}\\s*:?\\s*`, "i"), "")
+    .trim();
+
+const normalizeAiDetailHeadings = (text: string): string =>
+  text
+    .split("\n")
+    .map((line) => {
+      const cleaned = line
+        .replace(/^\s*#{1,6}\s*/, "")
+        .replace(/^\s*[-*]\s+/, "")
+        .trimEnd();
+      const labelMatch =
+        cleaned.match(/^\*\*(Key risks|Cost posture|Recommended next step|Recommendation|Validation|Impact):\*\*\s*(.*)$/i) ??
+        cleaned.match(/^\*\*(Key risks|Cost posture|Recommended next step|Recommendation|Validation|Impact)\*\*\s*:\s*(.*)$/i) ??
+        cleaned.match(/^(Key risks|Cost posture|Recommended next step|Recommendation|Validation|Impact)\s*:\s*(.*)$/i);
+      if (!labelMatch) {
+        return cleaned;
+      }
+      return `- **${labelMatch[1]}:** ${labelMatch[2]}`.trimEnd();
+    })
+    .join("\n")
+    .trim();
+
+const splitAiSummarySections = (text: string): { shortSummary: string; detailsMarkdown: string } => {
+  const cleaned = sanitizeAiSummaryMarkdown(text)
+    .replace(/^\s*#{1,6}\s*AI summary\s*$/gim, "")
+    .trim();
+  const shortMatch = /\bShort Summary\s*:\s*/i.exec(cleaned);
+  const detailsMatch = /\bDetails\s*:\s*/i.exec(cleaned);
+  if (shortMatch && detailsMatch && shortMatch.index < detailsMatch.index) {
+    const shortSummary = stripAiSectionLabel(
+      cleaned.slice(shortMatch.index, detailsMatch.index).trim(),
+      "Short Summary",
+    );
+    const detailsMarkdown = normalizeAiDetailHeadings(
+      stripAiSectionLabel(cleaned.slice(detailsMatch.index).trim(), "Details"),
+    );
+    return { shortSummary, detailsMarkdown };
   }
-  return text
-    .replace(/\bKey risks include\b/i, "**Key risks include**")
-    .replace(/\bCost posture is\b/i, "**Cost posture:**")
-    .replace(/\bRecommend(?:ation)?:?\s*/i, "**Recommendation:** ")
-    .replace(/\bThe high-risk finding count\b/i, "**Risk posture:** The high-risk finding count");
+  const paragraphs = cleaned.split(/\n\s*\n/).map((paragraph) => paragraph.trim()).filter(Boolean);
+  const shortSummary = stripAiSectionLabel(paragraphs[0] ?? cleaned, "Short Summary");
+  const detailsMarkdown = normalizeAiDetailHeadings(paragraphs.slice(1).join("\n\n"));
+  return { shortSummary, detailsMarkdown };
+};
+
+const renderAiSummarySections = (shortSummary: string, detailsMarkdown: string): string => {
+  const lines = [`**Short summary:** ${shortSummary.trim()}`];
+  if (detailsMarkdown.trim()) {
+    lines.push(
+      "",
+      "<details>",
+      "<summary>AI details</summary>",
+      "",
+      detailsMarkdown.trim(),
+      "",
+      "</details>",
+    );
+  }
+  return lines.join("\n");
 };
 
 const aiSummaryAttemptTimeoutMs = (): number => {
@@ -1311,13 +1408,14 @@ const generateAiSummaryAttempt = async ({
     .reverse()
     .find((message: any) => message.role === "assistant");
   const rawMarkdown = String(finalMessage?.content || markdown).trim();
+  const normalized = normalizeAiSummarySections(rawMarkdown);
   return {
     enabled: true,
     status: "ok",
     mode,
     ...(mode === "agent" ? { agentProfileId: agentProfileId ?? "architecture" } : {}),
     ...(model ? { model } : {}),
-    markdown: normalizeAiSummaryMarkdown(rawMarkdown),
+    ...normalized,
     threadId,
   };
 };
@@ -1355,11 +1453,25 @@ const generateAiSummary = async (
     if (fallbackFromMode) {
       result.fallbackFromMode = fallbackFromMode;
     }
-    result.markdown = normalizeAiSummaryMarkdown(result.markdown);
+    const normalizedSummary =
+      typeof result.shortSummary === "string" || typeof result.detailsMarkdown === "string"
+        ? {
+            shortSummary: String(result.shortSummary ?? "").trim(),
+            detailsMarkdown: String(result.detailsMarkdown ?? "").trim(),
+            markdown: renderAiSummarySections(
+              String(result.shortSummary ?? "").trim(),
+              String(result.detailsMarkdown ?? "").trim(),
+            ),
+          }
+        : normalizeAiSummarySections(result.markdown);
+    result = { ...result, ...normalizedSummary };
     if (isTransientAiSummaryText(result.markdown)) {
       const normalizedError = normalizeAiSummaryMarkdown(result.error);
       if (normalizedError && !isTransientAiSummaryText(normalizedError)) {
-        result.markdown = normalizedError;
+        result = {
+          ...result,
+          ...normalizeAiSummarySections(normalizedError),
+        };
         result.status = "ok";
         delete result.error;
       }
@@ -1455,11 +1567,12 @@ const buildMarkdownSummary = (data: Record<string, any>): string => {
   }
   const overallRating = scoreRating(score);
   const lines = [
-    `${statusIcon(data.gate?.status)} **${gateStatus}** ${projectDisplay}`,
-    `${scoreRatingIcon(overallRating)} Well-Architected Score: ${formatScore(score)} (${overallRating ?? "UNKNOWN"})`,
+    `${statusIcon(data.gate?.status)} **Overall** : ${gateStatus}`,
+    `${scoreRatingIcon(overallRating)} Well-Architected Posture: ${formatScore(score)} (${overallRating ?? "UNKNOWN"})`,
     validationSummaryLine(validation),
     policySummaryLine(validation),
-    `${statusIcon(cost?.status)} Cost: ${formatMonthlyMoney(cost?.amount, cost?.currency)}`,
+    costSummaryLine(cost),
+    `**Cloudeval Project**: ${projectDisplay}`,
     "",
     `Source: \`${source}\` · commit \`${commit}\``,
   ];

@@ -357,7 +357,7 @@ const formatScore = (value: unknown, fallback = "unknown"): string => {
   return numericValue === undefined ? fallback : `${trimNumber(numericValue)}/100`;
 };
 
-type ScoreRating = "EXCELLENT" | "GOOD" | "FAIR" | "POOR";
+type ScoreRating = "EXCELLENT" | "GOOD" | "FAIR" | "POOR" | "CRITICAL";
 
 const scoreRating = (value: unknown): ScoreRating | undefined => {
   const numericValue = numberFrom(value);
@@ -373,7 +373,10 @@ const scoreRating = (value: unknown): ScoreRating | undefined => {
   if (numericValue >= 50) {
     return "FAIR";
   }
-  return "POOR";
+  if (numericValue >= 30) {
+    return "POOR";
+  }
+  return "CRITICAL";
 };
 
 const scoreRatingIcon = (rating?: ScoreRating): string => {
@@ -385,6 +388,8 @@ const scoreRatingIcon = (rating?: ScoreRating): string => {
     case "FAIR":
       return "🟡";
     case "POOR":
+      return "🟠";
+    case "CRITICAL":
       return "🔴";
     default:
       return "⚪";

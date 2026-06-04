@@ -276,6 +276,7 @@ const startBackend = async (
     aiSummaryNeverCompletes?: boolean;
     aiSummaryGraphInsightResponse?: boolean;
     fullReportShape?: boolean;
+    wafScore?: number;
     wafFullReportFailures?: number;
     emptyCostFullReport?: boolean;
     costMonthlyAmount?: number;
@@ -729,7 +730,11 @@ const startBackend = async (
             generated_at: wafReport.generatedAt,
             is_latest: true,
             status: "completed",
-            metrics: { overall_score: 91, high_count: 0, medium_count: 1 },
+            metrics: {
+              overall_score: options.wafScore ?? 91,
+              high_count: 0,
+              medium_count: 1,
+            },
           },
         ],
         total_count: 2,
@@ -810,8 +815,8 @@ const startBackend = async (
         return json(res, {
           project_id: githubProject.id,
           project_name: githubProject.name,
-          overall_score: 91,
-          pillar_scores: { Security: 91 },
+          overall_score: options.wafScore ?? 91,
+          pillar_scores: { Security: options.wafScore ?? 91 },
           critical_issues_count: 0,
           high_issues_count: 0,
           top_critical_issues: [],
@@ -833,8 +838,8 @@ const startBackend = async (
           architecture: {
             report_type: "architecture",
             metrics: {
-              overall_score: 91,
-              pillar_scores: { security: 91 },
+              overall_score: options.wafScore ?? 91,
+              pillar_scores: { security: options.wafScore ?? 91 },
               total_rules: 10,
               ...(options.architectureMetrics ?? {}),
             },
@@ -3815,6 +3820,7 @@ test("review command uses public labels and falls back to preload cost metrics",
     projects: [githubProject],
     fullReportShape: true,
     emptyCostFullReport: true,
+    wafScore: 23.1,
   });
   const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "cloudeval-review-public-summary-"));
   try {
@@ -3825,8 +3831,8 @@ test("review command uses public labels and falls back to preload cost metrics",
         "ci:",
         "  gates:",
         "    enforcement: required",
-        "    overall_score_min: 90",
-        "    pillar_score_min: 85",
+        "    overall_score_min: 1",
+        "    pillar_score_min: 1",
         "    fail_on_validation_errors: true",
         "    max_monthly_cost: 100",
         "",
@@ -3875,7 +3881,10 @@ test("review command uses public labels and falls back to preload cost metrics",
       "utf8",
     );
     assert.doesNotMatch(markdownArtifact, /PSRule/);
+    assert.match(markdownArtifact, /🔴 Well-Architected Score: 23.1\/100 \(CRITICAL\)/);
+    assert.match(markdownArtifact, /\| Security \| \*\*23.1\/100\*\* \| 🔴 CRITICAL \|/);
     assert.match(markdownArtifact, /🟢 Validation: GOOD/);
+    assert.match(markdownArtifact, /🟢 Policy checks: GOOD/);
     assert.match(markdownArtifact, /🟢 Cost: 42 USD\/mo/);
   } finally {
     await fs.rm(cwd, { recursive: true, force: true });

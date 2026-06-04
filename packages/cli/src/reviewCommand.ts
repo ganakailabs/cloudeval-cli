@@ -192,13 +192,40 @@ const parseGateConfig = (configText?: string):
     const match = configText.match(new RegExp(`^\\s*${key}\\s*:\\s*([^\\s#]+)`, "m"));
     return match ? match[1].trim() : undefined;
   };
+  const firstStringValue = (...keys: string[]): string | undefined => {
+    for (const key of keys) {
+      const value = stringValue(key);
+      if (value !== undefined) {
+        return value;
+      }
+    }
+    return undefined;
+  };
   const numberValue = (key: string): number | undefined => {
     const match = configText.match(new RegExp(`^\\s*${key}\\s*:\\s*([0-9]+(?:\\.[0-9]+)?)`, "m"));
     return match ? Number(match[1]) : undefined;
   };
+  const firstNumberValue = (...keys: string[]): number | undefined => {
+    for (const key of keys) {
+      const value = numberValue(key);
+      if (value !== undefined) {
+        return value;
+      }
+    }
+    return undefined;
+  };
   const booleanValue = (key: string): boolean | undefined => {
     const match = configText.match(new RegExp(`^\\s*${key}\\s*:\\s*(true|false)`, "im"));
     return match ? match[1].toLowerCase() === "true" : undefined;
+  };
+  const firstBooleanValue = (...keys: string[]): boolean | undefined => {
+    for (const key of keys) {
+      const value = booleanValue(key);
+      if (value !== undefined) {
+        return value;
+      }
+    }
+    return undefined;
   };
   const pillarScoreMins: Record<string, number> = {};
   const pillarBlock = configText.match(/^(\s*)pillars\s*:\s*$(?<body>(?:\n\s+[-\w]+\s*:\s*[0-9]+(?:\.[0-9]+)?\s*)+)/m);
@@ -221,15 +248,21 @@ const parseGateConfig = (configText?: string):
       pillarScoreMins[key] = value;
     }
   }
-  const enforcement = stringValue("enforcement")?.toLowerCase();
+  const enforcement = firstStringValue("enforcement", "mode")?.toLowerCase();
   return {
-    enforcement: enforcement === "warn" ? "warn" : "required",
-    overallScoreMin: numberValue("overall_score_min") ?? 80,
-    pillarScoreMin: numberValue("pillar_score_min"),
+    enforcement: enforcement === "warn" || enforcement === "comment_only" ? "warn" : "required",
+    overallScoreMin: firstNumberValue("overall_score_min", "minimum_well_architected_score") ?? 80,
+    pillarScoreMin: firstNumberValue("pillar_score_min", "minimum_pillar_score"),
     pillarScoreMins,
-    failOnHighRisk: booleanValue("fail_on_high_risk") ?? true,
-    failOnValidationErrors: booleanValue("fail_on_validation_errors") ?? true,
-    maxMonthlyCost: numberValue("max_monthly_cost"),
+    failOnHighRisk: firstBooleanValue(
+      "fail_on_high_risk",
+      "fail_when_high_risk_findings_exist",
+    ) ?? true,
+    failOnValidationErrors: firstBooleanValue(
+      "fail_on_validation_errors",
+      "fail_when_validation_fails",
+    ) ?? true,
+    maxMonthlyCost: firstNumberValue("max_monthly_cost", "max_monthly_cost_usd"),
   };
 };
 

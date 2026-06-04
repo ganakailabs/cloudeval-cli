@@ -702,7 +702,7 @@ const startBackend = async (
     ) {
       return json(res, {
         import: { files_added: 4, files_updated: 0, files_skipped: 0 },
-        resolve: { primary_stack_id: "main", linked_file_count: 2 },
+        resolve: { primary_stack_id: "primary-architecture", linked_file_count: 2 },
         refresh_analysis: { project_reports_autogen: "job-reports" },
       });
     }
@@ -2888,7 +2888,7 @@ test("projects create uploads a nested ARM workspace directory", async () => {
 
     assert.equal(create.command, "projects create");
     assert.equal(create.data.project.id, "project-created");
-    assert.equal(create.data.iacPipeline.resolve.primary_stack_id, "main");
+    assert.equal(create.data.iacPipeline.resolve.primary_stack_id, "primary-architecture");
 
     const connectionRequest = backend.requests.find(
       (request) => request.path === "/api/v1/connection/",
@@ -2897,6 +2897,8 @@ test("projects create uploads a nested ARM workspace directory", async () => {
     assert.match(connectionRequest.body, /name="workspace_file_paths"/);
     assert.match(connectionRequest.body, /nested\/network\.json/);
     assert.match(connectionRequest.body, /\.cloudeval\/config\.yaml/);
+    assert.match(connectionRequest.body, /id: primary-architecture/);
+    assert.match(connectionRequest.body, /name: Primary architecture/);
     assert.match(connectionRequest.body, /Visualization source for diagrams and reports/);
     assert.match(connectionRequest.body, /Optional CI gates for `cloudeval review` and GitHub Actions/);
 
@@ -4112,6 +4114,68 @@ test("review command supports required and warn gate enforcement", async () => {
     assert.equal(warn.data.gate.enforcement, "warn");
     assert.equal(warn.data.gate.wouldFail, true);
     assert.match(warn.data.gate.failures[0], /overall score 91 is below 95/);
+  } finally {
+    await fs.rm(cwd, { recursive: true, force: true });
+    await backend.close();
+  }
+});
+
+test("review command accepts self-explanatory gate config aliases", async () => {
+  const backend = await startBackend({ projects: [githubProject] });
+  const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "cloudeval-review-readable-gates-"));
+  try {
+    const configDir = path.join(cwd, ".cloudeval");
+    await fs.mkdir(configDir, { recursive: true });
+    await fs.writeFile(
+      path.join(configDir, "config.yaml"),
+      [
+        "ci:",
+        "  gates:",
+        "    enforcement: block_pull_request",
+        "    minimum_well_architected_score: 95",
+        "    minimum_pillar_score: 80",
+        "    fail_when_high_risk_findings_exist: true",
+        "    fail_when_validation_fails: true",
+        "    max_monthly_cost_usd: 100",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+
+    const result = await runCli(
+      [
+        "review",
+        "--base-url",
+        backend.baseUrl,
+        "--access-key",
+        "test-token",
+        "--project",
+        "project-github",
+        "--repo",
+        "ganakailabs/cloudeval-github-sync-e2e",
+        "--ref",
+        "main",
+        "--commit-sha",
+        "sha-review-readable-gates",
+        "--ignore-dirty",
+        "--no-ai-summary",
+        "--poll-interval",
+        "10",
+        "--format",
+        "json",
+        "--non-interactive",
+      ],
+      { cwd },
+    );
+
+    assert.equal(result.exitCode, 1);
+    const json = JSON.parse(result.stdout);
+    assert.equal(json.data.gate.enforcement, "required");
+    assert.equal(json.data.gate.thresholds.overallScoreMin, 95);
+    assert.equal(json.data.gate.thresholds.pillarScoreMin, 80);
+    assert.equal(json.data.gate.thresholds.failOnHighRisk, true);
+    assert.equal(json.data.gate.thresholds.failOnValidationErrors, true);
+    assert.equal(json.data.gate.thresholds.maxMonthlyCost, 100);
   } finally {
     await fs.rm(cwd, { recursive: true, force: true });
     await backend.close();

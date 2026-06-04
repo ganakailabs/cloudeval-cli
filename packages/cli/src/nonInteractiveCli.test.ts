@@ -271,7 +271,12 @@ const startBackend = async (
     expireFirstStreamToken?: boolean;
     streamAssistantMessageOnly?: boolean;
     aiSummaryRateLimitResponses?: number;
+    aiSummaryRateLimitFallbackResponses?: number;
+    aiSummaryGenericFailureResponses?: number;
+    aiSummaryNeverCompletes?: boolean;
+    aiSummaryGraphInsightResponse?: boolean;
     fullReportShape?: boolean;
+    wafScore?: number;
     wafFullReportFailures?: number;
     emptyCostFullReport?: boolean;
     costMonthlyAmount?: number;
@@ -292,6 +297,8 @@ const startBackend = async (
   const authUser = options.authUser ?? user;
   let expiredStreamResponses = 0;
   let aiSummaryRateLimitResponses = 0;
+  let aiSummaryRateLimitFallbackResponses = 0;
+  let aiSummaryGenericFailureResponses = 0;
   let wafFullReportRequests = 0;
 
   const server = http.createServer(async (req, res) => {
@@ -723,7 +730,11 @@ const startBackend = async (
             generated_at: wafReport.generatedAt,
             is_latest: true,
             status: "completed",
-            metrics: { overall_score: 91, high_count: 0, medium_count: 1 },
+            metrics: {
+              overall_score: options.wafScore ?? 91,
+              high_count: 0,
+              medium_count: 1,
+            },
           },
         ],
         total_count: 2,
@@ -804,8 +815,8 @@ const startBackend = async (
         return json(res, {
           project_id: githubProject.id,
           project_name: githubProject.name,
-          overall_score: 91,
-          pillar_scores: { Security: 91 },
+          overall_score: options.wafScore ?? 91,
+          pillar_scores: { Security: options.wafScore ?? 91 },
           critical_issues_count: 0,
           high_issues_count: 0,
           top_critical_issues: [],
@@ -827,8 +838,8 @@ const startBackend = async (
           architecture: {
             report_type: "architecture",
             metrics: {
-              overall_score: 91,
-              pillar_scores: { security: 91 },
+              overall_score: options.wafScore ?? 91,
+              pillar_scores: { security: options.wafScore ?? 91 },
               total_rules: 10,
               ...(options.architectureMetrics ?? {}),
             },
@@ -1229,11 +1240,44 @@ const startBackend = async (
       const message = String(payload.message ?? "");
       if (
         message.includes("Write a concise CloudEval pull request review summary") &&
+        aiSummaryRateLimitFallbackResponses < (options.aiSummaryRateLimitFallbackResponses ?? 0)
+      ) {
+        aiSummaryRateLimitFallbackResponses += 1;
+        res.write(
+          `data: ${JSON.stringify({ type: "responding", node: "generate_response", content: "The final answer model was rate-limited, so I could not complete the normal narrative pass. Based on the available tool context, here is the dependency view that was already generated.\\n\\nRequest: The PR passes gate with a low Well-Architected score (23.1) and 40 high-risk findings. Cost posture is minimal at $3.65/month. Three unit test failures require attention, though policy checks are clean. Recommend addressing high-risk findings and unit test failures before production deployment.\\n\\nThe request reached the data-fetching step, but the final answer model was rate-limited before it could compose the normal response.", status: "completed" })}\n\n`,
+        );
+      } else if (
+        message.includes("Write a concise CloudEval pull request review summary") &&
         aiSummaryRateLimitResponses < (options.aiSummaryRateLimitResponses ?? 0)
       ) {
         aiSummaryRateLimitResponses += 1;
         res.write(
           `data: ${JSON.stringify({ type: "responding", node: "generate_response", content: "I'm receiving too many requests right now. Please try again in a moment.", status: "completed" })}\n\n`,
+        );
+      } else if (
+        message.includes("Write a concise CloudEval pull request review summary") &&
+        aiSummaryGenericFailureResponses < (options.aiSummaryGenericFailureResponses ?? 0)
+      ) {
+        aiSummaryGenericFailureResponses += 1;
+        res.write(
+          `data: ${JSON.stringify({ type: "responding", node: "generate_response", content: "I'm sorry, something went wrong while processing your request. Please try again or ask a different question about your Azure infrastructure.", status: "completed" })}\n\n`,
+        );
+      } else if (
+        message.includes("Write a concise CloudEval pull request review summary") &&
+        options.aiSummaryNeverCompletes
+      ) {
+        setTimeout(() => {
+          if (!res.writableEnded) {
+            res.end();
+          }
+        }, 100);
+        return undefined;
+      } else if (
+        message.includes("Write a concise CloudEval pull request review summary") &&
+        options.aiSummaryGraphInsightResponse
+      ) {
+        res.write(
+          `data: ${JSON.stringify({ type: "responding", node: "generate_response", content: "Address high-risk findings first. [S_tool_architecture_dashboard_0]\\n\\n<!-- graph-insight:compact -->\\n\\n## **Top priorities**\\n- Harden public access and rerun unit tests. [S_tool_architecture_dashboard_0]", status: "completed" })}\n\n`,
         );
       } else if (message.includes("empty agent result")) {
         res.write(
@@ -3660,10 +3704,11 @@ test("review command includes well architected, cost, and validation gate drilld
       "utf8",
     );
     assert.match(markdownArtifact, /Well-Architected drilldown/);
-    assert.match(markdownArtifact, /\| Security \| \*\*91\/100\*\* \| 🟢 PASS \|/);
-    assert.match(markdownArtifact, /validation \*\*clean\*\*/);
-    assert.match(markdownArtifact, /cost \*\*42 USD\/mo\*\*/);
-    assert.match(markdownArtifact, /🟢 \*\*PASS\*\* for \[GitHub IaC Project\]\(http:\/\/localhost:3000\/app\/projects\/project-github\?view=preview&layout=architecture\)/);
+    assert.match(markdownArtifact, /\| Security \| \*\*91\/100\*\* \| 🟢 EXCELLENT \|/);
+    assert.match(markdownArtifact, /🟢 Policy checks: GOOD/);
+    assert.match(markdownArtifact, /🟢 Cost: 42 USD\/mo/);
+    assert.match(markdownArtifact, /🟢 \*\*PASS\*\* \[GitHub IaC Project\]\(http:\/\/localhost:3000\/app\/projects\/project-github\?view=preview&layout=architecture\)/);
+    assert.match(markdownArtifact, /🟢 Well-Architected Score: 91\/100 \(EXCELLENT\)/);
     assert.doesNotMatch(markdownArtifact, /\bmin 85\b|\bmax 100\b/);
   } finally {
     await fs.rm(cwd, { recursive: true, force: true });
@@ -3741,17 +3786,23 @@ test("review command writes visual markdown drilldowns for PR comments", async (
       path.join(outputDir, "review.md"),
       "utf8",
     );
-    assert.match(markdownArtifact, /^🟡 \*\*WARN\*\* for \[GitHub IaC Project\]/);
-    assert.match(markdownArtifact, /Well-Architected \*\*91\/100\*\*/);
-    assert.match(markdownArtifact, /cost \*\*42 USD\/mo\*\*/);
-    assert.match(markdownArtifact, /Validation: 🔴 \*\*3 unit tests failed\*\*, 🟢 policy checks clean/);
-    assert.match(markdownArtifact, /\| Security \| \*\*91\/100\*\* \| 🟢 PASS \|/);
+    assert.match(markdownArtifact, /^🟡 \*\*WARN\*\* \[GitHub IaC Project\]\(http:\/\/localhost:3000\/app\/projects\/project-github\?view=preview&layout=architecture\)/);
+    assert.match(markdownArtifact, /🟢 Well-Architected Score: 91\/100 \(EXCELLENT\)/);
+    assert.match(markdownArtifact, /🔴 Validation: 3 unit tests failed/);
+    assert.match(markdownArtifact, /🟢 Policy checks: GOOD/);
+    assert.match(markdownArtifact, /🟢 Cost: 42 USD\/mo/);
+    assert.doesNotMatch(markdownArtifact, /- Overall score:/);
+    assert.doesNotMatch(markdownArtifact, /- Monthly estimate:/);
+    assert.doesNotMatch(markdownArtifact, /Summary: 3 unit tests failed/);
+    assert.match(markdownArtifact, /\| Security \| \*\*91\/100\*\* \| 🟢 EXCELLENT \|/);
     assert.match(markdownArtifact, /```mermaid\npie title Monthly cost by service\n  "Compute" : 30\n  "Networking" : 12\n```/);
     assert.match(markdownArtifact, /Unit tests: \*\*2 passed\*\*, \*\*3 failed\*\*, 5 total/);
     assert.match(markdownArtifact, /Architecture insights/);
     assert.match(markdownArtifact, /Resources: \*\*8\*\*/);
     assert.match(markdownArtifact, /Relationships: \*\*11\*\*/);
     assert.match(markdownArtifact, /Resource types: \*\*7\*\*/);
+    assert.match(markdownArtifact, /Graph connectivity: \*\*1.38 relationships per resource\*\*/);
+    assert.match(markdownArtifact, /Resource diversity: \*\*7 types across 8 resources\*\*/);
     assert.doesNotMatch(markdownArtifact, /PSRule/);
     assert(
       backend.requests.some(
@@ -3769,6 +3820,7 @@ test("review command uses public labels and falls back to preload cost metrics",
     projects: [githubProject],
     fullReportShape: true,
     emptyCostFullReport: true,
+    wafScore: 23.1,
   });
   const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "cloudeval-review-public-summary-"));
   try {
@@ -3779,8 +3831,8 @@ test("review command uses public labels and falls back to preload cost metrics",
         "ci:",
         "  gates:",
         "    enforcement: required",
-        "    overall_score_min: 90",
-        "    pillar_score_min: 85",
+        "    overall_score_min: 1",
+        "    pillar_score_min: 1",
         "    fail_on_validation_errors: true",
         "    max_monthly_cost: 100",
         "",
@@ -3829,8 +3881,11 @@ test("review command uses public labels and falls back to preload cost metrics",
       "utf8",
     );
     assert.doesNotMatch(markdownArtifact, /PSRule/);
-    assert.match(markdownArtifact, /validation \*\*clean\*\*/);
-    assert.match(markdownArtifact, /cost \*\*42 USD\/mo\*\*/);
+    assert.match(markdownArtifact, /🔴 Well-Architected Score: 23.1\/100 \(CRITICAL\)/);
+    assert.match(markdownArtifact, /\| Security \| \*\*23.1\/100\*\* \| 🔴 CRITICAL \|/);
+    assert.match(markdownArtifact, /🟢 Validation: GOOD/);
+    assert.match(markdownArtifact, /🟢 Policy checks: GOOD/);
+    assert.match(markdownArtifact, /🟢 Cost: 42 USD\/mo/);
   } finally {
     await fs.rm(cwd, { recursive: true, force: true });
     await backend.close();
@@ -3905,7 +3960,7 @@ test("review command does not expose internal validation provider details", asyn
     assert.doesNotMatch(jsonArtifact, /psRule|PSRule/);
     assert.doesNotMatch(jsonArtifact, /internal-user-id|result_ref|events_channel/);
     assert.doesNotMatch(markdownArtifact, /psRule|PSRule/);
-    assert.match(markdownArtifact, /validation \*\*clean\*\*/);
+    assert.match(markdownArtifact, /🟢 Validation: GOOD/);
   } finally {
     await fs.rm(cwd, { recursive: true, force: true });
     await backend.close();
@@ -3972,7 +4027,9 @@ test("review command renders zero monthly cost with currency", async () => {
       path.join(outputDir, "review.md"),
       "utf8",
     );
-    assert.match(markdownArtifact, /cost \*\*0 USD\/mo\*\*/);
+    assert.match(markdownArtifact, /🟢 Cost: 0 USD\/mo/);
+    assert.doesNotMatch(markdownArtifact, /Compute \| \*\*30 USD\/mo\*\*/);
+    assert.match(markdownArtifact, /Reported total \| \*\*0 USD\/mo\*\*/);
   } finally {
     await fs.rm(cwd, { recursive: true, force: true });
     await backend.close();
@@ -4215,6 +4272,247 @@ test("review command retries transient AI summary rate limits", async () => {
   }
 });
 
+test("review command falls back from agent to ask when AI summary is rate limited", async () => {
+  const backend = await startBackend({
+    projects: [githubProject],
+    aiSummaryRateLimitResponses: 1,
+  });
+  const outputDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "cloudeval-review-agent-fallback-summary-"),
+  );
+  try {
+    const result = parseJson(
+      await runCli(
+        [
+          "review",
+          "--base-url",
+          backend.baseUrl,
+          "--access-key",
+          "test-token",
+          "--project",
+          "project-github",
+          "--repo",
+          "ganakailabs/cloudeval-github-sync-e2e",
+          "--ref",
+          "main",
+          "--commit-sha",
+          "sha-review-ai-agent-fallback",
+          "--ignore-dirty",
+          "--poll-interval",
+          "10",
+          "--ai-summary-mode",
+          "agent",
+          "--model",
+          "gpt-5-nano",
+          "--format",
+          "json",
+          "--output",
+          outputDir,
+          "--non-interactive",
+        ],
+        {
+          env: { CLOUDEVAL_REVIEW_AI_RETRY_DELAYS_MS: "1" },
+        },
+      ),
+    );
+
+    assert.equal(result.data.aiSummary.enabled, true);
+    assert.equal(result.data.aiSummary.status, "ok");
+    assert.equal(result.data.aiSummary.mode, "ask");
+    assert.equal(result.data.aiSummary.fallbackFromMode, "agent");
+    assert.equal(result.data.aiSummary.model, "gpt-5-nano");
+    assert.equal(result.data.aiSummary.attempts, 2);
+
+    const streamPayloads = backend.requests
+      .filter((request) => request.path === "/api/v1/chat/stream")
+      .map((request) => JSON.parse(request.body));
+    assert.deepEqual(
+      streamPayloads.map((payload) => payload.settings.mode),
+      ["agent", "ask"],
+    );
+
+    const markdownArtifact = await fs.readFile(
+      path.join(outputDir, "review.md"),
+      "utf8",
+    );
+    assert.match(markdownArtifact, /Mock answer from Cloudeval AI/);
+    assert.doesNotMatch(markdownArtifact, /receiving too many requests/i);
+  } finally {
+    await fs.rm(outputDir, { recursive: true, force: true });
+    await backend.close();
+  }
+});
+
+test("review command preserves useful AI fallback summaries that mention rate limits", async () => {
+  const backend = await startBackend({
+    projects: [githubProject],
+    aiSummaryRateLimitFallbackResponses: 1,
+  });
+  const outputDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "cloudeval-review-rate-limit-fallback-summary-"),
+  );
+  try {
+    const result = parseJson(
+      await runCli(
+        [
+          "review",
+          "--base-url",
+          backend.baseUrl,
+          "--access-key",
+          "test-token",
+          "--project",
+          "project-github",
+          "--repo",
+          "ganakailabs/cloudeval-github-sync-e2e",
+          "--ref",
+          "main",
+          "--commit-sha",
+          "sha-review-ai-fallback-summary",
+          "--ignore-dirty",
+          "--poll-interval",
+          "10",
+          "--ai-summary-mode",
+          "agent",
+          "--model",
+          "gpt-5-nano",
+          "--format",
+          "json",
+          "--output",
+          outputDir,
+          "--non-interactive",
+        ],
+        {
+          env: { CLOUDEVAL_REVIEW_AI_RETRY_DELAYS_MS: "1" },
+        },
+      ),
+    );
+
+    assert.equal(result.data.aiSummary.enabled, true);
+    assert.equal(result.data.aiSummary.status, "ok");
+    assert.equal(result.data.aiSummary.mode, "agent");
+    assert.match(result.data.aiSummary.markdown, /The PR passes gate/);
+    assert.doesNotMatch(result.data.aiSummary.markdown, /final answer model was rate-limited/i);
+
+    const markdownArtifact = await fs.readFile(
+      path.join(outputDir, "review.md"),
+      "utf8",
+    );
+    assert.match(markdownArtifact, /The PR passes gate/);
+    assert.doesNotMatch(markdownArtifact, /AI summary unavailable/i);
+  } finally {
+    await fs.rm(outputDir, { recursive: true, force: true });
+    await backend.close();
+  }
+});
+
+test("review command strips internal AI summary markers from PR markdown", async () => {
+  const backend = await startBackend({
+    projects: [githubProject],
+    aiSummaryGraphInsightResponse: true,
+  });
+  const outputDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "cloudeval-review-ai-summary-sanitize-"),
+  );
+  try {
+    const result = parseJson(
+      await runCli([
+        "review",
+        "--base-url",
+        backend.baseUrl,
+        "--access-key",
+        "test-token",
+        "--project",
+        "project-github",
+        "--repo",
+        "ganakailabs/cloudeval-github-sync-e2e",
+        "--ref",
+        "main",
+        "--commit-sha",
+        "sha-review-ai-sanitize",
+        "--ignore-dirty",
+        "--poll-interval",
+        "10",
+        "--format",
+        "json",
+        "--output",
+        outputDir,
+        "--non-interactive",
+      ]),
+    );
+
+    assert.equal(result.data.aiSummary.status, "ok");
+    assert.doesNotMatch(result.data.aiSummary.markdown, /S_tool_|graph-insight/);
+    assert.match(result.data.aiSummary.markdown, /\*\*Top priorities\*\*/);
+
+    const markdownArtifact = await fs.readFile(
+      path.join(outputDir, "review.md"),
+      "utf8",
+    );
+    assert.doesNotMatch(markdownArtifact, /S_tool_|graph-insight/);
+    assert.match(markdownArtifact, /\*\*Top priorities\*\*/);
+  } finally {
+    await fs.rm(outputDir, { recursive: true, force: true });
+    await backend.close();
+  }
+});
+
+test("review command retries generic AI summary backend fallback text", async () => {
+  const backend = await startBackend({
+    projects: [githubProject],
+    aiSummaryGenericFailureResponses: 1,
+  });
+  const outputDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "cloudeval-review-retry-generic-summary-"),
+  );
+  try {
+    const result = parseJson(
+      await runCli(
+        [
+          "review",
+          "--base-url",
+          backend.baseUrl,
+          "--access-key",
+          "test-token",
+          "--project",
+          "project-github",
+          "--repo",
+          "ganakailabs/cloudeval-github-sync-e2e",
+          "--ref",
+          "main",
+          "--commit-sha",
+          "sha-review-ai-generic-retry",
+          "--ignore-dirty",
+          "--poll-interval",
+          "10",
+          "--format",
+          "json",
+          "--output",
+          outputDir,
+          "--non-interactive",
+        ],
+        {
+          env: { CLOUDEVAL_REVIEW_AI_RETRY_DELAYS_MS: "1" },
+        },
+      ),
+    );
+
+    assert.equal(result.data.aiSummary.enabled, true);
+    assert.equal(result.data.aiSummary.status, "ok");
+    assert.equal(result.data.aiSummary.attempts, 2);
+    assert.match(result.data.aiSummary.markdown, /Mock answer from Cloudeval AI/);
+
+    const markdownArtifact = await fs.readFile(
+      path.join(outputDir, "review.md"),
+      "utf8",
+    );
+    assert.match(markdownArtifact, /Mock answer from Cloudeval AI/);
+    assert.doesNotMatch(markdownArtifact, /something went wrong/i);
+  } finally {
+    await fs.rm(outputDir, { recursive: true, force: true });
+    await backend.close();
+  }
+});
+
 test("review command marks AI summary unavailable after retry exhaustion", async () => {
   const backend = await startBackend({
     projects: [githubProject],
@@ -4266,6 +4564,64 @@ test("review command marks AI summary unavailable after retry exhaustion", async
     );
     assert.match(markdownArtifact, /AI summary unavailable/i);
     assert.doesNotMatch(markdownArtifact, /receiving too many requests/i);
+  } finally {
+    await fs.rm(outputDir, { recursive: true, force: true });
+    await backend.close();
+  }
+});
+
+test("review command times out never-completing AI summary streams", async () => {
+  const backend = await startBackend({
+    projects: [githubProject],
+    aiSummaryNeverCompletes: true,
+  });
+  const outputDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "cloudeval-review-timeout-summary-"),
+  );
+  try {
+    const result = parseJson(
+      await runCli(
+        [
+          "review",
+          "--base-url",
+          backend.baseUrl,
+          "--access-key",
+          "test-token",
+          "--project",
+          "project-github",
+          "--repo",
+          "ganakailabs/cloudeval-github-sync-e2e",
+          "--ref",
+          "main",
+          "--commit-sha",
+          "sha-review-ai-timeout",
+          "--ignore-dirty",
+          "--poll-interval",
+          "10",
+          "--format",
+          "json",
+          "--output",
+          outputDir,
+          "--non-interactive",
+        ],
+        {
+          env: {
+            CLOUDEVAL_REVIEW_AI_ATTEMPT_TIMEOUT_MS: "25",
+            CLOUDEVAL_REVIEW_AI_RETRY_DELAYS_MS: "none",
+          },
+        },
+      ),
+    );
+
+    assert.equal(result.data.aiSummary.enabled, true);
+    assert.equal(result.data.aiSummary.status, "unavailable");
+    assert.match(result.data.aiSummary.error, /did not complete within 25ms/i);
+
+    const markdownArtifact = await fs.readFile(
+      path.join(outputDir, "review.md"),
+      "utf8",
+    );
+    assert.match(markdownArtifact, /AI summary unavailable/i);
   } finally {
     await fs.rm(outputDir, { recursive: true, force: true });
     await backend.close();

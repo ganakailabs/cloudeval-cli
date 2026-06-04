@@ -357,6 +357,45 @@ const formatScore = (value: unknown, fallback = "unknown"): string => {
   return numericValue === undefined ? fallback : `${trimNumber(numericValue)}/100`;
 };
 
+type ScoreRating = "EXCELLENT" | "GOOD" | "FAIR" | "POOR" | "CRITICAL";
+
+const scoreRating = (value: unknown): ScoreRating | undefined => {
+  const numericValue = numberFrom(value);
+  if (numericValue === undefined) {
+    return undefined;
+  }
+  if (numericValue >= 90) {
+    return "EXCELLENT";
+  }
+  if (numericValue >= 75) {
+    return "GOOD";
+  }
+  if (numericValue >= 50) {
+    return "FAIR";
+  }
+  if (numericValue >= 30) {
+    return "POOR";
+  }
+  return "CRITICAL";
+};
+
+const scoreRatingIcon = (rating?: ScoreRating): string => {
+  switch (rating) {
+    case "EXCELLENT":
+      return "🟢";
+    case "GOOD":
+      return "🔵";
+    case "FAIR":
+      return "🟡";
+    case "POOR":
+      return "🟠";
+    case "CRITICAL":
+      return "🔴";
+    default:
+      return "⚪";
+  }
+};
+
 const formatMonthlyMoney = (
   amount?: number,
   currency?: string,
@@ -401,28 +440,24 @@ const formatValidation = (validation?: Record<string, any>): string => {
   return parts.length ? parts.join(", ") : "Validation not available";
 };
 
-const compactValidation = (validation?: Record<string, any>): string => {
-  const policyFailed = numberFrom(validation?.policyChecks?.failed);
+const validationSummaryLine = (validation?: Record<string, any>): string => {
   const unitFailed = numberFrom(validation?.unitTests?.failed);
-  if (policyFailed === 0 && unitFailed === 0) {
-    return "validation **clean**";
+  if (unitFailed === undefined) {
+    return "⚪ Validation: not available";
   }
-  const parts: string[] = [];
-  if (unitFailed !== undefined) {
-    parts.push(
-      unitFailed === 0
-        ? "🟢 unit tests clean"
-        : `🔴 **${unitFailed} unit tests failed**`,
-    );
+  return unitFailed > 0
+    ? `🔴 Validation: ${unitFailed} unit tests failed`
+    : "🟢 Validation: GOOD";
+};
+
+const policySummaryLine = (validation?: Record<string, any>): string => {
+  const policyFailed = numberFrom(validation?.policyChecks?.failed);
+  if (policyFailed === undefined) {
+    return "⚪ Policy checks: not available";
   }
-  if (policyFailed !== undefined) {
-    parts.push(
-      policyFailed === 0
-        ? "🟢 policy checks clean"
-        : `🔴 **${policyFailed} policy checks failed**`,
-    );
-  }
-  return parts.length ? `Validation: ${parts.join(", ")}` : "Validation **not available**";
+  return policyFailed > 0
+    ? `🔴 Policy checks: ${policyFailed} failed`
+    : "🟢 Policy checks: GOOD";
 };
 
 const validationDetailLines = (validation?: Record<string, any>): string[] => {
@@ -494,6 +529,39 @@ const costServiceRows = (
       };
     })
     .filter((service): service is { name: string; amount: number; currency?: string } => service !== undefined);
+
+const reconcileCostServiceRows = (
+  services: Array<{ name: string; amount: number; currency?: string }>,
+  totalAmount?: number,
+  currency?: string,
+): Array<{ name: string; amount: number; currency?: string }> => {
+  const total = numberFrom(totalAmount);
+  if (total === undefined || services.length === 0) {
+    return services;
+  }
+  const serviceSum = services.reduce((sum, service) => sum + service.amount, 0);
+  if (serviceSum > total + 0.001) {
+    return [
+      {
+        name: "Reported total",
+        amount: total,
+        ...(currency ? { currency } : {}),
+      },
+    ];
+  }
+  const delta = Number((total - serviceSum).toFixed(3));
+  if (delta > 0.001) {
+    return [
+      ...services,
+      {
+        name: "Other",
+        amount: delta,
+        ...(currency ? { currency } : {}),
+      },
+    ];
+  }
+  return services;
+};
 
 const markdownLink = (label: string, url?: string): string =>
   url ? `[${label}](${url})` : label;
@@ -645,6 +713,10 @@ const extractArchitectureInsights = ({
     resources,
     relationships,
     resourceTypes,
+    relationshipDensity:
+      resources !== undefined && resources > 0 && relationships !== undefined
+        ? relationships / resources
+        : undefined,
   };
 };
 
@@ -1050,6 +1122,7 @@ const waitForReviewReports = async ({
 const buildAiSummaryPrompt = (data: Record<string, any>): string => [
   "Write a concise CloudEval pull request review summary in Markdown.",
   "Focus on gate status, Well-Architected posture, cost posture, and security/operational risks.",
+  "Use bold Markdown labels for important sections, for example **Key risks:**, **Cost posture:**, and **Recommendation:**.",
   "Keep it under 160 words. Do not invent facts not present below.",
   "",
   `Project: ${data.projectId}`,
@@ -1070,9 +1143,53 @@ const isTransientAiSummaryText = (text?: string): boolean => {
   if (!text?.trim()) {
     return false;
   }
-  return /too many requests|rate[- ]?limit|try again in a moment|temporarily unavailable/i.test(
+  return /too many requests|rate[- ]?limit|try again in a moment|temporarily unavailable|something went wrong while processing|please try again or ask a different question|did not complete within/i.test(
     text,
   );
+};
+
+const normalizeAiSummaryMarkdown = (text?: string): string => {
+  const trimmed = String(text ?? "").trim();
+  if (!trimmed) {
+    return "";
+  }
+  const withNewlines = sanitizeAiSummaryMarkdown(trimmed.replace(/\\n/g, "\n"));
+  const requestMatch = /\bRequest:\s*/i.exec(withNewlines);
+  if (!requestMatch) {
+    return emphasizeAiSummaryMarkdown(withNewlines);
+  }
+  const afterRequest = withNewlines.slice(requestMatch.index + requestMatch[0].length).trim();
+  const [summary] = afterRequest.split(/\n\s*\nThe request reached\b/i);
+  return emphasizeAiSummaryMarkdown(summary.trim() || withNewlines);
+};
+
+const sanitizeAiSummaryMarkdown = (text: string): string =>
+  text
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/\s*\[S_[A-Za-z0-9_:-]+\]/g, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
+const emphasizeAiSummaryMarkdown = (text: string): string => {
+  if (!text.trim() || text.includes("**")) {
+    return text;
+  }
+  return text
+    .replace(/\bKey risks include\b/i, "**Key risks include**")
+    .replace(/\bCost posture is\b/i, "**Cost posture:**")
+    .replace(/\bRecommend(?:ation)?:?\s*/i, "**Recommendation:** ")
+    .replace(/\bThe high-risk finding count\b/i, "**Risk posture:** The high-risk finding count");
+};
+
+const aiSummaryAttemptTimeoutMs = (): number => {
+  const raw = process.env.CLOUDEVAL_REVIEW_AI_ATTEMPT_TIMEOUT_MS;
+  if (raw?.trim()) {
+    const parsed = Number.parseInt(raw.trim(), 10);
+    if (Number.isFinite(parsed) && parsed > 0) {
+      return parsed;
+    }
+  }
+  return 180000;
 };
 
 const aiSummaryRetryDelaysMs = (): number[] => {
@@ -1111,7 +1228,19 @@ const generateAiSummaryAttempt = async ({
   const threadId = `review-${data.projectId}-${Date.now()}`;
   let markdown = "";
   let chatState: any = { ...core.initialChatState, threadId };
-  for await (const chunk of core.streamChat({
+  const attemptTimeoutMs = aiSummaryAttemptTimeoutMs();
+  let timedOut = false;
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      timedOut = true;
+      reject(
+        new Error(`AI summary did not complete within ${attemptTimeoutMs}ms.`),
+      );
+    }, attemptTimeoutMs);
+    timeoutId.unref?.();
+  });
+  const iterator = core.streamChat({
     baseUrl,
     authToken: token,
     message: buildAiSummaryPrompt(data),
@@ -1144,35 +1273,51 @@ const generateAiSummaryAttempt = async ({
     completeAfterResponse: true,
     responseCompletionGraceMs: 250,
     streamIdleTimeoutMs: 120000,
-  })) {
-    chatState = core.reduceChunk(chatState, chunk as any);
-    const latestMessage = [...(chatState.messages ?? [])]
-      .reverse()
-      .find((message: any) => message.role === "assistant");
-    const chunkAssistantMessage = Array.isArray((chunk as any)?.messages)
-      ? [...((chunk as any).messages as any[])]
-          .reverse()
-          .find((message: any) => message?.role === "assistant" && typeof message?.content === "string")
-          ?.content
-      : undefined;
-    const content = (chunk as any)?.content;
-    if (typeof chunkAssistantMessage === "string" && chunkAssistantMessage.trim()) {
-      markdown = chunkAssistantMessage;
+  });
+  try {
+    while (true) {
+      const next = await Promise.race([iterator.next(), timeoutPromise]);
+      if (next.done) {
+        break;
+      }
+      const chunk = next.value;
+      chatState = core.reduceChunk(chatState, chunk as any);
+      const latestMessage = [...(chatState.messages ?? [])]
+        .reverse()
+        .find((message: any) => message.role === "assistant");
+      const chunkAssistantMessage = Array.isArray((chunk as any)?.messages)
+        ? [...((chunk as any).messages as any[])]
+            .reverse()
+            .find((message: any) => message?.role === "assistant" && typeof message?.content === "string")
+            ?.content
+        : undefined;
+      const content = (chunk as any)?.content;
+      if (typeof chunkAssistantMessage === "string" && chunkAssistantMessage.trim()) {
+        markdown = chunkAssistantMessage;
+      }
+      if (chunk.type === "responding" && typeof content === "string") {
+        markdown = latestMessage?.content || `${markdown}${content}`;
+      }
     }
-    if (chunk.type === "responding" && typeof content === "string") {
-      markdown = latestMessage?.content || `${markdown}${content}`;
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+    if (timedOut) {
+      await iterator.return?.(undefined).catch(() => undefined);
     }
   }
   const finalMessage = [...(chatState.messages ?? [])]
     .reverse()
     .find((message: any) => message.role === "assistant");
+  const rawMarkdown = String(finalMessage?.content || markdown).trim();
   return {
     enabled: true,
     status: "ok",
     mode,
     ...(mode === "agent" ? { agentProfileId: agentProfileId ?? "architecture" } : {}),
     ...(model ? { model } : {}),
-    markdown: String(finalMessage?.content || markdown).trim(),
+    markdown: normalizeAiSummaryMarkdown(rawMarkdown),
     threadId,
   };
 };
@@ -1182,10 +1327,43 @@ const generateAiSummary = async (
 ): Promise<Record<string, any>> => {
   const retryDelays = aiSummaryRetryDelaysMs();
   let lastResult: Record<string, any> | undefined;
+  let activeInput = input;
+  let fallbackFromMode: "agent" | undefined;
 
   for (let attemptIndex = 0; attemptIndex <= retryDelays.length; attemptIndex += 1) {
-    const result = await generateAiSummaryAttempt(input);
+    let result: Record<string, any>;
+    try {
+      result = await generateAiSummaryAttempt(activeInput);
+    } catch (error: any) {
+      const message = error?.message ?? "AI summary failed";
+      if (!isTransientAiSummaryText(message)) {
+        throw error;
+      }
+      result = {
+        enabled: true,
+        status: "transient_error",
+        mode: activeInput.mode,
+        ...(activeInput.mode === "agent"
+          ? { agentProfileId: activeInput.agentProfileId ?? "architecture" }
+          : {}),
+        ...(activeInput.model ? { model: activeInput.model } : {}),
+        markdown: message,
+        error: message,
+      };
+    }
     result.attempts = attemptIndex + 1;
+    if (fallbackFromMode) {
+      result.fallbackFromMode = fallbackFromMode;
+    }
+    result.markdown = normalizeAiSummaryMarkdown(result.markdown);
+    if (isTransientAiSummaryText(result.markdown)) {
+      const normalizedError = normalizeAiSummaryMarkdown(result.error);
+      if (normalizedError && !isTransientAiSummaryText(normalizedError)) {
+        result.markdown = normalizedError;
+        result.status = "ok";
+        delete result.error;
+      }
+    }
     lastResult = result;
 
     if (!isTransientAiSummaryText(result.markdown)) {
@@ -1197,17 +1375,26 @@ const generateAiSummary = async (
       break;
     }
     await sleep(retryDelay);
+    if (activeInput.mode === "agent") {
+      fallbackFromMode = "agent";
+      activeInput = {
+        ...input,
+        mode: "ask",
+        agentProfileId: undefined,
+      };
+    }
   }
 
   return {
     ...(lastResult ?? {}),
     enabled: true,
     status: "unavailable",
-    mode: input.mode,
-    ...(input.mode === "agent"
-      ? { agentProfileId: input.agentProfileId ?? "architecture" }
+    mode: activeInput.mode,
+    ...(activeInput.mode === "agent"
+      ? { agentProfileId: activeInput.agentProfileId ?? "architecture" }
       : {}),
     ...(input.model ? { model: input.model } : {}),
+    ...(fallbackFromMode ? { fallbackFromMode } : {}),
     attempts: lastResult?.attempts ?? retryDelays.length + 1,
     error: lastResult?.markdown || "AI summary unavailable",
     markdown:
@@ -1229,8 +1416,8 @@ const buildMarkdownSummary = (data: Record<string, any>): string => {
   const commit = String(data.commitSha ?? "unknown").slice(0, 12);
   const pillarLines = Array.isArray(data.gate?.wellArchitected?.pillars)
     ? data.gate.wellArchitected.pillars.map((pillar: Record<string, any>) => {
-        const status = String(pillar.status ?? "unknown").toUpperCase();
-        return `| ${pillar.label} | **${formatScore(pillar.score)}** | ${statusIcon(pillar.status)} ${status} |`;
+        const rating = scoreRating(pillar.score);
+        return `| ${pillar.label} | **${formatScore(pillar.score)}** | ${scoreRatingIcon(rating)} ${rating ?? "UNKNOWN"} |`;
       })
     : [];
   const riskLines = [
@@ -1240,7 +1427,11 @@ const buildMarkdownSummary = (data: Record<string, any>): string => {
   ]
     .filter(([, value]) => numberFrom(value) !== undefined)
     .map(([label, value]) => `- ${label}: **${displayNumber(value)}**`);
-  const costServices = costServiceRows(data.gate?.cost?.topServices, cost?.currency);
+  const costServices = reconcileCostServiceRows(
+    costServiceRows(data.gate?.cost?.topServices, cost?.currency),
+    cost?.amount,
+    cost?.currency,
+  );
   const positiveCostServices = costServices.filter((service) => service.amount > 0);
   const architectureLines = [
     ["Resources", architecture?.resources],
@@ -1249,8 +1440,26 @@ const buildMarkdownSummary = (data: Record<string, any>): string => {
   ]
     .filter(([, value]) => numberFrom(value) !== undefined)
     .map(([label, value]) => `- ${label}: **${displayNumber(value)}**`);
+  const density = numberFrom(architecture?.relationshipDensity);
+  if (density !== undefined) {
+    architectureLines.push(
+      `- Graph connectivity: **${trimNumber(density, 2)} relationships per resource**`,
+    );
+  }
+  const resourceCount = numberFrom(architecture?.resources);
+  const resourceTypeCount = numberFrom(architecture?.resourceTypes);
+  if (resourceCount !== undefined && resourceTypeCount !== undefined) {
+    architectureLines.push(
+      `- Resource diversity: **${displayNumber(resourceTypeCount)} types across ${displayNumber(resourceCount)} resources**`,
+    );
+  }
+  const overallRating = scoreRating(score);
   const lines = [
-    `${statusIcon(data.gate?.status)} **${gateStatus}** for ${projectDisplay}: Well-Architected **${formatScore(score)}**, cost **${formatMonthlyMoney(cost?.amount, cost?.currency)}**, ${compactValidation(validation)}.`,
+    `${statusIcon(data.gate?.status)} **${gateStatus}** ${projectDisplay}`,
+    `${scoreRatingIcon(overallRating)} Well-Architected Score: ${formatScore(score)} (${overallRating ?? "UNKNOWN"})`,
+    validationSummaryLine(validation),
+    policySummaryLine(validation),
+    `${statusIcon(cost?.status)} Cost: ${formatMonthlyMoney(cost?.amount, cost?.currency)}`,
     "",
     `Source: \`${source}\` · commit \`${commit}\``,
   ];
@@ -1266,10 +1475,9 @@ const buildMarkdownSummary = (data: Record<string, any>): string => {
       "<details>",
       "<summary>Well-Architected drilldown</summary>",
       "",
-      `- Overall score: **${formatScore(score)}**`,
       ...riskLines,
       "",
-      "| Pillar | Score | Status |",
+      "| Pillar | Score | Rating |",
       "| --- | ---: | --- |",
       ...pillarLines,
       "",
@@ -1277,7 +1485,7 @@ const buildMarkdownSummary = (data: Record<string, any>): string => {
     );
   }
   if (cost?.amount !== undefined || cost?.threshold !== undefined) {
-    const costLines = [`- Monthly estimate: **${formatMonthlyMoney(cost?.amount, cost?.currency)}**`];
+    const costLines: string[] = [];
     if (data.gate?.cost?.estimatedSavings?.amount !== undefined) {
       costLines.push(
         `- Estimated savings: **${formatMonthlyMoney(data.gate.cost.estimatedSavings.amount, data.gate.cost.estimatedSavings.currency)}**`,
@@ -1305,15 +1513,17 @@ const buildMarkdownSummary = (data: Record<string, any>): string => {
         "```",
       );
     }
-    lines.push(
-      "",
-      "<details>",
-      "<summary>Cost drilldown</summary>",
-      "",
-      ...costLines,
-      "",
-      "</details>",
-    );
+    if (costLines.length) {
+      lines.push(
+        "",
+        "<details>",
+        "<summary>Cost drilldown</summary>",
+        "",
+        ...costLines,
+        "",
+        "</details>",
+      );
+    }
   }
   if (validation) {
     lines.push(
@@ -1322,8 +1532,6 @@ const buildMarkdownSummary = (data: Record<string, any>): string => {
       "<summary>Validation details</summary>",
       "",
       ...validationDetailLines(validation),
-      "",
-      `Summary: ${formatValidation(validation)}`,
       "",
       "</details>",
     );

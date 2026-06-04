@@ -379,7 +379,8 @@ const formatMoney = (
   if (numericAmount === undefined) {
     return fallback;
   }
-  return currency ? `${numericAmount} ${currency}` : String(numericAmount);
+  const formattedAmount = trimNumber(numericAmount);
+  return currency ? `${formattedAmount} ${currency}` : formattedAmount;
 };
 
 const trimNumber = (value: number, fractionDigits = 2): string =>

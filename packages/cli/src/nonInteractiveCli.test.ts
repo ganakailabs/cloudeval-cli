@@ -847,7 +847,7 @@ const startBackend = async (
           },
           cost: {
             report_type: "cost",
-            metrics: { monthly_cost: 42, currency: "USD" },
+            metrics: { monthly_cost: options.costMonthlyAmount ?? 42, currency: "USD" },
           },
           unit_tests: {
             report_type: "unit_tests",
@@ -3835,6 +3835,7 @@ test("review command uses public labels and falls back to preload cost metrics",
     fullReportShape: true,
     emptyCostFullReport: true,
     wafScore: 23.1,
+    costMonthlyAmount: 10.219999999999999,
   });
   const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "cloudeval-review-public-summary-"));
   try {
@@ -3885,7 +3886,7 @@ test("review command uses public labels and falls back to preload cost metrics",
       ),
     );
 
-    assert.equal(result.data.gate.cost.monthly.amount, 42);
+    assert.equal(result.data.gate.cost.monthly.amount, 10.219999999999999);
     assert.equal(result.data.gate.cost.monthly.currency, "USD");
     assert.equal(result.data.gate.validation.policyChecks.failed, 0);
     assert.doesNotMatch(JSON.stringify(result.data), /psRule|PSRule/);
@@ -3900,7 +3901,7 @@ test("review command uses public labels and falls back to preload cost metrics",
     assert.match(markdownArtifact, /\| Security \| \*\*23.1\/100\*\* \| 🔴 CRITICAL \|/);
     assert.match(markdownArtifact, /🟢 Validation: GOOD/);
     assert.match(markdownArtifact, /🟢 Policy checks: GOOD/);
-    assert.match(markdownArtifact, /🟢 Cost: 42 USD\/mo \(under 100K budget\)/);
+    assert.match(markdownArtifact, /🟢 Cost: 10.22 USD\/mo \(under 100K budget\)/);
     assert.match(markdownArtifact, /\*\*Cloudeval Project\*\*: \[GitHub IaC Project\]\(http:\/\/localhost:3000\/app\/projects\/project-github\?view=preview&layout=architecture\)/);
   } finally {
     await fs.rm(cwd, { recursive: true, force: true });

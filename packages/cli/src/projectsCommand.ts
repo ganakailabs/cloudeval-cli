@@ -287,17 +287,18 @@ const generateWorkspaceConfig = (
   parameters?: string,
   sourceEntry?: string
 ): string => {
-  const parameterLine = parameters ? `    parameters: ${parameters}\n` : "";
+  const parameterLine = parameters ? `    parameters: ${parameters}` : "";
   const sourceEntryLine = sourceEntry ? `    source_entry: ${sourceEntry}` : "";
   return [
     "# CloudEval config v1. Paths are relative to this workspace root.",
     "# Visualization source for diagrams and reports.",
     "version: 1",
     "stacks:",
-    "  - id: main",
+    "  - id: primary-architecture",
+    "    name: Primary architecture",
     `    entry: ${entry}`,
     sourceEntryLine,
-    parameterLine.trimEnd(),
+    parameterLine,
     "resolve:",
     "  # Follow relative ARM templateLink files when building the analysis bundle.",
     "  linked_templates: true",
@@ -310,12 +311,12 @@ const generateWorkspaceConfig = (
     "# Uncomment and tune these when pull requests should be blocked by CloudEval.",
     "# ci:",
     "#   gates:",
-    "#     enforcement: required # required fails CI; warn only reports failures",
-    "#     overall_score_min: 80 # minimum Well-Architected score out of 100",
-    "#     pillar_score_min: 75 # optional default minimum for every pillar",
-    "#     fail_on_high_risk: true # fail when high-risk architecture findings exist",
-    "#     fail_on_validation_errors: true # fail when policy checks or unit tests fail",
-    "#     max_monthly_cost: 500 # optional monthly budget gate",
+    "#     enforcement: block_pull_request",
+    "#     minimum_well_architected_score: 80",
+    "#     minimum_pillar_score: 75",
+    "#     fail_when_high_risk_findings_exist: true",
+    "#     fail_when_validation_fails: true",
+    "#     max_monthly_cost_usd: 500",
     "",
   ]
     .filter((line) => line.length > 0)

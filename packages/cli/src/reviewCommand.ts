@@ -1182,27 +1182,61 @@ const waitForReviewReports = async ({
   return latest;
 };
 
-const buildAiSummaryPrompt = (data: Record<string, any>): string => [
-  "Write a concise CloudEval pull request review summary in Markdown.",
-  "Return exactly two sections: Short Summary and Details.",
-  "Short Summary: one dense paragraph under 45 words with gate status, Well-Architected posture, validation, and cost.",
-  "Details: short bullets with bold labels only when useful, such as **Key risks:**, **Cost posture:**, and **Recommended next step:**.",
-  "Keep the full response under 180 words. Do not invent facts not present below.",
-  "Do not include citations, source markers, hidden tool ids, or HTML comments.",
-  "",
-  `Project: ${data.projectId}`,
-  `Repository: ${data.repo ?? "unknown"}`,
-  `Ref: ${data.ref ?? "unknown"}`,
-  `Commit: ${data.commitSha ?? "unknown"}`,
-  `Gate: ${String(data.gate?.status ?? "unknown").toUpperCase()}`,
-  `Well-Architected score: ${data.gate?.wellArchitected?.overall?.score ?? data.gate?.overallScore ?? "unknown"}`,
-  `High-risk findings: ${data.gate?.wellArchitected?.risks?.high ?? data.gate?.highRisk ?? "unknown"}`,
-  `Monthly cost: ${formatMoney(data.gate?.cost?.monthly?.amount ?? data.gate?.monthlyCost, data.gate?.cost?.monthly?.currency)}`,
-  `Validation: ${formatValidation(data.gate?.validation)}`,
-  Array.isArray(data.gate?.failures) && data.gate.failures.length
-    ? `Gate failures: ${data.gate.failures.join("; ")}`
-    : "Gate failures: none reported",
-].join("\n");
+const buildAiSummaryPrompt = (data: Record<string, any>): string => {
+  const score = data.gate?.wellArchitected?.overall?.score ?? data.gate?.overallScore;
+  const rating = scoreRating(score);
+  const cost = data.gate?.cost?.monthly;
+  const costServices = reconcileCostServiceRows(
+    costServiceRows(data.gate?.cost?.topServices, cost?.currency),
+    cost?.amount,
+    cost?.currency,
+  );
+  const validationLines = validationDetailLines(data.gate?.validation)
+    .map((line) => line.replace(/^- /, ""))
+    .join("; ");
+  const architecture = data.gate?.architecture;
+  const architectureFacts = [
+    ["resources", architecture?.resources],
+    ["relationships", architecture?.relationships],
+    ["resource types", architecture?.resourceTypes],
+  ]
+    .filter(([, value]) => numberFrom(value) !== undefined)
+    .map(([label, value]) => `${displayNumber(value)} ${label}`)
+    .join(", ");
+
+  return [
+    "Write a concise CloudEval pull request review summary in Markdown.",
+    "Return a first paragraph with no heading or label. Keep it under 45 words.",
+    "After the paragraph, optionally add short bullets under these labels only: **Evidence**, **Recommended changes**, **Verify**.",
+    "Do not use generic planning labels such as Goal, Objective, Target, Interpretation, or Conditional actions.",
+    "Be evidence-based and actionable. Use only facts present below; omit missing facts instead of inventing them.",
+    "Keep the full response under 180 words. Do not include citations, source markers, hidden tool ids, or HTML comments.",
+    "",
+    "Review facts:",
+    `Project: ${String(data.project?.name ?? data.projectName ?? data.projectId)}`,
+    `Project link: ${data.project?.url ?? data.projectUrl ?? "not available"}`,
+    `Repository: ${data.repo ?? "unknown"}`,
+    `Ref: ${data.ref ?? "unknown"}`,
+    `Commit: ${data.commitSha ?? "unknown"}`,
+    `Overall gate: ${String(data.gate?.status ?? "unknown").toUpperCase()}`,
+    `Well-Architected posture: ${formatScore(score)}${rating ? ` (${rating})` : ""}`,
+    `High-risk findings: ${data.gate?.wellArchitected?.risks?.high ?? data.gate?.highRisk ?? "unknown"}`,
+    `Critical findings: ${data.gate?.wellArchitected?.risks?.critical ?? "unknown"}`,
+    `Cost: ${formatMonthlyMoney(cost?.amount, cost?.currency)}`,
+    `Cost budget: ${formatMonthlyMoney(cost?.threshold, cost?.currency)}`,
+    costServices.length
+      ? `Cost breakdown: ${costServices
+          .map((service) => `${service.name} ${formatMonthlyMoney(service.amount, service.currency)}`)
+          .join("; ")}`
+      : "Cost breakdown: not available",
+    `Validation: ${formatValidation(data.gate?.validation)}`,
+    validationLines ? `Validation details: ${validationLines}` : "Validation details: not available",
+    architectureFacts ? `Architecture graph: ${architectureFacts}` : "Architecture graph: not available",
+    Array.isArray(data.gate?.failures) && data.gate.failures.length
+      ? `Gate failures: ${data.gate.failures.join("; ")}`
+      : "Gate failures: none reported",
+  ].join("\n");
+};
 
 const isTransientAiSummaryText = (text?: string): boolean => {
   if (!text?.trim()) {
@@ -1263,9 +1297,9 @@ const normalizeAiDetailHeadings = (text: string): string =>
         .replace(/^\s*[-*]\s+/, "")
         .trimEnd();
       const labelMatch =
-        cleaned.match(/^\*\*(Key risks|Cost posture|Recommended next step|Recommendation|Validation|Impact):\*\*\s*(.*)$/i) ??
-        cleaned.match(/^\*\*(Key risks|Cost posture|Recommended next step|Recommendation|Validation|Impact)\*\*\s*:\s*(.*)$/i) ??
-        cleaned.match(/^(Key risks|Cost posture|Recommended next step|Recommendation|Validation|Impact)\s*:\s*(.*)$/i);
+        cleaned.match(/^\*\*(Evidence|Recommended changes|Verify|Key risks|Cost posture|Recommended next step|Recommendation|Validation|Impact):\*\*\s*(.*)$/i) ??
+        cleaned.match(/^\*\*(Evidence|Recommended changes|Verify|Key risks|Cost posture|Recommended next step|Recommendation|Validation|Impact)\*\*\s*:\s*(.*)$/i) ??
+        cleaned.match(/^(Evidence|Recommended changes|Verify|Key risks|Cost posture|Recommended next step|Recommendation|Validation|Impact)\s*:\s*(.*)$/i);
       if (!labelMatch) {
         return cleaned;
       }
@@ -1278,12 +1312,12 @@ const splitAiSummarySections = (text: string): { shortSummary: string; detailsMa
   const cleaned = sanitizeAiSummaryMarkdown(text)
     .replace(/^\s*#{1,6}\s*AI summary\s*$/gim, "")
     .trim();
-  const shortMatch = /\bShort Summary\s*:\s*/i.exec(cleaned);
+  const shortMatch = /\b(?:Short Summary|Summary)\s*:\s*/i.exec(cleaned);
   const detailsMatch = /\bDetails\s*:\s*/i.exec(cleaned);
   if (shortMatch && detailsMatch && shortMatch.index < detailsMatch.index) {
     const shortSummary = stripAiSectionLabel(
       cleaned.slice(shortMatch.index, detailsMatch.index).trim(),
-      "Short Summary",
+      shortMatch[0].toLowerCase().startsWith("summary") ? "Summary" : "Short Summary",
     );
     const detailsMarkdown = normalizeAiDetailHeadings(
       stripAiSectionLabel(cleaned.slice(detailsMatch.index).trim(), "Details"),
@@ -1291,13 +1325,16 @@ const splitAiSummarySections = (text: string): { shortSummary: string; detailsMa
     return { shortSummary, detailsMarkdown };
   }
   const paragraphs = cleaned.split(/\n\s*\n/).map((paragraph) => paragraph.trim()).filter(Boolean);
-  const shortSummary = stripAiSectionLabel(paragraphs[0] ?? cleaned, "Short Summary");
+  const shortSummary = stripAiSectionLabel(
+    stripAiSectionLabel(paragraphs[0] ?? cleaned, "Short Summary"),
+    "Summary",
+  );
   const detailsMarkdown = normalizeAiDetailHeadings(paragraphs.slice(1).join("\n\n"));
   return { shortSummary, detailsMarkdown };
 };
 
 const renderAiSummarySections = (shortSummary: string, detailsMarkdown: string): string => {
-  const lines = [`**Short summary:** ${shortSummary.trim()}`];
+  const lines = [shortSummary.trim()];
   if (detailsMarkdown.trim()) {
     lines.push(
       "",

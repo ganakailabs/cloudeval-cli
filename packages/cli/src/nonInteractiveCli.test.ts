@@ -4223,6 +4223,17 @@ test("review command writes AI summary into json and markdown artifacts", async 
           request.query.get("project_id") === "project-github",
       ),
     );
+    const aiRequest = backend.requests.find(
+      (request) =>
+        request.path === "/api/v1/chat/stream" &&
+        request.query.get("project_id") === "project-github",
+    );
+    assert(aiRequest);
+    const aiPrompt = JSON.parse(aiRequest.body).message;
+    assert.match(aiPrompt, /Return a first paragraph with no heading or label/);
+    assert.match(aiPrompt, /Do not use generic planning labels such as Goal/);
+    assert.match(aiPrompt, /Project link:/);
+    assert.doesNotMatch(aiPrompt, /Return exactly two sections/);
 
     const jsonArtifact = JSON.parse(
       await fs.readFile(path.join(outputDir, "review.json"), "utf8"),
@@ -4234,7 +4245,8 @@ test("review command writes AI summary into json and markdown artifacts", async 
       "utf8",
     );
     assert.match(markdownArtifact, /#### AI summary/);
-    assert.match(markdownArtifact, /\*\*Short summary:\*\* Mock answer from Cloudeval AI\./);
+    assert.match(markdownArtifact, /\nMock answer from Cloudeval AI\./);
+    assert.doesNotMatch(markdownArtifact, /\*\*Short summary:\*\*/);
     assert.match(markdownArtifact, /Mock answer from Cloudeval AI/);
   } finally {
     await fs.rm(outputDir, { recursive: true, force: true });
@@ -4580,9 +4592,10 @@ test("review command splits AI summary into short summary and details without ma
       path.join(outputDir, "review.md"),
       "utf8",
     );
-    assert.match(markdownArtifact, /\*\*Short summary:\*\* The gate passes/);
+    assert.match(markdownArtifact, /\nThe gate passes/);
     assert.match(markdownArtifact, /<summary>AI details<\/summary>/);
     assert.match(markdownArtifact, /\*\*Recommended next step:\*\* Fix the critical findings/);
+    assert.doesNotMatch(markdownArtifact, /\*\*Short summary:\*\*/);
     assert.doesNotMatch(markdownArtifact, /\*\*Recommendation:\*\* ed next step/i);
   } finally {
     await fs.rm(outputDir, { recursive: true, force: true });

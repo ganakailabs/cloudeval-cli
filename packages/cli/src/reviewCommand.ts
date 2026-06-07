@@ -293,6 +293,15 @@ const firstRecord = (...values: unknown[]): Record<string, any> | undefined => {
   return undefined;
 };
 
+const firstArray = (...values: unknown[]): unknown[] | undefined => {
+  for (const value of values) {
+    if (Array.isArray(value)) {
+      return value;
+    }
+  }
+  return undefined;
+};
+
 const entriesAsNamedRecords = (
   value: unknown,
   amountKey = "amount",
@@ -559,6 +568,198 @@ const validationDetailLines = (validation?: Record<string, any>): string[] => {
   return lines.length ? lines : ["- Validation data was not available."];
 };
 
+const failedValidationRecords = (records?: unknown[]): Record<string, any>[] =>
+  (Array.isArray(records) ? records : [])
+    .map(asRecord)
+    .filter((record) => {
+      const status = String(
+        record.status ??
+          record.outcome ??
+          record.result ??
+          record.state ??
+          "",
+      ).toLowerCase();
+      if (record.passed === false || record.success === false) {
+        return true;
+      }
+      return ["fail", "failed", "error", "critical"].includes(status);
+    });
+
+const severityIcon = (severity?: string): string => {
+  switch (String(severity ?? "").toLowerCase()) {
+    case "critical":
+    case "error":
+    case "high":
+    case "fail":
+    case "failed":
+      return "🔴";
+    case "warning":
+    case "warn":
+    case "medium":
+      return "🟡";
+    case "info":
+    case "low":
+      return "🔵";
+    default:
+      return "⚪";
+  }
+};
+
+const compactMarkdownCell = (value: unknown, fallback = "not available"): string => {
+  const text = String(value ?? "")
+    .replace(/\s+/g, " ")
+    .replace(/\|/g, "\\|")
+    .trim();
+  return text || fallback;
+};
+
+const failureName = (record: Record<string, any>, fallback: string): string =>
+  compactMarkdownCell(
+    record.test_name ??
+      record.testName ??
+      record.rule_name ??
+      record.ruleName ??
+      record.name ??
+      record.title ??
+      record.id ??
+      fallback,
+  );
+
+const failureLocation = (record: Record<string, any>): string =>
+  compactMarkdownCell(
+    record.file_path ??
+      record.filePath ??
+      record.path ??
+      record.resource_id ??
+      record.resourceId ??
+      record.resource ??
+      record.target,
+    "-",
+  );
+
+const failureWhy = (record: Record<string, any>): string => {
+  const message = compactMarkdownCell(
+    record.message ?? record.reason ?? record.description ?? record.details,
+    "",
+  );
+  const recommendation = compactMarkdownCell(
+    record.recommendation ?? record.remediation ?? record.fix ?? record.next_step,
+    "",
+  );
+  if (message && recommendation && message !== recommendation) {
+    return `${message} ${recommendation}`;
+  }
+  return message || recommendation || "No failure reason was included in the report payload.";
+};
+
+const validationFailureRows = (validation?: Record<string, any>): string[] => {
+  const rows: string[] = [];
+  const unitFailures = (Array.isArray(validation?.unitTests?.failures)
+    ? validation?.unitTests?.failures
+    : []
+  )
+    .map(asRecord)
+    .slice(0, 5);
+  const policyFailures = (Array.isArray(validation?.policyChecks?.failures)
+    ? validation?.policyChecks?.failures
+    : []
+  )
+    .map(asRecord)
+    .slice(0, 5);
+  const groupedFailures: Array<["Unit test" | "Policy check", Record<string, any>[]]> = [
+    ["Unit test", unitFailures],
+    ["Policy check", policyFailures],
+  ];
+  for (const [kind, failures] of groupedFailures) {
+    failures.forEach((failure, index) => {
+      const severity = compactMarkdownCell(
+        failure.severity ?? failure.status ?? failure.outcome,
+        "failed",
+      );
+      rows.push(
+        `| ${kind} | ${failureName(failure, `${kind} ${index + 1}`)} | \`${failureLocation(failure)}\` | ${severityIcon(severity)} ${severity} | ${failureWhy(failure)} |`,
+      );
+    });
+  }
+  return rows;
+};
+
+const architectureSignalLines = ({
+  architecture,
+  costServices,
+  costCurrency,
+  highRiskFindings,
+  pillars,
+}: {
+  architecture?: Record<string, any>;
+  costServices: Array<{ name: string; amount: number; currency?: string }>;
+  costCurrency?: string;
+  highRiskFindings?: unknown;
+  pillars: Array<Record<string, any>>;
+}): string[] => {
+  const lines: string[] = [];
+  const resourceCount = numberFrom(architecture?.resources);
+  const resourceTypeCount = numberFrom(architecture?.resourceTypes);
+  const relationshipCount = numberFrom(architecture?.relationships);
+  const density = numberFrom(architecture?.relationshipDensity);
+  if (resourceCount !== undefined && resourceTypeCount !== undefined) {
+    lines.push(
+      `- Scale: **${displayNumber(resourceCount)} resources** across **${displayNumber(resourceTypeCount)} resource types**`,
+    );
+  } else if (resourceCount !== undefined) {
+    lines.push(`- Scale: **${displayNumber(resourceCount)} resources**`);
+  }
+  if (relationshipCount !== undefined) {
+    const densityText =
+      density !== undefined
+        ? ` (**${trimNumber(density, 2)} per resource**)`
+        : "";
+    const shape =
+      density !== undefined && density < 0.5
+        ? "; sparse dependency graph, review isolated resources and missing links"
+        : density !== undefined && density > 2
+          ? "; dense dependency graph, review blast radius before changes"
+          : "";
+    lines.push(
+      `- Dependency shape: **${displayNumber(relationshipCount)} relationships**${densityText}${shape}`,
+    );
+  }
+  const highRisk = numberFrom(highRiskFindings);
+  const weakestPillar = pillars
+    .map((pillar) => ({
+      label: String(pillar.label ?? pillar.id ?? "pillar"),
+      score: numberFrom(pillar.score),
+    }))
+    .filter((pillar): pillar is { label: string; score: number } => pillar.score !== undefined)
+    .sort((left, right) => left.score - right.score)[0];
+  if (highRisk !== undefined || weakestPillar) {
+    const parts: string[] = [];
+    if (highRisk !== undefined) {
+      parts.push(`**${displayNumber(highRisk)} high-risk findings**`);
+    }
+    if (weakestPillar) {
+      const rating = scoreRating(weakestPillar.score);
+      parts.push(
+        `weakest pillar **${weakestPillar.label} ${formatScore(weakestPillar.score)} (${rating ?? "UNKNOWN"})**`,
+      );
+    }
+    lines.push(`- Risk concentration: ${parts.join("; ")}`);
+  }
+  const topCostDrivers = costServices
+    .filter((service) => service.amount > 0)
+    .sort((left, right) => right.amount - left.amount)
+    .slice(0, 2);
+  if (topCostDrivers.length) {
+    const total = topCostDrivers.reduce((sum, service) => sum + service.amount, 0);
+    lines.push(
+      `- Cost drivers: ${joinReadableList(
+        topCostDrivers.map((service) => `**${service.name}**`),
+      )} account for **${formatMonthlyMoney(total, costCurrency ?? topCostDrivers[0]?.currency)}**`,
+    );
+  }
+  return lines;
+};
+
 const namedAmount = (record: Record<string, any>): number | undefined =>
   numberFrom(
     record.amount,
@@ -572,6 +773,16 @@ const namedLabel = (record: Record<string, any>, fallback: string): string =>
   String(record.name ?? record.service ?? record.label ?? record.category ?? fallback);
 
 const mermaidLabel = (value: string): string => value.replace(/"/g, "'");
+
+const joinReadableList = (values: string[]): string => {
+  if (values.length <= 1) {
+    return values[0] ?? "";
+  }
+  if (values.length === 2) {
+    return `${values[0]} and ${values[1]}`;
+  }
+  return `${values.slice(0, -1).join(", ")}, and ${values[values.length - 1]}`;
+};
 
 const costServiceRows = (
   services: unknown,
@@ -698,12 +909,33 @@ const extractValidation = ({
     preload?.reports?.unit_tests?.metrics,
     project?.status?.unit_tests,
   );
+  const unitFailures = failedValidationRecords(
+    firstArray(
+      preload?.latest_payloads?.unit_tests?.test_results,
+      preload?.latest_payloads?.unit_tests?.results,
+      preload?.reports?.unit_tests?.metrics?.test_results,
+      preload?.reports?.unit_tests?.metrics?.results,
+      project?.status?.unit_tests?.test_results,
+      project?.status?.unit_tests?.results,
+    ),
+  );
+  const policyFailures = failedValidationRecords(
+    firstArray(
+      policySummary?.results,
+      policySummary?.checks,
+      waf?.parsed?.validation_results,
+      waf?.parsed?.rules,
+      waf?.raw?.rules,
+      failedRules,
+    ),
+  );
   return {
     policyChecks: {
       total: numberFrom(policySummary?.total_rules, policySummary?.totalRules, rules.length),
       passed: numberFrom(policySummary?.passed_rules, policySummary?.passedRules),
       failed: numberFrom(policySummary?.failed_rules, policySummary?.failedRules, failedRules.length),
       errors: numberFrom(policySummary?.error_rules, policySummary?.errorRules),
+      failures: policyFailures.slice(0, 5),
     },
     unitTests: {
       status: unitSummary?.status,
@@ -711,6 +943,7 @@ const extractValidation = ({
       passed: numberFrom(unitSummary?.passed_tests, unitSummary?.passedTests),
       failed: numberFrom(unitSummary?.failed_tests, unitSummary?.failedTests),
       skipped: numberFrom(unitSummary?.skipped_tests, unitSummary?.skippedTests),
+      failures: unitFailures.slice(0, 5),
     },
   };
 };
@@ -1593,9 +1826,8 @@ const buildMarkdownSummary = (data: Record<string, any>): string => {
   const architecture = data.gate?.architecture;
   const projectLabel = String(data.project?.name ?? data.projectName ?? data.projectId);
   const projectDisplay = markdownLink(projectLabel, data.project?.url ?? data.projectUrl);
-  const source = data.repo
-    ? `${data.repo}${data.ref ? ` @ ${data.ref}` : ""}`
-    : data.ref ?? "unknown source";
+  const repository = String(data.repo ?? "unknown repository");
+  const ref = String(data.ref ?? "unknown ref");
   const commit = String(data.commitSha ?? "unknown").slice(0, 12);
   const pillarLines = Array.isArray(data.gate?.wellArchitected?.pillars)
     ? data.gate.wellArchitected.pillars.map((pillar: Record<string, any>) => {
@@ -1616,26 +1848,16 @@ const buildMarkdownSummary = (data: Record<string, any>): string => {
     cost?.currency,
   );
   const positiveCostServices = costServices.filter((service) => service.amount > 0);
-  const architectureLines = [
-    ["Resources", architecture?.resources],
-    ["Relationships", architecture?.relationships],
-    ["Resource types", architecture?.resourceTypes],
-  ]
-    .filter(([, value]) => numberFrom(value) !== undefined)
-    .map(([label, value]) => `- ${label}: **${displayNumber(value)}**`);
-  const density = numberFrom(architecture?.relationshipDensity);
-  if (density !== undefined) {
-    architectureLines.push(
-      `- Graph connectivity: **${trimNumber(density, 2)} relationships per resource**`,
-    );
-  }
-  const resourceCount = numberFrom(architecture?.resources);
-  const resourceTypeCount = numberFrom(architecture?.resourceTypes);
-  if (resourceCount !== undefined && resourceTypeCount !== undefined) {
-    architectureLines.push(
-      `- Resource diversity: **${displayNumber(resourceTypeCount)} types across ${displayNumber(resourceCount)} resources**`,
-    );
-  }
+  const architectureLines = architectureSignalLines({
+    architecture,
+    costServices,
+    costCurrency: cost?.currency,
+    highRiskFindings: data.gate?.wellArchitected?.risks?.high,
+    pillars: Array.isArray(data.gate?.wellArchitected?.pillars)
+      ? data.gate.wellArchitected.pillars
+      : [],
+  });
+  const validationRows = validationFailureRows(validation);
   const overallRating = scoreRating(score);
   const lines = [
     `${statusIcon(data.gate?.status)} **Overall** : ${gateStatus}`,
@@ -1643,9 +1865,13 @@ const buildMarkdownSummary = (data: Record<string, any>): string => {
     validationSummaryLine(validation),
     policySummaryLine(validation),
     costSummaryLine(cost),
-    `**Cloudeval Project**: ${projectDisplay}`,
     "",
-    `Source: \`${source}\` · commit \`${commit}\``,
+    "#### Source",
+    "",
+    `- **CloudEval project**: ${projectDisplay}`,
+    `- **Repository**: \`${repository}\``,
+    `- **Ref**: \`${ref}\``,
+    `- **Commit**: \`${commit}\``,
   ];
   if (data.aiSummary?.markdown) {
     lines.push("", "#### AI summary", "", data.aiSummary.markdown);
@@ -1713,9 +1939,17 @@ const buildMarkdownSummary = (data: Record<string, any>): string => {
     lines.push(
       "",
       "<details>",
-      "<summary>Validation details</summary>",
+      `<summary>${validationRows.length ? "Validation failures" : "Validation details"}</summary>`,
       "",
       ...validationDetailLines(validation),
+      ...(validationRows.length
+        ? [
+            "",
+            "| Type | Name | Location | Severity | Why / next step |",
+            "| --- | --- | --- | --- | --- |",
+            ...validationRows,
+          ]
+        : []),
       "",
       "</details>",
     );
@@ -1724,7 +1958,7 @@ const buildMarkdownSummary = (data: Record<string, any>): string => {
     lines.push(
       "",
       "<details>",
-      "<summary>Architecture insights</summary>",
+      "<summary>Architecture signals</summary>",
       "",
       ...architectureLines,
       "",

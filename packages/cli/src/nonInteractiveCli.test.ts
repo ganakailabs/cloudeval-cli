@@ -289,6 +289,8 @@ const startBackend = async (
       failed_tests: number;
       skipped_tests: number;
     };
+    unitTestResults?: Array<Record<string, unknown>>;
+    policyCheckResults?: Array<Record<string, unknown>>;
     reviewGraph?: boolean;
     architectureMetrics?: Record<string, number>;
   } = {},
@@ -869,6 +871,9 @@ const startBackend = async (
               failed_tests: 0,
               skipped_tests: 0,
             },
+            ...(options.unitTestResults
+              ? { test_results: options.unitTestResults }
+              : {}),
           },
         },
       });
@@ -3720,7 +3725,8 @@ test("review command includes well architected, cost, and validation gate drilld
     assert.match(markdownArtifact, /🟢 Policy checks: GOOD/);
     assert.match(markdownArtifact, /🟢 Cost: 42 USD\/mo \(under 100 USD\/mo budget\)/);
     assert.match(markdownArtifact, /^🟢 \*\*Overall\*\* : PASS/m);
-    assert.match(markdownArtifact, /\*\*Cloudeval Project\*\*: \[GitHub IaC Project\]\(http:\/\/localhost:3000\/app\/projects\/project-github\?view=preview&layout=architecture\)/);
+    assert.match(markdownArtifact, /#### Source/);
+    assert.match(markdownArtifact, /\*\*CloudEval project\*\*: \[GitHub IaC Project\]\(http:\/\/localhost:3000\/app\/projects\/project-github\?view=preview&layout=architecture\)/);
     assert.match(markdownArtifact, /🟢 Well-Architected Posture: 91\/100 \(EXCELLENT\)/);
     assert.doesNotMatch(markdownArtifact, /\bmin 85\b|\bmax 100\b/);
   } finally {
@@ -3742,6 +3748,24 @@ test("review command writes visual markdown drilldowns for PR comments", async (
       failed_tests: 3,
       skipped_tests: 0,
     },
+    unitTestResults: [
+      {
+        test_name: "Secure admin credentials",
+        passed: false,
+        severity: "error",
+        message: "adminPassword is defined as a plain string.",
+        recommendation: "Use a secure parameter or secret reference.",
+        file_path: "nested/compute.json",
+      },
+      {
+        test_name: "Subnet should use NSG",
+        passed: false,
+        severity: "warning",
+        message: "app subnet has no network security group.",
+        recommendation: "Attach an NSG with least-privilege inbound rules.",
+        file_path: "nested/network.json",
+      },
+    ],
   });
   const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "cloudeval-review-visual-md-"));
   try {
@@ -3804,19 +3828,24 @@ test("review command writes visual markdown drilldowns for PR comments", async (
     assert.match(markdownArtifact, /🔴 Validation: 3 unit tests failed/);
     assert.match(markdownArtifact, /🟢 Policy checks: GOOD/);
     assert.match(markdownArtifact, /🟢 Cost: 42 USD\/mo \(under 100 USD\/mo budget\)/);
-    assert.match(markdownArtifact, /\*\*Cloudeval Project\*\*: \[GitHub IaC Project\]\(http:\/\/localhost:3000\/app\/projects\/project-github\?view=preview&layout=architecture\)/);
+    assert.match(markdownArtifact, /#### Source/);
+    assert.match(markdownArtifact, /\*\*CloudEval project\*\*: \[GitHub IaC Project\]\(http:\/\/localhost:3000\/app\/projects\/project-github\?view=preview&layout=architecture\)/);
+    assert.match(markdownArtifact, /\*\*Repository\*\*: `ganakailabs\/cloudeval-github-sync-e2e`/);
+    assert.match(markdownArtifact, /\*\*Ref\*\*: `main`/);
+    assert.match(markdownArtifact, /\*\*Commit\*\*: `sha-review-v`/);
     assert.doesNotMatch(markdownArtifact, /- Overall score:/);
     assert.doesNotMatch(markdownArtifact, /- Monthly estimate:/);
     assert.doesNotMatch(markdownArtifact, /Summary: 3 unit tests failed/);
     assert.match(markdownArtifact, /\| Security \| \*\*91\/100\*\* \| 🟢 EXCELLENT \|/);
     assert.match(markdownArtifact, /```mermaid\npie title Monthly cost by service\n  "Compute" : 30\n  "Networking" : 12\n```/);
     assert.match(markdownArtifact, /Unit tests: \*\*2 passed\*\*, \*\*3 failed\*\*, 5 total/);
-    assert.match(markdownArtifact, /Architecture insights/);
-    assert.match(markdownArtifact, /Resources: \*\*8\*\*/);
-    assert.match(markdownArtifact, /Relationships: \*\*11\*\*/);
-    assert.match(markdownArtifact, /Resource types: \*\*7\*\*/);
-    assert.match(markdownArtifact, /Graph connectivity: \*\*1.38 relationships per resource\*\*/);
-    assert.match(markdownArtifact, /Resource diversity: \*\*7 types across 8 resources\*\*/);
+    assert.match(markdownArtifact, /Validation failures/);
+    assert.match(markdownArtifact, /\| Unit test \| Secure admin credentials \| `nested\/compute.json` \| 🔴 error \| adminPassword is defined as a plain string\. Use a secure parameter or secret reference\. \|/);
+    assert.match(markdownArtifact, /\| Unit test \| Subnet should use NSG \| `nested\/network.json` \| 🟡 warning \| app subnet has no network security group\. Attach an NSG with least-privilege inbound rules\. \|/);
+    assert.match(markdownArtifact, /Architecture signals/);
+    assert.match(markdownArtifact, /Scale: \*\*8 resources\*\* across \*\*7 resource types\*\*/);
+    assert.match(markdownArtifact, /Dependency shape: \*\*11 relationships\*\* \(\*\*1.38 per resource\*\*\)/);
+    assert.match(markdownArtifact, /Cost drivers: \*\*Compute\*\* and \*\*Networking\*\*/);
     assert.doesNotMatch(markdownArtifact, /PSRule/);
     assert(
       backend.requests.some(
@@ -3902,7 +3931,8 @@ test("review command uses public labels and falls back to preload cost metrics",
     assert.match(markdownArtifact, /🟢 Validation: GOOD/);
     assert.match(markdownArtifact, /🟢 Policy checks: GOOD/);
     assert.match(markdownArtifact, /🟢 Cost: 10.22 USD\/mo \(under 100K budget\)/);
-    assert.match(markdownArtifact, /\*\*Cloudeval Project\*\*: \[GitHub IaC Project\]\(http:\/\/localhost:3000\/app\/projects\/project-github\?view=preview&layout=architecture\)/);
+    assert.match(markdownArtifact, /#### Source/);
+    assert.match(markdownArtifact, /\*\*CloudEval project\*\*: \[GitHub IaC Project\]\(http:\/\/localhost:3000\/app\/projects\/project-github\?view=preview&layout=architecture\)/);
   } finally {
     await fs.rm(cwd, { recursive: true, force: true });
     await backend.close();

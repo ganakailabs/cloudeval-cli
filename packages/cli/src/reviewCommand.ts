@@ -1501,9 +1501,9 @@ const deterministicAiSummary = (
     0;
   const policyStatus = policyFailed > 0 ? "has failed checks" : "GOOD";
   const summary = [
-    `CloudEval review completed with ${String(data.gate?.status ?? "UNKNOWN").toUpperCase()}.`,
-    `Well-Architected posture is ${formatScore(score)} (${rating}), validation has ${displayNumber(failedTests)} failed unit tests, policy checks are ${policyStatus}, and monthly cost is ${formatMonthlyMoney(cost?.amount, cost?.currency)}.`,
-    "Prioritize failed validation checks and the weakest Well-Architected pillar first.",
+    `CloudEval review completed with **${String(data.gate?.status ?? "UNKNOWN").toUpperCase()}**.`,
+    `Well-Architected posture is **${formatScore(score)} (${rating})**, validation has **${displayNumber(failedTests)} failed unit tests**, policy checks are **${policyStatus}**, and monthly cost is **${formatMonthlyMoney(cost?.amount, cost?.currency)}**.`,
+    "Prioritize **failed validation checks** and the **weakest Well-Architected pillar** first.",
   ].join(" ");
   return {
     enabled: true,
@@ -1513,17 +1513,17 @@ const deterministicAiSummary = (
     shortSummary: summary,
     detailsMarkdown: [
       "**Main risk**\nCloudEval could not produce an AI-written review summary, so use the deterministic gate evidence.",
-      "**Why it matters**\nFailed validation and weak architecture pillars are the highest-signal remediation inputs.",
-      "**Recommended actions**\nFix failed validation checks, address the weakest pillar, rerun CloudEval review, and compare the updated gate.",
-      "**Evidence used**\nGate status, Well-Architected score, validation totals, policy totals, and monthly cost.",
+      "**Why it matters**\n**Failed validation** and **weak architecture pillars** are the highest-signal remediation inputs.",
+      "**Recommended actions**\nFix **failed validation checks**, address the **weakest pillar**, rerun CloudEval review, and compare the updated gate.",
+      "**Evidence used**\n**Gate status**, **Well-Architected score**, **validation totals**, **policy totals**, and **monthly cost**.",
     ].join("\n\n"),
     markdown: renderAiSummarySections(
       summary,
       [
         "**Main risk**\nCloudEval could not produce an AI-written review summary, so use the deterministic gate evidence.",
-        "**Why it matters**\nFailed validation and weak architecture pillars are the highest-signal remediation inputs.",
-        "**Recommended actions**\nFix failed validation checks, address the weakest pillar, rerun CloudEval review, and compare the updated gate.",
-        "**Evidence used**\nGate status, Well-Architected score, validation totals, policy totals, and monthly cost.",
+        "**Why it matters**\n**Failed validation** and **weak architecture pillars** are the highest-signal remediation inputs.",
+        "**Recommended actions**\nFix **failed validation checks**, address the **weakest pillar**, rerun CloudEval review, and compare the updated gate.",
+        "**Evidence used**\n**Gate status**, **Well-Architected score**, **validation totals**, **policy totals**, and **monthly cost**.",
       ].join("\n\n"),
     ),
   };

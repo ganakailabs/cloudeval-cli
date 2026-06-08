@@ -1415,157 +1415,6 @@ const waitForReviewReports = async ({
   return latest;
 };
 
-const buildAiSummaryPrompt = (data: Record<string, any>): string => {
-  const score = data.gate?.wellArchitected?.overall?.score ?? data.gate?.overallScore;
-  const rating = scoreRating(score);
-  const cost = data.gate?.cost?.monthly;
-  const costServices = reconcileCostServiceRows(
-    costServiceRows(data.gate?.cost?.topServices, cost?.currency),
-    cost?.amount,
-    cost?.currency,
-  );
-  const validationLines = validationDetailLines(data.gate?.validation)
-    .map((line) => line.replace(/^- /, ""))
-    .join("; ");
-  const architecture = data.gate?.architecture;
-  const architectureFacts = [
-    ["resources", architecture?.resources],
-    ["relationships", architecture?.relationships],
-    ["resource types", architecture?.resourceTypes],
-  ]
-    .filter(([, value]) => numberFrom(value) !== undefined)
-    .map(([label, value]) => `${displayNumber(value)} ${label}`)
-    .join(", ");
-
-  return [
-    "Write a concise CloudEval pull request review summary in Markdown.",
-    "Return a first paragraph with no heading or label. Keep it under 45 words.",
-    "After the paragraph, optionally add short bullets under these labels only: **Evidence**, **Recommended changes**, **Verify**.",
-    "Do not use generic planning labels such as Goal, Objective, Target, Interpretation, or Conditional actions.",
-    "Be evidence-based and actionable. Use only facts present below; omit missing facts instead of inventing them.",
-    "Keep the full response under 180 words. Do not include citations, source markers, hidden tool ids, or HTML comments.",
-    "",
-    "Review facts:",
-    `Project: ${String(data.project?.name ?? data.projectName ?? data.projectId)}`,
-    `Project link: ${data.project?.url ?? data.projectUrl ?? "not available"}`,
-    `Repository: ${data.repo ?? "unknown"}`,
-    `Ref: ${data.ref ?? "unknown"}`,
-    `Commit: ${data.commitSha ?? "unknown"}`,
-    `Overall gate: ${String(data.gate?.status ?? "unknown").toUpperCase()}`,
-    `Well-Architected posture: ${formatScore(score)}${rating ? ` (${rating})` : ""}`,
-    `High-risk findings: ${data.gate?.wellArchitected?.risks?.high ?? data.gate?.highRisk ?? "unknown"}`,
-    `Critical findings: ${data.gate?.wellArchitected?.risks?.critical ?? "unknown"}`,
-    `Cost: ${formatMonthlyMoney(cost?.amount, cost?.currency)}`,
-    `Cost budget: ${formatMonthlyMoney(cost?.threshold, cost?.currency)}`,
-    costServices.length
-      ? `Cost breakdown: ${costServices
-          .map((service) => `${service.name} ${formatMonthlyMoney(service.amount, service.currency)}`)
-          .join("; ")}`
-      : "Cost breakdown: not available",
-    `Validation: ${formatValidation(data.gate?.validation)}`,
-    validationLines ? `Validation details: ${validationLines}` : "Validation details: not available",
-    architectureFacts ? `Architecture graph: ${architectureFacts}` : "Architecture graph: not available",
-    Array.isArray(data.gate?.failures) && data.gate.failures.length
-      ? `Gate failures: ${data.gate.failures.join("; ")}`
-      : "Gate failures: none reported",
-  ].join("\n");
-};
-
-const isTransientAiSummaryText = (text?: string): boolean => {
-  if (!text?.trim()) {
-    return false;
-  }
-  return /too many requests|rate[- ]?limit|try again in a moment|temporarily unavailable|something went wrong while processing|please try again or ask a different question|did not complete within/i.test(
-    text,
-  );
-};
-
-const normalizeAiSummaryMarkdown = (text?: string): string => {
-  return normalizeAiSummarySections(text).markdown;
-};
-
-const normalizeAiSummarySections = (text?: string): {
-  shortSummary: string;
-  detailsMarkdown: string;
-  markdown: string;
-} => {
-  const trimmed = String(text ?? "").trim();
-  if (!trimmed) {
-    return { shortSummary: "", detailsMarkdown: "", markdown: "" };
-  }
-  const withNewlines = sanitizeAiSummaryMarkdown(trimmed.replace(/\\n/g, "\n"));
-  const requestMatch = /\bRequest:\s*/i.exec(withNewlines);
-  const sourceText = requestMatch
-    ? withNewlines
-        .slice(requestMatch.index + requestMatch[0].length)
-        .split(/\n\s*\nThe request reached\b/i)[0]
-        .trim() || withNewlines
-    : withNewlines;
-  const sections = splitAiSummarySections(sourceText);
-  return {
-    ...sections,
-    markdown: renderAiSummarySections(sections.shortSummary, sections.detailsMarkdown),
-  };
-};
-
-const sanitizeAiSummaryMarkdown = (text: string): string =>
-  text
-    .replace(/<!--[\s\S]*?-->/g, "")
-    .replace(/\s*\[S_[A-Za-z0-9_:-]+\]/g, "")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-
-const stripAiSectionLabel = (text: string, label: string): string =>
-  text
-    .replace(new RegExp(`^\\s*#{0,6}\\s*\\*\\*?${label}\\*\\*?\\s*:?\\s*`, "i"), "")
-    .replace(new RegExp(`^\\s*${label}\\s*:?\\s*`, "i"), "")
-    .trim();
-
-const normalizeAiDetailHeadings = (text: string): string =>
-  text
-    .split("\n")
-    .map((line) => {
-      const cleaned = line
-        .replace(/^\s*#{1,6}\s*/, "")
-        .replace(/^\s*[-*]\s+/, "")
-        .trimEnd();
-      const labelMatch =
-        cleaned.match(/^\*\*(Evidence|Recommended changes|Verify|Key risks|Cost posture|Recommended next step|Recommendation|Validation|Impact):\*\*\s*(.*)$/i) ??
-        cleaned.match(/^\*\*(Evidence|Recommended changes|Verify|Key risks|Cost posture|Recommended next step|Recommendation|Validation|Impact)\*\*\s*:\s*(.*)$/i) ??
-        cleaned.match(/^(Evidence|Recommended changes|Verify|Key risks|Cost posture|Recommended next step|Recommendation|Validation|Impact)\s*:\s*(.*)$/i);
-      if (!labelMatch) {
-        return cleaned;
-      }
-      return `- **${labelMatch[1]}:** ${labelMatch[2]}`.trimEnd();
-    })
-    .join("\n")
-    .trim();
-
-const splitAiSummarySections = (text: string): { shortSummary: string; detailsMarkdown: string } => {
-  const cleaned = sanitizeAiSummaryMarkdown(text)
-    .replace(/^\s*#{1,6}\s*AI summary\s*$/gim, "")
-    .trim();
-  const shortMatch = /\b(?:Short Summary|Summary)\s*:\s*/i.exec(cleaned);
-  const detailsMatch = /\bDetails\s*:\s*/i.exec(cleaned);
-  if (shortMatch && detailsMatch && shortMatch.index < detailsMatch.index) {
-    const shortSummary = stripAiSectionLabel(
-      cleaned.slice(shortMatch.index, detailsMatch.index).trim(),
-      shortMatch[0].toLowerCase().startsWith("summary") ? "Summary" : "Short Summary",
-    );
-    const detailsMarkdown = normalizeAiDetailHeadings(
-      stripAiSectionLabel(cleaned.slice(detailsMatch.index).trim(), "Details"),
-    );
-    return { shortSummary, detailsMarkdown };
-  }
-  const paragraphs = cleaned.split(/\n\s*\n/).map((paragraph) => paragraph.trim()).filter(Boolean);
-  const shortSummary = stripAiSectionLabel(
-    stripAiSectionLabel(paragraphs[0] ?? cleaned, "Short Summary"),
-    "Summary",
-  );
-  const detailsMarkdown = normalizeAiDetailHeadings(paragraphs.slice(1).join("\n\n"));
-  return { shortSummary, detailsMarkdown };
-};
-
 const renderAiSummarySections = (shortSummary: string, detailsMarkdown: string): string => {
   const lines = [shortSummary.trim()];
   if (detailsMarkdown.trim()) {
@@ -1582,28 +1431,6 @@ const renderAiSummarySections = (shortSummary: string, detailsMarkdown: string):
   return lines.join("\n");
 };
 
-const aiSummaryAttemptTimeoutMs = (): number => {
-  const raw = process.env.CLOUDEVAL_REVIEW_AI_ATTEMPT_TIMEOUT_MS;
-  if (raw?.trim()) {
-    const parsed = Number.parseInt(raw.trim(), 10);
-    if (Number.isFinite(parsed) && parsed > 0) {
-      return parsed;
-    }
-  }
-  return 180000;
-};
-
-const aiSummaryRetryDelaysMs = (): number[] => {
-  const raw = process.env.CLOUDEVAL_REVIEW_AI_RETRY_DELAYS_MS;
-  if (raw?.trim()) {
-    return raw
-      .split(",")
-      .map((value) => Number.parseInt(value.trim(), 10))
-      .filter((value) => Number.isFinite(value) && value >= 0);
-  }
-  return [5000, 15000];
-};
-
 type GenerateAiSummaryInput = {
   baseUrl: string;
   token?: string;
@@ -1615,207 +1442,130 @@ type GenerateAiSummaryInput = {
   data: Record<string, any>;
 };
 
-const generateAiSummaryAttempt = async ({
-  baseUrl,
-  token,
-  user,
-  project,
-  model,
-  mode,
-  agentProfileId,
-  data,
-}: GenerateAiSummaryInput): Promise<Record<string, any>> => {
-  const core = await import("@cloudeval/core");
-  const threadId = `review-${data.projectId}-${Date.now()}`;
-  let markdown = "";
-  let chatState: any = { ...core.initialChatState, threadId };
-  const attemptTimeoutMs = aiSummaryAttemptTimeoutMs();
-  let timedOut = false;
-  let timeoutId: ReturnType<typeof setTimeout> | undefined;
-  const timeoutPromise = new Promise<never>((_, reject) => {
-    timeoutId = setTimeout(() => {
-      timedOut = true;
-      reject(
-        new Error(`AI summary did not complete within ${attemptTimeoutMs}ms.`),
-      );
-    }, attemptTimeoutMs);
-    timeoutId.unref?.();
-  });
-  const iterator = core.streamChat({
-    baseUrl,
-    authToken: token,
-    message: buildAiSummaryPrompt(data),
-    threadId,
-    user: {
-      id: String(project?.user_id ?? user?.id ?? "cli-user"),
-      name: String(user?.full_name ?? user?.name ?? user?.email ?? "CloudEval CI"),
-    },
-    project: project
-      ? {
-          id: String(project.id ?? data.projectId),
-          name: String(project.name ?? data.projectId),
-          user_id: typeof project.user_id === "string" ? project.user_id : undefined,
-          cloud_provider:
-            typeof project.cloud_provider === "string" ? project.cloud_provider : undefined,
-          type: typeof project.type === "string" ? project.type : undefined,
-          connection_ids: Array.isArray(project.connection_ids)
-            ? project.connection_ids
-            : undefined,
-        }
-      : {
-          id: String(data.projectId),
-          name: String(data.projectId),
-        },
-    settings: {
-      mode,
-      ...(model ? { model } : {}),
-    },
-    ...(mode === "agent" ? { agentProfileId: agentProfileId ?? "architecture" } : {}),
-    completeAfterResponse: true,
-    responseCompletionGraceMs: 250,
-    streamIdleTimeoutMs: 120000,
-  });
-  try {
-    while (true) {
-      const next = await Promise.race([iterator.next(), timeoutPromise]);
-      if (next.done) {
-        break;
-      }
-      const chunk = next.value;
-      chatState = core.reduceChunk(chatState, chunk as any);
-      const latestMessage = [...(chatState.messages ?? [])]
-        .reverse()
-        .find((message: any) => message.role === "assistant");
-      const chunkAssistantMessage = Array.isArray((chunk as any)?.messages)
-        ? [...((chunk as any).messages as any[])]
-            .reverse()
-            .find((message: any) => message?.role === "assistant" && typeof message?.content === "string")
-            ?.content
-        : undefined;
-      const content = (chunk as any)?.content;
-      if (typeof chunkAssistantMessage === "string" && chunkAssistantMessage.trim()) {
-        markdown = chunkAssistantMessage;
-      }
-      if (chunk.type === "responding" && typeof content === "string") {
-        markdown = latestMessage?.content || `${markdown}${content}`;
-      }
-    }
-  } finally {
-    if (timeoutId) {
-      clearTimeout(timeoutId);
-    }
-    if (timedOut) {
-      await iterator.return?.(undefined).catch(() => undefined);
-    }
+const githubWorkflowRunUrl = (): string | undefined => {
+  const server = process.env.GITHUB_SERVER_URL;
+  const repo = process.env.GITHUB_REPOSITORY;
+  const runId = process.env.GITHUB_RUN_ID;
+  if (server && repo && runId) {
+    return `${server.replace(/\/$/, "")}/${repo}/actions/runs/${runId}`;
   }
-  const finalMessage = [...(chatState.messages ?? [])]
-    .reverse()
-    .find((message: any) => message.role === "assistant");
-  const rawMarkdown = String(finalMessage?.content || markdown).trim();
-  const normalized = normalizeAiSummarySections(rawMarkdown);
+  return undefined;
+};
+
+const reviewSurface = (): "local_review" | "pull_request" => {
+  const event = String(process.env.GITHUB_EVENT_NAME ?? "").toLowerCase();
+  const ref = String(process.env.GITHUB_REF ?? "").toLowerCase();
+  return event.startsWith("pull_request") || ref.startsWith("refs/pull/")
+    ? "pull_request"
+    : "local_review";
+};
+
+const buildReviewSummaryPayload = (data: Record<string, any>): Record<string, any> => ({
+  source: process.env.GITHUB_ACTIONS === "true" ? "github_action" : "cli",
+  surface: reviewSurface(),
+  project: data.project ?? { id: data.projectId },
+  repository: { full_name: data.repo },
+  ref: data.ref,
+  commit_sha: data.commitSha,
+  workflow_run_url: githubWorkflowRunUrl(),
+  gate_result: {
+    status: data.gate?.status,
+    failures: data.gate?.failures ?? [],
+    thresholds: data.gate?.thresholds ?? {},
+    enforcement: data.gate?.enforcement,
+  },
+  well_architected: data.gate?.wellArchitected ?? {},
+  cost: data.gate?.cost ?? {},
+  validation: data.gate?.validation ?? {},
+  policy: data.gate?.validation?.policy ?? data.gate?.policy ?? {},
+  architecture_signals: data.gate?.architecture ?? {},
+  changed_files: data.changedFiles ?? [],
+});
+
+const deterministicAiSummary = (
+  data: Record<string, any>,
+  error?: string,
+): Record<string, any> => {
+  const score = data.gate?.wellArchitected?.overall?.score ?? data.gate?.overallScore;
+  const rating = scoreRating(score) ?? "UNKNOWN";
+  const validation = data.gate?.validation ?? {};
+  const cost = data.gate?.cost?.monthly ?? {};
+  const failedTests = numberFrom(validation?.unitTests?.failed) ??
+    numberFrom(validation?.unit_tests?.failed) ??
+    numberFrom(validation?.failedUnitTests) ??
+    numberFrom(validation?.failed_tests) ??
+    0;
+  const policyFailed = numberFrom(validation?.policyChecks?.failed) ??
+    numberFrom(validation?.policy_checks?.failed) ??
+    numberFrom(data.gate?.policy?.failed) ??
+    0;
+  const policyStatus = policyFailed > 0 ? "has failed checks" : "GOOD";
+  const summary = [
+    `CloudEval review completed with ${String(data.gate?.status ?? "UNKNOWN").toUpperCase()}.`,
+    `Well-Architected posture is ${formatScore(score)} (${rating}), validation has ${displayNumber(failedTests)} failed unit tests, policy checks are ${policyStatus}, and monthly cost is ${formatMonthlyMoney(cost?.amount, cost?.currency)}.`,
+    "Prioritize failed validation checks and the weakest Well-Architected pillar first.",
+  ].join(" ");
   return {
     enabled: true,
-    status: "ok",
-    mode,
-    ...(mode === "agent" ? { agentProfileId: agentProfileId ?? "architecture" } : {}),
-    ...(model ? { model } : {}),
-    ...normalized,
-    threadId,
+    status: "fallback",
+    fallbackUsed: true,
+    warnings: error ? [`Review summary endpoint failed: ${error}`] : [],
+    shortSummary: summary,
+    detailsMarkdown: [
+      "**Main risk**\nCloudEval could not produce an AI-written review summary, so use the deterministic gate evidence.",
+      "**Why it matters**\nFailed validation and weak architecture pillars are the highest-signal remediation inputs.",
+      "**Recommended actions**\nFix failed validation checks, address the weakest pillar, rerun CloudEval review, and compare the updated gate.",
+      "**Evidence used**\nGate status, Well-Architected score, validation totals, policy totals, and monthly cost.",
+    ].join("\n\n"),
+    markdown: renderAiSummarySections(
+      summary,
+      [
+        "**Main risk**\nCloudEval could not produce an AI-written review summary, so use the deterministic gate evidence.",
+        "**Why it matters**\nFailed validation and weak architecture pillars are the highest-signal remediation inputs.",
+        "**Recommended actions**\nFix failed validation checks, address the weakest pillar, rerun CloudEval review, and compare the updated gate.",
+        "**Evidence used**\nGate status, Well-Architected score, validation totals, policy totals, and monthly cost.",
+      ].join("\n\n"),
+    ),
   };
 };
 
-const generateAiSummary = async (
-  input: GenerateAiSummaryInput,
-): Promise<Record<string, any>> => {
-  const retryDelays = aiSummaryRetryDelaysMs();
-  let lastResult: Record<string, any> | undefined;
-  let activeInput = input;
-  let fallbackFromMode: "agent" | undefined;
-
-  for (let attemptIndex = 0; attemptIndex <= retryDelays.length; attemptIndex += 1) {
-    let result: Record<string, any>;
-    try {
-      result = await generateAiSummaryAttempt(activeInput);
-    } catch (error: any) {
-      const message = error?.message ?? "AI summary failed";
-      if (!isTransientAiSummaryText(message)) {
-        throw error;
-      }
-      result = {
-        enabled: true,
-        status: "transient_error",
-        mode: activeInput.mode,
-        ...(activeInput.mode === "agent"
-          ? { agentProfileId: activeInput.agentProfileId ?? "architecture" }
-          : {}),
-        ...(activeInput.model ? { model: activeInput.model } : {}),
-        markdown: message,
-        error: message,
-      };
+const generateAiSummary = async (input: GenerateAiSummaryInput): Promise<Record<string, any>> => {
+  try {
+    const payload = buildReviewSummaryPayload(input.data);
+    const response = await fetchCloudEvalJson<Record<string, any>>({
+      baseUrl: input.baseUrl,
+      authToken: input.token,
+      path: `/projects/${encodeURIComponent(String(input.data.projectId))}/review/summary`,
+      method: "POST",
+      body: payload,
+      idempotencyKey: `cloudeval-review-summary-${input.data.projectId}-${input.data.commitSha ?? "head"}`,
+    });
+    const shortSummary = String(response.summary ?? "").trim();
+    const detailsMarkdown = String(response.details ?? "").trim();
+    if (!shortSummary) {
+      return deterministicAiSummary(input.data, "Review summary endpoint returned no summary.");
     }
-    result.attempts = attemptIndex + 1;
-    if (fallbackFromMode) {
-      result.fallbackFromMode = fallbackFromMode;
-    }
-    const normalizedSummary =
-      typeof result.shortSummary === "string" || typeof result.detailsMarkdown === "string"
-        ? {
-            shortSummary: String(result.shortSummary ?? "").trim(),
-            detailsMarkdown: String(result.detailsMarkdown ?? "").trim(),
-            markdown: renderAiSummarySections(
-              String(result.shortSummary ?? "").trim(),
-              String(result.detailsMarkdown ?? "").trim(),
-            ),
-          }
-        : normalizeAiSummarySections(result.markdown);
-    result = { ...result, ...normalizedSummary };
-    if (isTransientAiSummaryText(result.markdown)) {
-      const normalizedError = normalizeAiSummaryMarkdown(result.error);
-      if (normalizedError && !isTransientAiSummaryText(normalizedError)) {
-        result = {
-          ...result,
-          ...normalizeAiSummarySections(normalizedError),
-        };
-        result.status = "ok";
-        delete result.error;
-      }
-    }
-    lastResult = result;
-
-    if (!isTransientAiSummaryText(result.markdown)) {
-      return result;
-    }
-
-    const retryDelay = retryDelays[attemptIndex];
-    if (retryDelay === undefined) {
-      break;
-    }
-    await sleep(retryDelay);
-    if (activeInput.mode === "agent") {
-      fallbackFromMode = "agent";
-      activeInput = {
-        ...input,
-        mode: "ask",
-        agentProfileId: undefined,
-      };
-    }
+    return {
+      enabled: true,
+      status: response.fallback_used ? "fallback" : "ok",
+      fallbackUsed: Boolean(response.fallback_used),
+      warnings: Array.isArray(response.warnings) ? response.warnings : [],
+      riskHighlights: Array.isArray(response.risk_highlights)
+        ? response.risk_highlights
+        : [],
+      recommendedActions: Array.isArray(response.recommended_actions)
+        ? response.recommended_actions
+        : [],
+      evidenceUsed: Array.isArray(response.evidence_used)
+        ? response.evidence_used
+        : [],
+      shortSummary,
+      detailsMarkdown,
+      markdown: renderAiSummarySections(shortSummary, detailsMarkdown),
+    };
+  } catch (error: any) {
+    return deterministicAiSummary(input.data, error?.message ?? "request failed");
   }
-
-  return {
-    ...(lastResult ?? {}),
-    enabled: true,
-    status: "unavailable",
-    mode: activeInput.mode,
-    ...(activeInput.mode === "agent"
-      ? { agentProfileId: activeInput.agentProfileId ?? "architecture" }
-      : {}),
-    ...(input.model ? { model: input.model } : {}),
-    ...(fallbackFromMode ? { fallbackFromMode } : {}),
-    attempts: lastResult?.attempts ?? retryDelays.length + 1,
-    error: lastResult?.markdown || "AI summary unavailable",
-    markdown:
-      "AI summary unavailable: CloudEval AI was rate-limited. Retry the workflow or rerun `cloudeval review`.",
-  };
 };
 
 const buildMarkdownSummary = (data: Record<string, any>): string => {

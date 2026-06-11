@@ -765,12 +765,22 @@ const namedAmount = (record: Record<string, any>): number | undefined =>
     record.amount,
     record.monthly_cost,
     record.monthlyCost,
+    record.monthly_cost_estimate,
+    record.monthlyCostEstimate,
     record.cost,
     record.value,
   );
 
 const namedLabel = (record: Record<string, any>, fallback: string): string =>
-  String(record.name ?? record.service ?? record.label ?? record.category ?? fallback);
+  String(
+    record.name ??
+      record.resource_name ??
+      record.resourceName ??
+      record.service ??
+      record.label ??
+      record.category ??
+      fallback,
+  );
 
 const mermaidLabel = (value: string): string => value.replace(/"/g, "'");
 
@@ -803,6 +813,13 @@ const costServiceRows = (
       };
     })
     .filter((service): service is { name: string; amount: number; currency?: string } => service !== undefined);
+
+const sortedPositiveCostRows = (
+  rows: Array<{ name: string; amount: number; currency?: string }>,
+): Array<{ name: string; amount: number; currency?: string }> =>
+  rows
+    .filter((row) => row.amount > 0)
+    .sort((left, right) => right.amount - left.amount);
 
 const reconcileCostServiceRows = (
   services: Array<{ name: string; amount: number; currency?: string }>,
@@ -837,8 +854,93 @@ const reconcileCostServiceRows = (
   return services;
 };
 
+const compactCostRowsForChart = (
+  rows: Array<{ name: string; amount: number; currency?: string }>,
+  totalAmount?: number,
+  currency?: string,
+  options: { maxRows?: number; remainderLabel?: string } = {},
+): Array<{ name: string; amount: number; currency?: string }> => {
+  const maxRows = options.maxRows ?? 5;
+  const remainderLabel = options.remainderLabel ?? "Unallocated";
+  const total = numberFrom(totalAmount);
+  const positiveRows = sortedPositiveCostRows(rows);
+  const selected = positiveRows.slice(0, maxRows);
+  const collapsed = positiveRows.slice(maxRows);
+  const collapsedSum = Number(
+    collapsed.reduce((sum, row) => sum + row.amount, 0).toFixed(3),
+  );
+  const result = [...selected];
+  if (collapsedSum > 0.001) {
+    result.push({
+      name: "Other",
+      amount: collapsedSum,
+      ...(currency ? { currency } : {}),
+    });
+  }
+  const represented = result.reduce((sum, row) => sum + row.amount, 0);
+  if (total !== undefined) {
+    const delta = Number((total - represented).toFixed(3));
+    if (delta > 0.001) {
+      result.push({
+        name: remainderLabel,
+        amount: delta,
+        ...(currency ? { currency } : {}),
+      });
+    }
+  }
+  return result;
+};
+
 const markdownLink = (label: string, url?: string): string =>
   url ? `[${label}](${url})` : label;
+
+const openInCloudEvalLines = (links: Record<string, any> | undefined): string[] => {
+  if (!links) {
+    return [];
+  }
+  const reports = asRecord(links.reports);
+  const downloads = asRecord(links.downloads);
+  const entries = [
+    ["Project preview", links.project],
+    ["Architecture report", reports.architecture],
+    ["Cost report", reports.cost],
+    ["Validation details", reports.validation],
+    ["Download PDF", downloads.pdf],
+    ["Workflow run", links.workflowRun],
+    ["Download review artifacts", downloads.reviewArtifacts],
+  ].filter((entry): entry is [string, string] => typeof entry[1] === "string" && entry[1].length > 0);
+  return entries.map(([label, url]) => `- ${markdownLink(label, url)}`);
+};
+
+const monthlyCostImpactLines = (
+  currentAmount: unknown,
+  savingsAmount: unknown,
+  currency?: string,
+): string[] => {
+  const current = numberFrom(currentAmount);
+  const savings = numberFrom(savingsAmount);
+  if (current === undefined || current <= 0 || savings === undefined || savings <= 0) {
+    return [];
+  }
+  const optimized = Math.max(current - savings, 0);
+  const savingsPercent = current > 0 ? (savings / current) * 100 : undefined;
+  const yMax = Math.max(current, optimized, savings);
+  return [
+    "| Metric | Amount |",
+    "| --- | ---: |",
+    `| Current monthly cost | **${formatMonthlyMoney(current, currency)}** |`,
+    `| Potential savings | **${formatMonthlyMoney(savings, currency)}${savingsPercent !== undefined ? ` (${trimNumber(savingsPercent, 1)}%)` : ""}** |`,
+    `| Optimized monthly cost | **${formatMonthlyMoney(optimized, currency)}** |`,
+    "",
+    "```mermaid",
+    "xychart-beta",
+    '  title "Monthly cost impact"',
+    '  x-axis ["Current", "Optimized"]',
+    `  y-axis "${currency ? `${currency}/mo` : "monthly cost"}" 0 --> ${trimNumber(yMax, 3)}`,
+    `  bar [${trimNumber(current, 3)}, ${trimNumber(optimized, 3)}]`,
+    "```",
+  ];
+};
 
 type ReviewPillar = {
   id: string;
@@ -1135,6 +1237,18 @@ const evaluateGate = ({
         ? cost.parsed.serviceGroups
         : entriesAsNamedRecords(cost?.report?.processed?.cost_by_service_family)
     ).slice(0, 5),
+    topResources: (
+      firstArray(
+        cost?.report?.raw?.resource_estimates,
+        cost?.report?.raw?.resourceEstimates,
+        cost?.raw?.resource_estimates,
+        cost?.raw?.resourceEstimates,
+        cost?.parsed?.resourceEstimates,
+        cost?.parsed?.resource_estimates,
+        preload?.latest_payloads?.cost?.raw?.resource_estimates,
+        preload?.latest_payloads?.cost?.raw?.resourceEstimates,
+      ) ?? []
+    ).slice(0, 20),
     recommendations: (
       Array.isArray(cost?.parsed?.recommendations)
         ? cost.parsed.recommendations
@@ -1501,9 +1615,9 @@ const deterministicAiSummary = (
     0;
   const policyStatus = policyFailed > 0 ? "has failed checks" : "GOOD";
   const summary = [
-    `CloudEval review completed with ${String(data.gate?.status ?? "UNKNOWN").toUpperCase()}.`,
-    `Well-Architected posture is ${formatScore(score)} (${rating}), validation has ${displayNumber(failedTests)} failed unit tests, policy checks are ${policyStatus}, and monthly cost is ${formatMonthlyMoney(cost?.amount, cost?.currency)}.`,
-    "Prioritize failed validation checks and the weakest Well-Architected pillar first.",
+    `CloudEval review completed with **${String(data.gate?.status ?? "UNKNOWN").toUpperCase()}**.`,
+    `Well-Architected posture is **${formatScore(score)} (${rating})**, validation has **${displayNumber(failedTests)} failed unit tests**, policy checks are **${policyStatus}**, and monthly cost is **${formatMonthlyMoney(cost?.amount, cost?.currency)}**.`,
+    "Prioritize **failed validation checks** and the **weakest Well-Architected pillar** first.",
   ].join(" ");
   return {
     enabled: true,
@@ -1513,17 +1627,17 @@ const deterministicAiSummary = (
     shortSummary: summary,
     detailsMarkdown: [
       "**Main risk**\nCloudEval could not produce an AI-written review summary, so use the deterministic gate evidence.",
-      "**Why it matters**\nFailed validation and weak architecture pillars are the highest-signal remediation inputs.",
-      "**Recommended actions**\nFix failed validation checks, address the weakest pillar, rerun CloudEval review, and compare the updated gate.",
-      "**Evidence used**\nGate status, Well-Architected score, validation totals, policy totals, and monthly cost.",
+      "**Why it matters**\n**Failed validation** and **weak architecture pillars** are the highest-signal remediation inputs.",
+      "**Recommended actions**\nFix **failed validation checks**, address the **weakest pillar**, rerun CloudEval review, and compare the updated gate.",
+      "**Evidence used**\n**Gate status**, **Well-Architected score**, **validation totals**, **policy totals**, and **monthly cost**.",
     ].join("\n\n"),
     markdown: renderAiSummarySections(
       summary,
       [
         "**Main risk**\nCloudEval could not produce an AI-written review summary, so use the deterministic gate evidence.",
-        "**Why it matters**\nFailed validation and weak architecture pillars are the highest-signal remediation inputs.",
-        "**Recommended actions**\nFix failed validation checks, address the weakest pillar, rerun CloudEval review, and compare the updated gate.",
-        "**Evidence used**\nGate status, Well-Architected score, validation totals, policy totals, and monthly cost.",
+        "**Why it matters**\n**Failed validation** and **weak architecture pillars** are the highest-signal remediation inputs.",
+        "**Recommended actions**\nFix **failed validation checks**, address the **weakest pillar**, rerun CloudEval review, and compare the updated gate.",
+        "**Evidence used**\n**Gate status**, **Well-Architected score**, **validation totals**, **policy totals**, and **monthly cost**.",
       ].join("\n\n"),
     ),
   };
@@ -1597,7 +1711,14 @@ const buildMarkdownSummary = (data: Record<string, any>): string => {
     cost?.amount,
     cost?.currency,
   );
-  const positiveCostServices = costServices.filter((service) => service.amount > 0);
+  const resourceCostRows = compactCostRowsForChart(
+    costServiceRows(data.gate?.cost?.topResources, cost?.currency),
+    cost?.amount,
+    cost?.currency,
+    { maxRows: 5, remainderLabel: "Unallocated" },
+  );
+  const positiveResourceCosts = resourceCostRows.filter((resource) => resource.amount > 0);
+  const openLinks = openInCloudEvalLines(data.links);
   const architectureLines = architectureSignalLines({
     architecture,
     costServices,
@@ -1623,6 +1744,9 @@ const buildMarkdownSummary = (data: Record<string, any>): string => {
     `- **Ref**: \`${ref}\``,
     `- **Commit**: \`${commit}\``,
   ];
+  if (openLinks.length) {
+    lines.push("", "#### Open in CloudEval", "", ...openLinks);
+  }
   if (data.aiSummary?.markdown) {
     lines.push("", "#### AI summary", "", data.aiSummary.markdown);
   }
@@ -1646,9 +1770,27 @@ const buildMarkdownSummary = (data: Record<string, any>): string => {
   }
   if (cost?.amount !== undefined || cost?.threshold !== undefined) {
     const costLines: string[] = [];
-    if (data.gate?.cost?.estimatedSavings?.amount !== undefined) {
+    const impactLines = monthlyCostImpactLines(
+      cost?.amount,
+      data.gate?.cost?.estimatedSavings?.amount,
+      cost?.currency ?? data.gate?.cost?.estimatedSavings?.currency,
+    );
+    if (impactLines.length) {
+      costLines.push(...impactLines);
+    } else if (data.gate?.cost?.estimatedSavings?.amount !== undefined) {
       costLines.push(
         `- Estimated savings: **${formatMonthlyMoney(data.gate.cost.estimatedSavings.amount, data.gate.cost.estimatedSavings.currency)}**`,
+      );
+    }
+    if (positiveResourceCosts.length) {
+      costLines.push(
+        "",
+        "```mermaid",
+        "pie title Monthly cost by resource",
+        ...positiveResourceCosts.map(
+          (resource) => `  "${mermaidLabel(resource.name)}" : ${trimNumber(resource.amount, 3)}`,
+        ),
+        "```",
       );
     }
     if (costServices.length) {
@@ -1660,17 +1802,6 @@ const buildMarkdownSummary = (data: Record<string, any>): string => {
           (service) =>
             `| ${service.name} | **${formatMonthlyMoney(service.amount, service.currency)}** |`,
         ),
-      );
-    }
-    if (positiveCostServices.length) {
-      costLines.push(
-        "",
-        "```mermaid",
-        "pie title Monthly cost by service",
-        ...positiveCostServices.map(
-          (service) => `  "${mermaidLabel(service.name)}" : ${trimNumber(service.amount, 3)}`,
-        ),
-        "```",
       );
     }
     if (costLines.length) {
@@ -1825,18 +1956,58 @@ export const registerReviewCommand = (
         }),
         readConfigText(cwd, options),
       ]);
+      const frontendBaseUrl = resolveFrontendBaseUrl({ apiBaseUrl: context.baseUrl });
+      const projectUrl = buildFrontendUrl({
+        baseUrl: frontendBaseUrl,
+        target: "project",
+        projectId,
+        view: "preview",
+        layout: "architecture",
+      });
+      const workflowRunUrl = githubWorkflowRunUrl();
       const data: Record<string, any> = {
         projectId,
         project: {
           id: projectId,
           name: String(project?.name ?? projectId),
-          url: buildFrontendUrl({
-            baseUrl: resolveFrontendBaseUrl({ apiBaseUrl: context.baseUrl }),
-            target: "project",
-            projectId,
-            view: "preview",
-            layout: "architecture",
-          }),
+          url: projectUrl,
+        },
+        links: {
+          project: projectUrl,
+          reports: {
+            architecture: buildFrontendUrl({
+              baseUrl: frontendBaseUrl,
+              target: "reports",
+              projectId,
+              tab: "architecture",
+              reportType: "architecture",
+            }),
+            cost: buildFrontendUrl({
+              baseUrl: frontendBaseUrl,
+              target: "reports",
+              projectId,
+              tab: "cost",
+              reportType: "cost",
+            }),
+            validation: buildFrontendUrl({
+              baseUrl: frontendBaseUrl,
+              target: "reports",
+              projectId,
+              tab: "validation",
+              reportType: "unit_tests",
+            }),
+          },
+          downloads: {
+            pdf: buildFrontendUrl({
+              baseUrl: frontendBaseUrl,
+              target: "reports",
+              projectId,
+              downloadPdf: true,
+              pdfVerbosity: "full",
+            }),
+            ...(workflowRunUrl ? { reviewArtifacts: workflowRunUrl } : {}),
+          },
+          ...(workflowRunUrl ? { workflowRun: workflowRunUrl } : {}),
         },
         repo,
         ref,

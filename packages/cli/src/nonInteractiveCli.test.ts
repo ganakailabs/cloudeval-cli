@@ -284,6 +284,7 @@ const startBackend = async (
     emptyCostFullReport?: boolean;
     costMonthlyAmount?: number;
     costServiceFamilies?: Record<string, number>;
+    costResourceEstimates?: Array<Record<string, unknown>>;
     unitTestMetrics?: {
       success: boolean;
       total_tests: number;
@@ -796,6 +797,9 @@ const startBackend = async (
               optimization_recommendations: [
                 { description: "Rightsize VM", monthly_savings: 7 },
               ],
+            },
+            raw: {
+              resource_estimates: options.costResourceEstimates ?? [],
             },
           },
         });
@@ -3773,6 +3777,26 @@ test("review command writes visual markdown drilldowns for PR comments", async (
     projects: [githubProject],
     fullReportShape: true,
     costServiceFamilies: { Compute: 30, Networking: 12 },
+    costResourceEstimates: [
+      {
+        resource_name: "api-vm",
+        resource_type: "Microsoft.Compute/virtualMachines",
+        monthly_cost_estimate: 22,
+        currency: "USD",
+      },
+      {
+        resource_name: "app-gateway",
+        resource_type: "Microsoft.Network/applicationGateways",
+        monthly_cost_estimate: 11,
+        currency: "USD",
+      },
+      {
+        resource_name: "diagnostic-storage",
+        resource_type: "Microsoft.Storage/storageAccounts",
+        monthly_cost_estimate: 2,
+        currency: "USD",
+      },
+    ],
     reviewGraph: true,
     unitTestMetrics: {
       success: false,
@@ -3845,12 +3869,26 @@ test("review command writes visual markdown drilldowns for PR comments", async (
           outputDir,
           "--non-interactive",
         ],
-        { cwd },
+        {
+          cwd,
+          env: {
+            GITHUB_ACTIONS: "true",
+            GITHUB_SERVER_URL: "https://github.com",
+            GITHUB_REPOSITORY: "ganakailabs/cloudeval-github-sync-e2e",
+            GITHUB_RUN_ID: "123456789",
+          },
+        },
       ),
     );
 
     assert.equal(result.data.gate.status, "warn");
     assert.equal(result.data.gate.validation.unitTests.failed, 3);
+    assert.equal(result.data.links.project.includes("/app/projects/project-github"), true);
+    assert.equal(result.data.links.reports.architecture.includes("/app/reports/project-github"), true);
+    assert.equal(result.data.links.reports.cost.includes("reportType=cost"), true);
+    assert.equal(result.data.links.downloads.pdf.includes("downloadPdf=1"), true);
+    assert.equal(result.data.links.workflowRun, "https://github.com/ganakailabs/cloudeval-github-sync-e2e/actions/runs/123456789");
+    assert.equal(result.data.links.downloads.reviewArtifacts, "https://github.com/ganakailabs/cloudeval-github-sync-e2e/actions/runs/123456789");
 
     const markdownArtifact = await fs.readFile(
       path.join(outputDir, "review.md"),
@@ -3866,11 +3904,21 @@ test("review command writes visual markdown drilldowns for PR comments", async (
     assert.match(markdownArtifact, /\*\*Repository\*\*: `ganakailabs\/cloudeval-github-sync-e2e`/);
     assert.match(markdownArtifact, /\*\*Ref\*\*: `main`/);
     assert.match(markdownArtifact, /\*\*Commit\*\*: `sha-review-v`/);
+    assert.match(markdownArtifact, /#### Open in CloudEval/);
+    assert.match(markdownArtifact, /\[Project preview\]\(http:\/\/localhost:3000\/app\/projects\/project-github\?view=preview&layout=architecture\)/);
+    assert.match(markdownArtifact, /\[Architecture report\]\(http:\/\/localhost:3000\/app\/reports\/project-github\?tab=architecture&reportType=architecture\)/);
+    assert.match(markdownArtifact, /\[Cost report\]\(http:\/\/localhost:3000\/app\/reports\/project-github\?tab=cost&reportType=cost\)/);
+    assert.match(markdownArtifact, /\[Download PDF\]\(http:\/\/localhost:3000\/app\/reports\/project-github\?downloadPdf=1&pdfVerbosity=full\)/);
+    assert.match(markdownArtifact, /\[Workflow run\]\(https:\/\/github.com\/ganakailabs\/cloudeval-github-sync-e2e\/actions\/runs\/123456789\)/);
+    assert.match(markdownArtifact, /\[Download review artifacts\]\(https:\/\/github.com\/ganakailabs\/cloudeval-github-sync-e2e\/actions\/runs\/123456789\)/);
     assert.doesNotMatch(markdownArtifact, /- Overall score:/);
     assert.doesNotMatch(markdownArtifact, /- Monthly estimate:/);
     assert.doesNotMatch(markdownArtifact, /Summary: 3 unit tests failed/);
     assert.match(markdownArtifact, /\| Security \| \*\*91\/100\*\* \| 🟢 EXCELLENT \|/);
-    assert.match(markdownArtifact, /```mermaid\npie title Monthly cost by service\n  "Compute" : 30\n  "Networking" : 12\n```/);
+    assert.match(markdownArtifact, /```mermaid\npie title Monthly cost by resource\n  "api-vm" : 22\n  "app-gateway" : 11\n  "diagnostic-storage" : 2\n  "Unallocated" : 7\n```/);
+    assert.match(markdownArtifact, /```mermaid\nxychart-beta\n  title "Monthly cost impact"\n  x-axis \["Current", "Optimized"\]\n  y-axis "USD\/mo" 0 --> 42\n  bar \[42, 35\]\n```/);
+    assert.match(markdownArtifact, /\| Current monthly cost \| \*\*42 USD\/mo\*\* \|/);
+    assert.match(markdownArtifact, /\| Optimized monthly cost \| \*\*35 USD\/mo\*\* \|/);
     assert.match(markdownArtifact, /Unit tests: \*\*2 passed\*\*, \*\*3 failed\*\*, 5 total/);
     assert.match(markdownArtifact, /Validation failures/);
     assert.match(markdownArtifact, /\| Unit test \| Secure admin credentials \| `nested\/compute.json` \| 🔴 error \| adminPassword is defined as a plain string\. Use a secure parameter or secret reference\. \|/);
@@ -4436,6 +4484,10 @@ test("review command uses deterministic fallback when summary endpoint fails", a
       "utf8",
     );
     assert.match(markdownArtifact, /CloudEval review completed with/);
+    assert.match(markdownArtifact, /\*\*WARN\*\*/);
+    assert.match(markdownArtifact, /\*\*91\/100 \(EXCELLENT\)\*\*/);
+    assert.match(markdownArtifact, /\*\*0 failed unit tests\*\*/);
+    assert.match(markdownArtifact, /\*\*weakest Well-Architected pillar\*\*/);
     assert.doesNotMatch(markdownArtifact, /AI summary unavailable/i);
   } finally {
     await fs.rm(outputDir, { recursive: true, force: true });

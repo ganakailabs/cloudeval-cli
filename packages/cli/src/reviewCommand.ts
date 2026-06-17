@@ -2061,12 +2061,13 @@ export const registerReviewCommand = (
         filesWritten,
       });
       if (data.gate.status === "fail") {
-        process.exit(1);
+        process.exitCode = 1;
+        return;
       }
-      process.exit(0);
+      process.exitCode = 0;
     } catch (error: any) {
       console.error(error?.message ?? "Review failed");
-      process.exit(1);
+      process.exitCode = 1;
     }
   });
 };

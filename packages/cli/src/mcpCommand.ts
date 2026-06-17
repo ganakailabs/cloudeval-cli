@@ -72,6 +72,8 @@ import {
 import {
   getRule,
   getRuleCategories,
+  formatTemplateProgressEvent,
+  templateProgressEventKey,
   parseTemplate,
   searchRules,
   testTemplate,
@@ -79,6 +81,7 @@ import {
   waitForTemplateValidationResult,
   withTemplateTestDetails,
   withTemplateValidationDetails,
+  type TemplateProgressEvent,
 } from "./templateValidationClient.js";
 import { warnIfAccessKeyFromCliOption } from "./authGuard.js";
 import {
@@ -130,7 +133,18 @@ type ToolResult = {
   isError?: boolean;
 };
 
-type ToolHandler = (args: JsonRecord) => Promise<SuccessEnvelope>;
+type ToolHandlerContext = {
+  progressToken?: JsonRpcId;
+  sendProgress?: (
+    event: TemplateProgressEvent,
+    command: string,
+  ) => void | Promise<void>;
+};
+
+type ToolHandler = (
+  args: JsonRecord,
+  context?: ToolHandlerContext,
+) => Promise<SuccessEnvelope>;
 
 type JsonSchema = Record<string, unknown>;
 
@@ -1286,7 +1300,8 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
         },
         wait: {
           type: "boolean",
-          description: "Poll an async validation job until results are ready.",
+          description:
+            "Poll an async validation job until results are ready. When the MCP call includes _meta.progressToken, wait progress is emitted as notifications/progress.",
           default: false,
         },
         pollIntervalMs: {
@@ -1347,7 +1362,8 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
         verbose: { type: "boolean", default: false },
         wait: {
           type: "boolean",
-          description: "Poll an async template test job until results are ready.",
+          description:
+            "Poll an async template test job until results are ready. When the MCP call includes _meta.progressToken, wait progress is emitted as notifications/progress.",
           default: false,
         },
         pollIntervalMs: {
@@ -3063,7 +3079,7 @@ const buildToolHandlers = (
     return withEnvelope({ command: "projects graph sync-runs", data });
   });
 
-  handlers.set("template_validate", async (args) => {
+  handlers.set("template_validate", async (args, context) => {
     const config = await resolveInvocationConfig(serverOptions, args);
     const auth = await resolveAuth(config, { requireUser: true });
     const templatePath = stringValue(args.templatePath);
@@ -3098,6 +3114,9 @@ const buildToolHandlers = (
           submitted,
           pollIntervalMs: numberValue(args.pollIntervalMs),
           waitTimeoutMs: numberValue(args.waitTimeoutMs),
+          onProgress: context?.sendProgress
+            ? (event) => context.sendProgress!(event, "validate template")
+            : undefined,
         })
       : submitted;
     return withEnvelope({
@@ -3108,7 +3127,7 @@ const buildToolHandlers = (
     });
   });
 
-  handlers.set("template_test", async (args) => {
+  handlers.set("template_test", async (args, context) => {
     const config = await resolveInvocationConfig(serverOptions, args);
     const auth = await resolveAuth(config, { requireUser: true });
     const templatePath = stringValue(args.templatePath);
@@ -3137,6 +3156,9 @@ const buildToolHandlers = (
           submitted,
           pollIntervalMs: numberValue(args.pollIntervalMs),
           waitTimeoutMs: numberValue(args.waitTimeoutMs),
+          onProgress: context?.sendProgress
+            ? (event) => context.sendProgress!(event, "validate tests")
+            : undefined,
         })
       : submitted;
     return withEnvelope({
@@ -4482,6 +4504,54 @@ export const serveMcpServer = async (
       transport: outputTransport,
     });
   };
+  const progressTokenFromParams = (
+    params: JsonRecord | undefined,
+  ): JsonRpcId | undefined => {
+    const meta = isObject(params?._meta) ? params?._meta : undefined;
+    const token = meta?.progressToken;
+    if (typeof token === "string") {
+      return token;
+    }
+    if (typeof token === "number" && Number.isFinite(token)) {
+      return token;
+    }
+    return undefined;
+  };
+  const sendTemplateProgress = (
+    progressToken: JsonRpcId | undefined,
+    event: TemplateProgressEvent,
+    command: string,
+  ) => {
+    if (progressToken === undefined) {
+      return;
+    }
+    const progress =
+      typeof event.progress === "number"
+        ? event.progress
+        : typeof event.completed === "number"
+          ? event.completed
+          : event.phase === "result"
+            ? 100
+            : 0;
+    const total =
+      typeof event.progress === "number"
+        ? 100
+        : typeof event.total === "number"
+          ? event.total
+          : event.phase === "result"
+            ? 100
+            : undefined;
+    send({
+      jsonrpc: "2.0",
+      method: "notifications/progress",
+      params: {
+        progressToken,
+        progress,
+        ...(total === undefined ? {} : { total }),
+        message: formatTemplateProgressEvent(event, command).join("\n"),
+      },
+    });
+  };
   const handleRequest = async (
     request: JsonRpcRequest,
   ): Promise<JsonRpcResponse | undefined> => {
@@ -4577,9 +4647,23 @@ export const serveMcpServer = async (
             `Tool has no handler: ${name}`,
           );
         }
+        const progressToken = progressTokenFromParams(request.params);
+        let lastProgressKey: string | undefined;
         const startedAt = Date.now();
         try {
-          const envelope = await handler(args);
+          const envelope = await handler(args, {
+            progressToken,
+            sendProgress: (event, command) => {
+              if (event.phase === "status") {
+                const key = templateProgressEventKey(event);
+                if (key === lastProgressKey) {
+                  return;
+                }
+                lastProgressKey = key;
+              }
+              sendTemplateProgress(progressToken, event, command);
+            },
+          });
           debug("tool call completed", { tool: name, ok: envelope.ok });
           await options.telemetry?.track("cli.mcp.tool", {
             command: "mcp",

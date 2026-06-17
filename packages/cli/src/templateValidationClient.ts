@@ -39,6 +39,27 @@ export type TemplateValidationWaitResult = {
   result: unknown;
 };
 
+export type TemplateProgressItem = {
+  name?: string;
+  status?: string;
+  passed?: boolean;
+  message?: string;
+};
+
+export type TemplateProgressEvent = {
+  phase: "submitted" | "status" | "result";
+  jobId: string;
+  operation?: string;
+  status?: string;
+  progress?: number;
+  completed?: number;
+  total?: number;
+  currentItem?: string;
+  message?: string;
+  items?: TemplateProgressItem[];
+  elapsedMs: number;
+};
+
 export const readJsonFile = async (filePath: string): Promise<unknown> => {
   const text = await fs.readFile(filePath, "utf8");
   try {
@@ -168,6 +189,252 @@ const firstString = (
   }
   return undefined;
 };
+
+const firstNumber = (
+  record: Record<string, unknown> | undefined,
+  fields: string[],
+): number | undefined => {
+  for (const field of fields) {
+    const value = record?.[field];
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return value;
+    }
+    if (typeof value === "string" && value.trim()) {
+      const parsed = Number(value);
+      if (Number.isFinite(parsed)) {
+        return parsed;
+      }
+    }
+  }
+  return undefined;
+};
+
+const firstArray = (
+  record: Record<string, unknown> | undefined,
+  fields: string[],
+): unknown[] => {
+  for (const field of fields) {
+    const value = record?.[field];
+    if (Array.isArray(value)) {
+      return value;
+    }
+  }
+  return [];
+};
+
+const normalizeProgressItem = (value: unknown): TemplateProgressItem => {
+  const record = recordValue(value) ?? {};
+  const passed = typeof record.passed === "boolean" ? record.passed : undefined;
+  return compactRecord({
+    name: firstString(record, [
+      "name",
+      "test_name",
+      "testName",
+      "rule_name",
+      "ruleName",
+      "item",
+      "current_item",
+      "display_name",
+      "displayName",
+    ]),
+    status:
+      firstString(record, ["status", "outcome", "result"]) ??
+      (passed === undefined ? undefined : passed ? "Pass" : "Fail"),
+    passed,
+    message: firstString(record, ["message", "description"]),
+  }) as TemplateProgressItem;
+};
+
+const operationFromResult = (result: unknown): string | undefined => {
+  const record = recordValue(result);
+  if (!record) {
+    return undefined;
+  }
+  if ("test_results" in record || "total_tests" in record) {
+    return "template_test";
+  }
+  if ("filtered_results" in record || "results" in record || "summary" in record) {
+    return "template_validate";
+  }
+  return undefined;
+};
+
+const progressEventFromStatus = (input: {
+  phase: "submitted" | "status";
+  jobId: string;
+  status?: unknown;
+  elapsedMs: number;
+}): TemplateProgressEvent => {
+  const statusRecord = recordValue(input.status);
+  return compactRecord({
+    phase: input.phase,
+    jobId: input.jobId,
+    operation: firstString(statusRecord, ["operation", "operation_type", "operationType"]),
+    status: firstString(statusRecord, ["status", "state"]),
+    progress: firstNumber(statusRecord, [
+      "progress",
+      "progress_percent",
+      "progressPercent",
+      "percentage",
+      "percent",
+    ]),
+    completed: firstNumber(statusRecord, [
+      "completed_items",
+      "completedItems",
+      "completed_tests",
+      "completedTests",
+      "completed_rules",
+      "completedRules",
+    ]),
+    total: firstNumber(statusRecord, [
+      "total_items",
+      "totalItems",
+      "total_tests",
+      "totalTests",
+      "total_rules",
+      "totalRules",
+    ]),
+    currentItem: firstString(statusRecord, [
+      "current_item",
+      "currentItem",
+      "current_test",
+      "currentTest",
+      "current_rule",
+      "currentRule",
+    ]),
+    message: firstString(statusRecord, ["message", "detail", "description"]),
+    items: firstArray(statusRecord, [
+      "recent_events",
+      "recentEvents",
+      "events",
+      "progress_events",
+      "progressEvents",
+    ])
+      .map(normalizeProgressItem)
+      .filter((item) => item.name || item.message),
+    elapsedMs: input.elapsedMs,
+  }) as TemplateProgressEvent;
+};
+
+const failedStatus = (status?: string): boolean =>
+  ["fail", "failed", "error"].includes(String(status ?? "").trim().toLowerCase());
+
+const passedStatus = (status?: string): boolean =>
+  ["pass", "passed", "success", "succeeded"].includes(
+    String(status ?? "").trim().toLowerCase(),
+  );
+
+const progressItemsFromDetails = (
+  details: Array<Record<string, unknown>>,
+  nameFields: string[],
+): TemplateProgressItem[] =>
+  details
+    .filter((detail) => failedStatus(firstString(detail, ["status", "outcome", "result"])))
+    .map((detail) =>
+      compactRecord({
+        name: firstString(detail, nameFields),
+        status: firstString(detail, ["status", "outcome", "result"]),
+        message:
+          firstString(detail, ["message", "description"]) ??
+          firstString(recordValue(detail.evidence), ["description", "synopsis"]),
+      }) as TemplateProgressItem,
+    )
+    .filter((item) => item.name || item.message);
+
+const resultProgressSummary = (
+  result: unknown,
+  operation?: string,
+): Pick<TemplateProgressEvent, "operation" | "message" | "items" | "progress"> => {
+  const resultRecord = recordValue(result) ?? {};
+  const summary = recordValue(resultRecord.summary) ?? {};
+  const detectedOperation = operationFromResult(result);
+  const resolvedOperation = detectedOperation ?? operation;
+  const operationText = String(resolvedOperation ?? "").toLowerCase();
+
+  if (detectedOperation === "template_test" || operationText.includes("test")) {
+    const details = normalizeTemplateTestDetails(result);
+    const passed = firstNumber(resultRecord, ["passed_tests", "passedTests"]) ??
+      details.filter((detail) => detail.passed === true || passedStatus(firstString(detail, ["status"]))).length;
+    const failed = firstNumber(resultRecord, ["failed_tests", "failedTests"]) ??
+      details.filter((detail) => detail.passed === false || failedStatus(firstString(detail, ["status"]))).length;
+    const skipped = firstNumber(resultRecord, ["skipped_tests", "skippedTests"]) ?? 0;
+    return {
+      operation: resolvedOperation,
+      progress: 100,
+      message: `Template tests complete: ${passed} passed, ${failed} failed, ${skipped} skipped`,
+      items: progressItemsFromDetails(details, ["test_name", "testName", "name"]),
+    };
+  }
+
+  const details = normalizeTemplateValidationDetails(result);
+  const passed = firstNumber(summary, ["passed_rules", "passedRules"]) ??
+    details.filter((detail) => passedStatus(firstString(detail, ["status"]))).length;
+  const failed = firstNumber(summary, ["failed_rules", "failedRules"]) ??
+    details.filter((detail) => failedStatus(firstString(detail, ["status"]))).length;
+  const total = firstNumber(summary, ["total_rules", "totalRules"]) ?? details.length;
+  return {
+    operation: resolvedOperation ?? "template_validate",
+    progress: 100,
+    message: `Validation complete: ${passed} passed, ${failed} failed across ${total} checks`,
+    items: progressItemsFromDetails(details, ["rule_id", "rule_name", "ruleName", "name"]),
+  };
+};
+
+export const formatTemplateProgressEvent = (
+  event: TemplateProgressEvent,
+  command: string,
+): string[] => {
+  if (event.phase === "submitted") {
+    return [`${command} job ${event.jobId} submitted`];
+  }
+  if (event.phase === "result") {
+    const lines = event.message ? [event.message] : [`${command} job ${event.jobId} complete`];
+    for (const item of event.items ?? []) {
+      const status = item.status ? `${item.status} ` : "";
+      lines.push(`  - ${status}${item.name ?? item.message ?? "item"}`);
+    }
+    return lines;
+  }
+
+  const status = event.status ? event.status.toUpperCase() : "RUNNING";
+  const progress =
+    typeof event.progress === "number" ? ` ${Math.round(event.progress)}%` : "";
+  const completed =
+    typeof event.completed === "number" && typeof event.total === "number"
+      ? ` (${event.completed}/${event.total})`
+      : "";
+  const current = event.currentItem ? ` current: ${event.currentItem}` : "";
+  const message = event.message ? ` ${event.message}` : "";
+  const lines = [
+    `${command} job ${event.jobId}: ${status}${progress}${completed}${current}${message}`,
+  ];
+  for (const item of event.items ?? []) {
+    const statusText = item.status ? `${item.status} ` : "";
+    const passedText =
+      item.status || item.passed === undefined
+        ? ""
+        : item.passed
+          ? "Pass "
+          : "Fail ";
+    lines.push(`  - ${statusText}${passedText}${item.name ?? item.message ?? "item"}`);
+  }
+  return lines;
+};
+
+export const templateProgressEventKey = (
+  event: TemplateProgressEvent,
+): string =>
+  JSON.stringify({
+    phase: event.phase,
+    operation: event.operation,
+    status: event.status,
+    progress: event.progress,
+    completed: event.completed,
+    total: event.total,
+    currentItem: event.currentItem,
+    message: event.message,
+    items: event.items,
+  });
 
 export const unwrapTemplateOperationResult = (value: unknown): unknown => {
   const record = recordValue(value);
@@ -335,6 +602,7 @@ export const waitForTemplateValidationResult = async (
     submitted: unknown;
     pollIntervalMs?: number;
     waitTimeoutMs?: number;
+    onProgress?: (event: TemplateProgressEvent) => void | Promise<void>;
   },
 ): Promise<unknown> => {
   const jobId = extractJobId(input.submitted);
@@ -345,9 +613,27 @@ export const waitForTemplateValidationResult = async (
   const waitTimeoutMs = Math.max(1, input.waitTimeoutMs ?? 600_000);
   const pollIntervalMs = Math.max(500, input.pollIntervalMs ?? 2500);
   const deadline = Date.now() + waitTimeoutMs;
+  const startedAt = Date.now();
+  const elapsedMs = () => Date.now() - startedAt;
+  await input.onProgress?.(
+    progressEventFromStatus({
+      phase: "submitted",
+      jobId,
+      status: input.submitted,
+      elapsedMs: elapsedMs(),
+    }),
+  );
   let status: unknown;
   for (;;) {
     status = await getTemplateValidationJobStatus({ ...input, jobId });
+    await input.onProgress?.(
+      progressEventFromStatus({
+        phase: "status",
+        jobId,
+        status,
+        elapsedMs: elapsedMs(),
+      }),
+    );
     if (isTerminalJobStatus(status)) {
       break;
     }
@@ -365,13 +651,29 @@ export const waitForTemplateValidationResult = async (
     );
   }
 
+  const result = unwrapTemplateOperationResult(
+    await getTemplateValidationJobResult({ ...input, jobId }),
+  );
+  const statusEvent = progressEventFromStatus({
+    phase: "status",
+    jobId,
+    status,
+    elapsedMs: elapsedMs(),
+  });
+  await input.onProgress?.(
+    compactRecord({
+      ...statusEvent,
+      phase: "result",
+      ...resultProgressSummary(result, statusEvent.operation),
+      elapsedMs: elapsedMs(),
+    }) as TemplateProgressEvent,
+  );
+
   return {
     submitted: input.submitted,
     jobId,
     status,
-    result: unwrapTemplateOperationResult(
-      await getTemplateValidationJobResult({ ...input, jobId }),
-    ),
+    result,
   } satisfies TemplateValidationWaitResult;
 };
 

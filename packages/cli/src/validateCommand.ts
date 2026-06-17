@@ -11,9 +11,12 @@ import {
   parseTemplate,
   testTemplate,
   validateTemplate,
+  formatTemplateProgressEvent,
+  templateProgressEventKey,
   waitForTemplateValidationResult,
   withTemplateTestDetails,
   withTemplateValidationDetails,
+  type TemplateProgressEvent,
 } from "./templateValidationClient.js";
 
 export interface RegisterValidateCommandOptions extends AuthGuardDeps {
@@ -42,6 +45,58 @@ type ValidateOptions = AuthGuardOptions & {
   skipTest?: string[];
   group?: string[];
   verbose?: boolean;
+  progress?: string | boolean;
+};
+
+type TemplateProgressMode = "auto" | "stderr" | "ndjson" | "none";
+
+const normalizeTemplateProgressMode = (value: unknown): TemplateProgressMode => {
+  if (value === true) {
+    return "stderr";
+  }
+  if (value === undefined || value === false || value === null) {
+    return "none";
+  }
+  const mode = String(value).trim().toLowerCase();
+  if (mode === "auto" || mode === "stderr" || mode === "ndjson" || mode === "none") {
+    return mode;
+  }
+  throw new Error("--progress must be one of: auto, stderr, ndjson, none");
+};
+
+const createTemplateProgressReporter = (
+  command: string,
+  progress: unknown,
+): ((event: TemplateProgressEvent) => void) | undefined => {
+  const requestedMode = normalizeTemplateProgressMode(progress);
+  const mode =
+    requestedMode === "auto"
+      ? process.stderr.isTTY
+        ? "stderr"
+        : "none"
+      : requestedMode;
+  if (mode === "none") {
+    return undefined;
+  }
+  let lastStatusKey: string | undefined;
+  return (event) => {
+    if (event.phase === "status") {
+      const key = templateProgressEventKey(event);
+      if (key === lastStatusKey) {
+        return;
+      }
+      lastStatusKey = key;
+    }
+    if (mode === "ndjson") {
+      process.stderr.write(
+        `${JSON.stringify({ type: "template_progress", command, ...event })}\n`,
+      );
+      return;
+    }
+    for (const line of formatTemplateProgressEvent(event, command)) {
+      process.stderr.write(`${line}\n`);
+    }
+  };
 };
 
 const addCommon = <T extends Command>(
@@ -101,6 +156,11 @@ export const registerValidateCommand = (
     .option("--wait", "Poll an async validation job until results are ready", false)
     .option("--poll-interval <ms>", "Polling interval when --wait is set", "2500")
     .option("--wait-timeout <ms>", "Maximum time to wait when --wait is set", "600000")
+    .option(
+      "--progress [mode]",
+      "Progress events while waiting: auto, stderr, ndjson, none",
+      "none",
+    )
     .action(async (options: ValidateOptions, command) => {
       try {
         const context = requireAuthUser(await resolveAuthContext(options, command, deps));
@@ -132,6 +192,10 @@ export const registerValidateCommand = (
               waitTimeoutMs: parsePositiveInteger(
                 options.waitTimeout,
                 "--wait-timeout",
+              ),
+              onProgress: createTemplateProgressReporter(
+                "validate template",
+                options.progress,
               ),
             })
           : submitted;
@@ -185,6 +249,11 @@ export const registerValidateCommand = (
     .option("--wait", "Poll an async template test job until results are ready", false)
     .option("--poll-interval <ms>", "Polling interval when --wait is set", "2500")
     .option("--wait-timeout <ms>", "Maximum time to wait when --wait is set", "600000")
+    .option(
+      "--progress [mode]",
+      "Progress events while waiting: auto, stderr, ndjson, none",
+      "none",
+    )
     .action(async (options: ValidateOptions, command) => {
       try {
         const context = requireAuthUser(await resolveAuthContext(options, command, deps));
@@ -213,6 +282,10 @@ export const registerValidateCommand = (
               waitTimeoutMs: parsePositiveInteger(
                 options.waitTimeout,
                 "--wait-timeout",
+              ),
+              onProgress: createTemplateProgressReporter(
+                "validate tests",
+                options.progress,
               ),
             })
           : submitted;

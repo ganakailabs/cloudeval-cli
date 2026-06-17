@@ -154,8 +154,8 @@ cloudeval recipes list
 cloudeval projects list
 cloudeval uninstall --dry-run
 cloudeval projects graph insights <project-id> --focus impact --resource <resource-id> --format json
-cloudeval validate template --template-file template.json --parameters-file parameters.json --rule <check-id> --details --wait --wait-timeout 600000 --format json
-cloudeval validate tests --template-file template.json --parameters-file parameters.json --wait --wait-timeout 600000 --format json
+cloudeval validate template --template-file template.json --parameters-file parameters.json --rule <check-id> --details --wait --progress stderr --wait-timeout 600000 --format json
+cloudeval validate tests --template-file template.json --parameters-file parameters.json --wait --progress stderr --wait-timeout 600000 --format json
 cloudeval rules search "public network" --format json
 cloudeval reports list
 cloudeval capabilities --format json
@@ -344,6 +344,9 @@ Output contract:
 - machine-readable commands write payloads to stdout;
 - prompts, progress, browser-open messages, and warnings go to stderr;
 - `ask` and `agent` support `--progress none`, `--quiet`, or `--format ndjson --progress ndjson`;
+- `validate template` and `validate tests` support `--progress stderr` or
+  `--progress ndjson` with `--wait`; validation progress always goes to stderr
+  so final JSON/NDJSON remains parseable on stdout;
 - with `--non-interactive`, human approval exits with code `6` and returns `HITL_REQUIRED`;
 - `--show-sensitive-ids` shows full account/session-style IDs only on trusted machines. It does not unredact tokens.
 

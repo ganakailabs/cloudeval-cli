@@ -134,8 +134,9 @@ The smoke script verifies:
   `cloudeval rules ...` are covered by the non-interactive mock-backend suite
   because they require authenticated project/template context. This includes
   exact validation check targeting with repeatable `--rule` and async
-  completion with bounded `--wait` / `--wait-timeout`, detailed per-check
-  validation output with `--details`, and template test-suite output through
+  completion with bounded `--wait` / `--wait-timeout`, optional wait progress
+  with `--progress stderr` that stays off stdout, detailed per-check validation
+  output with `--details`, and template test-suite output through
   `cloudeval validate tests`.
 - Chat stream auth recovery is covered by the non-interactive mock-backend
   suite: a stored device-login access token that is rejected as expired by

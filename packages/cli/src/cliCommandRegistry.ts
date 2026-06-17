@@ -384,6 +384,7 @@ export const cliCommands: CliCommandMetadata[] = [
       "--wait",
       "--poll-interval",
       "--wait-timeout",
+      "--progress",
       "--location",
       ...outputOptions,
       ...authOptions,

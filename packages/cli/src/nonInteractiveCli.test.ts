@@ -961,6 +961,27 @@ const startBackend = async (
     }
     if (url.pathname === "/api/v1/jobs/job-template-validation-1") {
       assert.equal(url.searchParams.get("user_id"), user.id);
+      const pollCount = requests.filter(
+        (request) => request.path === "/api/v1/jobs/job-template-validation-1",
+      ).length;
+      if (pollCount === 1) {
+        return json(res, {
+          job_id: "job-template-validation-1",
+          status: "RUNNING",
+          operation: "template_validate",
+          progress: 50,
+          current_rule: "async-template-validation",
+          completed_rules: 0,
+          total_rules: 1,
+          recent_events: [
+            {
+              rule_name: "async-template-validation",
+              status: "Running",
+              message: "Running async-template-validation.",
+            },
+          ],
+        });
+      }
       return json(res, {
         job_id: "job-template-validation-1",
         status: "SUCCEEDED",
@@ -983,10 +1004,31 @@ const startBackend = async (
     }
     if (url.pathname === "/api/v1/jobs/job-template-tests-1") {
       assert.equal(url.searchParams.get("user_id"), user.id);
+      const pollCount = requests.filter(
+        (request) => request.path === "/api/v1/jobs/job-template-tests-1",
+      ).length;
+      if (pollCount === 1) {
+        return json(res, {
+          job_id: "job-template-tests-1",
+          status: "RUNNING",
+          operation: "arm_template_test",
+          progress: 50,
+          current_test: "IDs Should Be Derived From ResourceIDs",
+          completed_tests: 1,
+          total_tests: 2,
+          recent_events: [
+            {
+              test_name: "Template Should Not Contain Blanks",
+              passed: true,
+              message: "Template contains no blank elements.",
+            },
+          ],
+        });
+      }
       return json(res, {
         job_id: "job-template-tests-1",
         status: "SUCCEEDED",
-        operation: "template_test",
+        operation: "arm_template_test",
         progress: 100,
       });
     }
@@ -3258,6 +3300,7 @@ test("template validation, parsing, and rule catalog commands use generic public
       "10",
       "--wait-timeout",
       "5000",
+      "--progress",
       ...common,
     ]);
     const waitedValidation = parseJson(waitedValidationResult);
@@ -3265,6 +3308,10 @@ test("template validation, parsing, and rule catalog commands use generic public
     assert.equal(waitedValidation.data.jobId, "job-template-validation-1");
     assert.equal(waitedValidation.data.status.status, "SUCCEEDED");
     assert.equal(waitedValidation.data.result.summary.failed_rules, 1);
+    assert.match(waitedValidationResult.stderr, /validate template job job-template-validation-1 submitted/);
+    assert.match(waitedValidationResult.stderr, /RUNNING 50%/);
+    assert.match(waitedValidationResult.stderr, /async-template-validation/);
+    assert.match(waitedValidationResult.stderr, /Validation complete: 0 passed, 1 failed/);
 
     const templateTestsResult = await runCli([
       "validate",
@@ -3280,6 +3327,7 @@ test("template validation, parsing, and rule catalog commands use generic public
       "10",
       "--wait-timeout",
       "5000",
+      "--progress",
       ...common,
     ]);
     const templateTests = parseJson(templateTestsResult);
@@ -3305,6 +3353,10 @@ test("template validation, parsing, and rule catalog commands use generic public
       duration_ms: 18,
       file_path: "azuredeploy.json",
     });
+    assert.match(templateTestsResult.stderr, /validate tests job job-template-tests-1 submitted/);
+    assert.match(templateTestsResult.stderr, /RUNNING 50%/);
+    assert.match(templateTestsResult.stderr, /Template Should Not Contain Blanks/);
+    assert.match(templateTestsResult.stderr, /Template tests complete: 1 passed, 1 failed, 0 skipped/);
 
     const validationWithoutParamsResult = await runCli([
       "validate",

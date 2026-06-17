@@ -211,6 +211,27 @@ const startBackend = async (
     }
     if (url.pathname === "/api/v1/jobs/job-template-validation-1") {
       assert.equal(url.searchParams.get("user_id"), user.id);
+      const pollCount = requests.filter(
+        (request) => request.path === "/api/v1/jobs/job-template-validation-1",
+      ).length;
+      if (pollCount === 1) {
+        return json(res, {
+          job_id: "job-template-validation-1",
+          status: "RUNNING",
+          operation: "template_validate",
+          progress: 50,
+          current_rule: "async-template-validation",
+          completed_rules: 0,
+          total_rules: 1,
+          recent_events: [
+            {
+              rule_name: "async-template-validation",
+              status: "Running",
+              message: "Running async-template-validation.",
+            },
+          ],
+        });
+      }
       return json(res, {
         job_id: "job-template-validation-1",
         status: "SUCCEEDED",
@@ -233,10 +254,31 @@ const startBackend = async (
     }
     if (url.pathname === "/api/v1/jobs/job-template-tests-1") {
       assert.equal(url.searchParams.get("user_id"), user.id);
+      const pollCount = requests.filter(
+        (request) => request.path === "/api/v1/jobs/job-template-tests-1",
+      ).length;
+      if (pollCount === 1) {
+        return json(res, {
+          job_id: "job-template-tests-1",
+          status: "RUNNING",
+          operation: "arm_template_test",
+          progress: 50,
+          current_test: "IDs Should Be Derived From ResourceIDs",
+          completed_tests: 0,
+          total_tests: 1,
+          recent_events: [
+            {
+              test_name: "IDs Should Be Derived From ResourceIDs",
+              status: "Running",
+              message: "Running selected template test.",
+            },
+          ],
+        });
+      }
       return json(res, {
         job_id: "job-template-tests-1",
         status: "SUCCEEDED",
-        operation: "template_test",
+        operation: "arm_template_test",
         progress: 100,
       });
     }
@@ -1247,6 +1289,9 @@ test("mcp server exposes graph intelligence and generic validation tools", async
       method: "tools/call",
       params: {
         name: "template_test",
+        _meta: {
+          progressToken: "template-test-progress",
+        },
         arguments: {
           templatePath,
           parametersPath,
@@ -1257,7 +1302,25 @@ test("mcp server exposes graph intelligence and generic validation tools", async
         },
       },
     });
-    const templateTestResponse = await mcp.read();
+    const templateTestProgress: any[] = [];
+    let templateTestResponse: any | undefined;
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+      const message = await mcp.read();
+      if (message.method === "notifications/progress") {
+        templateTestProgress.push(message);
+        continue;
+      }
+      templateTestResponse = message;
+      break;
+    }
+    assert(templateTestResponse, "Expected template_test response after progress notifications.");
+    assert(
+      templateTestProgress.some((message) =>
+        String(message.params?.message ?? "").includes("IDs Should Be Derived From ResourceIDs"),
+      ),
+      `Expected template_test progress notification, got ${JSON.stringify(templateTestProgress)}`,
+    );
+    assert.equal(templateTestProgress[0].params.progressToken, "template-test-progress");
     assert.equal(templateTestResponse.id, 34);
     assert.equal(templateTestResponse.result.isError, false);
     assert.equal(

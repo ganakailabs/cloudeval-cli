@@ -298,7 +298,7 @@ const startBackend = async (
               passed: false,
               severity: "error",
               message: "One resource id is not derived from resourceId().",
-              recommendation: "Use resourceId() for resource identifiers.",
+              recommendation: "Review template for compliance with ARM TTK best practices.",
               duration_ms: 18,
               file_path: "azuredeploy.json",
             },
@@ -1319,6 +1319,24 @@ test("mcp server exposes graph intelligence and generic validation tools", async
         String(message.params?.message ?? "").includes("IDs Should Be Derived From ResourceIDs"),
       ),
       `Expected template_test progress notification, got ${JSON.stringify(templateTestProgress)}`,
+    );
+    assert(
+      templateTestProgress.some((message) =>
+        String(message.params?.message ?? "").includes("One resource id is not derived from resourceId()."),
+      ),
+      `Expected template_test detail progress notification, got ${JSON.stringify(templateTestProgress)}`,
+    );
+    assert(
+      templateTestProgress.some((message) =>
+        String(message.params?.message ?? "").includes("Review template for compliance with template validation best practices."),
+      ),
+      `Expected template_test recommendation progress notification, got ${JSON.stringify(templateTestProgress)}`,
+    );
+    assert(
+      templateTestProgress.every((message) =>
+        !String(message.params?.message ?? "").match(/ARM TTK/i),
+      ),
+      `Expected generic template_test progress notification, got ${JSON.stringify(templateTestProgress)}`,
     );
     assert.equal(templateTestProgress[0].params.progressToken, "template-test-progress");
     assert.equal(templateTestResponse.id, 34);

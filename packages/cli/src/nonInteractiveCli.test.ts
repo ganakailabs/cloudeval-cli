@@ -1058,7 +1058,7 @@ const startBackend = async (
               passed: false,
               severity: "error",
               message: "One resource id is not derived from resourceId().",
-              recommendation: "Use resourceId() for resource identifiers.",
+              recommendation: "Review template for compliance with ARM TTK best practices.",
               duration_ms: 18,
               file_path: "azuredeploy.json",
             },
@@ -3349,7 +3349,7 @@ test("template validation, parsing, and rule catalog commands use generic public
       passed: false,
       severity: "error",
       message: "One resource id is not derived from resourceId().",
-      recommendation: "Use resourceId() for resource identifiers.",
+      recommendation: "Review template for compliance with template validation best practices.",
       duration_ms: 18,
       file_path: "azuredeploy.json",
     });
@@ -3357,6 +3357,11 @@ test("template validation, parsing, and rule catalog commands use generic public
     assert.match(templateTestsResult.stderr, /RUNNING 50%/);
     assert.match(templateTestsResult.stderr, /Template Should Not Contain Blanks/);
     assert.match(templateTestsResult.stderr, /Template tests complete: 1 passed, 1 failed, 0 skipped/);
+    assert.match(templateTestsResult.stderr, /message: One resource id is not derived from resourceId\(\)\./);
+    assert.match(templateTestsResult.stderr, /recommendation: Review template for compliance with template validation best practices\./);
+    assert.doesNotMatch(templateTestsResult.stderr, /ARM TTK/i);
+    assert.doesNotMatch(templateTestsResult.stdout, /ARM TTK/i);
+    assert.match(templateTestsResult.stderr, /location: azuredeploy\.json/);
 
     const validationWithoutParamsResult = await runCli([
       "validate",

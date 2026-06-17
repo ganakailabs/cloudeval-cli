@@ -43,7 +43,13 @@ export type TemplateProgressItem = {
   name?: string;
   status?: string;
   passed?: boolean;
+  category?: string;
+  severity?: string;
   message?: string;
+  recommendation?: string;
+  location?: string;
+  durationMs?: number;
+  documentationUrl?: string;
 };
 
 export type TemplateProgressEvent = {
@@ -190,6 +196,30 @@ const firstString = (
   return undefined;
 };
 
+const publicValidationText = (value?: string): string | undefined =>
+  value
+    ?.replace(/\bPSRule(?:\s+for\s+Azure)?\b/gi, "validation rules")
+    .replace(/\bARM\s+TTK\b/gi, "template validation");
+
+const sanitizeTemplateOperationText = (value: unknown): unknown => {
+  if (typeof value === "string") {
+    return publicValidationText(value) ?? value;
+  }
+  if (Array.isArray(value)) {
+    return value.map(sanitizeTemplateOperationText);
+  }
+  const record = recordValue(value);
+  if (record) {
+    return Object.fromEntries(
+      Object.entries(record).map(([key, item]) => [
+        key,
+        sanitizeTemplateOperationText(item),
+      ]),
+    );
+  }
+  return value;
+};
+
 const firstNumber = (
   record: Record<string, unknown> | undefined,
   fields: string[],
@@ -241,7 +271,20 @@ const normalizeProgressItem = (value: unknown): TemplateProgressItem => {
       firstString(record, ["status", "outcome", "result"]) ??
       (passed === undefined ? undefined : passed ? "Pass" : "Fail"),
     passed,
-    message: firstString(record, ["message", "description"]),
+    category: firstString(record, ["category", "test_category", "testCategory"]),
+    severity: firstString(record, ["severity", "level"]),
+    message: publicValidationText(firstString(record, ["message", "description"])),
+    recommendation: publicValidationText(
+      firstString(record, ["recommendation", "remediation"]),
+    ),
+    location: firstString(record, ["file_path", "filePath", "location"]),
+    durationMs: firstNumber(record, ["duration_ms", "durationMs"]),
+    documentationUrl: firstString(record, [
+      "documentation_url",
+      "documentationUrl",
+      "help_url",
+      "helpUrl",
+    ]),
   }) as TemplateProgressItem;
 };
 
@@ -302,7 +345,9 @@ const progressEventFromStatus = (input: {
       "current_rule",
       "currentRule",
     ]),
-    message: firstString(statusRecord, ["message", "detail", "description"]),
+    message: publicValidationText(
+      firstString(statusRecord, ["message", "detail", "description"]),
+    ),
     items: firstArray(statusRecord, [
       "recent_events",
       "recentEvents",
@@ -327,19 +372,58 @@ const passedStatus = (status?: string): boolean =>
 const progressItemsFromDetails = (
   details: Array<Record<string, unknown>>,
   nameFields: string[],
-): TemplateProgressItem[] =>
-  details
+): TemplateProgressItem[] => {
+  const targetLocation = (
+    target: Record<string, unknown> | undefined,
+  ): string | undefined => {
+    const name = firstString(target, ["name", "id"]);
+    const type = firstString(target, ["type"]);
+    if (name && type) {
+      return `${name} (${type})`;
+    }
+    return name ?? type;
+  };
+
+  return details
     .filter((detail) => failedStatus(firstString(detail, ["status", "outcome", "result"])))
-    .map((detail) =>
-      compactRecord({
+    .map((detail) => {
+      const evidence = recordValue(detail.evidence);
+      return compactRecord({
         name: firstString(detail, nameFields),
         status: firstString(detail, ["status", "outcome", "result"]),
+        category: firstString(detail, ["category", "test_category", "testCategory"]),
+        severity: firstString(detail, ["severity", "level"]),
         message:
-          firstString(detail, ["message", "description"]) ??
-          firstString(recordValue(detail.evidence), ["description", "synopsis"]),
-      }) as TemplateProgressItem,
-    )
+          publicValidationText(
+            firstString(detail, ["message", "description"]) ??
+              firstString(evidence, ["description", "synopsis"]),
+          ),
+        recommendation:
+          publicValidationText(
+            firstString(detail, ["recommendation", "remediation"]) ??
+              firstString(evidence, ["recommendation", "remediation"]),
+          ),
+        location:
+          firstString(detail, ["file_path", "filePath", "location"]) ??
+          targetLocation(recordValue(detail.target)),
+        durationMs: firstNumber(detail, ["duration_ms", "durationMs"]),
+        documentationUrl:
+          firstString(detail, [
+            "documentation_url",
+            "documentationUrl",
+            "help_url",
+            "helpUrl",
+          ]) ??
+          firstString(evidence, [
+            "documentation_url",
+            "documentationUrl",
+            "help_url",
+            "helpUrl",
+          ]),
+      }) as TemplateProgressItem;
+    })
     .filter((item) => item.name || item.message);
+};
 
 const resultProgressSummary = (
   result: unknown,
@@ -384,6 +468,30 @@ export const formatTemplateProgressEvent = (
   event: TemplateProgressEvent,
   command: string,
 ): string[] => {
+  const appendItemDetails = (
+    lines: string[],
+    item: TemplateProgressItem,
+  ): void => {
+    const metadata = [
+      item.category ? `category: ${item.category}` : undefined,
+      item.severity ? `severity: ${item.severity}` : undefined,
+      item.location ? `location: ${item.location}` : undefined,
+      typeof item.durationMs === "number" ? `duration: ${item.durationMs}ms` : undefined,
+    ].filter(Boolean);
+    if (metadata.length) {
+      lines.push(`    ${metadata.join(" | ")}`);
+    }
+    if (item.name && item.message) {
+      lines.push(`    message: ${item.message}`);
+    }
+    if (item.recommendation) {
+      lines.push(`    recommendation: ${item.recommendation}`);
+    }
+    if (item.documentationUrl) {
+      lines.push(`    docs: ${item.documentationUrl}`);
+    }
+  };
+
   if (event.phase === "submitted") {
     return [`${command} job ${event.jobId} submitted`];
   }
@@ -392,6 +500,7 @@ export const formatTemplateProgressEvent = (
     for (const item of event.items ?? []) {
       const status = item.status ? `${item.status} ` : "";
       lines.push(`  - ${status}${item.name ?? item.message ?? "item"}`);
+      appendItemDetails(lines, item);
     }
     return lines;
   }
@@ -417,6 +526,7 @@ export const formatTemplateProgressEvent = (
           ? "Pass "
           : "Fail ";
     lines.push(`  - ${statusText}${passedText}${item.name ?? item.message ?? "item"}`);
+    appendItemDetails(lines, item);
   }
   return lines;
 };
@@ -447,9 +557,9 @@ export const unwrapTemplateOperationResult = (value: unknown): unknown => {
   }
   const nestedResult = recordValue(result.result);
   if (nestedResult) {
-    return nestedResult;
+    return sanitizeTemplateOperationText(nestedResult);
   }
-  return result;
+  return sanitizeTemplateOperationText(result);
 };
 
 const resolvedOperationResult = (
@@ -490,10 +600,16 @@ export const normalizeTemplateValidationDetails = (
       pillar: firstString(row, ["pillar"]),
       ...(Object.keys(target).length ? { target } : {}),
       evidence: compactRecord({
-        description: firstString(row, ["description", "message"]) ??
-          firstString(info, ["description"]),
-        synopsis: firstString(row, ["synopsis"]) ?? firstString(info, ["synopsis"]),
-        recommendation: firstString(row, ["recommendation", "remediation"]),
+        description: publicValidationText(
+          firstString(row, ["description", "message"]) ??
+            firstString(info, ["description"]),
+        ),
+        synopsis: publicValidationText(
+          firstString(row, ["synopsis"]) ?? firstString(info, ["synopsis"]),
+        ),
+        recommendation: publicValidationText(
+          firstString(row, ["recommendation", "remediation"]),
+        ),
         documentation_url: firstString(row, [
           "documentation_url",
           "documentationUrl",
@@ -538,8 +654,10 @@ export const normalizeTemplateTestDetails = (
       status: passed === undefined ? firstString(row, ["status"]) : passed ? "Pass" : "Fail",
       passed,
       severity: firstString(row, ["severity", "level"]),
-      message: firstString(row, ["message", "description"]),
-      recommendation: firstString(row, ["recommendation", "remediation"]),
+      message: publicValidationText(firstString(row, ["message", "description"])),
+      recommendation: publicValidationText(
+        firstString(row, ["recommendation", "remediation"]),
+      ),
       duration_ms:
         typeof row.duration_ms === "number"
           ? row.duration_ms

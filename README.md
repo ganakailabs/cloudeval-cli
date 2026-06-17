@@ -346,7 +346,9 @@ Output contract:
 - `ask` and `agent` support `--progress none`, `--quiet`, or `--format ndjson --progress ndjson`;
 - `validate template` and `validate tests` support `--progress stderr` or
   `--progress ndjson` with `--wait`; validation progress always goes to stderr
-  so final JSON/NDJSON remains parseable on stdout;
+  so final JSON/NDJSON remains parseable on stdout. Completed progress includes
+  failing check/test details such as message, recommendation, severity, and
+  file or resource location when the backend returns them;
 - with `--non-interactive`, human approval exits with code `6` and returns `HITL_REQUIRED`;
 - `--show-sensitive-ids` shows full account/session-style IDs only on trusted machines. It does not unredact tokens.
 

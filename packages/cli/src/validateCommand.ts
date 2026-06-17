@@ -193,6 +193,8 @@ export const registerValidateCommand = (
                 options.waitTimeout,
                 "--wait-timeout",
               ),
+              templatePath: options.templateFile!,
+              parametersPath: options.parametersFile,
               onProgress: createTemplateProgressReporter(
                 "validate template",
                 options.progress,
@@ -283,6 +285,8 @@ export const registerValidateCommand = (
                 options.waitTimeout,
                 "--wait-timeout",
               ),
+              templatePath: options.templateFile!,
+              parametersPath: options.parametersFile,
               onProgress: createTemplateProgressReporter(
                 "validate tests",
                 options.progress,
@@ -291,7 +295,10 @@ export const registerValidateCommand = (
           : submitted;
         await writeFormattedOutput({
           command: "validate tests",
-          data: withTemplateTestDetails(data),
+          data: withTemplateTestDetails(data, {
+            templatePath: options.templateFile!,
+            parametersPath: options.parametersFile,
+          }),
           format: options.format,
           output: options.output,
         });

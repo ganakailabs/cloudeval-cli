@@ -300,7 +300,7 @@ const startBackend = async (
               message: "One resource id is not derived from resourceId().",
               recommendation: "Review template for compliance with ARM TTK best practices.",
               duration_ms: 18,
-              file_path: "azuredeploy.json",
+              file_path: "/tmp/tmp_backend_template.json",
             },
           ],
         },
@@ -1338,6 +1338,18 @@ test("mcp server exposes graph intelligence and generic validation tools", async
       ),
       `Expected generic template_test progress notification, got ${JSON.stringify(templateTestProgress)}`,
     );
+    assert(
+      templateTestProgress.some((message) =>
+        String(message.params?.message ?? "").includes("location: template.json"),
+      ),
+      `Expected submitted template filename in progress notification, got ${JSON.stringify(templateTestProgress)}`,
+    );
+    assert(
+      templateTestProgress.every((message) =>
+        !String(message.params?.message ?? "").includes("tmp_backend_template"),
+      ),
+      `Expected backend temp path to be hidden from progress notifications, got ${JSON.stringify(templateTestProgress)}`,
+    );
     assert.equal(templateTestProgress[0].params.progressToken, "template-test-progress");
     assert.equal(templateTestResponse.id, 34);
     assert.equal(templateTestResponse.result.isError, false);
@@ -1352,6 +1364,10 @@ test("mcp server exposes graph intelligence and generic validation tools", async
     assert.equal(
       templateTestResponse.result.structuredContent.data.details[0].test_name,
       "IDs Should Be Derived From ResourceIDs",
+    );
+    assert.equal(
+      templateTestResponse.result.structuredContent.data.details[0].file_path,
+      "template.json",
     );
 
     mcp.send({

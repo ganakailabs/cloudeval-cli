@@ -1050,7 +1050,7 @@ const startBackend = async (
               message: "Template contains no blank elements.",
               recommendation: "No action required.",
               duration_ms: 12,
-              file_path: "azuredeploy.json",
+              file_path: "/tmp/tmp_backend_template.json",
             },
             {
               test_name: "IDs Should Be Derived From ResourceIDs",
@@ -1060,7 +1060,7 @@ const startBackend = async (
               message: "One resource id is not derived from resourceId().",
               recommendation: "Review template for compliance with ARM TTK best practices.",
               duration_ms: 18,
-              file_path: "azuredeploy.json",
+              file_path: "/tmp/tmp_backend_template.json",
             },
           ],
         },
@@ -3351,7 +3351,7 @@ test("template validation, parsing, and rule catalog commands use generic public
       message: "One resource id is not derived from resourceId().",
       recommendation: "Review template for compliance with template validation best practices.",
       duration_ms: 18,
-      file_path: "azuredeploy.json",
+      file_path: "template.json",
     });
     assert.match(templateTestsResult.stderr, /validate tests job job-template-tests-1 submitted/);
     assert.match(templateTestsResult.stderr, /RUNNING 50%/);
@@ -3361,7 +3361,9 @@ test("template validation, parsing, and rule catalog commands use generic public
     assert.match(templateTestsResult.stderr, /recommendation: Review template for compliance with template validation best practices\./);
     assert.doesNotMatch(templateTestsResult.stderr, /ARM TTK/i);
     assert.doesNotMatch(templateTestsResult.stdout, /ARM TTK/i);
-    assert.match(templateTestsResult.stderr, /location: azuredeploy\.json/);
+    assert.match(templateTestsResult.stderr, /location: template\.json/);
+    assert.doesNotMatch(templateTestsResult.stderr, /tmp_backend_template/);
+    assert.doesNotMatch(templateTestsResult.stdout, /tmp_backend_template/);
 
     const validationWithoutParamsResult = await runCli([
       "validate",

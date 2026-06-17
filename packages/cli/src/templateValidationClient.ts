@@ -39,6 +39,11 @@ export type TemplateValidationWaitResult = {
   result: unknown;
 };
 
+export type TemplateProgressContext = {
+  templatePath?: string;
+  parametersPath?: string;
+};
+
 export type TemplateProgressItem = {
   name?: string;
   status?: string;
@@ -180,6 +185,71 @@ const compactRecord = (
     Object.entries(value).filter(([, item]) => item !== undefined),
   );
 
+const basenameFromPath = (value?: string): string | undefined => {
+  const trimmed = value?.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+  const normalized = trimmed.replace(/\\/g, "/");
+  return normalized.split("/").filter(Boolean).pop() ?? trimmed;
+};
+
+const isBackendTempLocation = (value?: string): boolean => {
+  const trimmed = value?.trim();
+  if (!trimmed) {
+    return false;
+  }
+  const normalized = trimmed.replace(/\\/g, "/").toLowerCase();
+  const basename = basenameFromPath(trimmed) ?? "";
+  return (
+    normalized.startsWith("/tmp/") ||
+    normalized.startsWith("/private/tmp/") ||
+    normalized.includes("/var/folders/") ||
+    normalized.includes("/appdata/local/temp/") ||
+    normalized.includes("/windows/temp/") ||
+    /^tmp[\w.-]*\.json$/i.test(basename)
+  );
+};
+
+const displayTemplateLocation = (
+  rawLocation: string | undefined,
+  context?: TemplateProgressContext,
+): string | undefined => {
+  const trimmed = rawLocation?.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+  if (isBackendTempLocation(trimmed)) {
+    return basenameFromPath(context?.templatePath);
+  }
+  return trimmed;
+};
+
+const sanitizeTemplateLocationFields = (
+  value: unknown,
+  context?: TemplateProgressContext,
+): unknown => {
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizeTemplateLocationFields(item, context));
+  }
+  const record = recordValue(value);
+  if (!record) {
+    return value;
+  }
+  return Object.fromEntries(
+    Object.entries(record).flatMap(([key, item]) => {
+      if (
+        ["file_path", "filePath", "location"].includes(key) &&
+        typeof item === "string"
+      ) {
+        const publicLocation = displayTemplateLocation(item, context);
+        return publicLocation === undefined ? [] : [[key, publicLocation]];
+      }
+      return [[key, sanitizeTemplateLocationFields(item, context)]];
+    }),
+  );
+};
+
 const arrayValue = (value: unknown): unknown[] =>
   Array.isArray(value) ? value : [];
 
@@ -252,7 +322,10 @@ const firstArray = (
   return [];
 };
 
-const normalizeProgressItem = (value: unknown): TemplateProgressItem => {
+const normalizeProgressItem = (
+  value: unknown,
+  context?: TemplateProgressContext,
+): TemplateProgressItem => {
   const record = recordValue(value) ?? {};
   const passed = typeof record.passed === "boolean" ? record.passed : undefined;
   return compactRecord({
@@ -277,7 +350,10 @@ const normalizeProgressItem = (value: unknown): TemplateProgressItem => {
     recommendation: publicValidationText(
       firstString(record, ["recommendation", "remediation"]),
     ),
-    location: firstString(record, ["file_path", "filePath", "location"]),
+    location: displayTemplateLocation(
+      firstString(record, ["file_path", "filePath", "location"]),
+      context,
+    ),
     durationMs: firstNumber(record, ["duration_ms", "durationMs"]),
     documentationUrl: firstString(record, [
       "documentation_url",
@@ -307,6 +383,7 @@ const progressEventFromStatus = (input: {
   jobId: string;
   status?: unknown;
   elapsedMs: number;
+  context?: TemplateProgressContext;
 }): TemplateProgressEvent => {
   const statusRecord = recordValue(input.status);
   return compactRecord({
@@ -355,7 +432,7 @@ const progressEventFromStatus = (input: {
       "progress_events",
       "progressEvents",
     ])
-      .map(normalizeProgressItem)
+      .map((item) => normalizeProgressItem(item, input.context))
       .filter((item) => item.name || item.message),
     elapsedMs: input.elapsedMs,
   }) as TemplateProgressEvent;
@@ -372,6 +449,7 @@ const passedStatus = (status?: string): boolean =>
 const progressItemsFromDetails = (
   details: Array<Record<string, unknown>>,
   nameFields: string[],
+  context?: TemplateProgressContext,
 ): TemplateProgressItem[] => {
   const targetLocation = (
     target: Record<string, unknown> | undefined,
@@ -404,8 +482,10 @@ const progressItemsFromDetails = (
               firstString(evidence, ["recommendation", "remediation"]),
           ),
         location:
-          firstString(detail, ["file_path", "filePath", "location"]) ??
-          targetLocation(recordValue(detail.target)),
+          displayTemplateLocation(
+            firstString(detail, ["file_path", "filePath", "location"]),
+            context,
+          ) ?? targetLocation(recordValue(detail.target)),
         durationMs: firstNumber(detail, ["duration_ms", "durationMs"]),
         documentationUrl:
           firstString(detail, [
@@ -428,6 +508,7 @@ const progressItemsFromDetails = (
 const resultProgressSummary = (
   result: unknown,
   operation?: string,
+  context?: TemplateProgressContext,
 ): Pick<TemplateProgressEvent, "operation" | "message" | "items" | "progress"> => {
   const resultRecord = recordValue(result) ?? {};
   const summary = recordValue(resultRecord.summary) ?? {};
@@ -436,7 +517,7 @@ const resultProgressSummary = (
   const operationText = String(resolvedOperation ?? "").toLowerCase();
 
   if (detectedOperation === "template_test" || operationText.includes("test")) {
-    const details = normalizeTemplateTestDetails(result);
+    const details = normalizeTemplateTestDetails(result, context);
     const passed = firstNumber(resultRecord, ["passed_tests", "passedTests"]) ??
       details.filter((detail) => detail.passed === true || passedStatus(firstString(detail, ["status"]))).length;
     const failed = firstNumber(resultRecord, ["failed_tests", "failedTests"]) ??
@@ -446,7 +527,7 @@ const resultProgressSummary = (
       operation: resolvedOperation,
       progress: 100,
       message: `Template tests complete: ${passed} passed, ${failed} failed, ${skipped} skipped`,
-      items: progressItemsFromDetails(details, ["test_name", "testName", "name"]),
+      items: progressItemsFromDetails(details, ["test_name", "testName", "name"], context),
     };
   }
 
@@ -460,7 +541,7 @@ const resultProgressSummary = (
     operation: resolvedOperation ?? "template_validate",
     progress: 100,
     message: `Validation complete: ${passed} passed, ${failed} failed across ${total} checks`,
-    items: progressItemsFromDetails(details, ["rule_id", "rule_name", "ruleName", "name"]),
+    items: progressItemsFromDetails(details, ["rule_id", "rule_name", "ruleName", "name"], context),
   };
 };
 
@@ -643,6 +724,7 @@ export const withTemplateValidationDetails = (value: unknown): unknown => {
 
 export const normalizeTemplateTestDetails = (
   result: unknown,
+  context?: TemplateProgressContext,
 ): Array<Record<string, unknown>> =>
   arrayValue(recordValue(result)?.test_results).map((item) => {
     const row = recordValue(item) ?? {};
@@ -664,15 +746,23 @@ export const normalizeTemplateTestDetails = (
           : typeof row.durationMs === "number"
             ? row.durationMs
             : undefined,
-      file_path: firstString(row, ["file_path", "filePath"]),
+      file_path: displayTemplateLocation(
+        firstString(row, ["file_path", "filePath"]),
+        context,
+      ),
     });
   });
 
-export const withTemplateTestDetails = (value: unknown): unknown => {
-  const result = resolvedOperationResult(value);
-  if (!result) {
+export const withTemplateTestDetails = (
+  value: unknown,
+  context?: TemplateProgressContext,
+): unknown => {
+  const rawResult = resolvedOperationResult(value);
+  if (!rawResult) {
     return value;
   }
+  const result =
+    recordValue(sanitizeTemplateLocationFields(rawResult, context)) ?? rawResult;
   const original = recordValue(value);
   const jobFields =
     original && ("jobId" in original || "status" in original)
@@ -691,7 +781,7 @@ export const withTemplateTestDetails = (value: unknown): unknown => {
       failed_tests: result.failed_tests,
       skipped_tests: result.skipped_tests,
     }),
-    details: normalizeTemplateTestDetails(result),
+    details: normalizeTemplateTestDetails(result, context),
   });
 };
 
@@ -720,6 +810,8 @@ export const waitForTemplateValidationResult = async (
     submitted: unknown;
     pollIntervalMs?: number;
     waitTimeoutMs?: number;
+    templatePath?: string;
+    parametersPath?: string;
     onProgress?: (event: TemplateProgressEvent) => void | Promise<void>;
   },
 ): Promise<unknown> => {
@@ -730,6 +822,10 @@ export const waitForTemplateValidationResult = async (
 
   const waitTimeoutMs = Math.max(1, input.waitTimeoutMs ?? 600_000);
   const pollIntervalMs = Math.max(500, input.pollIntervalMs ?? 2500);
+  const progressContext: TemplateProgressContext = {
+    templatePath: input.templatePath,
+    parametersPath: input.parametersPath,
+  };
   const deadline = Date.now() + waitTimeoutMs;
   const startedAt = Date.now();
   const elapsedMs = () => Date.now() - startedAt;
@@ -739,6 +835,7 @@ export const waitForTemplateValidationResult = async (
       jobId,
       status: input.submitted,
       elapsedMs: elapsedMs(),
+      context: progressContext,
     }),
   );
   let status: unknown;
@@ -750,6 +847,7 @@ export const waitForTemplateValidationResult = async (
         jobId,
         status,
         elapsedMs: elapsedMs(),
+        context: progressContext,
       }),
     );
     if (isTerminalJobStatus(status)) {
@@ -769,20 +867,24 @@ export const waitForTemplateValidationResult = async (
     );
   }
 
-  const result = unwrapTemplateOperationResult(
-    await getTemplateValidationJobResult({ ...input, jobId }),
+  const result = sanitizeTemplateLocationFields(
+    unwrapTemplateOperationResult(
+      await getTemplateValidationJobResult({ ...input, jobId }),
+    ),
+    progressContext,
   );
   const statusEvent = progressEventFromStatus({
     phase: "status",
     jobId,
     status,
     elapsedMs: elapsedMs(),
+    context: progressContext,
   });
   await input.onProgress?.(
     compactRecord({
       ...statusEvent,
       phase: "result",
-      ...resultProgressSummary(result, statusEvent.operation),
+      ...resultProgressSummary(result, statusEvent.operation, progressContext),
       elapsedMs: elapsedMs(),
     }) as TemplateProgressEvent,
   );

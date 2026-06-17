@@ -3114,6 +3114,8 @@ const buildToolHandlers = (
           submitted,
           pollIntervalMs: numberValue(args.pollIntervalMs),
           waitTimeoutMs: numberValue(args.waitTimeoutMs),
+          templatePath,
+          parametersPath: stringValue(args.parametersPath),
           onProgress: context?.sendProgress
             ? (event) => context.sendProgress!(event, "validate template")
             : undefined,
@@ -3156,6 +3158,8 @@ const buildToolHandlers = (
           submitted,
           pollIntervalMs: numberValue(args.pollIntervalMs),
           waitTimeoutMs: numberValue(args.waitTimeoutMs),
+          templatePath,
+          parametersPath: stringValue(args.parametersPath),
           onProgress: context?.sendProgress
             ? (event) => context.sendProgress!(event, "validate tests")
             : undefined,
@@ -3163,7 +3167,10 @@ const buildToolHandlers = (
       : submitted;
     return withEnvelope({
       command: "validate tests",
-      data: withTemplateTestDetails(data),
+      data: withTemplateTestDetails(data, {
+        templatePath,
+        parametersPath: stringValue(args.parametersPath),
+      }),
     });
   });
 

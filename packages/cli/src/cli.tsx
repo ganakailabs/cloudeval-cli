@@ -24,7 +24,7 @@ import { registerSkillsCommand } from "./skillsCommand.js";
 import { getFirstNameForDisplay } from "./ui/userDisplayName.js";
 import { registerOpenCommand } from "./openCommand.js";
 import { registerProjectsCommand } from "./projectsCommand.js";
-import { registerActionsCommand } from "./actionsCommand.js";
+import { registerActionsCommand, registerIssuesInventoryCommand } from "./actionsCommand.js";
 import { registerConnectionsCommand } from "./connectionsCommand.js";
 import { registerBillingCommands } from "./billingCommand.js";
 import { registerCapabilitiesCommand } from "./agentCapabilities.js";
@@ -916,6 +916,13 @@ registerProjectsCommand(program, {
 });
 
 registerConnectionsCommand(program, {
+  defaultBaseUrl: DEFAULT_BASE_URL,
+  resolveBaseUrl,
+  readStdinValue,
+  isHeadlessEnvironment,
+});
+
+registerIssuesInventoryCommand(program, {
   defaultBaseUrl: DEFAULT_BASE_URL,
   resolveBaseUrl,
   readStdinValue,

@@ -17,9 +17,14 @@ import {
   type MachineOutputFormat,
 } from "./outputFormatter.js";
 
-export interface RegisterActionsCommandOptions extends AuthGuardDeps {
+export interface RegisterIssuesInventoryCommandOptions extends AuthGuardDeps {
   defaultBaseUrl: string;
+  commandName?: string;
+  commandDescription?: string;
 }
+
+/** @deprecated Use RegisterIssuesInventoryCommandOptions */
+export type RegisterActionsCommandOptions = RegisterIssuesInventoryCommandOptions;
 
 type CommonOptions = AuthGuardOptions & {
   format?: MachineOutputFormat;
@@ -116,11 +121,11 @@ export const renderActionsListText = (payload: Record<string, unknown>): string 
       { key: "resource", header: "Resource", maxWidth: 20 },
       { key: "savings", header: "Savings", width: 10 },
     ],
-    { emptyMessage: "No action center items found." }
+    { emptyMessage: "No issues inventory items found." }
   );
 };
 
-const buildActionCenterFrontendUrl = (
+const buildIssuesFrontendUrl = (
   context: { baseUrl: string },
   options: CommonOptions
 ) =>
@@ -134,13 +139,19 @@ const buildActionCenterFrontendUrl = (
     sort: options.sort,
   });
 
-export const registerActionsCommand = (
+export const registerIssuesInventoryCommand = (
   program: Command,
-  deps: RegisterActionsCommandOptions
+  deps: RegisterIssuesInventoryCommandOptions
 ) => {
-  const actions = program.command("actions").description("Cross-project action center inventory");
+  const commandName = deps.commandName || "issues";
+  const commandDescription =
+    deps.commandDescription ||
+    (commandName === "actions"
+      ? "Cross-project action center inventory (deprecated; use issues)"
+      : "Cross-project issues inventory");
+  const inventory = program.command(commandName).description(commandDescription);
 
-  addCommon(addAuthOptions(actions.command("list").description("List action center items"), deps.defaultBaseUrl))
+  addCommon(addAuthOptions(inventory.command("list").description("List issues inventory items"), deps.defaultBaseUrl))
     .option("--project <id>", "Filter by project id")
     .option("--type <types>", "Filter by type: architecture,cost,unit-tests")
     .option("--severity <levels>", "Filter by severity: critical,high,medium,low")
@@ -158,7 +169,7 @@ export const registerActionsCommand = (
       try {
         const context = requireAuthUser(await resolveAuthContext(options, command, deps));
         const core = await import("@cloudeval/core");
-        const data = await core.listActionCenterItems({
+        const data = await core.listIssuesItems({
           baseUrl: context.baseUrl,
           authToken: context.token,
           userId: context.user.id,
@@ -178,7 +189,7 @@ export const registerActionsCommand = (
           offset: Number(options.offset || 0),
           allowFullScan: options.allowFullScan !== false,
         });
-        const url = buildActionCenterFrontendUrl(context, options);
+        const url = buildIssuesFrontendUrl(context, options);
         const format = options.format ?? "text";
         if (format === "text") {
           const text = renderActionsListText(
@@ -192,7 +203,7 @@ export const registerActionsCommand = (
           }
         } else {
           await writeFormattedOutput({
-            command: "actions list",
+            command: `${commandName} list`,
             data,
             format,
             output: options.output,
@@ -201,12 +212,12 @@ export const registerActionsCommand = (
         }
         await maybeOpen(url, options);
       } catch (error: any) {
-        console.error(`Failed to list action center items: ${error?.message ?? "Unknown error"}`);
+        console.error(`Failed to list issues inventory: ${error?.message ?? "Unknown error"}`);
         process.exit(1);
       }
     });
 
-  addCommon(addAuthOptions(actions.command("get <item-id>").description("Get one action center item"), deps.defaultBaseUrl))
+  addCommon(addAuthOptions(inventory.command("get <item-id>").description("Get one issues inventory item"), deps.defaultBaseUrl))
     .option("--project <id>", "Optional project scope")
     .option("--allow-full-scan", "Allow scanning large portfolios", true)
     .option("--no-allow-full-scan", "Require project scoping for large portfolios")
@@ -214,7 +225,7 @@ export const registerActionsCommand = (
       try {
         const context = requireAuthUser(await resolveAuthContext(options, command, deps));
         const core = await import("@cloudeval/core");
-        const data = await core.getActionCenterItem({
+        const data = await core.getIssuesItem({
           baseUrl: context.baseUrl,
           authToken: context.token,
           userId: context.user.id,
@@ -226,22 +237,22 @@ export const registerActionsCommand = (
           data && typeof data === "object" ? (data as Record<string, unknown>) : {};
         const items = Array.isArray(payload.items) ? payload.items : [];
         if (items.length === 0) {
-          console.error(`Action center item not found: ${itemId}`);
+          console.error(`Issues item not found: ${itemId}`);
           process.exit(5);
         }
         await writeFormattedOutput({
-          command: "actions get",
+          command: `${commandName} get`,
           data: items[0],
           format: options.format ?? "json",
           output: options.output,
         });
       } catch (error: any) {
-        console.error(`Failed to get action center item: ${error?.message ?? "Unknown error"}`);
+        console.error(`Failed to get issues item: ${error?.message ?? "Unknown error"}`);
         process.exit(1);
       }
     });
 
-  addCommon(addAuthOptions(actions.command("open").description("Open the action center in the browser"), deps.defaultBaseUrl))
+  addCommon(addAuthOptions(inventory.command("open").description("Open the issues inventory in the browser"), deps.defaultBaseUrl))
     .option("--project <id>", "Filter by project id")
     .option("--type <types>", "Filter by type")
     .option("--severity <levels>", "Filter by severity")
@@ -250,11 +261,22 @@ export const registerActionsCommand = (
     .action(async (options: CommonOptions, command) => {
       try {
         const context = requireAuthUser(await resolveAuthContext(options, command, deps));
-        const url = buildActionCenterFrontendUrl(context, options);
+        const url = buildIssuesFrontendUrl(context, options);
         await maybeOpen(url, { ...options, open: true, printUrl: true });
       } catch (error: any) {
-        console.error(`Failed to open action center: ${error?.message ?? "Unknown error"}`);
+        console.error(`Failed to open issues inventory: ${error?.message ?? "Unknown error"}`);
         process.exit(1);
       }
     });
 };
+
+/** @deprecated Use registerIssuesInventoryCommand */
+export const registerActionsCommand = (
+  program: Command,
+  deps: RegisterActionsCommandOptions
+) =>
+  registerIssuesInventoryCommand(program, {
+    ...deps,
+    commandName: "actions",
+    commandDescription: "Cross-project action center inventory (deprecated; use issues)",
+  });

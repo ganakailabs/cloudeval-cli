@@ -45,5 +45,5 @@ test("renderActionsListText renders table rows for action center items", () => {
 
 test("renderActionsListText handles empty inventory", () => {
   const text = renderActionsListText({ items: [] });
-  assert.match(text, /No action center items found/);
+  assert.match(text, /No issues inventory items found/);
 });

@@ -15,7 +15,7 @@ const withFetch = async (
 void withFetch(async (fetchImpl) => {
   globalThis.fetch = async (input, init) => {
     const url = String(input);
-    if (!url.includes("/action-center/items")) {
+    if (!url.includes("/issues/items")) {
       throw new Error(`Unexpected fetch URL: ${url}`);
     }
     return new Response(
@@ -73,7 +73,7 @@ void withFetch(async () => {
   });
 
   const url = new URL(capturedUrl);
-  if (!url.pathname.endsWith("/action-center/items")) {
+  if (!url.pathname.endsWith("/issues/items")) {
     throw new Error(`Unexpected pathname: ${url.pathname}`);
   }
   if (url.searchParams.get("user_id") !== "user-1") {

@@ -20,7 +20,7 @@
   "scripts": {
     "build": "pnpm -C ../shared build && tsup",
     "lint": "pnpm -C ../shared build && tsc --noEmit -p tsconfig.json",
-    "test": "pnpm -C ../shared build && tsx --test src/auth.test.ts src/streamClient.test.ts src/reportsClient.test.ts src/billingClient.test.ts src/projectClient.test.ts src/credentialsClient.test.ts src/agentProfilesClient.test.ts"
+    "test": "pnpm -C ../shared build && tsx --test src/auth.test.ts src/streamClient.test.ts src/reportsClient.test.ts src/actionCenterClient.test.ts src/billingClient.test.ts src/projectClient.test.ts src/credentialsClient.test.ts src/agentProfilesClient.test.ts"
   },
   "dependencies": {
     "@cloudeval/shared": "workspace:*"

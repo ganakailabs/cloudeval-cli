@@ -12,6 +12,14 @@ const CLOUDEVAL_ACCESS_KEY_VALUE_PATTERN =
 const AUTHORIZATION_BEARER_PATTERN =
   /\b(authorization\s*:\s*bearer\s+)([^\s'",}]+)/gi;
 
+const INLINE_SECRET_ASSIGNMENT_PATTERN =
+  /\b((?:token|authorization|cookie|secret|password|api[_-]?key|access[_-]?key|client[_-]?secret|refresh|device[_-]?code|user[_-]?code)=)([^&\s'",}]+)/gi;
+
+const JSONISH_SECRET_FIELD_PATTERN =
+  /(["'](?:token|authorization|cookie|secret|password|api[_-]?key|access[_-]?key|client[_-]?secret|refresh|device[_-]?code|user[_-]?code)["']\s*:\s*["'])([^"']+)(["'])/gi;
+
+const ENCODED_SECRET_REDACTION = encodeURIComponent(SECRET_REDACTION);
+
 export const isSensitiveSecretKey = (key: string): boolean =>
   SENSITIVE_KEY_PATTERN.test(key);
 
@@ -44,6 +52,16 @@ export const redactSensitiveText = (value: string): string => {
 
   return text
     .replace(AUTHORIZATION_BEARER_PATTERN, (_match, prefix: string) => `${prefix}${SECRET_REDACTION}`)
+    .replace(JSONISH_SECRET_FIELD_PATTERN, (_match, prefix: string, _secret: string, suffix: string) => `${prefix}${SECRET_REDACTION}${suffix}`)
+    .replace(INLINE_SECRET_ASSIGNMENT_PATTERN, (_match, prefix: string, secret: string) => {
+      if (
+        secret === SECRET_REDACTION ||
+        secret.toLowerCase() === ENCODED_SECRET_REDACTION.toLowerCase()
+      ) {
+        return `${prefix}${secret}`;
+      }
+      return `${prefix}${SECRET_REDACTION}`;
+    })
     .replace(CLOUDEVAL_ACCESS_KEY_VALUE_PATTERN, SECRET_REDACTION);
 };
 

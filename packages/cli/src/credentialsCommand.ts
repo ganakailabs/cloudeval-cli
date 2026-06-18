@@ -27,6 +27,7 @@ interface CredentialOptions {
   capabilities?: string;
   idempotencyKey?: string;
   reason?: string;
+  showSecret?: boolean;
 }
 
 const asRecord = (value: unknown): Record<string, any> =>
@@ -89,6 +90,7 @@ const writeCredentialOutput = async (input: {
   format?: CredentialFormat;
   output?: string;
   projectId?: string;
+  showSecret?: boolean;
 }) => {
   if (input.format === "github-actions") {
     const secret = secretFromPayload(input.data);
@@ -127,7 +129,9 @@ const writeCredentialOutput = async (input: {
     data: input.data,
     format: input.format as MachineOutputFormat | undefined,
     output: input.output,
-    redactSensitiveSecrets: input.command !== "credentials create",
+    redactSensitiveSecrets: !(
+      input.command === "credentials create" && input.showSecret === true
+    ),
   });
 };
 
@@ -217,6 +221,11 @@ export const registerCredentialsCommand = (
     .option("--idempotency-key <key>", "Idempotency key for safe retries")
     .option("--format <format>", "Output format: text, json, ndjson, markdown, github-actions", "text")
     .option("--output <file>", "Output file")
+    .option(
+      "--show-secret",
+      "Include the one-time access key in machine-readable create output",
+      false
+    )
     .action(async (options: CredentialOptions, command) => {
       const auth = await resolveCoreAuth(options, command, deps);
       const data = await auth.core.createCredential({
@@ -235,6 +244,7 @@ export const registerCredentialsCommand = (
         format: options.format,
         output: options.output,
         projectId: options.project,
+        showSecret: options.showSecret,
       });
     });
 

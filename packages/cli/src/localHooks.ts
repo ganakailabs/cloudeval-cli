@@ -45,6 +45,22 @@ const normalizeHooks = (
     : [];
 };
 
+const HOOK_SECRET_ENV_KEY_PATTERN =
+  /(?:TOKEN|SECRET|PASSWORD|CREDENTIAL|ACCESS_KEY|API_KEY|PRIVATE_KEY|SESSION|COOKIE|AUTH|AZURE_CLIENT_SECRET|CLOUDEVAL_ACCESS_KEY)/i;
+
+export const buildLocalHookBaseEnv = (
+  source: NodeJS.ProcessEnv = process.env
+): NodeJS.ProcessEnv => {
+  const env: NodeJS.ProcessEnv = {};
+  for (const [key, value] of Object.entries(source)) {
+    if (value === undefined || HOOK_SECRET_ENV_KEY_PATTERN.test(key)) {
+      continue;
+    }
+    env[key] = value;
+  }
+  return env;
+};
+
 const writeHookPayload = async (
   input: LocalHookRunInput,
   hook: LocalHookDefinition
@@ -89,7 +105,7 @@ const runShellHook = async (
       cwd: hook.cwd || process.cwd(),
       timeout: timeoutSeconds * 1000,
       env: {
-        ...process.env,
+        ...buildLocalHookBaseEnv(),
         CLOUDEVAL_HOOK_EVENT: input.event,
         CLOUDEVAL_HOOK_EVENT_FILE: payloadPath,
         CLOUDEVAL_PROFILE: input.profile,

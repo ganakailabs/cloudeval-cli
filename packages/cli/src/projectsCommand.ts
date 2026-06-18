@@ -92,6 +92,7 @@ type ProjectCreateOptions = CommonOptions & {
   azureTenantId?: string;
   azureClientId?: string;
   azureClientSecret?: string;
+  azureClientSecretStdin?: boolean;
   azureSubscriptionId?: string;
   resourceGroup?: string[];
   resourceGroups?: string;
@@ -253,6 +254,36 @@ const normalizeWorkspacePath = (value: string): string =>
     .filter((part) => part && part !== ".")
     .join("/");
 
+const SENSITIVE_WORKSPACE_DIR_NAMES = new Set([
+  ".aws",
+  ".azure",
+  ".kube",
+  ".terraform",
+]);
+
+const SENSITIVE_WORKSPACE_FILENAMES = new Set([
+  ".env",
+  "credentials",
+  "id_rsa",
+  "id_ed25519",
+  "kubeconfig",
+]);
+
+const isSensitiveWorkspacePath = (relativePath: string): boolean => {
+  const normalized = normalizeWorkspacePath(relativePath);
+  const parts = normalized.split("/");
+  if (parts.some((part) => SENSITIVE_WORKSPACE_DIR_NAMES.has(part))) {
+    return true;
+  }
+  const basename = parts.at(-1) ?? "";
+  return (
+    SENSITIVE_WORKSPACE_FILENAMES.has(basename) ||
+    /^\.env\./i.test(basename) ||
+    /\.(?:pem|key|pfx|p12)$/i.test(basename) ||
+    /\.tfstate(?:\..*)?$/i.test(basename)
+  );
+};
+
 const isIgnoredWorkspacePath = (relativePath: string): boolean => {
   const normalized = normalizeWorkspacePath(relativePath);
   return (
@@ -400,14 +431,21 @@ const compileBicepEntry = async (
   }
 };
 
-const collectWorkspacePaths = async (root: string): Promise<string[]> => {
+const collectWorkspacePaths = async (
+  root: string,
+  allowedSensitivePaths: Set<string> = new Set()
+): Promise<string[]> => {
   const paths: string[] = [];
   const visit = async (directory: string) => {
     const entries = await fs.readdir(directory, { withFileTypes: true });
     for (const entry of entries) {
       const absolute = path.join(directory, entry.name);
       const relative = normalizeWorkspacePath(path.relative(root, absolute));
-      if (!relative || isIgnoredWorkspacePath(relative)) {
+      if (
+        !relative ||
+        isIgnoredWorkspacePath(relative) ||
+        (isSensitiveWorkspacePath(relative) && !allowedSensitivePaths.has(relative))
+      ) {
         continue;
       }
       if (entry.isDirectory()) {
@@ -494,13 +532,31 @@ const collectWorkspaceFiles = async (
     throw new Error(`--workspace-dir '${workspaceDir}' is not a directory.`);
   }
 
-  const paths = await collectWorkspacePaths(root);
+  const allowedSensitivePaths = new Set(
+    [options.workspaceEntry, options.workspaceParameters]
+      .filter((value): value is string => Boolean(value))
+      .map((value) => normalizeWorkspacePath(value))
+  );
+  const paths = await collectWorkspacePaths(root, allowedSensitivePaths);
   const existingConfigPath = paths.find(
     (filePath) => filePath.toLowerCase() === ".cloudeval/config.yaml"
   );
   const config = existingConfigPath
     ? readWorkspaceConfig(await fs.readFile(path.join(root, existingConfigPath), "utf8"))
     : undefined;
+  if (
+    config?.parameters &&
+    isSensitiveWorkspacePath(config.parameters) &&
+    !paths.includes(config.parameters)
+  ) {
+    const parameterStat = await fs
+      .stat(path.join(root, config.parameters))
+      .catch(() => undefined);
+    if (parameterStat?.isFile()) {
+      paths.push(config.parameters);
+      paths.sort((left, right) => left.localeCompare(right));
+    }
+  }
   const entry = detectWorkspaceEntry(paths, options.workspaceEntry, config);
   const parameters = resolveWorkspaceParameters(paths, options.workspaceParameters, config);
   const compiledEntry = isBicepPath(entry)
@@ -546,13 +602,32 @@ const collectResourceGroups = (options: ProjectCreateOptions): string[] => {
   return [...repeated, ...commaSeparated].map((value) => value.trim()).filter(Boolean);
 };
 
-const resolveAzureCloudSyncInput = (options: ProjectCreateOptions) => {
+const readSecretFromStdin = async (): Promise<string> => {
+  const chunks: Buffer[] = [];
+  for await (const chunk of process.stdin) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk)));
+  }
+  return Buffer.concat(chunks).toString("utf8").replace(/\r?\n$/, "");
+};
+
+const resolveAzureCloudSyncInput = async (options: ProjectCreateOptions) => {
   if (!options.cloudSync) {
     return undefined;
   }
   const tenantId = options.azureTenantId || process.env.AZURE_TENANT_ID;
   const clientId = options.azureClientId || process.env.AZURE_CLIENT_ID;
-  const clientSecret = options.azureClientSecret || process.env.AZURE_CLIENT_SECRET;
+  if (options.azureClientSecret && options.azureClientSecretStdin) {
+    throw new Error("Use either --azure-client-secret or --azure-client-secret-stdin, not both.");
+  }
+  let clientSecret = process.env.AZURE_CLIENT_SECRET;
+  if (options.azureClientSecretStdin) {
+    clientSecret = await readSecretFromStdin();
+  } else if (options.azureClientSecret) {
+    process.stderr.write(
+      "Warning: --azure-client-secret can be exposed in shell history. Prefer AZURE_CLIENT_SECRET or --azure-client-secret-stdin.\n"
+    );
+    clientSecret = options.azureClientSecret;
+  }
   const subscriptionId = options.azureSubscriptionId || process.env.AZURE_SUBSCRIPTION_ID;
   const missing = [
     ["--azure-tenant-id or AZURE_TENANT_ID", tenantId],
@@ -985,6 +1060,11 @@ export const registerProjectsCommand = (
     .option("--azure-tenant-id <id>", "Azure tenant id for Cloud sync")
     .option("--azure-client-id <id>", "Azure service principal client id for Cloud sync")
     .option("--azure-client-secret <secret>", "Azure service principal client secret for Cloud sync")
+    .option(
+      "--azure-client-secret-stdin",
+      "Read Azure service principal client secret for Cloud sync from stdin",
+      false
+    )
     .option("--azure-subscription-id <id>", "Azure subscription id for Cloud sync")
     .option("--resource-group <name>", "Azure resource group scope for Cloud sync", appendOptionValue, [])
     .option("--resource-groups <list>", "Comma-separated Azure resource group scopes for Cloud sync")
@@ -1001,7 +1081,7 @@ export const registerProjectsCommand = (
         const workspace = options.workspaceDir
           ? await collectWorkspaceFiles(options.workspaceDir, options)
           : undefined;
-        const cloudSync = resolveAzureCloudSyncInput(options);
+        const cloudSync = await resolveAzureCloudSyncInput(options);
         const inferredName =
           options.name ||
           (options.workspaceDir ? path.basename(path.resolve(options.workspaceDir)) : undefined) ||

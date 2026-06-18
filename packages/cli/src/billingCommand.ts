@@ -14,6 +14,7 @@ import {
 import {
   formatErrorEnvelope,
   formatTextTable,
+  writePrivateOutputFile,
   writeFormattedOutput,
   type MachineOutputFormat,
 } from "./outputFormatter.js";
@@ -308,8 +309,7 @@ const write = async (
     const text = renderBillingText(command, data);
     if (text) {
       if (options.output) {
-        const fs = await import("node:fs/promises");
-        await fs.writeFile(options.output, text, "utf8");
+        await writePrivateOutputFile(options.output, text);
         return;
       }
       process.stdout.write(text);

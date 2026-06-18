@@ -52,7 +52,7 @@ export const normalizeMcpSetupClient = (value: string): McpSetupClient => {
 };
 
 export const normalizeMcpSetupToolset = (value?: string): McpSetupToolset => {
-  const normalized = (value ?? "all").toLowerCase() as McpSetupToolset;
+  const normalized = (value ?? "readonly").toLowerCase() as McpSetupToolset;
   if (TOOLSETS.has(normalized)) {
     return normalized;
   }
@@ -108,7 +108,7 @@ const writtenSetupNextStep = (client: McpSetupClient): string =>
 export const buildMcpClientSetup = ({
   client,
   command = "cloudeval",
-  toolset = "all",
+  toolset = "readonly",
   configPath,
 }: BuildMcpClientSetupOptions): McpClientSetup => {
   const normalizedClient = normalizeMcpSetupClient(client);

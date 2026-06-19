@@ -9,7 +9,6 @@ test("buildMcpClientSetup creates Codex registration command", () => {
   const setup = buildMcpClientSetup({
     client: "codex",
     command: "/usr/local/bin/cloudeval",
-    toolset: "readonly",
   });
 
   assert.equal(setup.client, "codex");

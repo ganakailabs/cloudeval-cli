@@ -110,3 +110,39 @@ test("hook receives env vars and JSON payload", async () => {
 
   assert.deepEqual(warnings, []);
 });
+
+test("hook env does not inherit process secrets", async () => {
+  const previousAccessKey = process.env.CLOUDEVAL_ACCESS_KEY;
+  process.env.CLOUDEVAL_ACCESS_KEY = "cev_test_ak_01JTEST_parentsecret";
+  try {
+    const command = [
+      "node",
+      "-e",
+      JSON.stringify(
+        "if(process.env.CLOUDEVAL_ACCESS_KEY) process.exit(14);" +
+          "if(!process.env.CLOUDEVAL_HOOK_EVENT_FILE) process.exit(15);",
+      ),
+    ].join(" ");
+    const warnings = await runLocalHooks({
+      event: "cli.command.after",
+      config: {
+        hooks: {
+          enabled: true,
+          events: {
+            "cli.command.after": [{ id: "secret-check", command }],
+          },
+        },
+      },
+      profile: "default",
+      commandName: "ask",
+    });
+
+    assert.deepEqual(warnings, []);
+  } finally {
+    if (previousAccessKey === undefined) {
+      delete process.env.CLOUDEVAL_ACCESS_KEY;
+    } else {
+      process.env.CLOUDEVAL_ACCESS_KEY = previousAccessKey;
+    }
+  }
+});

@@ -534,7 +534,12 @@ const initialize = async (mcp: Awaited<ReturnType<typeof startMcp>>) => {
 };
 
 test("mcp serve initializes, lists tools, and returns strict JSON-RPC stdout", async () => {
-  const mcp = await startMcp(["--frontend-url", "https://app.example.test"]);
+  const mcp = await startMcp([
+    "--toolset",
+    "all",
+    "--frontend-url",
+    "https://app.example.test",
+  ]);
   try {
     await initialize(mcp);
 
@@ -603,6 +608,24 @@ test("mcp serve initializes, lists tools, and returns strict JSON-RPC stdout", a
   }
 });
 
+test("mcp serve defaults to readonly toolset", async () => {
+  const mcp = await startMcp(["--frontend-url", "https://app.example.test"]);
+  try {
+    await initialize(mcp);
+
+    mcp.send({ jsonrpc: "2.0", id: 2, method: "tools/list" });
+    const listed = await mcp.read();
+    const names = listed.result.tools.map((tool: any) => tool.name);
+    assert(names.includes("projects_list"));
+    assert.equal(names.includes("ask"), false);
+    assert.equal(names.includes("projects_export_diagram"), false);
+    assert.equal(names.includes("template_test"), false);
+  } finally {
+    const closed = await mcp.close();
+    assert.equal(closed.exitCode, 0, closed.stderr);
+  }
+});
+
 test("mcp tools ignore per-call accessKey arguments", async () => {
   const backend = await startBackend();
   const mcp = await startMcp(["--base-url", backend.baseUrl]);
@@ -635,7 +658,12 @@ test("mcp tools ignore per-call accessKey arguments", async () => {
 });
 
 test("mcp serve accepts legacy dotted tool names as call aliases", async () => {
-  const mcp = await startMcp(["--frontend-url", "https://app.example.test"]);
+  const mcp = await startMcp([
+    "--toolset",
+    "all",
+    "--frontend-url",
+    "https://app.example.test",
+  ]);
   try {
     await initialize(mcp);
 
@@ -671,6 +699,8 @@ test("mcp agent_profiles_run uses canonical Agent Profile id", async () => {
   const mcp = await startMcp([
     "--base-url",
     backend.baseUrl,
+    "--toolset",
+    "all",
     "--access-key",
     "test-token",
   ]);
@@ -905,7 +935,12 @@ test("mcp serve filters resources and prompts by focused toolset", async () => {
 });
 
 test("mcp serve exposes CloudEval resources and prompts", async () => {
-  const mcp = await startMcp(["--frontend-url", "https://app.example.test"]);
+  const mcp = await startMcp([
+    "--toolset",
+    "all",
+    "--frontend-url",
+    "https://app.example.test",
+  ]);
   try {
     const initialized = await initialize(mcp);
     assert.equal(initialized.result.capabilities.resources.listChanged, false);
@@ -1082,6 +1117,8 @@ test("mcp tools can call authenticated CloudEval APIs without stdin credentials"
     backend.baseUrl,
     "--frontend-url",
     "https://app.example.test",
+    "--toolset",
+    "all",
     "--access-key",
     "test-token",
   ]);
@@ -1192,6 +1229,8 @@ test("mcp server exposes graph intelligence and generic validation tools", async
   const mcp = await startMcp([
     "--base-url",
     backend.baseUrl,
+    "--toolset",
+    "all",
     "--access-key",
     "test-token",
   ]);

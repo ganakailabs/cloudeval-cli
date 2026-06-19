@@ -1863,11 +1863,39 @@ test("credentials, identity, and live capabilities commands call credential APIs
       assert.equal(jsonWritten.exitCode, 0, jsonWritten.stderr);
       assert.match(
         await fs.readFile(jsonOutput, "utf8"),
+        /"\[redacted\]"/,
+      );
+      assert.doesNotMatch(
+        await fs.readFile(jsonOutput, "utf8"),
         /cev_test_ak_01JTEST_createdsecret/,
       );
       if (process.platform !== "win32") {
         assert.equal((await fs.stat(jsonOutput)).mode & 0o777, 0o600);
       }
+
+      const showSecret = parseJson(
+        await runCli([
+          "credentials",
+          "create",
+          "--base-url",
+          backend.baseUrl,
+          "--access-key",
+          "test-token",
+          "--template",
+          "ci",
+          "--name",
+          "github-actions-prod",
+          "--project",
+          "project-main",
+          "--idempotency-key",
+          "idem-create-1",
+          "--format",
+          "json",
+          "--show-secret",
+          "--non-interactive",
+        ]),
+      );
+      assert.equal(showSecret.data.access_key, "cev_test_ak_01JTEST_createdsecret");
     } finally {
       await fs.rm(outputDir, { recursive: true, force: true });
     }
@@ -2947,6 +2975,9 @@ test("projects create uploads a nested ARM workspace directory", async () => {
       path.join(workspaceDir, "nested", "network.json"),
       JSON.stringify({ resources: [] }),
     );
+    await fs.writeFile(path.join(workspaceDir, ".env"), "CLIENT_SECRET=do-not-upload\n");
+    await fs.writeFile(path.join(workspaceDir, "terraform.tfstate"), "state-secret\n");
+    await fs.writeFile(path.join(workspaceDir, "nested", "id_rsa"), "private-key\n");
 
     const create = parseJson(
       await runCli([
@@ -2980,6 +3011,12 @@ test("projects create uploads a nested ARM workspace directory", async () => {
     assert.ok(connectionRequest);
     assert.match(connectionRequest.body, /name="workspace_file_paths"/);
     assert.match(connectionRequest.body, /nested\/network\.json/);
+    assert.doesNotMatch(connectionRequest.body, /\.env/);
+    assert.doesNotMatch(connectionRequest.body, /terraform\.tfstate/);
+    assert.doesNotMatch(connectionRequest.body, /id_rsa/);
+    assert.doesNotMatch(connectionRequest.body, /do-not-upload/);
+    assert.doesNotMatch(connectionRequest.body, /state-secret/);
+    assert.doesNotMatch(connectionRequest.body, /private-key/);
     assert.match(connectionRequest.body, /\.cloudeval\/config\.yaml/);
     assert.match(connectionRequest.body, /id: primary-architecture/);
     assert.match(connectionRequest.body, /name: Primary architecture/);

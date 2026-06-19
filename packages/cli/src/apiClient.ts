@@ -1,4 +1,5 @@
 import { getCLIHeaders, normalizeApiBase } from "@cloudeval/core";
+import { redactSensitiveText } from "@cloudeval/shared";
 
 type QueryValue = string | number | boolean | null | undefined;
 
@@ -21,15 +22,15 @@ const responseErrorMessage = async (response: Response): Promise<string> => {
     const payload = JSON.parse(text);
     const detail = payload?.detail ?? payload?.message ?? payload?.error;
     if (typeof detail === "string") {
-      return detail;
+      return redactSensitiveText(detail);
     }
     if (detail) {
-      return JSON.stringify(detail);
+      return redactSensitiveText(JSON.stringify(detail));
     }
   } catch {
     // Keep the original response text below.
   }
-  return text;
+  return redactSensitiveText(text);
 };
 
 export const fetchCloudEvalJson = async <T = unknown>({

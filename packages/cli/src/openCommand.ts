@@ -239,6 +239,50 @@ export const registerOpenCommand = (
     });
 
   addOpenOptions(
+    open.command("issues").description("Open issues inventory"),
+    deps.defaultBaseUrl,
+  )
+    .option("--project <id>", "Project id")
+    .option("--type <types>", "Item types")
+    .option("--severity <levels>", "Severity filters")
+    .option("--q <query>", "Search query")
+    .option("--sort <sort>", "Sort order")
+    .action(async (options, command) => {
+      const url = buildFrontendUrl({
+        baseUrl: await base(options, command, deps),
+        target: "issues",
+        projectId: options.project,
+        type: options.type,
+        severity: options.severity,
+        q: options.q,
+        sort: options.sort,
+      });
+      await emitOrOpen(url, options);
+    });
+
+  addOpenOptions(
+    open.command("action-center").description("Open issues inventory (alias)"),
+    deps.defaultBaseUrl,
+  )
+    .option("--project <id>", "Project id")
+    .option("--type <types>", "Item types")
+    .option("--severity <levels>", "Severity filters")
+    .option("--q <query>", "Search query")
+    .option("--sort <sort>", "Sort order")
+    .action(async (options, command) => {
+      const url = buildFrontendUrl({
+        baseUrl: await base(options, command, deps),
+        target: "issues",
+        projectId: options.project,
+        type: options.type,
+        severity: options.severity,
+        q: options.q,
+        sort: options.sort,
+      });
+      await emitOrOpen(url, options);
+    });
+
+  addOpenOptions(
     open.command("billing").description("Open billing"),
     deps.defaultBaseUrl,
   )

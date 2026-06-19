@@ -2,6 +2,8 @@ export * from "./streamClient";
 export * from "./reducer";
 export * from "./auth";
 export * from "./reportsClient";
+export * from "./issuesClient";
+export * from "./actionCenterClient";
 export * from "./billingClient";
 export * from "./projectClient";
 export * from "./credentialsClient";

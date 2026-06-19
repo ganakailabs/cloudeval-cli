@@ -158,6 +158,8 @@ cloudeval validate template --template-file template.json --parameters-file para
 cloudeval validate tests --template-file template.json --parameters-file parameters.json --wait --progress stderr --wait-timeout 600000 --format json
 cloudeval rules search "public network" --format json
 cloudeval reports list
+cloudeval actions list --type architecture,cost,unit-tests --format json
+cloudeval actions open --print-url --no-open
 cloudeval capabilities --format json
 cloudeval doctor --deep
 ```
@@ -203,6 +205,7 @@ button interior.
 | Agent Profiles       | TUI Profile control and Chat picker | `cloudeval agents list/show/run`      | `agent_profiles_*` tools  |
 | Reusable workflow    | prompt suggestions                  | `cloudeval recipes list/show/run`     | `recipes_*` tools         |
 | Projects and reports | workspace panels                    | `projects`, `reports`, `open`         | `projects_*`, `reports_*` |
+| Issues               | `/app/issues`                       | `actions list/get/open`               | n/a                       |
 | Graph intelligence   | project graph views                 | `projects graph ...`                  | `projects_graph_*` tools  |
 | Template validation  | n/a                                 | `validate`, `rules`                   | `template_*`, `rules_*`   |
 | Billing              | billing panel and links             | `billing`, `credits`                  | `billing_*` toolset       |

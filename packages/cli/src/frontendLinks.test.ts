@@ -110,3 +110,18 @@ test("buildFrontendUrl builds report Markdown and JSON download links", () => {
     "https://www.cloudeval.ai/app/reports/project-1?tab=architecture&downloadReport=json&reportVerbosity=evidence",
   );
 });
+
+test("buildFrontendUrl builds action center deep links", () => {
+  assert.equal(
+    buildFrontendUrl({
+      baseUrl: "https://www.cloudeval.ai",
+      target: "action-center",
+      projectId: "project-1",
+      type: "architecture,cost",
+      severity: "critical",
+      q: "storage",
+      sort: "severity",
+    }),
+    "https://www.cloudeval.ai/app/issues?project=project-1&type=architecture%2Ccost&severity=critical&q=storage&sort=severity",
+  );
+});

@@ -1893,7 +1893,7 @@ const MCP_TOOLSETS: Record<McpToolsetName, readonly string[]> = {
 const MCP_TOOLSET_NAMES = Object.keys(MCP_TOOLSETS) as McpToolsetName[];
 
 const normalizeMcpToolset = (value?: string): McpToolsetName => {
-  const normalized = (value ?? "all").toLowerCase();
+  const normalized = (value ?? "readonly").toLowerCase();
   if ((MCP_TOOLSET_NAMES as readonly string[]).includes(normalized)) {
     return normalized as McpToolsetName;
   }
@@ -4944,7 +4944,7 @@ export const registerMcpCommand = (
     .option(
       "--toolset <name>",
       "Toolset to expose: all, readonly, projects, reports, billing",
-      "all",
+      "readonly",
     )
     .option("--config-path <path>", "Override MCP client config path")
     .option(
@@ -5021,7 +5021,7 @@ export const registerMcpCommand = (
     .option(
       "--toolset <name>",
       `Expose a focused MCP toolset: ${MCP_TOOLSET_NAMES.join(", ")}`,
-      "all",
+      "readonly",
     )
     .option(
       "-v, --verbose",

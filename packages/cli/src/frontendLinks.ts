@@ -6,6 +6,8 @@ export type FrontendTarget =
   | "connections"
   | "connection"
   | "reports"
+  | "issues"
+  | "action-center"
   | "billing";
 
 export interface ResolveFrontendBaseUrlOptions {
@@ -49,6 +51,10 @@ export interface FrontendLinkOptions {
   pdfVerbosity?: string;
   downloadReport?: string;
   reportVerbosity?: string;
+  severity?: string;
+  type?: string;
+  q?: string;
+  sort?: string;
 }
 
 const trimTrailingSlash = (value: string): string => value.replace(/\/+$/, "");
@@ -186,6 +192,15 @@ export const buildFrontendUrl = (options: FrontendLinkOptions): string => {
       setParam(url, "pdfVerbosity", options.pdfVerbosity);
       setParam(url, "downloadReport", options.downloadReport);
       setParam(url, "reportVerbosity", options.reportVerbosity);
+      break;
+    case "issues":
+    case "action-center":
+      url = appUrl(options.baseUrl, "/issues");
+      setParam(url, "project", options.projectId);
+      setParam(url, "type", options.type);
+      setParam(url, "severity", options.severity);
+      setParam(url, "q", options.q);
+      setParam(url, "sort", options.sort);
       break;
     case "billing":
       url = appUrl(options.baseUrl, "/subscription");

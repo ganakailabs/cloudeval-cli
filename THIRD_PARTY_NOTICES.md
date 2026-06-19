@@ -15,7 +15,7 @@ This notice is not a substitute for legal review before public or enterprise dis
 | (MIT OR CC0-1.0) | 2 |
 | 0BSD | 1 |
 | Apache-2.0 | 50 |
-| BSD-3-Clause | 14 |
+| BSD-3-Clause | 3 |
 | ISC | 12 |
 | MIT | 172 |
 
@@ -89,16 +89,6 @@ This notice is not a substitute for legal review before public or enterprise dis
 | @opentelemetry/semantic-conventions | 1.41.1 | Apache-2.0 | OpenTelemetry Authors | https://github.com/open-telemetry/opentelemetry-js/tree/main/semantic-conventions |
 | @opentelemetry/sql-common | 0.41.2 | Apache-2.0 | OpenTelemetry Authors | https://github.com/open-telemetry/opentelemetry-js-contrib/tree/main/packages/sql-common#readme |
 | @opentelemetry/winston-transport | 0.27.0 | Apache-2.0 | OpenTelemetry Authors | https://github.com/open-telemetry/opentelemetry-js-contrib/tree/main/packages/winston-transport#readme |
-| @protobufjs/aspromise | 1.1.2 | BSD-3-Clause | Daniel Wirtz | https://github.com/dcodeIO/protobuf.js#readme |
-| @protobufjs/base64 | 1.1.2 | BSD-3-Clause | Daniel Wirtz | https://github.com/dcodeIO/protobuf.js#readme |
-| @protobufjs/codegen | 2.0.5 | BSD-3-Clause | Daniel Wirtz | https://github.com/dcodeIO/protobuf.js#readme |
-| @protobufjs/eventemitter | 1.1.1 | BSD-3-Clause | Daniel Wirtz | https://github.com/dcodeIO/protobuf.js#readme |
-| @protobufjs/fetch | 1.1.1 | BSD-3-Clause | Daniel Wirtz | https://github.com/dcodeIO/protobuf.js#readme |
-| @protobufjs/float | 1.0.2 | BSD-3-Clause | Daniel Wirtz | https://github.com/dcodeIO/protobuf.js#readme |
-| @protobufjs/inquire | 1.1.2 | BSD-3-Clause | Daniel Wirtz | https://github.com/dcodeIO/protobuf.js#readme |
-| @protobufjs/path | 1.1.2 | BSD-3-Clause | Daniel Wirtz | https://github.com/dcodeIO/protobuf.js#readme |
-| @protobufjs/pool | 1.1.0 | BSD-3-Clause | Daniel Wirtz | https://github.com/dcodeIO/protobuf.js#readme |
-| @protobufjs/utf8 | 1.1.1 | BSD-3-Clause | Daniel Wirtz | https://github.com/dcodeIO/protobuf.js#readme |
 | @sindresorhus/is | 4.6.0 | MIT | Sindre Sorhus | https://github.com/sindresorhus/is#readme |
 | @types/bunyan | 1.8.11 | MIT | NOASSERTION | https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/bunyan |
 | @types/mysql | 2.15.27 | MIT | NOASSERTION | https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/mysql |
@@ -220,8 +210,7 @@ This notice is not a substitute for legal review before public or enterprise dis
 | postgres-bytea | 1.0.1 | MIT | Ben Drucker | https://github.com/bendrucker/postgres-bytea#readme |
 | postgres-date | 1.0.7 | MIT | Ben Drucker | https://github.com/bendrucker/postgres-date#readme |
 | postgres-interval | 1.2.0 | MIT | Ben Drucker | https://github.com/bendrucker/postgres-interval#readme |
-| protobufjs | 7.6.1 | BSD-3-Clause | Daniel Wirtz | https://protobufjs.github.io/protobuf.js/ |
-| protobufjs | 8.0.2 | BSD-3-Clause | Daniel Wirtz | https://protobufjs.github.io/protobuf.js/ |
+| protobufjs | 8.4.1 | BSD-3-Clause | Daniel Wirtz | https://github.com/protobufjs/protobuf.js#readme |
 | react-devtools-core | 4.28.5 | MIT | NOASSERTION | https://github.com/facebook/react#readme |
 | react-reconciler | 0.29.2 | MIT | NOASSERTION | https://reactjs.org/ |
 | react | 18.3.1 | MIT | NOASSERTION | https://reactjs.org/ |
@@ -263,8 +252,8 @@ This notice is not a substitute for legal review before public or enterprise dis
 | winston-transport | 4.9.0 | MIT | Charlie Robbins | https://github.com/winstonjs/winston-transport#readme |
 | wrap-ansi | 7.0.0 | MIT | Sindre Sorhus | https://github.com/chalk/wrap-ansi#readme |
 | wrap-ansi | 8.1.0 | MIT | Sindre Sorhus | https://github.com/chalk/wrap-ansi#readme |
-| ws | 7.5.10 | MIT | Einar Otto Stangvik | https://github.com/websockets/ws |
-| ws | 8.18.3 | MIT | Einar Otto Stangvik | https://github.com/websockets/ws |
+| ws | 7.5.11 | MIT | Einar Otto Stangvik | https://github.com/websockets/ws |
+| ws | 8.21.0 | MIT | Einar Otto Stangvik | https://github.com/websockets/ws |
 | wsl-utils | 0.1.0 | MIT | Sindre Sorhus | https://github.com/sindresorhus/wsl-utils#readme |
 | xtend | 4.0.2 | MIT | Raynos | https://github.com/Raynos/xtend |
 | y18n | 5.0.8 | ISC | Ben Coe | https://github.com/yargs/y18n |

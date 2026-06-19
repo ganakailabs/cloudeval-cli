@@ -748,116 +748,6 @@
       "summary": "OpenTelemetry Transport for winston"
     },
     {
-      "SPDXID": "SPDXRef-Package--protobufjs-aspromise-1.1.2",
-      "name": "@protobufjs/aspromise",
-      "versionInfo": "1.1.2",
-      "downloadLocation": "https://github.com/dcodeIO/protobuf.js#readme",
-      "filesAnalyzed": false,
-      "licenseConcluded": "BSD-3-Clause",
-      "licenseDeclared": "BSD-3-Clause",
-      "copyrightText": "Daniel Wirtz",
-      "summary": "Returns a promise from a node-style callback function."
-    },
-    {
-      "SPDXID": "SPDXRef-Package--protobufjs-base64-1.1.2",
-      "name": "@protobufjs/base64",
-      "versionInfo": "1.1.2",
-      "downloadLocation": "https://github.com/dcodeIO/protobuf.js#readme",
-      "filesAnalyzed": false,
-      "licenseConcluded": "BSD-3-Clause",
-      "licenseDeclared": "BSD-3-Clause",
-      "copyrightText": "Daniel Wirtz",
-      "summary": "A minimal base64 implementation for number arrays."
-    },
-    {
-      "SPDXID": "SPDXRef-Package--protobufjs-codegen-2.0.5",
-      "name": "@protobufjs/codegen",
-      "versionInfo": "2.0.5",
-      "downloadLocation": "https://github.com/dcodeIO/protobuf.js#readme",
-      "filesAnalyzed": false,
-      "licenseConcluded": "BSD-3-Clause",
-      "licenseDeclared": "BSD-3-Clause",
-      "copyrightText": "Daniel Wirtz",
-      "summary": "A minimalistic code generation utility."
-    },
-    {
-      "SPDXID": "SPDXRef-Package--protobufjs-eventemitter-1.1.1",
-      "name": "@protobufjs/eventemitter",
-      "versionInfo": "1.1.1",
-      "downloadLocation": "https://github.com/dcodeIO/protobuf.js#readme",
-      "filesAnalyzed": false,
-      "licenseConcluded": "BSD-3-Clause",
-      "licenseDeclared": "BSD-3-Clause",
-      "copyrightText": "Daniel Wirtz",
-      "summary": "A minimal event emitter."
-    },
-    {
-      "SPDXID": "SPDXRef-Package--protobufjs-fetch-1.1.1",
-      "name": "@protobufjs/fetch",
-      "versionInfo": "1.1.1",
-      "downloadLocation": "https://github.com/dcodeIO/protobuf.js#readme",
-      "filesAnalyzed": false,
-      "licenseConcluded": "BSD-3-Clause",
-      "licenseDeclared": "BSD-3-Clause",
-      "copyrightText": "Daniel Wirtz",
-      "summary": "Fetches the contents of a file accross node and browsers."
-    },
-    {
-      "SPDXID": "SPDXRef-Package--protobufjs-float-1.0.2",
-      "name": "@protobufjs/float",
-      "versionInfo": "1.0.2",
-      "downloadLocation": "https://github.com/dcodeIO/protobuf.js#readme",
-      "filesAnalyzed": false,
-      "licenseConcluded": "BSD-3-Clause",
-      "licenseDeclared": "BSD-3-Clause",
-      "copyrightText": "Daniel Wirtz",
-      "summary": "Reads / writes floats / doubles from / to buffers in both modern and ancient browsers."
-    },
-    {
-      "SPDXID": "SPDXRef-Package--protobufjs-inquire-1.1.2",
-      "name": "@protobufjs/inquire",
-      "versionInfo": "1.1.2",
-      "downloadLocation": "https://github.com/dcodeIO/protobuf.js#readme",
-      "filesAnalyzed": false,
-      "licenseConcluded": "BSD-3-Clause",
-      "licenseDeclared": "BSD-3-Clause",
-      "copyrightText": "Daniel Wirtz",
-      "summary": "Requires a module only if available and hides the require call from bundlers."
-    },
-    {
-      "SPDXID": "SPDXRef-Package--protobufjs-path-1.1.2",
-      "name": "@protobufjs/path",
-      "versionInfo": "1.1.2",
-      "downloadLocation": "https://github.com/dcodeIO/protobuf.js#readme",
-      "filesAnalyzed": false,
-      "licenseConcluded": "BSD-3-Clause",
-      "licenseDeclared": "BSD-3-Clause",
-      "copyrightText": "Daniel Wirtz",
-      "summary": "A minimal path module to resolve Unix, Windows and URL paths alike."
-    },
-    {
-      "SPDXID": "SPDXRef-Package--protobufjs-pool-1.1.0",
-      "name": "@protobufjs/pool",
-      "versionInfo": "1.1.0",
-      "downloadLocation": "https://github.com/dcodeIO/protobuf.js#readme",
-      "filesAnalyzed": false,
-      "licenseConcluded": "BSD-3-Clause",
-      "licenseDeclared": "BSD-3-Clause",
-      "copyrightText": "Daniel Wirtz",
-      "summary": "A general purpose buffer pool."
-    },
-    {
-      "SPDXID": "SPDXRef-Package--protobufjs-utf8-1.1.1",
-      "name": "@protobufjs/utf8",
-      "versionInfo": "1.1.1",
-      "downloadLocation": "https://github.com/dcodeIO/protobuf.js#readme",
-      "filesAnalyzed": false,
-      "licenseConcluded": "BSD-3-Clause",
-      "licenseDeclared": "BSD-3-Clause",
-      "copyrightText": "Daniel Wirtz",
-      "summary": "A minimal UTF8 implementation for number arrays."
-    },
-    {
       "SPDXID": "SPDXRef-Package--sindresorhus-is-4.6.0",
       "name": "@sindresorhus/is",
       "versionInfo": "4.6.0",
@@ -2189,26 +2079,15 @@
       "summary": "Parse Postgres interval columns"
     },
     {
-      "SPDXID": "SPDXRef-Package-protobufjs-7.6.1",
+      "SPDXID": "SPDXRef-Package-protobufjs-8.4.1",
       "name": "protobufjs",
-      "versionInfo": "7.6.1",
-      "downloadLocation": "https://protobufjs.github.io/protobuf.js/",
+      "versionInfo": "8.4.1",
+      "downloadLocation": "https://github.com/protobufjs/protobuf.js#readme",
       "filesAnalyzed": false,
       "licenseConcluded": "BSD-3-Clause",
       "licenseDeclared": "BSD-3-Clause",
       "copyrightText": "Daniel Wirtz",
-      "summary": "Protocol Buffers for JavaScript (& TypeScript)."
-    },
-    {
-      "SPDXID": "SPDXRef-Package-protobufjs-8.0.2",
-      "name": "protobufjs",
-      "versionInfo": "8.0.2",
-      "downloadLocation": "https://protobufjs.github.io/protobuf.js/",
-      "filesAnalyzed": false,
-      "licenseConcluded": "BSD-3-Clause",
-      "licenseDeclared": "BSD-3-Clause",
-      "copyrightText": "Daniel Wirtz",
-      "summary": "Protocol Buffers for JavaScript (& TypeScript)."
+      "summary": "Protocol Buffers for JavaScript & TypeScript."
     },
     {
       "SPDXID": "SPDXRef-Package-react-devtools-core-4.28.5",
@@ -2662,9 +2541,9 @@
       "summary": "Wordwrap a string with ANSI escape codes"
     },
     {
-      "SPDXID": "SPDXRef-Package-ws-7.5.10",
+      "SPDXID": "SPDXRef-Package-ws-7.5.11",
       "name": "ws",
-      "versionInfo": "7.5.10",
+      "versionInfo": "7.5.11",
       "downloadLocation": "https://github.com/websockets/ws",
       "filesAnalyzed": false,
       "licenseConcluded": "MIT",
@@ -2673,9 +2552,9 @@
       "summary": "Simple to use, blazing fast and thoroughly tested websocket client and server for Node.js"
     },
     {
-      "SPDXID": "SPDXRef-Package-ws-8.18.3",
+      "SPDXID": "SPDXRef-Package-ws-8.21.0",
       "name": "ws",
-      "versionInfo": "8.18.3",
+      "versionInfo": "8.21.0",
       "downloadLocation": "https://github.com/websockets/ws",
       "filesAnalyzed": false,
       "licenseConcluded": "MIT",
@@ -3113,56 +2992,6 @@
       "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
       "relationshipType": "DEPENDS_ON",
       "relatedSpdxElement": "SPDXRef-Package--opentelemetry-winston-transport-0.27.0"
-    },
-    {
-      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
-      "relationshipType": "DEPENDS_ON",
-      "relatedSpdxElement": "SPDXRef-Package--protobufjs-aspromise-1.1.2"
-    },
-    {
-      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
-      "relationshipType": "DEPENDS_ON",
-      "relatedSpdxElement": "SPDXRef-Package--protobufjs-base64-1.1.2"
-    },
-    {
-      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
-      "relationshipType": "DEPENDS_ON",
-      "relatedSpdxElement": "SPDXRef-Package--protobufjs-codegen-2.0.5"
-    },
-    {
-      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
-      "relationshipType": "DEPENDS_ON",
-      "relatedSpdxElement": "SPDXRef-Package--protobufjs-eventemitter-1.1.1"
-    },
-    {
-      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
-      "relationshipType": "DEPENDS_ON",
-      "relatedSpdxElement": "SPDXRef-Package--protobufjs-fetch-1.1.1"
-    },
-    {
-      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
-      "relationshipType": "DEPENDS_ON",
-      "relatedSpdxElement": "SPDXRef-Package--protobufjs-float-1.0.2"
-    },
-    {
-      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
-      "relationshipType": "DEPENDS_ON",
-      "relatedSpdxElement": "SPDXRef-Package--protobufjs-inquire-1.1.2"
-    },
-    {
-      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
-      "relationshipType": "DEPENDS_ON",
-      "relatedSpdxElement": "SPDXRef-Package--protobufjs-path-1.1.2"
-    },
-    {
-      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
-      "relationshipType": "DEPENDS_ON",
-      "relatedSpdxElement": "SPDXRef-Package--protobufjs-pool-1.1.0"
-    },
-    {
-      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
-      "relationshipType": "DEPENDS_ON",
-      "relatedSpdxElement": "SPDXRef-Package--protobufjs-utf8-1.1.1"
     },
     {
       "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
@@ -3772,12 +3601,7 @@
     {
       "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
       "relationshipType": "DEPENDS_ON",
-      "relatedSpdxElement": "SPDXRef-Package-protobufjs-7.6.1"
-    },
-    {
-      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
-      "relationshipType": "DEPENDS_ON",
-      "relatedSpdxElement": "SPDXRef-Package-protobufjs-8.0.2"
+      "relatedSpdxElement": "SPDXRef-Package-protobufjs-8.4.1"
     },
     {
       "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
@@ -3987,12 +3811,12 @@
     {
       "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
       "relationshipType": "DEPENDS_ON",
-      "relatedSpdxElement": "SPDXRef-Package-ws-7.5.10"
+      "relatedSpdxElement": "SPDXRef-Package-ws-7.5.11"
     },
     {
       "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
       "relationshipType": "DEPENDS_ON",
-      "relatedSpdxElement": "SPDXRef-Package-ws-8.18.3"
+      "relatedSpdxElement": "SPDXRef-Package-ws-8.21.0"
     },
     {
       "spdxElementId": "SPDXRef-Package-CloudEval-CLI",

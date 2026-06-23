@@ -1627,6 +1627,23 @@ export const extractEmailFromToken = (token: string): string | null => {
 };
 
 const AUTH_LOOKUP_ERROR = "CloudEvalAuthLookupError";
+const USER_PROFILE_MISSING_PATTERN =
+  /USER_NOT_FOUND|CloudEval user profile not found|onboarding required/i;
+
+const isMissingUserProfileDetail = (detail: string | undefined): boolean =>
+  USER_PROFILE_MISSING_PATTERN.test(detail ?? "");
+
+const authLookupErrorFromDetail = (
+  response: Response,
+  context: string,
+  detail: string | undefined
+): Error => {
+  const status = [response.status, response.statusText].filter(Boolean).join(" ");
+  const suffix = detail ? ` - ${detail.slice(0, 300)}` : "";
+  const error = new Error(`${context} failed: ${status}${suffix}`);
+  error.name = AUTH_LOOKUP_ERROR;
+  return error;
+};
 
 const authLookupError = async (response: Response, context: string): Promise<Error> => {
   let detail = "";
@@ -1679,6 +1696,14 @@ const fetchCurrentUserFromServer = async (
 
     if (response.status === 401 || response.status === 403) {
       throw await authLookupError(response, "Current user lookup");
+    }
+
+    if (response.status === 404) {
+      const detail = await readResponseDetail(response);
+      if (isMissingUserProfileDetail(detail)) {
+        throw authLookupErrorFromDetail(response, "Current user lookup", detail);
+      }
+      return null;
     }
 
     if (!response.ok) {

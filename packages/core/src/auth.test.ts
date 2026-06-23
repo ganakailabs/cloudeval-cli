@@ -608,6 +608,80 @@ test("validated auth status clears stored auth when backend rejects current user
   }
 });
 
+test("validated auth status clears stored auth when current user profile is missing", async () => {
+  const tempHome = await mkdtemp(path.join(os.tmpdir(), "cloudeval-auth-"));
+  const previousOverride = process.env.CLOUDEVAL_ALLOW_INSECURE_FILE_STORAGE;
+  process.env.CLOUDEVAL_ALLOW_INSECURE_FILE_STORAGE = "1";
+
+  try {
+    const { getAuthStatus } = await importFreshAuthModule(tempHome);
+    const configDir = path.join(tempHome, ".config", "cloudeval");
+    fs.mkdirSync(configDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(configDir, "config.json"),
+      JSON.stringify(
+        {
+          tokenRef: "access-token",
+          tokenExpiresAt: Date.now() + 3_600_000,
+          refreshTokenRef: "refresh-token",
+          baseUrl: "http://127.0.0.1:8787/api/v1",
+          sessionId: "session-1",
+          accountId: "deleted-user-1",
+        },
+        null,
+        2
+      )
+    );
+    fs.writeFileSync(
+      path.join(configDir, "secrets.json"),
+      JSON.stringify(
+        {
+          "access-token": "stored-access-token",
+          "refresh-token": "stored-refresh-token",
+        },
+        null,
+        2
+      )
+    );
+
+    const originalFetch = global.fetch;
+    global.fetch = async (input) => {
+      const url = typeof input === "string" ? input : input.toString();
+      assert.match(url, /\/auth\/me$/);
+      return jsonResponse(
+        {
+          detail: "USER_NOT_FOUND: CloudEval user profile not found; onboarding required.",
+        },
+        404
+      );
+    };
+
+    try {
+      const status = await getAuthStatus("http://127.0.0.1:8787/api/v1", {
+        validate: true,
+      });
+      assert.equal(status.authenticated, false);
+      assert.equal(status.accessTokenCached, false);
+      assert.equal(status.hasRefreshToken, false);
+      assert.equal(status.validationAttempted, true);
+      assert.match(status.authError, /USER_NOT_FOUND|onboarding required|user profile/i);
+      assert.equal(fs.existsSync(path.join(configDir, "config.json")), false);
+      assert.deepEqual(
+        JSON.parse(fs.readFileSync(path.join(configDir, "secrets.json"), "utf8")),
+        {}
+      );
+    } finally {
+      global.fetch = originalFetch;
+    }
+  } finally {
+    if (previousOverride === undefined) {
+      delete process.env.CLOUDEVAL_ALLOW_INSECURE_FILE_STORAGE;
+    } else {
+      process.env.CLOUDEVAL_ALLOW_INSECURE_FILE_STORAGE = previousOverride;
+    }
+  }
+});
+
 test("getAuthToken retries with the latest persisted refresh token after a concurrent refresh", async () => {
   const tempHome = await mkdtemp(path.join(os.tmpdir(), "cloudeval-auth-"));
   const previousOverride = process.env.CLOUDEVAL_ALLOW_INSECURE_FILE_STORAGE;

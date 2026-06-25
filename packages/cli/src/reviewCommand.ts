@@ -1614,32 +1614,35 @@ const deterministicAiSummary = (
     numberFrom(data.gate?.policy?.failed) ??
     0;
   const policyStatus = policyFailed > 0 ? "has failed checks" : "GOOD";
+  const weakestPillar = Array.isArray(data.gate?.wellArchitected?.pillars)
+    ? data.gate.wellArchitected.pillars
+        .filter((pillar: Record<string, any>) => numberFrom(pillar.score) !== undefined)
+        .sort(
+          (left: Record<string, any>, right: Record<string, any>) =>
+            (numberFrom(left.score) ?? 0) - (numberFrom(right.score) ?? 0),
+        )[0]
+    : undefined;
+  const weakestPillarLabel = weakestPillar?.label ?? weakestPillar?.id ?? "the weakest Well-Architected pillar";
+  const highRisk = numberFrom(data.gate?.wellArchitected?.risks?.high) ?? 0;
   const summary = [
     `CloudEval review completed with **${String(data.gate?.status ?? "UNKNOWN").toUpperCase()}**.`,
     `Well-Architected posture is **${formatScore(score)} (${rating})**, validation has **${displayNumber(failedTests)} failed unit tests**, policy checks are **${policyStatus}**, and monthly cost is **${formatMonthlyMoney(cost?.amount, cost?.currency)}**.`,
-    "Prioritize **failed validation checks** and the **weakest Well-Architected pillar** first.",
+    `Prioritize **failed validation checks** and **${weakestPillarLabel}** first.`,
   ].join(" ");
+  const detailsMarkdown = [
+    `**Main risk**\nThe gate is **${String(data.gate?.status ?? "UNKNOWN").toUpperCase()}** with Well-Architected posture **${formatScore(score)} (${rating})**, **${displayNumber(failedTests)} failed unit tests**, and monthly cost **${formatMonthlyMoney(cost?.amount, cost?.currency)}**.`,
+    `**Why it matters**\n${highRisk > 0 ? `There are **${displayNumber(highRisk)} high-risk findings**. ` : ""}Validation failures, weak architecture pillars, and cost over budget are the highest-signal remediation inputs before merge.`,
+    `**Recommended actions**\nFix **${displayNumber(failedTests)} failed unit tests**, address **${weakestPillarLabel}**, review cost drivers against the budget, rerun CloudEval review, and compare the updated gate.`,
+    "**Evidence used**\n**Gate status**, **Well-Architected score**, **validation totals**, **policy totals**, **monthly cost**, and **architecture signals**.",
+  ].join("\n\n");
   return {
     enabled: true,
     status: "fallback",
     fallbackUsed: true,
     warnings: error ? [`Review summary endpoint failed: ${error}`] : [],
     shortSummary: summary,
-    detailsMarkdown: [
-      "**Main risk**\nCloudEval could not produce an AI-written review summary, so use the deterministic gate evidence.",
-      "**Why it matters**\n**Failed validation** and **weak architecture pillars** are the highest-signal remediation inputs.",
-      "**Recommended actions**\nFix **failed validation checks**, address the **weakest pillar**, rerun CloudEval review, and compare the updated gate.",
-      "**Evidence used**\n**Gate status**, **Well-Architected score**, **validation totals**, **policy totals**, and **monthly cost**.",
-    ].join("\n\n"),
-    markdown: renderAiSummarySections(
-      summary,
-      [
-        "**Main risk**\nCloudEval could not produce an AI-written review summary, so use the deterministic gate evidence.",
-        "**Why it matters**\n**Failed validation** and **weak architecture pillars** are the highest-signal remediation inputs.",
-        "**Recommended actions**\nFix **failed validation checks**, address the **weakest pillar**, rerun CloudEval review, and compare the updated gate.",
-        "**Evidence used**\n**Gate status**, **Well-Architected score**, **validation totals**, **policy totals**, and **monthly cost**.",
-      ].join("\n\n"),
-    ),
+    detailsMarkdown,
+    markdown: renderAiSummarySections(summary, detailsMarkdown),
   };
 };
 

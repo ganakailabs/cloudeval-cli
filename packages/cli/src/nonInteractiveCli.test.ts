@@ -4658,7 +4658,10 @@ test("review command uses deterministic fallback when summary endpoint fails", a
     assert.match(markdownArtifact, /\*\*WARN\*\*/);
     assert.match(markdownArtifact, /\*\*91\/100 \(EXCELLENT\)\*\*/);
     assert.match(markdownArtifact, /\*\*0 failed unit tests\*\*/);
-    assert.match(markdownArtifact, /\*\*weakest Well-Architected pillar\*\*/);
+    assert.match(markdownArtifact, /\*\*Main risk\*\*/);
+    assert.match(markdownArtifact, /The gate is \*\*WARN\*\*/);
+    assert.match(markdownArtifact, /\*\*Evidence used\*\*/);
+    assert.match(markdownArtifact, /\*\*architecture signals\*\*/);
     assert.doesNotMatch(markdownArtifact, /AI summary unavailable/i);
   } finally {
     await fs.rm(outputDir, { recursive: true, force: true });

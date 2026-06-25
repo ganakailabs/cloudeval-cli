@@ -4035,6 +4035,81 @@ test("review command writes visual markdown drilldowns for PR comments", async (
   }
 });
 
+test("review command renders service cost pie when resource costs are unavailable", async () => {
+  const backend = await startBackend({
+    projects: [githubProject],
+    fullReportShape: true,
+    costMonthlyAmount: 11674.89,
+    costServiceFamilies: { Compute: 11665.4, Networking: 9.49 },
+    costResourceEstimates: [],
+    reviewGraph: true,
+  });
+  const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "cloudeval-review-service-cost-pie-"));
+  try {
+    await fs.mkdir(path.join(cwd, ".cloudeval"), { recursive: true });
+    await fs.writeFile(
+      path.join(cwd, ".cloudeval", "config.yaml"),
+      [
+        "ci:",
+        "  gates:",
+        "    enforcement: required",
+        "    overall_score_min: 90",
+        "    pillar_score_min: 85",
+        "    fail_on_high_risk: true",
+        "    fail_on_validation_errors: true",
+        "    max_monthly_cost: 5000",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+
+    const outputDir = path.join(cwd, "review-output");
+    await runCli(
+      [
+        "review",
+        "--base-url",
+        backend.baseUrl,
+        "--access-key",
+        "test-token",
+        "--project",
+        "project-github",
+        "--repo",
+        "ganakailabs/cloudeval-github-sync-e2e",
+        "--ref",
+        "main",
+        "--commit-sha",
+        "sha-review-service-cost-pie",
+        "--ignore-dirty",
+        "--no-ai-summary",
+        "--poll-interval",
+        "10",
+        "--output",
+        outputDir,
+        "--non-interactive",
+      ],
+      {
+        cwd,
+        env: {
+          GITHUB_ACTIONS: "true",
+          GITHUB_SERVER_URL: "https://github.com",
+          GITHUB_REPOSITORY: "ganakailabs/cloudeval-github-sync-e2e",
+          GITHUB_RUN_ID: "123456789",
+        },
+      },
+    );
+
+    const markdownArtifact = await fs.readFile(
+      path.join(outputDir, "review.md"),
+      "utf8",
+    );
+    assert.match(markdownArtifact, /```mermaid\npie title Monthly cost by service\n  "Compute" : 11665.4\n  "Networking" : 9.49\n```/);
+    assert.doesNotMatch(markdownArtifact, /pie title Monthly cost by resource\n  "Unallocated"/);
+  } finally {
+    await fs.rm(cwd, { recursive: true, force: true });
+    await backend.close();
+  }
+});
+
 test("review command uses public labels and falls back to preload cost metrics", async () => {
   const backend = await startBackend({
     projects: [githubProject],

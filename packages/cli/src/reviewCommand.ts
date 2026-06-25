@@ -1718,6 +1718,15 @@ const buildMarkdownSummary = (data: Record<string, any>): string => {
     { maxRows: 5, remainderLabel: "Unallocated" },
   );
   const positiveResourceCosts = resourceCostRows.filter((resource) => resource.amount > 0);
+  const namedResourceCosts = positiveResourceCosts.filter(
+    (resource) => resource.name !== "Unallocated",
+  );
+  const costPieRows = namedResourceCosts.length
+    ? positiveResourceCosts
+    : costServices.filter((service) => service.amount > 0);
+  const costPieTitle = namedResourceCosts.length
+    ? "Monthly cost by resource"
+    : "Monthly cost by service";
   const openLinks = openInCloudEvalLines(data.links);
   const architectureLines = architectureSignalLines({
     architecture,
@@ -1782,13 +1791,13 @@ const buildMarkdownSummary = (data: Record<string, any>): string => {
         `- Estimated savings: **${formatMonthlyMoney(data.gate.cost.estimatedSavings.amount, data.gate.cost.estimatedSavings.currency)}**`,
       );
     }
-    if (positiveResourceCosts.length) {
+    if (costPieRows.length) {
       costLines.push(
         "",
         "```mermaid",
-        "pie title Monthly cost by resource",
-        ...positiveResourceCosts.map(
-          (resource) => `  "${mermaidLabel(resource.name)}" : ${trimNumber(resource.amount, 3)}`,
+        `pie title ${costPieTitle}`,
+        ...costPieRows.map(
+          (row) => `  "${mermaidLabel(row.name)}" : ${trimNumber(row.amount, 3)}`,
         ),
         "```",
       );

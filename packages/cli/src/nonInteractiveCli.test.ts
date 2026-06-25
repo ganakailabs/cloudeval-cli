@@ -4599,6 +4599,68 @@ test("review command renders structured AI details from summary endpoint", async
   }
 });
 
+test("review command replaces instruction-like AI details with deterministic evidence", async () => {
+  const backend = await startBackend({
+    projects: [githubProject],
+    reviewSummaryResponse: {
+      summary:
+        "The assessment shows a CRITICAL well-architected posture with failing validation and cost over budget.",
+      details:
+        "Markdown for a collapsible AI details section with headings: **Main risk**, **Why it matters**, **Recommended actions**, **Evidence used**. Use short paragraphs or bullets. Bold important evidence keywords and values, but avoid over-formatting. Prefer concrete failed test names, policy names, weakest pillars, cost drivers, and changed-file evidence.",
+      fallback_used: false,
+      warnings: [],
+    },
+  });
+  const outputDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "cloudeval-review-ai-details-sanitize-"),
+  );
+  try {
+    const result = parseJson(
+      await runCli([
+        "review",
+        "--base-url",
+        backend.baseUrl,
+        "--access-key",
+        "test-token",
+        "--project",
+        "project-github",
+        "--repo",
+        "ganakailabs/cloudeval-github-sync-e2e",
+        "--ref",
+        "main",
+        "--commit-sha",
+        "sha-review-ai-instructions",
+        "--ignore-dirty",
+        "--poll-interval",
+        "10",
+        "--format",
+        "json",
+        "--output",
+        outputDir,
+        "--non-interactive",
+      ]),
+    );
+
+    assert.equal(result.data.aiSummary.status, "fallback");
+    assert.equal(result.data.aiSummary.fallbackUsed, true);
+    assert.match(result.data.aiSummary.shortSummary, /CRITICAL well-architected posture/i);
+    assert.match(result.data.aiSummary.detailsMarkdown, /\*\*Main risk\*\*/);
+    assert.doesNotMatch(result.data.aiSummary.detailsMarkdown, /Markdown for a collapsible AI details section/i);
+
+    const markdownArtifact = await fs.readFile(
+      path.join(outputDir, "review.md"),
+      "utf8",
+    );
+    assert.match(markdownArtifact, /<summary>AI details<\/summary>/);
+    assert.match(markdownArtifact, /The gate is \*\*WARN\*\*/);
+    assert.doesNotMatch(markdownArtifact, /Markdown for a collapsible AI details section/i);
+    assert.doesNotMatch(markdownArtifact, /Use short paragraphs or bullets/i);
+  } finally {
+    await fs.rm(outputDir, { recursive: true, force: true });
+    await backend.close();
+  }
+});
+
 test("review command uses deterministic fallback when summary endpoint fails", async () => {
   const backend = await startBackend({
     projects: [githubProject],

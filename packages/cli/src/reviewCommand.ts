@@ -1545,6 +1545,17 @@ const renderAiSummarySections = (shortSummary: string, detailsMarkdown: string):
   return lines.join("\n");
 };
 
+const isInstructionLikeAiDetails = (detailsMarkdown: string): boolean => {
+  const normalized = detailsMarkdown.toLowerCase();
+  return [
+    "markdown for a collapsible ai details section",
+    "use short paragraphs or bullets",
+    "bold important evidence keywords",
+    "prefer concrete failed test names",
+    "headings: **main risk**",
+  ].some((marker) => normalized.includes(marker));
+};
+
 type GenerateAiSummaryInput = {
   baseUrl: string;
   token?: string;
@@ -1658,15 +1669,24 @@ const generateAiSummary = async (input: GenerateAiSummaryInput): Promise<Record<
       idempotencyKey: `cloudeval-review-summary-${input.data.projectId}-${input.data.commitSha ?? "head"}`,
     });
     const shortSummary = String(response.summary ?? "").trim();
-    const detailsMarkdown = String(response.details ?? "").trim();
+    let detailsMarkdown = String(response.details ?? "").trim();
     if (!shortSummary) {
       return deterministicAiSummary(input.data, "Review summary endpoint returned no summary.");
     }
+    const warnings = Array.isArray(response.warnings) ? response.warnings : [];
+    if (isInstructionLikeAiDetails(detailsMarkdown)) {
+      const fallback = deterministicAiSummary(
+        input.data,
+        "Review summary endpoint returned instruction-like details.",
+      );
+      detailsMarkdown = String(fallback.detailsMarkdown ?? "").trim();
+      warnings.push("Review summary endpoint returned instruction-like details; using deterministic details.");
+    }
     return {
       enabled: true,
-      status: response.fallback_used ? "fallback" : "ok",
-      fallbackUsed: Boolean(response.fallback_used),
-      warnings: Array.isArray(response.warnings) ? response.warnings : [],
+      status: response.fallback_used || warnings.length > 0 ? "fallback" : "ok",
+      fallbackUsed: Boolean(response.fallback_used) || warnings.length > 0,
+      warnings,
       riskHighlights: Array.isArray(response.risk_highlights)
         ? response.risk_highlights
         : [],

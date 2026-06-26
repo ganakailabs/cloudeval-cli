@@ -25,7 +25,7 @@ import { warnIfAccessKeyFromCliOption } from "../authGuard.js";
 
 type ResolveBaseUrl = (
   options: { baseUrl?: string },
-  command?: Command
+  command?: Command,
 ) => Promise<string>;
 
 export interface RegisterReportsCommandOptions {
@@ -39,7 +39,7 @@ type CommonReportOptions = {
   accessKey?: string;
   accessKeyStdin?: boolean;
   project?: string;
-  format?: ReportOutputFormat;
+  format?: ReportOutputFormat | "pdf";
   raw?: boolean;
   parsed?: boolean;
   formatted?: boolean;
@@ -50,19 +50,40 @@ type CommonReportOptions = {
   nonInteractive?: boolean;
 };
 
-const outputFormats = ["tui", "summary", "text", "json", "ndjson", "markdown", "table"];
+const outputFormats = [
+  "tui",
+  "summary",
+  "text",
+  "json",
+  "ndjson",
+  "markdown",
+  "table",
+];
 type CliReportOutputFormat = ReportOutputFormat | "text" | "table";
-type ReportRunCommandType = "cost" | "waf" | "architecture" | "unit-tests" | "all";
+type ReportRunCommandType =
+  | "cost"
+  | "waf"
+  | "architecture"
+  | "unit-tests"
+  | "all";
+type ReportPdfVerbosity = "brief" | "detailed" | "evidence";
 
-const addCommonOptions = <T extends Command>(command: T, defaultBaseUrl: string): T =>
+const addCommonOptions = <T extends Command>(
+  command: T,
+  defaultBaseUrl: string,
+): T =>
   command
     .option("--base-url <url>", "Backend base URL", defaultBaseUrl)
     .option(
       "--access-key <key>",
       "Access key for automation",
-      process.env.CLOUDEVAL_ACCESS_KEY
+      process.env.CLOUDEVAL_ACCESS_KEY,
     )
-    .option("--access-key-stdin", "Read access key from stdin (recommended for automation)", false)
+    .option(
+      "--access-key-stdin",
+      "Read access key from stdin (recommended for automation)",
+      false,
+    )
     .option("--project <id>", "Project ID to use")
     .option("--format <format>", `Output format: ${outputFormats.join(", ")}`)
     .option("--raw", "Show raw provider/backend payload", false)
@@ -73,7 +94,11 @@ const addCommonOptions = <T extends Command>(command: T, defaultBaseUrl: string)
     .option("--print-url", "Print the matching frontend URL", false)
     .option("--no-open", "Do not launch the browser when a URL is printed")
     .option("--frontend-url <url>", "Frontend base URL")
-    .option("--non-interactive", "Disable prompts and browser login", false) as T;
+    .option(
+      "--non-interactive",
+      "Disable prompts and browser login",
+      false,
+    ) as T;
 
 const resolveMode = (options: CommonReportOptions): ReportFormatMode => {
   if (options.raw) return "raw";
@@ -83,22 +108,26 @@ const resolveMode = (options: CommonReportOptions): ReportFormatMode => {
 
 const resolveFormat = (
   requested: string | undefined,
-  tuiDefault: boolean
+  tuiDefault: boolean,
 ): CliReportOutputFormat => {
   if (requested && outputFormats.includes(requested)) {
     return requested as CliReportOutputFormat;
   }
   if (requested) {
-    throw new Error(`Unsupported format '${requested}'. Use ${outputFormats.join(", ")}.`);
+    throw new Error(
+      `Unsupported format '${requested}'. Use ${outputFormats.join(", ")}.`,
+    );
   }
-  return tuiDefault && process.stdout.isTTY && !process.env.CI ? "tui" : "summary";
+  return tuiDefault && process.stdout.isTTY && !process.env.CI
+    ? "tui"
+    : "summary";
 };
 
 const resolveToken = async (
   options: CommonReportOptions,
   baseUrl: string,
   deps: RegisterReportsCommandOptions,
-  command?: Command
+  command?: Command,
 ): Promise<string | undefined> => {
   warnIfAccessKeyFromCliOption(options, command);
   if (options.accessKeyStdin) {
@@ -125,7 +154,9 @@ const resolveToken = async (
     const { login } = await import("@cloudeval/core");
     process.stderr.write("Authentication required. Starting login flow...\n");
     const token = await login(baseUrl, {
-      headless: Boolean(process.env.SSH_TTY || process.env.CLOUDEVAL_HEADLESS_LOGIN),
+      headless: Boolean(
+        process.env.SSH_TTY || process.env.CLOUDEVAL_HEADLESS_LOGIN,
+      ),
     });
     process.stderr.write("Authentication successful.\n");
     return token;
@@ -139,7 +170,7 @@ const frontendUrlForReports = (
     reportType?: string;
     timeRange?: string;
   },
-  projectId?: string
+  projectId?: string,
 ): string =>
   buildFrontendUrl({
     baseUrl: resolveFrontendBaseUrl({
@@ -153,7 +184,10 @@ const frontendUrlForReports = (
     timeRange: options.timeRange,
   });
 
-const maybeOpenReportUrl = async (url: string, options: CommonReportOptions) => {
+const maybeOpenReportUrl = async (
+  url: string,
+  options: CommonReportOptions,
+) => {
   if (options.printUrl) {
     process.stdout.write(`${url}\n`);
   }
@@ -165,24 +199,31 @@ const maybeOpenReportUrl = async (url: string, options: CommonReportOptions) => 
 const writeReport = async (
   report: ReportEnvelope,
   options: CommonReportOptions,
-  tuiDefault: boolean
+  tuiDefault: boolean,
 ) => {
   const mode = resolveMode(options);
   const format = resolveFormat(options.format, tuiDefault);
   if (format === "tui") {
-    const [{ default: React }, { render }, { ReportDashboard }] = await Promise.all([
-      import("react"),
-      import("ink"),
-      import("./ReportDashboard.js"),
-    ]);
-    render(React.createElement(ReportDashboard, {
-      report,
-      initialMode: mode === "formatted" ? "overview" : mode,
-    }));
+    const [{ default: React }, { render }, { ReportDashboard }] =
+      await Promise.all([
+        import("react"),
+        import("ink"),
+        import("./ReportDashboard.js"),
+      ]);
+    render(
+      React.createElement(ReportDashboard, {
+        report,
+        initialMode: mode === "formatted" ? "overview" : mode,
+      }),
+    );
     return;
   }
-  const textFormat = format === "text" || format === "table" ? "summary" : format;
-  const text = serializeReportOutput(report, { format: textFormat as any, mode });
+  const textFormat =
+    format === "text" || format === "table" ? "summary" : format;
+  const text = serializeReportOutput(report, {
+    format: textFormat as any,
+    mode,
+  });
   if (options.output) {
     const fs = await import("node:fs/promises");
     await fs.writeFile(options.output, text, "utf8");
@@ -193,14 +234,20 @@ const writeReport = async (
 
 const writeReportList = (
   reports: ReportEnvelope[],
-  requestedFormat: string | undefined
+  requestedFormat: string | undefined,
 ) => {
   const format = resolveFormat(requestedFormat, false);
-  const textFormat = format === "tui" || format === "text" || format === "table" ? "summary" : format;
+  const textFormat =
+    format === "tui" || format === "text" || format === "table"
+      ? "summary"
+      : format;
   process.stdout.write(renderReportList(reports, textFormat));
 };
 
-const pickReportDownloadPayload = (value: unknown, view: ReportFormatMode): unknown => {
+const pickReportDownloadPayload = (
+  value: unknown,
+  view: ReportFormatMode,
+): unknown => {
   if (value && typeof value === "object") {
     const record = value as Record<string, unknown>;
     if (view === "raw") {
@@ -209,9 +256,53 @@ const pickReportDownloadPayload = (value: unknown, view: ReportFormatMode): unkn
     if (view === "parsed") {
       return record.parsed ?? record.processed ?? record.normalized ?? record;
     }
-    return record.formatted ?? record.summary ?? record.processed ?? record.parsed ?? record;
+    return (
+      record.formatted ??
+      record.summary ??
+      record.processed ??
+      record.parsed ??
+      record
+    );
   }
   return value;
+};
+
+const normalizeReportPdfVerbosity = (
+  value: string | undefined,
+): ReportPdfVerbosity => {
+  if (value === "brief" || value === "detailed" || value === "evidence") {
+    return value;
+  }
+  if (value === "short") return "brief";
+  if (value === "full" || value === "extended") return "evidence";
+  return "detailed";
+};
+
+const mapReportTypeForPdf = (
+  value: string | undefined,
+): "all" | "architecture" | "cost" | "unit_tests" => {
+  if (value === "cost") return "cost";
+  if (value === "waf" || value === "architecture") return "architecture";
+  if (value === "unit-tests" || value === "unit_tests") return "unit_tests";
+  return "all";
+};
+
+const resolvePdfOutputPath = async (
+  requestedOutput: string | undefined,
+  filename: string,
+): Promise<string> => {
+  const path = await import("node:path");
+  if (!requestedOutput) {
+    return path.resolve(filename);
+  }
+  const fs = await import("node:fs/promises");
+  const stat = await fs.stat(requestedOutput).catch(() => undefined);
+  if (stat?.isDirectory() || !path.extname(requestedOutput)) {
+    await fs.mkdir(requestedOutput, { recursive: true });
+    return path.join(requestedOutput, filename);
+  }
+  await fs.mkdir(path.dirname(requestedOutput), { recursive: true });
+  return requestedOutput;
 };
 
 const writeDownloadPayload = async (input: {
@@ -228,7 +319,7 @@ const writeDownloadPayload = async (input: {
         data: input.payload,
         format: input.format,
         frontendUrl: input.frontendUrl,
-      })
+      }),
     );
     return [];
   }
@@ -245,14 +336,28 @@ const writeDownloadPayload = async (input: {
   return [input.output];
 };
 
-const resolveMachineFormat = (requested: string | undefined): MachineOutputFormat => {
-  if (!requested || requested === "summary" || requested === "table" || requested === "tui") {
+const resolveMachineFormat = (
+  requested: string | undefined,
+): MachineOutputFormat => {
+  if (
+    !requested ||
+    requested === "summary" ||
+    requested === "table" ||
+    requested === "tui"
+  ) {
     return "text";
   }
-  if (requested === "text" || requested === "json" || requested === "ndjson" || requested === "markdown") {
+  if (
+    requested === "text" ||
+    requested === "json" ||
+    requested === "ndjson" ||
+    requested === "markdown"
+  ) {
     return requested;
   }
-  throw new Error("Unsupported format for reports run. Use text, json, ndjson, or markdown.");
+  throw new Error(
+    "Unsupported format for reports run. Use text, json, ndjson, or markdown.",
+  );
 };
 
 const extractJobId = (value: unknown): string | undefined => {
@@ -270,8 +375,17 @@ const extractJobId = (value: unknown): string | undefined => {
 
 const isTerminalJobStatus = (value: unknown): boolean => {
   if (!value || typeof value !== "object") return true;
-  const status = String((value as Record<string, any>).status ?? "").toLowerCase();
-  return ["completed", "succeeded", "failed", "error", "cancelled", "canceled"].includes(status);
+  const status = String(
+    (value as Record<string, any>).status ?? "",
+  ).toLowerCase();
+  return [
+    "completed",
+    "succeeded",
+    "failed",
+    "error",
+    "cancelled",
+    "canceled",
+  ].includes(status);
 };
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -308,7 +422,7 @@ const waitForReportJobs = async ({
       const status = String((lastStatus as any)?.status ?? "unknown");
       const progress = (lastStatus as any)?.progress;
       process.stderr.write(
-        `report job ${jobId}: ${status}${typeof progress === "number" ? ` ${progress}%` : ""}\n`
+        `report job ${jobId}: ${status}${typeof progress === "number" ? ` ${progress}%` : ""}\n`,
       );
       if (isTerminalJobStatus(lastStatus)) {
         break;
@@ -322,7 +436,7 @@ const waitForReportJobs = async ({
 
 export const registerReportsCommand = (
   program: Command,
-  deps: RegisterReportsCommandOptions
+  deps: RegisterReportsCommandOptions,
 ) => {
   const reports = program
     .command("reports")
@@ -330,157 +444,262 @@ export const registerReportsCommand = (
 
   addCommonOptions(
     reports.command("list").description("List available reports"),
-    deps.defaultBaseUrl
+    deps.defaultBaseUrl,
   )
     .option("--kind <kind>", "Filter by kind: cost, waf, all", "all")
-    .action(async (options: CommonReportOptions & { kind?: ReportKind | "all" }, command) => {
-      try {
-        const baseUrl = await deps.resolveBaseUrl(options, command);
-        const token = await resolveToken(options, baseUrl, deps, command);
-        const projectId = await resolveReportProjectId({
-          baseUrl,
-          token,
-          requestedProjectId: options.project,
-        });
-        const core = await import("@cloudeval/core");
-        const status = token ? await core.checkUserStatus(baseUrl, token) : undefined;
-        const reports = await core.listReports({
-          baseUrl,
-          authToken: token,
-          projectId,
-          kind: options.kind,
-          userId: status?.user?.id,
-        });
-        writeReportList(reports, options.format);
-      } catch (error: any) {
-        console.error(`❌ Failed to list reports: ${error?.message ?? "Unknown error"}`);
-        process.exit(1);
-      }
-    });
+    .action(
+      async (
+        options: CommonReportOptions & { kind?: ReportKind | "all" },
+        command,
+      ) => {
+        try {
+          const baseUrl = await deps.resolveBaseUrl(options, command);
+          const token = await resolveToken(options, baseUrl, deps, command);
+          const projectId = await resolveReportProjectId({
+            baseUrl,
+            token,
+            requestedProjectId: options.project,
+          });
+          const core = await import("@cloudeval/core");
+          const status = token
+            ? await core.checkUserStatus(baseUrl, token)
+            : undefined;
+          const reports = await core.listReports({
+            baseUrl,
+            authToken: token,
+            projectId,
+            kind: options.kind,
+            userId: status?.user?.id,
+          });
+          writeReportList(reports, options.format);
+        } catch (error: any) {
+          console.error(
+            `❌ Failed to list reports: ${error?.message ?? "Unknown error"}`,
+          );
+          process.exit(1);
+        }
+      },
+    );
 
   addCommonOptions(
-    reports.command("download").description("Download report JSON or markdown locally"),
-    deps.defaultBaseUrl
+    reports
+      .command("download")
+      .description("Download report JSON or markdown locally"),
+    deps.defaultBaseUrl,
   )
-    .option("--type <type>", "Report type: cost, waf, architecture, all", "all")
+    .option(
+      "--type <type>",
+      "Report type: cost, waf, architecture, unit-tests, all",
+      "all",
+    )
     .option("--view <view>", "Payload view: raw, parsed, formatted", "raw")
     .option("--timestamp <timestamp>", "Historical timestamp")
-    .action(async (options: CommonReportOptions & { type?: string; view?: ReportFormatMode; timestamp?: string }, command) => {
-      try {
-        const baseUrl = await deps.resolveBaseUrl(options, command);
-        const token = await resolveToken(options, baseUrl, deps, command);
-        const core = await import("@cloudeval/core");
-        const status = token ? await core.checkUserStatus(baseUrl, token) : undefined;
-        const projectId = await resolveReportProjectId({
-          baseUrl,
-          token,
-          requestedProjectId: options.project,
-        });
-        const reportTypes =
-          options.type === "all" ? ["cost", "waf"] : [options.type || "cost"];
-        const payload: Record<string, unknown> = {};
-        for (const type of reportTypes) {
-          if (type === "cost") {
-            const data = options.timestamp
-              ? await core.getCostReportHistory({
-                  baseUrl,
-                  authToken: token,
-                  projectId,
-                  userId: status?.user?.id,
-                  timestamp: options.timestamp,
-                })
-              : await core.getCostReportFull({
-                  baseUrl,
-                  authToken: token,
-                  projectId,
-                  userId: status?.user?.id,
-                });
-            payload.cost = pickReportDownloadPayload(data, options.view ?? "raw");
-          } else if (type === "waf" || type === "architecture") {
-            const data = options.timestamp
-              ? await core.getWafReportHistory({
-                  baseUrl,
-                  authToken: token,
-                  projectId,
-                  userId: status?.user?.id,
-                  timestamp: options.timestamp,
-                })
-              : await core.getWafReportFull({
-                  baseUrl,
-                  authToken: token,
-                  projectId,
-                  userId: status?.user?.id,
-                });
-            payload.waf = pickReportDownloadPayload(data, options.view ?? "raw");
-          } else {
-            throw new Error(`Unsupported report type '${type}'.`);
-          }
-        }
-        const frontendUrl = frontendUrlForReports(
-          baseUrl,
-          {
-            ...options,
-            tab: options.type === "cost" ? "cost" : options.type === "waf" ? "architecture" : "overview",
-            reportType: options.type === "all" ? "all" : options.type,
-          },
-          projectId
-        );
-        const data = reportTypes.length === 1 ? payload[reportTypes[0] === "architecture" ? "waf" : reportTypes[0]] : payload;
-        if (options.output && reportTypes.length > 1) {
-          const fs = await import("node:fs/promises");
-          const path = await import("node:path");
-          const stat = await fs.stat(options.output).catch(() => undefined);
-          if (stat?.isDirectory() || !path.extname(options.output)) {
-            await fs.mkdir(options.output, { recursive: true });
-            const files: string[] = [];
-            for (const [key, value] of Object.entries(payload)) {
-              const file = path.join(options.output, `${projectId}-${key}-report.json`);
-              files.push(
-                ...(await writeDownloadPayload({
-                  command: "reports download",
-                  payload: value,
-                  format: "json",
-                  output: file,
-                  frontendUrl,
-                }))
+    .option(
+      "--report-verbosity <verbosity>",
+      "PDF report depth: brief, detailed, evidence",
+      "detailed",
+    )
+    .action(
+      async (
+        options: CommonReportOptions & {
+          type?: string;
+          view?: ReportFormatMode;
+          timestamp?: string;
+          reportVerbosity?: string;
+        },
+        command,
+      ) => {
+        try {
+          const baseUrl = await deps.resolveBaseUrl(options, command);
+          const token = await resolveToken(options, baseUrl, deps, command);
+          const core = await import("@cloudeval/core");
+          const status = token
+            ? await core.checkUserStatus(baseUrl, token)
+            : undefined;
+          const projectId = await resolveReportProjectId({
+            baseUrl,
+            token,
+            requestedProjectId: options.project,
+          });
+          if (options.format === "pdf") {
+            if (options.timestamp) {
+              throw new Error(
+                "PDF download currently supports the latest report only.",
               );
             }
+            const verbosity = normalizeReportPdfVerbosity(
+              options.reportVerbosity,
+            );
+            const pdf = await core.downloadReportPdf({
+              baseUrl,
+              authToken: token,
+              projectId,
+              userId: status?.user?.id,
+              verbosity,
+              reportType: mapReportTypeForPdf(options.type),
+              includeVisuals: true,
+            });
+            if (!pdf.bytes.length) {
+              throw new Error("Backend returned an empty PDF.");
+            }
+            const fs = await import("node:fs/promises");
+            const outputPath = await resolvePdfOutputPath(
+              options.output,
+              pdf.filename,
+            );
+            await fs.writeFile(outputPath, pdf.bytes);
             await writeFormattedOutput({
               command: "reports download",
-              data: { projectId, filesWritten: files },
-              format: options.format === "json" ? "json" : "text",
-              frontendUrl,
-              filesWritten: files,
+              data: {
+                projectId,
+                file: outputPath,
+                format: "pdf",
+                reportVerbosity: verbosity,
+                status: pdf.status ?? "unknown",
+                warningsCount: pdf.warningsCount ?? 0,
+                bytes: pdf.bytes.length,
+              },
+              format: "json",
+              frontendUrl: frontendUrlForReports(baseUrl, options, projectId),
+              filesWritten: [outputPath],
             });
-            await maybeOpenReportUrl(frontendUrl, options);
             return;
           }
+          const reportTypes =
+            options.type === "all" ? ["cost", "waf"] : [options.type || "cost"];
+          const payload: Record<string, unknown> = {};
+          for (const type of reportTypes) {
+            if (type === "cost") {
+              const data = options.timestamp
+                ? await core.getCostReportHistory({
+                    baseUrl,
+                    authToken: token,
+                    projectId,
+                    userId: status?.user?.id,
+                    timestamp: options.timestamp,
+                  })
+                : await core.getCostReportFull({
+                    baseUrl,
+                    authToken: token,
+                    projectId,
+                    userId: status?.user?.id,
+                  });
+              payload.cost = pickReportDownloadPayload(
+                data,
+                options.view ?? "raw",
+              );
+            } else if (type === "waf" || type === "architecture") {
+              const data = options.timestamp
+                ? await core.getWafReportHistory({
+                    baseUrl,
+                    authToken: token,
+                    projectId,
+                    userId: status?.user?.id,
+                    timestamp: options.timestamp,
+                  })
+                : await core.getWafReportFull({
+                    baseUrl,
+                    authToken: token,
+                    projectId,
+                    userId: status?.user?.id,
+                  });
+              payload.waf = pickReportDownloadPayload(
+                data,
+                options.view ?? "raw",
+              );
+            } else {
+              throw new Error(`Unsupported report type '${type}'.`);
+            }
+          }
+          const frontendUrl = frontendUrlForReports(
+            baseUrl,
+            {
+              ...options,
+              tab:
+                options.type === "cost"
+                  ? "cost"
+                  : options.type === "waf"
+                    ? "architecture"
+                    : "overview",
+              reportType: options.type === "all" ? "all" : options.type,
+            },
+            projectId,
+          );
+          const data =
+            reportTypes.length === 1
+              ? payload[
+                  reportTypes[0] === "architecture" ? "waf" : reportTypes[0]
+                ]
+              : payload;
+          if (options.output && reportTypes.length > 1) {
+            const fs = await import("node:fs/promises");
+            const path = await import("node:path");
+            const stat = await fs.stat(options.output).catch(() => undefined);
+            if (stat?.isDirectory() || !path.extname(options.output)) {
+              await fs.mkdir(options.output, { recursive: true });
+              const files: string[] = [];
+              for (const [key, value] of Object.entries(payload)) {
+                const file = path.join(
+                  options.output,
+                  `${projectId}-${key}-report.json`,
+                );
+                files.push(
+                  ...(await writeDownloadPayload({
+                    command: "reports download",
+                    payload: value,
+                    format: "json",
+                    output: file,
+                    frontendUrl,
+                  })),
+                );
+              }
+              await writeFormattedOutput({
+                command: "reports download",
+                data: { projectId, filesWritten: files },
+                format: options.format === "json" ? "json" : "text",
+                frontendUrl,
+                filesWritten: files,
+              });
+              await maybeOpenReportUrl(frontendUrl, options);
+              return;
+            }
+          }
+          await writeDownloadPayload({
+            command: "reports download",
+            payload: data,
+            format: options.format === "markdown" ? "markdown" : "json",
+            output: options.output,
+            frontendUrl,
+          });
+          await maybeOpenReportUrl(frontendUrl, options);
+        } catch (error: any) {
+          console.error(
+            `Failed to download reports: ${error?.message ?? "Unknown error"}`,
+          );
+          process.exit(1);
         }
-        await writeDownloadPayload({
-          command: "reports download",
-          payload: data,
-          format: (options.format === "markdown" ? "markdown" : "json"),
-          output: options.output,
-          frontendUrl,
-        });
-        await maybeOpenReportUrl(frontendUrl, options);
-      } catch (error: any) {
-        console.error(`Failed to download reports: ${error?.message ?? "Unknown error"}`);
-        process.exit(1);
-      }
-    });
+      },
+    );
 
   addCommonOptions(
     reports.command("run").description("Run report generation for a project"),
-    deps.defaultBaseUrl
+    deps.defaultBaseUrl,
   )
-    .option("--type <type>", "Report type: cost, waf, architecture, unit-tests, all", "all")
+    .option(
+      "--type <type>",
+      "Report type: cost, waf, architecture, unit-tests, all",
+      "all",
+    )
     .option("--region <region>", "Cost report region", "eastus")
     .option("--currency <currency>", "Cost report currency", "USD")
     .option("--no-time-series", "Disable cost report time series generation")
     .option("--no-save-report", "Do not persist generated report artifacts")
     .option("--wait", "Poll submitted report jobs until terminal state", false)
-    .option("--poll-interval <ms>", "Polling interval when --wait is set", "2500")
+    .option(
+      "--poll-interval <ms>",
+      "Polling interval when --wait is set",
+      "2500",
+    )
     .action(
       async (
         options: CommonReportOptions & {
@@ -492,13 +711,15 @@ export const registerReportsCommand = (
           wait?: boolean;
           pollInterval?: string;
         },
-        command
+        command,
       ) => {
         try {
           const baseUrl = await deps.resolveBaseUrl(options, command);
           const token = await resolveToken(options, baseUrl, deps, command);
           const core = await import("@cloudeval/core");
-          const status = token ? await core.checkUserStatus(baseUrl, token) : undefined;
+          const status = token
+            ? await core.checkUserStatus(baseUrl, token)
+            : undefined;
           const projectId = await resolveReportProjectId({
             baseUrl,
             token,
@@ -517,9 +738,11 @@ export const registerReportsCommand = (
                     : "overview",
               reportType: requestedType,
             },
-            projectId
+            projectId,
           );
-          process.stderr.write(`Submitting ${requestedType} report run for project ${projectId}...\n`);
+          process.stderr.write(
+            `Submitting ${requestedType} report run for project ${projectId}...\n`,
+          );
           const submitted = await core.runReports({
             baseUrl,
             authToken: token,
@@ -538,7 +761,10 @@ export const registerReportsCommand = (
                 token,
                 userId: status?.user?.id,
                 submitted,
-                pollInterval: Math.max(500, Number(options.pollInterval) || 2500),
+                pollInterval: Math.max(
+                  500,
+                  Number(options.pollInterval) || 2500,
+                ),
               })
             : undefined;
           await writeFormattedOutput({
@@ -556,64 +782,80 @@ export const registerReportsCommand = (
           });
           await maybeOpenReportUrl(frontendUrl, options);
         } catch (error: any) {
-          console.error(`Failed to run reports: ${error?.message ?? "Unknown error"}`);
+          console.error(
+            `Failed to run reports: ${error?.message ?? "Unknown error"}`,
+          );
           process.exit(1);
         }
-      }
+      },
     );
 
   addCommonOptions(
-    reports.command("rules").description("Show Well-Architected Framework rules"),
-    deps.defaultBaseUrl
+    reports
+      .command("rules")
+      .description("Show Well-Architected Framework rules"),
+    deps.defaultBaseUrl,
   )
     .option("--type <type>", "Rule report type: waf", "waf")
-    .action(async (options: CommonReportOptions & { type?: string }, command) => {
-      try {
-        const baseUrl = await deps.resolveBaseUrl(options, command);
-        const token = await resolveToken(options, baseUrl, deps, command);
-        const projectId = await resolveReportProjectId({
-          baseUrl,
-          token,
-          requestedProjectId: options.project,
-        });
-        const core = await import("@cloudeval/core");
-        const status = token ? await core.checkUserStatus(baseUrl, token) : undefined;
-        const report = await core.getWafReport({
-          baseUrl,
-          authToken: token,
-          projectId,
-          view: "rules",
-          userId: status?.user?.id,
-        });
-        const payload = selectReportModePayload(report, resolveMode(options));
-        const rules =
-          (payload as any)?.rules ??
-          (report.parsed as any)?.rules ??
-          (report.raw as any)?.rules ??
-          (report.raw as any)?.ruleResults ??
-          [];
-        await writeFormattedOutput({
-          command: "reports rules",
-          data: rules,
-          format: options.format === "json" || options.format === "ndjson" || options.format === "markdown"
-            ? (options.format as MachineOutputFormat)
-            : "text",
-          output: options.output,
-          frontendUrl: frontendUrlForReports(
+    .action(
+      async (options: CommonReportOptions & { type?: string }, command) => {
+        try {
+          const baseUrl = await deps.resolveBaseUrl(options, command);
+          const token = await resolveToken(options, baseUrl, deps, command);
+          const projectId = await resolveReportProjectId({
             baseUrl,
-            { ...options, tab: "architecture", reportType: "waf" },
-            projectId
-          ),
-        });
-      } catch (error: any) {
-        console.error(`Failed to show report rules: ${error?.message ?? "Unknown error"}`);
-        process.exit(1);
-      }
-    });
+            token,
+            requestedProjectId: options.project,
+          });
+          const core = await import("@cloudeval/core");
+          const status = token
+            ? await core.checkUserStatus(baseUrl, token)
+            : undefined;
+          const report = await core.getWafReport({
+            baseUrl,
+            authToken: token,
+            projectId,
+            view: "rules",
+            userId: status?.user?.id,
+          });
+          const payload = selectReportModePayload(report, resolveMode(options));
+          const rules =
+            (payload as any)?.rules ??
+            (report.parsed as any)?.rules ??
+            (report.raw as any)?.rules ??
+            (report.raw as any)?.ruleResults ??
+            [];
+          await writeFormattedOutput({
+            command: "reports rules",
+            data: rules,
+            format:
+              options.format === "json" ||
+              options.format === "ndjson" ||
+              options.format === "markdown"
+                ? (options.format as MachineOutputFormat)
+                : "text",
+            output: options.output,
+            frontendUrl: frontendUrlForReports(
+              baseUrl,
+              { ...options, tab: "architecture", reportType: "waf" },
+              projectId,
+            ),
+          });
+        } catch (error: any) {
+          console.error(
+            `Failed to show report rules: ${error?.message ?? "Unknown error"}`,
+          );
+          process.exit(1);
+        }
+      },
+    );
 
   addCommonOptions(
-    reports.command("show").description("Show a report by id").argument("<report-id>", "Report ID"),
-    deps.defaultBaseUrl
+    reports
+      .command("show")
+      .description("Show a report by id")
+      .argument("<report-id>", "Report ID"),
+    deps.defaultBaseUrl,
   ).action(async (reportId: string, options: CommonReportOptions, command) => {
     try {
       const baseUrl = await deps.resolveBaseUrl(options, command);
@@ -624,7 +866,9 @@ export const registerReportsCommand = (
         requestedProjectId: options.project,
       });
       const core = await import("@cloudeval/core");
-      const status = token ? await core.checkUserStatus(baseUrl, token) : undefined;
+      const status = token
+        ? await core.checkUserStatus(baseUrl, token)
+        : undefined;
       const report = await core.getReport({
         baseUrl,
         authToken: token,
@@ -635,54 +879,30 @@ export const registerReportsCommand = (
       });
       await writeReport(report, options, false);
     } catch (error: any) {
-      console.error(`❌ Failed to show report: ${error?.message ?? "Unknown error"}`);
+      console.error(
+        `❌ Failed to show report: ${error?.message ?? "Unknown error"}`,
+      );
       process.exit(1);
     }
   });
 
   addCommonOptions(
     reports.command("cost").description("Show the latest cost report"),
-    deps.defaultBaseUrl
+    deps.defaultBaseUrl,
   )
-    .option("--period <period>", "Report period, for example 7d, 30d, 90d", "30d")
-    .option("--view <view>", "Cost view: overview, services, recommendations, anomalies, raw")
-    .action(async (options: CommonReportOptions & { period?: string; view?: string }, command) => {
-      try {
-        const baseUrl = await deps.resolveBaseUrl(options, command);
-        const token = await resolveToken(options, baseUrl, deps, command);
-        const projectId = await resolveReportProjectId({
-          baseUrl,
-          token,
-          requestedProjectId: options.project,
-        });
-        const core = await import("@cloudeval/core");
-        const status = token ? await core.checkUserStatus(baseUrl, token) : undefined;
-        const report = await core.getCostReport({
-          baseUrl,
-          authToken: token,
-          projectId,
-          period: options.period,
-          view: options.view,
-          userId: status?.user?.id,
-        });
-        await writeReport(report, options, true);
-      } catch (error: any) {
-        console.error(`❌ Failed to show cost report: ${error?.message ?? "Unknown error"}`);
-        process.exit(1);
-      }
-    });
-
-  addCommonOptions(
-    reports.command("waf").description("Show the latest Well-Architected Framework report"),
-    deps.defaultBaseUrl
-  )
-    .option("--report <id>", "Specific report id")
-    .option("--severity <severity>", "Filter by severity")
-    .option("--view <view>", "WAF view: overview, pillars, rules, resources, raw")
+    .option(
+      "--period <period>",
+      "Report period, for example 7d, 30d, 90d",
+      "30d",
+    )
+    .option(
+      "--view <view>",
+      "Cost view: overview, services, recommendations, anomalies, raw",
+    )
     .action(
       async (
-        options: CommonReportOptions & { report?: string; severity?: string; view?: string },
-        command
+        options: CommonReportOptions & { period?: string; view?: string },
+        command,
       ) => {
         try {
           const baseUrl = await deps.resolveBaseUrl(options, command);
@@ -693,7 +913,60 @@ export const registerReportsCommand = (
             requestedProjectId: options.project,
           });
           const core = await import("@cloudeval/core");
-          const status = token ? await core.checkUserStatus(baseUrl, token) : undefined;
+          const status = token
+            ? await core.checkUserStatus(baseUrl, token)
+            : undefined;
+          const report = await core.getCostReport({
+            baseUrl,
+            authToken: token,
+            projectId,
+            period: options.period,
+            view: options.view,
+            userId: status?.user?.id,
+          });
+          await writeReport(report, options, true);
+        } catch (error: any) {
+          console.error(
+            `❌ Failed to show cost report: ${error?.message ?? "Unknown error"}`,
+          );
+          process.exit(1);
+        }
+      },
+    );
+
+  addCommonOptions(
+    reports
+      .command("waf")
+      .description("Show the latest Well-Architected Framework report"),
+    deps.defaultBaseUrl,
+  )
+    .option("--report <id>", "Specific report id")
+    .option("--severity <severity>", "Filter by severity")
+    .option(
+      "--view <view>",
+      "WAF view: overview, pillars, rules, resources, raw",
+    )
+    .action(
+      async (
+        options: CommonReportOptions & {
+          report?: string;
+          severity?: string;
+          view?: string;
+        },
+        command,
+      ) => {
+        try {
+          const baseUrl = await deps.resolveBaseUrl(options, command);
+          const token = await resolveToken(options, baseUrl, deps, command);
+          const projectId = await resolveReportProjectId({
+            baseUrl,
+            token,
+            requestedProjectId: options.project,
+          });
+          const core = await import("@cloudeval/core");
+          const status = token
+            ? await core.checkUserStatus(baseUrl, token)
+            : undefined;
           const report = await core.getWafReport({
             baseUrl,
             authToken: token,
@@ -705,9 +978,11 @@ export const registerReportsCommand = (
           });
           await writeReport(report, options, true);
         } catch (error: any) {
-          console.error(`❌ Failed to show WAF report: ${error?.message ?? "Unknown error"}`);
+          console.error(
+            `❌ Failed to show WAF report: ${error?.message ?? "Unknown error"}`,
+          );
           process.exit(1);
         }
-      }
+      },
     );
 };

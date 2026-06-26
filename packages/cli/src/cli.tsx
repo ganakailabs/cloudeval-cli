@@ -2,7 +2,10 @@
 import "./runtime/prepareInk.js";
 import React from "react";
 import { Command } from "commander";
-import { isSensitiveSecretKey, redactSensitiveSecrets } from "@cloudeval/shared";
+import {
+  isSensitiveSecretKey,
+  redactSensitiveSecrets,
+} from "@cloudeval/shared";
 import {
   clearActiveCLITraceContext,
   createCLITraceContext,
@@ -24,11 +27,17 @@ import { registerSkillsCommand } from "./skillsCommand.js";
 import { getFirstNameForDisplay } from "./ui/userDisplayName.js";
 import { registerOpenCommand } from "./openCommand.js";
 import { registerProjectsCommand } from "./projectsCommand.js";
-import { registerActionsCommand, registerIssuesInventoryCommand } from "./actionsCommand.js";
+import {
+  registerActionsCommand,
+  registerIssuesInventoryCommand,
+} from "./actionsCommand.js";
 import { registerConnectionsCommand } from "./connectionsCommand.js";
 import { registerBillingCommands } from "./billingCommand.js";
 import { registerCapabilitiesCommand } from "./agentCapabilities.js";
-import { registerCredentialsCommand, registerIdentityCommand } from "./credentialsCommand.js";
+import {
+  registerCredentialsCommand,
+  registerIdentityCommand,
+} from "./credentialsCommand.js";
 import { registerAgentsCommand } from "./agentsCommand.js";
 import { registerValidateCommand } from "./validateCommand.js";
 import { registerRulesCommand } from "./rulesCommand.js";
@@ -38,9 +47,16 @@ import { registerModelsCommand } from "./modelsCommand.js";
 import { registerSessionsCommand } from "./sessionsCommand.js";
 import { registerSetupCommand } from "./setupCommand.js";
 import { registerMcpCommand } from "./mcpCommand.js";
-import { maybeShowUpdateNudge, registerUpdateCommand } from "./updateCommand.js";
+import {
+  maybeShowUpdateNudge,
+  registerUpdateCommand,
+} from "./updateCommand.js";
 import { registerUninstallCommand } from "./uninstallCommand.js";
-import { buildFrontendUrl, openExternalUrl, resolveFrontendBaseUrl } from "./frontendLinks.js";
+import {
+  buildFrontendUrl,
+  openExternalUrl,
+  resolveFrontendBaseUrl,
+} from "./frontendLinks.js";
 import {
   setShowSensitiveIds,
   writeFormattedOutput,
@@ -48,8 +64,16 @@ import {
 } from "./outputFormatter.js";
 import { CLI_VERSION } from "./version.js";
 import { getDefaultBaseUrl, shouldUseStoredBaseUrl } from "./baseUrl.js";
-import { getActiveConfigProfile, loadCliConfig, normalizeCliMode } from "./cliConfig.js";
-import { listSessions, recordSessionTurn, resolveSessionReference } from "./sessionsStore.js";
+import {
+  getActiveConfigProfile,
+  loadCliConfig,
+  normalizeCliMode,
+} from "./cliConfig.js";
+import {
+  listSessions,
+  recordSessionTurn,
+  resolveSessionReference,
+} from "./sessionsStore.js";
 import {
   createAskProgressWriter,
   normalizeAskProgressMode,
@@ -88,15 +112,25 @@ const enableCliDebugLogging = () => {
   process.env.CLOUDEVAL_CLI_DEBUG = "1";
 };
 
-const redactSensitive = (value: unknown): unknown => redactSensitiveSecrets(value);
+const redactSensitive = (value: unknown): unknown =>
+  redactSensitiveSecrets(value);
 
 const isHeadlessEnvironment = (): boolean =>
-  Boolean(process.env.SSH_TTY || process.env.CI || process.env.CLOUDEVAL_HEADLESS_LOGIN);
+  Boolean(
+    process.env.SSH_TTY ||
+    process.env.CI ||
+    process.env.CLOUDEVAL_HEADLESS_LOGIN,
+  );
 
 const assertNoLegacyApiKeyUsage = () => {
   const legacyArg = process.argv
     .slice(2)
-    .some((arg) => arg === "--api-key" || arg === "--api-key-stdin" || arg.startsWith("--api-key="));
+    .some(
+      (arg) =>
+        arg === "--api-key" ||
+        arg === "--api-key-stdin" ||
+        arg.startsWith("--api-key="),
+    );
   if (legacyArg || process.env.CLOUDEVAL_API_KEY) {
     process.stderr.write(`${LEGACY_API_KEY_MESSAGE}\n`);
     process.exit(1);
@@ -105,17 +139,37 @@ const assertNoLegacyApiKeyUsage = () => {
 
 assertNoLegacyApiKeyUsage();
 
-const completionScriptPath = (shell: "bash" | "zsh" | "fish" | "powershell"): string => {
+const completionScriptPath = (
+  shell: "bash" | "zsh" | "fish" | "powershell",
+): string => {
   const home = os.homedir();
   switch (shell) {
     case "bash":
-      return path.join(home, ".local", "share", "bash-completion", "completions", "cloudeval");
+      return path.join(
+        home,
+        ".local",
+        "share",
+        "bash-completion",
+        "completions",
+        "cloudeval",
+      );
     case "zsh":
       return path.join(home, ".zsh", "completions", "_cloudeval");
     case "fish":
-      return path.join(home, ".config", "fish", "completions", "cloudeval.fish");
+      return path.join(
+        home,
+        ".config",
+        "fish",
+        "completions",
+        "cloudeval.fish",
+      );
     case "powershell":
-      return path.join(home, ".config", "powershell", "cloudeval-completion.ps1");
+      return path.join(
+        home,
+        ".config",
+        "powershell",
+        "cloudeval-completion.ps1",
+      );
   }
 };
 
@@ -138,11 +192,15 @@ const ensureZshCompletionFpath = async (): Promise<void> => {
 
 const installCompletionScript = async (
   shell: "bash" | "zsh" | "fish" | "powershell",
-  binaryName: string
+  binaryName: string,
 ): Promise<string> => {
   const scriptPath = completionScriptPath(shell);
   await fs.mkdir(path.dirname(scriptPath), { recursive: true });
-  await fs.writeFile(scriptPath, buildCompletionScript(shell, binaryName), "utf8");
+  await fs.writeFile(
+    scriptPath,
+    buildCompletionScript(shell, binaryName),
+    "utf8",
+  );
   if (shell === "zsh") {
     await ensureZshCompletionFpath();
   }
@@ -150,7 +208,7 @@ const installCompletionScript = async (
 };
 
 const uninstallCompletionScript = async (
-  shell: "bash" | "zsh" | "fish" | "powershell"
+  shell: "bash" | "zsh" | "fish" | "powershell",
 ): Promise<string> => {
   const scriptPath = completionScriptPath(shell);
   await fs.rm(scriptPath, { force: true });
@@ -159,7 +217,7 @@ const uninstallCompletionScript = async (
 
 const runInteractiveLoginOnboarding = async (
   baseUrl: string,
-  token: string
+  token: string,
 ): Promise<void> => {
   const [{ render }, { Onboarding }] = await Promise.all([
     import("ink"),
@@ -176,14 +234,16 @@ const runInteractiveLoginOnboarding = async (
           app?.unmount();
           resolve();
         }}
-      />
+      />,
     );
   });
 };
 
 const readStdinValue = async (): Promise<string> => {
   if (process.stdin.isTTY) {
-    throw new Error("No stdin available. Pipe a value into --access-key-stdin.");
+    throw new Error(
+      "No stdin available. Pipe a value into --access-key-stdin.",
+    );
   }
 
   const chunks: Buffer[] = [];
@@ -199,7 +259,9 @@ const readStdinValue = async (): Promise<string> => {
 
 const truncateProgressText = (value: string, maxLength = 180): string => {
   const compact = value.replace(/\s+/g, " ").trim();
-  return compact.length > maxLength ? `${compact.slice(0, maxLength - 3)}...` : compact;
+  return compact.length > maxLength
+    ? `${compact.slice(0, maxLength - 3)}...`
+    : compact;
 };
 
 const humanizeStreamNode = (node?: string): string | undefined => {
@@ -220,7 +282,7 @@ const isOutputRespondingChunk = (chunk: any): boolean =>
 
 const progressEventFromChunk = (
   chunk: any,
-  options: { verbose?: boolean }
+  options: { verbose?: boolean },
 ): Record<string, unknown> | null => {
   if (!chunk || typeof chunk !== "object") {
     return null;
@@ -263,11 +325,15 @@ const progressEventFromChunk = (
   }
 
   if (chunk.type === "hitl_request") {
-    const firstQuestion = Array.isArray(chunk.questions) ? chunk.questions[0] : undefined;
+    const firstQuestion = Array.isArray(chunk.questions)
+      ? chunk.questions[0]
+      : undefined;
     return {
       type: "action",
       step: "hitl",
-      message: truncateProgressText(firstQuestion?.text || "Human input required"),
+      message: truncateProgressText(
+        firstQuestion?.text || "Human input required",
+      ),
     };
   }
 
@@ -276,7 +342,9 @@ const progressEventFromChunk = (
       type: "action",
       step: "hitl_resume",
       status: chunk.status,
-      message: truncateProgressText(chunk.message || "Resuming with supplied input"),
+      message: truncateProgressText(
+        chunk.message || "Resuming with supplied input",
+      ),
     };
   }
 
@@ -302,14 +370,25 @@ const normalizeModelEntry = (raw: unknown): Record<string, unknown> | null => {
     return null;
   }
   const value = raw as Record<string, unknown>;
-  const id = value.id ?? value.name ?? value.model ?? value.slug ?? value.deployment_name;
+  const id =
+    value.id ??
+    value.name ??
+    value.model ??
+    value.slug ??
+    value.deployment_name;
   if (typeof id !== "string" || !id.trim()) {
     return null;
   }
-  return { ...value, id, name: typeof value.name === "string" ? value.name : id };
+  return {
+    ...value,
+    id,
+    name: typeof value.name === "string" ? value.name : id,
+  };
 };
 
-const normalizeModelsPayload = (payload: unknown): Array<Record<string, unknown>> => {
+const normalizeModelsPayload = (
+  payload: unknown,
+): Array<Record<string, unknown>> => {
   const list: unknown[] = Array.isArray(payload)
     ? payload
     : Array.isArray((payload as any)?.models)
@@ -324,11 +403,16 @@ const normalizeModelsPayload = (payload: unknown): Array<Record<string, unknown>
     .filter((model): model is Record<string, unknown> => Boolean(model));
 };
 
-const availableModelId = (model: Record<string, unknown>): string | undefined => {
+const availableModelId = (
+  model: Record<string, unknown>,
+): string | undefined => {
   if (model.disabled === true) {
     return undefined;
   }
-  const availability = typeof model.availability === "string" ? model.availability.toLowerCase() : "";
+  const availability =
+    typeof model.availability === "string"
+      ? model.availability.toLowerCase()
+      : "";
   if (availability && availability !== "available") {
     return undefined;
   }
@@ -345,12 +429,17 @@ const assertModelAvailable = async (input: {
     return;
   }
   try {
-    const response = await fetch(`${input.normalizeApiBase(input.baseUrl)}/models`, {
-      headers: {
-        Accept: "application/json",
-        ...(input.authToken ? { Authorization: `Bearer ${input.authToken}` } : {}),
+    const response = await fetch(
+      `${input.normalizeApiBase(input.baseUrl)}/models`,
+      {
+        headers: {
+          Accept: "application/json",
+          ...(input.authToken
+            ? { Authorization: `Bearer ${input.authToken}` }
+            : {}),
+        },
       },
-    });
+    );
     if (!response.ok) {
       return;
     }
@@ -361,7 +450,7 @@ const assertModelAvailable = async (input: {
       return;
     }
     throw new Error(
-      `Model '${input.model}' is not available for this backend/account. Available models: ${available.join(", ")}.`
+      `Model '${input.model}' is not available for this backend/account. Available models: ${available.join(", ")}.`,
     );
   } catch (error: any) {
     if (error?.message?.startsWith(`Model '${input.model}' is not available`)) {
@@ -399,17 +488,31 @@ export const verboseLog = (message: string, data?: any) => {
 };
 
 // Helper to log HTTP requests/responses
-export const verboseLogRequest = (method: string, url: string, options?: RequestInit) => {
+export const verboseLogRequest = (
+  method: string,
+  url: string,
+  options?: RequestInit,
+) => {
   if (verboseEnabled) {
     verboseLog(`HTTP ${method} ${url}`, {
-      headers: options?.headers ? sanitizeHeaders(options.headers as Record<string, string>) : undefined,
+      headers: options?.headers
+        ? sanitizeHeaders(options.headers as Record<string, string>)
+        : undefined,
       hasBody: !!options?.body,
-      bodySize: options?.body ? (typeof options.body === 'string' ? options.body.length : 'unknown') : undefined,
+      bodySize: options?.body
+        ? typeof options.body === "string"
+          ? options.body.length
+          : "unknown"
+        : undefined,
     });
   }
 };
 
-export const verboseLogResponse = (url: string, response: Response, error?: any) => {
+export const verboseLogResponse = (
+  url: string,
+  response: Response,
+  error?: any,
+) => {
   if (verboseEnabled) {
     if (error) {
       verboseLog(`HTTP Response Error for ${url}`, {
@@ -430,7 +533,9 @@ export const verboseLogResponse = (url: string, response: Response, error?: any)
 };
 
 // Sanitize headers to remove sensitive data
-const sanitizeHeaders = (headers: Record<string, string>): Record<string, string> => {
+const sanitizeHeaders = (
+  headers: Record<string, string>,
+): Record<string, string> => {
   const sanitized: Record<string, string> = { ...headers };
   for (const key of Object.keys(sanitized)) {
     if (isSensitiveSecretKey(key)) {
@@ -481,12 +586,12 @@ const commandPathParts = (command: Command): string[] => {
 
 const telemetryPropertiesForCommand = (
   command: Command,
-  options: Record<string, unknown>
+  options: Record<string, unknown>,
 ): Record<string, unknown> => {
   const [commandName = "root", ...subcommands] = commandPathParts(command);
   const format = options.json
     ? "json"
-    : enumLikeValue(options.format) ?? undefined;
+    : (enumLikeValue(options.format) ?? undefined);
   const authMode =
     options.accessKey || options.accessKeyStdin
       ? "access_key"
@@ -499,7 +604,7 @@ const telemetryPropertiesForCommand = (
     subcommand: subcommands.join(" ") || undefined,
     format,
     interactive: Boolean(
-      !options.nonInteractive && process.stdin.isTTY && process.stdout.isTTY
+      !options.nonInteractive && process.stdin.isTTY && process.stdout.isTTY,
     ),
     authMode,
     tuiInitialTab: enumLikeValue(options.tab),
@@ -511,7 +616,7 @@ const getActiveCliTelemetry = (): CliTelemetry | undefined => activeTelemetry;
 
 const initializeCommandTelemetry = async (
   actionCommand: Command,
-  options: Record<string, unknown>
+  options: Record<string, unknown>,
 ) => {
   activeTelemetryStartedAt = Date.now();
   activeTelemetryFinished = false;
@@ -531,7 +636,7 @@ const initializeCommandTelemetry = async (
 
 const finishCommandTelemetry = async (
   exitCode: number,
-  error?: unknown
+  error?: unknown,
 ): Promise<void> => {
   if (!activeTelemetry || activeTelemetryFinished) {
     clearActiveCLITraceContext();
@@ -572,7 +677,7 @@ const program = new Command();
 
 const resolveBaseUrl = async (
   options: { baseUrl?: string },
-  command?: Command
+  command?: Command,
 ): Promise<string> => {
   const configuredBaseUrl = options.baseUrl ?? DEFAULT_BASE_URL;
   const source =
@@ -606,10 +711,13 @@ const resolveBaseUrl = async (
       return storedBaseUrl;
     }
     if (storedBaseUrl) {
-      verboseLog("Ignoring stored local auth base URL. Use --base-url or CLOUDEVAL_BASE_URL for local backend testing.", {
-        storedBaseUrl,
-        selectedBaseUrl: configuredBaseUrl,
-      });
+      verboseLog(
+        "Ignoring stored local auth base URL. Use --base-url or CLOUDEVAL_BASE_URL for local backend testing.",
+        {
+          storedBaseUrl,
+          selectedBaseUrl: configuredBaseUrl,
+        },
+      );
     }
   } catch {
     // Fall back to the packaged default when no prior auth state exists.
@@ -628,7 +736,9 @@ const resolveCliConfig = async (command?: Command) => {
 
 program
   .name("cloudeval")
-  .description("CloudEval CLI. Run without arguments to open the Terminal UI; use subcommands for pipeable CLI workflows.")
+  .description(
+    "CloudEval CLI. Run without arguments to open the Terminal UI; use subcommands for pipeable CLI workflows.",
+  )
   .version(CLI_VERSION)
   .addHelpText(
     "after",
@@ -643,14 +753,23 @@ Examples:
   cloudeval projects create --template-url https://example.com/template.json --format json
   cloudeval projects export-diagram <id> --layout architecture --format png --labels all --output architecture.png
   cloudeval reports download --project <id> --type all --output ./reports
+  cloudeval reports download --project <id> --type all --format pdf --report-verbosity evidence --output ./report.pdf
   cloudeval open project <id> --view both --layout dependency --print-url --no-open
   cloudeval capabilities --format json
   cloudeval update --check
-`
+`,
   )
-  .option("--profile <name>", "Configuration profile", process.env.CLOUDEVAL_PROFILE)
+  .option(
+    "--profile <name>",
+    "Configuration profile",
+    process.env.CLOUDEVAL_PROFILE,
+  )
   .option("-v, --verbose", "Enable verbose logging", false)
-  .option("--show-sensitive-ids", "Show full account/session identifiers in command output", false)
+  .option(
+    "--show-sensitive-ids",
+    "Show full account/session identifiers in command output",
+    false,
+  )
   .hook("preAction", async (thisCommand, actionCommand) => {
     const opts =
       typeof actionCommand.optsWithGlobals === "function"
@@ -677,19 +796,22 @@ program.addHelpCommand(false);
 program
   .command("login")
   .description("Authenticate with Cloudeval")
+  .option("--base-url <url>", "Backend base URL", DEFAULT_BASE_URL)
   .option(
-    "--base-url <url>",
-    "Backend base URL",
-    DEFAULT_BASE_URL
+    "--headless",
+    "Use device-code login flow (for SSH/headless terminals)",
+    false,
   )
-  .option("--headless", "Use device-code login flow (for SSH/headless terminals)", false)
   .option("-v, --verbose", "Enable verbose logging", false)
   .action(async (options) => {
     if (options.verbose) {
       setVerbose(true);
       verboseLog("Login command started");
       verboseLog("Base URL:", options.baseUrl);
-      verboseLog("Environment CLOUDEVAL_BASE_URL:", process.env.CLOUDEVAL_BASE_URL);
+      verboseLog(
+        "Environment CLOUDEVAL_BASE_URL:",
+        process.env.CLOUDEVAL_BASE_URL,
+      );
     }
 
     try {
@@ -717,7 +839,9 @@ program
             stdoutIsTTY: process.stdout.isTTY,
           });
           if (onboardingMode === "interactive_steps") {
-            console.log("Complete CLI onboarding to set up your Playground project.");
+            console.log(
+              "Complete CLI onboarding to set up your Playground project.",
+            );
             await runInteractiveLoginOnboarding(options.baseUrl, token);
             console.log("✅ Onboarding complete. Playground project ready.");
           } else {
@@ -731,24 +855,22 @@ program
                 full_name: userStatus.user.full_name,
                 name: userStatus.user.name,
               },
-              { forceQuickOnboard: true }
+              { forceQuickOnboard: true },
             );
             console.log("✅ Playground project ready.");
           }
         } else {
-          await ensurePlaygroundProject(
-            options.baseUrl,
-            token,
-            {
-              id: userStatus.user.id,
-              email: userStatus.user.email,
-              full_name: userStatus.user.full_name,
-              name: userStatus.user.name,
-            }
-          );
+          await ensurePlaygroundProject(options.baseUrl, token, {
+            id: userStatus.user.id,
+            email: userStatus.user.email,
+            full_name: userStatus.user.full_name,
+            name: userStatus.user.name,
+          });
         }
       } else {
-        verboseLog("Skipping Playground setup because authenticated user details were unavailable");
+        verboseLog(
+          "Skipping Playground setup because authenticated user details were unavailable",
+        );
       }
       await getActiveCliTelemetry()?.track("cli.auth", {
         command: "login",
@@ -771,11 +893,7 @@ program
 program
   .command("logout")
   .description("Log out and clear stored authentication state")
-  .option(
-    "--base-url <url>",
-    "Backend base URL",
-    DEFAULT_BASE_URL
-  )
+  .option("--base-url <url>", "Backend base URL", DEFAULT_BASE_URL)
   .option("--all-devices", "Revoke sessions on all devices", false)
   .action(async (options) => {
     try {
@@ -807,22 +925,33 @@ program
     }
   });
 
-const authCommand = program.command("auth").description("Authentication utilities");
+const authCommand = program
+  .command("auth")
+  .description("Authentication utilities");
 
 authCommand
   .command("status")
   .description("Show current authentication status")
+  .option("--base-url <url>", "Backend base URL", DEFAULT_BASE_URL)
   .option(
-    "--base-url <url>",
-    "Backend base URL",
-    DEFAULT_BASE_URL
+    "--format <format>",
+    "Output format: text, json, ndjson, markdown",
+    "text",
   )
-  .option("--format <format>", "Output format: text, json, ndjson, markdown", "text")
-  .option("--show-sensitive-ids", "Show full account/session identifiers in command output", false)
-  .option("-v, --verbose", "Enable verbose logging and show full non-token identifiers", false)
+  .option(
+    "--show-sensitive-ids",
+    "Show full account/session identifiers in command output",
+    false,
+  )
+  .option(
+    "-v, --verbose",
+    "Enable verbose logging and show full non-token identifiers",
+    false,
+  )
   .action(async (options, command) => {
     try {
-      const { assertSecureBaseUrl, getAuthStatus } = await import("@cloudeval/core");
+      const { assertSecureBaseUrl, getAuthStatus } =
+        await import("@cloudeval/core");
       const effectiveBaseUrl = await resolveBaseUrl(options, command);
       assertSecureBaseUrl(effectiveBaseUrl);
       const status = await getAuthStatus(effectiveBaseUrl, { validate: true });
@@ -838,7 +967,9 @@ authCommand
         "Storage backend": status.storageBackend,
         ...(status.authError ? { "Auth error": status.authError } : {}),
         "CLI API URL": effectiveBaseUrl,
-        ...(accessTokenExpiresAt ? { "Access token expires": accessTokenExpiresAt } : {}),
+        ...(accessTokenExpiresAt
+          ? { "Access token expires": accessTokenExpiresAt }
+          : {}),
         ...(status.sessionId ? { "Session ID": status.sessionId } : {}),
         ...(status.accountId ? { "Account ID": status.accountId } : {}),
         ...(status.baseUrl && status.baseUrl !== effectiveBaseUrl
@@ -856,11 +987,15 @@ authCommand
         accessTokenExpiresAt,
         sessionId: status.sessionId,
         accountId: status.accountId,
-        storedAuthUrl: status.baseUrl && status.baseUrl !== effectiveBaseUrl ? status.baseUrl : undefined,
+        storedAuthUrl:
+          status.baseUrl && status.baseUrl !== effectiveBaseUrl
+            ? status.baseUrl
+            : undefined,
       };
       await writeFormattedOutput({
         command: "auth status",
-        data: options.format === "text" || !options.format ? textData : machineData,
+        data:
+          options.format === "text" || !options.format ? textData : machineData,
         format: options.format as MachineOutputFormat,
       });
       await getActiveCliTelemetry()?.track("cli.auth", {
@@ -876,7 +1011,9 @@ authCommand
         success: false,
         errorCategory: classifyTelemetryError(error),
       });
-      console.error(`❌ Failed to fetch auth status: ${error?.message || "Unknown error"}`);
+      console.error(
+        `❌ Failed to fetch auth status: ${error?.message || "Unknown error"}`,
+      );
       await exitCli(1, error);
     }
   });
@@ -1026,28 +1163,30 @@ telemetryCommand
   .option("--completions <state>", "Completion setup state")
   .option("--mcp-setup <state>", "MCP setup state")
   .option("--result <result>", "Installer result", "success")
-  .action(async (options: {
-    installerType?: string;
-    requestedVersion?: string;
-    resolvedVersion?: string;
-    platform?: string;
-    aliases?: string;
-    completions?: string;
-    mcpSetup?: string;
-    result?: string;
-  }) => {
-    await getActiveCliTelemetry()?.track("cli.install", {
-      installerType: enumLikeValue(options.installerType),
-      requestedVersion: versionLikeValue(options.requestedVersion),
-      resolvedVersion: versionLikeValue(options.resolvedVersion),
-      platform: enumLikeValue(options.platform),
-      aliases: enumLikeValue(options.aliases),
-      completions: enumLikeValue(options.completions),
-      mcpSetup: enumLikeValue(options.mcpSetup),
-      installerResult: enumLikeValue(options.result) ?? "success",
-      success: options.result !== "failure",
-    });
-  });
+  .action(
+    async (options: {
+      installerType?: string;
+      requestedVersion?: string;
+      resolvedVersion?: string;
+      platform?: string;
+      aliases?: string;
+      completions?: string;
+      mcpSetup?: string;
+      result?: string;
+    }) => {
+      await getActiveCliTelemetry()?.track("cli.install", {
+        installerType: enumLikeValue(options.installerType),
+        requestedVersion: versionLikeValue(options.requestedVersion),
+        resolvedVersion: versionLikeValue(options.resolvedVersion),
+        platform: enumLikeValue(options.platform),
+        aliases: enumLikeValue(options.aliases),
+        completions: enumLikeValue(options.completions),
+        mcpSetup: enumLikeValue(options.mcpSetup),
+        installerResult: enumLikeValue(options.result) ?? "success",
+        success: options.result !== "failure",
+      });
+    },
+  );
 
 program
   .command("__complete")
@@ -1057,7 +1196,7 @@ program
     const candidates = completeCliWords(words);
     for (const candidate of candidates) {
       process.stdout.write(
-        `${candidate.value}\t${candidate.kind}\t${candidate.description ?? ""}\n`
+        `${candidate.value}\t${candidate.kind}\t${candidate.description ?? ""}\n`,
       );
     }
   });
@@ -1065,14 +1204,17 @@ program
 const completionCommand = program
   .command("completion")
   .description("Print or install shell completion scripts")
-  .argument("[shell]", "Shell to generate completions for: bash, zsh, fish, powershell")
+  .argument(
+    "[shell]",
+    "Shell to generate completions for: bash, zsh, fish, powershell",
+  )
   .option("--bin <name>", "Primary binary name", "cloudeval")
   .action(async (shellName, options) => {
     const detectedShell = process.env.SHELL?.split("/").pop();
     const shell = normalizeCompletionShell(shellName || detectedShell);
     if (!shell) {
       console.error(
-        "Unsupported shell. Usage: cloudeval completion <bash|zsh|fish|powershell>"
+        "Unsupported shell. Usage: cloudeval completion <bash|zsh|fish|powershell>",
       );
       return await exitCli(1, new Error("unsupported_completion_shell"));
     }
@@ -1089,7 +1231,7 @@ completionCommand
     const shell = normalizeCompletionShell(options.shell || detectedShell);
     if (!shell) {
       console.error(
-        "Unsupported shell. Usage: cloudeval completion install --shell <bash|zsh|fish|powershell>"
+        "Unsupported shell. Usage: cloudeval completion install --shell <bash|zsh|fish|powershell>",
       );
       return await exitCli(1, new Error("unsupported_completion_shell"));
     }
@@ -1106,7 +1248,7 @@ completionCommand
     const shell = normalizeCompletionShell(options.shell || detectedShell);
     if (!shell) {
       console.error(
-        "Unsupported shell. Usage: cloudeval completion uninstall --shell <bash|zsh|fish|powershell>"
+        "Unsupported shell. Usage: cloudeval completion uninstall --shell <bash|zsh|fish|powershell>",
       );
       return await exitCli(1, new Error("unsupported_completion_shell"));
     }
@@ -1117,21 +1259,25 @@ completionCommand
 program
   .command("tui")
   .description("Open the CloudEval Terminal UI")
+  .option("--base-url <url>", "Backend base URL", DEFAULT_BASE_URL)
   .option(
-    "--base-url <url>",
-    "Backend base URL",
-    DEFAULT_BASE_URL
+    "--tab <tab>",
+    "Initial tab: chat, overview, reports, projects, connections, billing, options, help",
+    "chat",
   )
-  .option("--tab <tab>", "Initial tab: chat, overview, reports, projects, connections, billing, options, help", "chat")
   .option("--project <id>", "Initial project id")
   .option("--frontend-url <url>", "Frontend base URL")
   .option("--mode <mode>", "Initial chat mode: ask, agent")
   .option(
     "--access-key <key>",
     "Access key for automation",
-    process.env.CLOUDEVAL_ACCESS_KEY
+    process.env.CLOUDEVAL_ACCESS_KEY,
   )
-  .option("--access-key-stdin", "Read access key from stdin (recommended for automation)", false)
+  .option(
+    "--access-key-stdin",
+    "Read access key from stdin (recommended for automation)",
+    false,
+  )
   .option("--model <name>", "Model name")
   .option("--debug", "Log raw chunks", false)
   .option("--health-check", "Enable health check (disabled by default)")
@@ -1149,7 +1295,8 @@ program
     assertSecureBaseUrl(baseUrl);
     const selectedProfile = getActiveConfigProfile(command);
     const cliConfig = await resolveCliConfig(command);
-    const initialMode = normalizeCliMode(options.mode ?? cliConfig.mode) ?? "ask";
+    const initialMode =
+      normalizeCliMode(options.mode ?? cliConfig.mode) ?? "ask";
 
     let accessKey: string | undefined = options.accessKey;
     if (options.accessKeyStdin) {
@@ -1159,7 +1306,7 @@ program
 
     if (options.tab && options.tab !== "chat") {
       process.stderr.write(
-        `Opening Terminal UI with requested tab '${options.tab}'. Workspace tabs load account data when available.\n`
+        `Opening Terminal UI with requested tab '${options.tab}'. Workspace tabs load account data when available.\n`,
       );
     }
 
@@ -1184,7 +1331,7 @@ program
         disableAnim={options.anim === false}
         forceAnim={options.animate === true}
         skipHealthCheck={!options.healthCheck}
-      />
+      />,
     );
     await app.waitUntilExit();
   });
@@ -1192,20 +1339,23 @@ program
 program
   .command("chat")
   .description("Start an interactive chat session")
-  .option(
-    "--base-url <url>",
-    "Backend base URL",
-    DEFAULT_BASE_URL
-  )
+  .option("--base-url <url>", "Backend base URL", DEFAULT_BASE_URL)
   .option(
     "--access-key <key>",
     "Access key for automation",
-    process.env.CLOUDEVAL_ACCESS_KEY
+    process.env.CLOUDEVAL_ACCESS_KEY,
   )
-  .option("--access-key-stdin", "Read access key from stdin (recommended for automation)", false)
+  .option(
+    "--access-key-stdin",
+    "Read access key from stdin (recommended for automation)",
+    false,
+  )
   .option("--conversation <id>", "Conversation/thread id to resume")
   .option("--continue", "Resume the most recent local chat session", false)
-  .option("--resume <id-or-title>", "Resume a local chat session by thread id or title")
+  .option(
+    "--resume <id-or-title>",
+    "Resume a local chat session by thread id or title",
+  )
   .option("--model <name>", "Model name")
   .option("--mode <mode>", "Initial chat mode: ask, agent")
   .option("--debug", "Log raw chunks", false)
@@ -1224,7 +1374,8 @@ program
     assertSecureBaseUrl(baseUrl);
     const selectedProfile = getActiveConfigProfile(command);
     const cliConfig = await resolveCliConfig(command);
-    const initialMode = normalizeCliMode(options.mode ?? cliConfig.mode) ?? "ask";
+    const initialMode =
+      normalizeCliMode(options.mode ?? cliConfig.mode) ?? "ask";
 
     let accessKey: string | undefined = options.accessKey;
     if (options.accessKeyStdin) {
@@ -1245,7 +1396,9 @@ program
     }
     let conversationId = options.conversation;
     if (!conversationId && options.resume) {
-      conversationId = (await resolveSessionReference(options.resume, selectedProfile))?.threadId;
+      conversationId = (
+        await resolveSessionReference(options.resume, selectedProfile)
+      )?.threadId;
       if (!conversationId) {
         throw new Error(`Session '${options.resume}' was not found.`);
       }
@@ -1277,7 +1430,7 @@ program
         disableAnim={options.anim === false}
         forceAnim={options.animate === true}
         skipHealthCheck={!options.healthCheck}
-      />
+      />,
     );
     await app.waitUntilExit();
   });
@@ -1287,24 +1440,32 @@ program
   .alias("agent")
   .description("Ask a single question or run an agent task (non-interactive)")
   .argument("<question...>", "The question to ask")
-  .option(
-    "--base-url <url>",
-    "Backend base URL",
-    DEFAULT_BASE_URL
-  )
+  .option("--base-url <url>", "Backend base URL", DEFAULT_BASE_URL)
   .option(
     "--access-key <key>",
     "Access key for automation",
-    process.env.CLOUDEVAL_ACCESS_KEY
+    process.env.CLOUDEVAL_ACCESS_KEY,
   )
-  .option("--access-key-stdin", "Read access key from stdin (recommended for automation)", false)
+  .option(
+    "--access-key-stdin",
+    "Read access key from stdin (recommended for automation)",
+    false,
+  )
   .option("--project <id>", "Project ID to use")
   .option("--model <name>", "Model name")
   .option("--thread <id>", "Thread id to reuse")
   .option("--output <file>", "Output file (default: stdout)")
-  .option("--format <format>", "Output format: text, json, ndjson, markdown", "text")
+  .option(
+    "--format <format>",
+    "Output format: text, json, ndjson, markdown",
+    "text",
+  )
   .option("--json", "Output as JSON")
-  .option("--progress <mode>", "Progress events: auto, stderr, ndjson, none", "auto")
+  .option(
+    "--progress <mode>",
+    "Progress events: auto, stderr, ndjson, none",
+    "auto",
+  )
   .option("--quiet", "Suppress progress and warning messages", false)
   .option("--no-color", "Disable colorized progress output")
   .option("--open", "Open the frontend chat thread after completion", false)
@@ -1316,7 +1477,9 @@ program
   .option("-v, --verbose", "Enable verbose logging", false)
   .option("--no-hooks", "Disable local CLI hooks for this command")
   .action(async (questionParts, options, command) => {
-    const question = Array.isArray(questionParts) ? questionParts.join(" ") : String(questionParts);
+    const question = Array.isArray(questionParts)
+      ? questionParts.join(" ")
+      : String(questionParts);
     const commandName = command.parent?.args?.[0] === "agent" ? "agent" : "ask";
     const selectedMode: CliChatMode = commandName === "agent" ? "agent" : "ask";
     const { assertSecureBaseUrl } = await import("@cloudeval/core");
@@ -1328,7 +1491,9 @@ program
     const selectedModel = options.model ?? cliConfig.model;
     const selectedFrontendUrl = options.frontendUrl ?? cliConfig.frontendUrl;
     const progressMode = normalizeAskProgressMode(options.progress);
-    const outputFormat = options.json ? "json" : String(options.format ?? "text").toLowerCase();
+    const outputFormat = options.json
+      ? "json"
+      : String(options.format ?? "text").toLowerCase();
     const jsonOutput = outputFormat === "json";
     const ndjsonOutput = outputFormat === "ndjson";
     const streamTextOutput = outputFormat === "text";
@@ -1395,7 +1560,7 @@ program
           projectId: selectedProjectId,
           threadId: options.thread,
           noHooks: hooksDisabled,
-        })
+        }),
       );
 
       // Get auth token
@@ -1428,10 +1593,12 @@ program
             !process.env.CI &&
             error?.message?.includes("No authentication available")
           ) {
-              verboseLog("No authentication available, initiating login flow");
+            verboseLog("No authentication available, initiating login flow");
             if (!options.quiet) {
               progressWriter.clear();
-              console.error("Authentication required. Starting login process...\n");
+              console.error(
+                "Authentication required. Starting login process...\n",
+              );
             }
             try {
               const { login } = await import("@cloudeval/core");
@@ -1442,7 +1609,9 @@ program
               verboseLog("Login successful, proceeding with question");
               if (!options.quiet) {
                 progressWriter.clear();
-                console.error("\nAuthentication successful. Proceeding with your question...\n");
+                console.error(
+                  "\nAuthentication successful. Proceeding with your question...\n",
+                );
               }
             } catch (loginError: any) {
               verboseLog("Login failed:", {
@@ -1482,10 +1651,14 @@ program
       progressWriter.write({
         type: "request",
         step: "project",
-        message: selectedProjectId ? `Using project ${selectedProjectId}` : "Resolving project",
+        message: selectedProjectId
+          ? `Using project ${selectedProjectId}`
+          : "Resolving project",
       });
       let authenticatedUserId: string | undefined;
-      let authenticatedUser: Awaited<ReturnType<typeof checkUserStatus>>["user"];
+      let authenticatedUser: Awaited<
+        ReturnType<typeof checkUserStatus>
+      >["user"];
       try {
         const userStatus = await checkUserStatus(baseUrl, token);
         getActiveCliTelemetry()?.setUserProperties(userStatus.user || {});
@@ -1546,17 +1719,23 @@ program
 
       if (options.debug) {
         console.error(`[${commandName}] Question: ${question}`);
-        console.error(`[${commandName}] Project: ${project.id} (${project.name})`);
+        console.error(
+          `[${commandName}] Project: ${project.id} (${project.name})`,
+        );
         console.error(`[${commandName}] Thread ID: ${threadId}`);
       }
 
       // Set up output stream
       if (streamTextOutput && options.output) {
-        fileOutputStream = fs.createWriteStream(options.output, { encoding: "utf-8" });
+        fileOutputStream = fs.createWriteStream(options.output, {
+          encoding: "utf-8",
+        });
         outputStream = fileOutputStream;
       }
       if (ndjsonOutput && options.output) {
-        ndjsonOutputStream = fs.createWriteStream(options.output, { encoding: "utf-8" });
+        ndjsonOutputStream = fs.createWriteStream(options.output, {
+          encoding: "utf-8",
+        });
       }
 
       const writeAskDataEvent = (event: Record<string, unknown>) => {
@@ -1570,7 +1749,7 @@ program
 
       const closeOutputStream = async () => {
         const streams = [fileOutputStream, ndjsonOutputStream].filter(
-          (stream): stream is WriteStream => Boolean(stream)
+          (stream): stream is WriteStream => Boolean(stream),
         );
         fileOutputStream = null;
         ndjsonOutputStream = null;
@@ -1582,16 +1761,15 @@ program
         }
       };
 
-      const writeChunkProgressEvent = (event: Record<string, unknown> | null) => {
+      const writeChunkProgressEvent = (
+        event: Record<string, unknown> | null,
+      ) => {
         if (!event) {
           return;
         }
-        const key = [
-          event.type,
-          event.step,
-          event.status,
-          event.message,
-        ].join(":");
+        const key = [event.type, event.step, event.status, event.message].join(
+          ":",
+        );
         if (emittedProgressKeys.has(key)) {
           return;
         }
@@ -1617,11 +1795,11 @@ program
       });
 
       const logHeaders: Record<string, string> = {
-          "Content-Type": "application/json",
-          "Accept": "text/event-stream",
+        "Content-Type": "application/json",
+        Accept: "text/event-stream",
       };
       if (token) {
-          logHeaders["Authorization"] = `Bearer [REDACTED]`;
+        logHeaders["Authorization"] = `Bearer [REDACTED]`;
       }
 
       verboseLogRequest("POST", streamUrl, {
@@ -1648,7 +1826,9 @@ program
           progressWriter.write({
             type: "request",
             step: hitlResume ? "hitl_resume" : "stream",
-            message: hitlResume ? "Resuming with human input" : "Sending chat request",
+            message: hitlResume
+              ? "Resuming with human input"
+              : "Sending chat request",
             threadId,
             projectId: project.id,
           });
@@ -1659,7 +1839,10 @@ program
                 authToken: token,
                 message: hitlResume ? "" : question,
                 threadId,
-                user: { id: project.user_id ?? authenticatedUserId ?? "cli-user", name: userName },
+                user: {
+                  id: project.user_id ?? authenticatedUserId ?? "cli-user",
+                  name: userName,
+                },
                 project,
                 settings: streamSettings,
                 debug: options.debug,
@@ -1684,7 +1867,9 @@ program
                   });
                 }
                 chatState = reduceChunk(chatState, chunk);
-                writeChunkProgressEvent(progressEventFromChunk(chunk, { verbose: options.verbose }));
+                writeChunkProgressEvent(
+                  progressEventFromChunk(chunk, { verbose: options.verbose }),
+                );
 
                 if (chunk.type === "hitl_request") {
                   pendingHitlRequest = chunk;
@@ -1734,7 +1919,11 @@ program
                     const delta = responseText.slice(emittedTextLength);
                     if (delta) {
                       progressWriter.clear();
-                      if (!responseText.slice(0, emittedTextLength).endsWith(delta)) {
+                      if (
+                        !responseText
+                          .slice(0, emittedTextLength)
+                          .endsWith(delta)
+                      ) {
                         outputStream.write(delta);
                       }
                       emittedTextLength = responseText.length;
@@ -1744,7 +1933,8 @@ program
 
                 // Handle errors
                 if (chunk.type === "error") {
-                  const errorMsg = chunk.message || chunk.description || "Unknown error";
+                  const errorMsg =
+                    chunk.message || chunk.description || "Unknown error";
                   verboseLog("Error chunk received:", {
                     message: errorMsg,
                     node: (chunk as any).node,
@@ -1756,7 +1946,11 @@ program
                     // For JSON mode, we'll include error in final output
                     responseText = `Error: ${errorMsg}`;
                   } else if (ndjsonOutput) {
-                    writeAskDataEvent({ type: "error", error: { message: errorMsg }, threadId });
+                    writeAskDataEvent({
+                      type: "error",
+                      error: { message: errorMsg },
+                      threadId,
+                    });
                   } else {
                     // For streaming mode, output error immediately
                     outputStream.write(`\nError: ${errorMsg}\n`);
@@ -1772,7 +1966,9 @@ program
                 isExpiredDeviceTokenStreamError(error)
               ) {
                 retriedAfterAuthRefresh = true;
-                verboseLog("Stored device token expired during stream; refreshing and retrying once");
+                verboseLog(
+                  "Stored device token expired during stream; refreshing and retrying once",
+                );
                 progressWriter.write({
                   type: "auth",
                   step: "auth",
@@ -1793,7 +1989,8 @@ program
 
           progressWriter.clear();
           const questions = pendingHitlRequest.questions ?? [];
-          const checkpointId = pendingHitlRequest.checkpoint_id ?? chatState.threadId;
+          const checkpointId =
+            pendingHitlRequest.checkpoint_id ?? chatState.threadId;
           const canPromptForHitl =
             !options.nonInteractive &&
             Boolean(process.stdin.isTTY) &&
@@ -1810,7 +2007,11 @@ program
               questions,
             };
             const message = "Human input required by CloudEval.";
-            const summary = summarizeHitlRequest({ questions, checkpointId, frontendUrl });
+            const summary = summarizeHitlRequest({
+              questions,
+              checkpointId,
+              frontendUrl,
+            });
             if (jsonOutput) {
               const output = {
                 ok: false,
@@ -1839,7 +2040,11 @@ program
                 ok: false,
                 command: commandName,
                 error: { code: "HITL_REQUIRED", message },
-                data: { threadId: chatState.threadId, project: { id: project.id, name: project.name }, hitl },
+                data: {
+                  threadId: chatState.threadId,
+                  project: { id: project.id, name: project.name },
+                  hitl,
+                },
                 frontendUrl,
               });
               await closeOutputStream();
@@ -1874,7 +2079,11 @@ program
         if (jsonOutput) {
           responseText = `Error: ${errorMsg}`;
         } else if (ndjsonOutput) {
-          writeAskDataEvent({ type: "error", error: { message: errorMsg }, threadId });
+          writeAskDataEvent({
+            type: "error",
+            error: { message: errorMsg },
+            threadId,
+          });
         } else {
           outputStream.write(`\nError: ${errorMsg}\n`);
         }
@@ -1886,13 +2095,12 @@ program
         .reverse()
         .find((m) => m.role === "assistant");
       let finalResponse = collapseRepeatedAssistantText(
-        finalMessage?.content || responseText || ""
+        finalMessage?.content || responseText || "",
       );
 
       if (!finalResponse.trim() && chatState.threadId) {
-        const { fetchLastAssistantContent } = await import(
-          "./fetchLastAssistantContent.js"
-        );
+        const { fetchLastAssistantContent } =
+          await import("./fetchLastAssistantContent.js");
         const persisted = await fetchLastAssistantContent({
           baseUrl,
           authToken: token,
@@ -2047,7 +2255,7 @@ program
           threadId: chatState.threadId,
           noHooks: hooksDisabled,
           extra: { ok: true },
-        })
+        }),
       );
 
       verboseLog("Command completed successfully");
@@ -2064,7 +2272,7 @@ program
             threadId: options.thread,
             noHooks: hooksDisabled,
             extra: { error: error?.message },
-          })
+          }),
         );
       } catch {
         // Keep the original command failure visible.
@@ -2094,7 +2302,7 @@ program
     render(
       <React.Suspense fallback={null}>
         <BannerPreview disable={false} />
-      </React.Suspense>
+      </React.Suspense>,
     );
   });
 

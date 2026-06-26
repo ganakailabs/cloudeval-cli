@@ -49,7 +49,12 @@ export interface GetReportDetailOptions extends ReportClientOptions {
   timestamp?: string;
 }
 
-export type ReportRunType = "cost" | "waf" | "architecture" | "unit-tests" | "all";
+export type ReportRunType =
+  | "cost"
+  | "waf"
+  | "architecture"
+  | "unit-tests"
+  | "all";
 
 export interface RunReportOptions extends ReportClientOptions {
   projectId: string;
@@ -66,9 +71,25 @@ export interface ReportJobStatusOptions extends ReportClientOptions {
   userId?: string;
 }
 
+export interface DownloadReportPdfOptions extends ReportClientOptions {
+  projectId: string;
+  userId?: string;
+  verbosity?: "brief" | "detailed" | "evidence";
+  reportType?: "all" | "architecture" | "cost" | "unit_tests";
+  includeVisuals?: boolean;
+}
+
+export interface DownloadReportPdfResult {
+  bytes: Uint8Array;
+  filename: string;
+  contentType: string;
+  status?: string;
+  warningsCount?: number;
+}
+
 const appendQuery = (
   url: URL,
-  values: Record<string, string | undefined>
+  values: Record<string, string | undefined>,
 ): URL => {
   for (const [key, value] of Object.entries(values)) {
     if (value) {
@@ -78,7 +99,9 @@ const appendQuery = (
   return url;
 };
 
-const compactErrorBody = async (response: Response): Promise<string | undefined> => {
+const compactErrorBody = async (
+  response: Response,
+): Promise<string | undefined> => {
   const body = await response.text().catch(() => "");
   const trimmed = body.trim();
   if (!trimmed) {
@@ -97,12 +120,15 @@ const stringOr = (value: unknown, fallback: string): string =>
 const numberOr = (value: unknown, fallback = 0): number =>
   typeof value === "number" && Number.isFinite(value) ? value : fallback;
 
-const arrayOrEmpty = (value: unknown): unknown[] => (Array.isArray(value) ? value : []);
+const arrayOrEmpty = (value: unknown): unknown[] =>
+  Array.isArray(value) ? value : [];
 
 const reportTypeToKind = (value: unknown): ReportKind =>
   value === "architecture" || value === "waf" ? "waf" : "cost";
 
-const backendReportType = (kind: ReportKind | "all" | undefined): string | undefined => {
+const backendReportType = (
+  kind: ReportKind | "all" | undefined,
+): string | undefined => {
   if (!kind || kind === "all") return undefined;
   return kind === "waf" ? "architecture" : kind;
 };
@@ -121,9 +147,16 @@ const requireUserId = (userId: string | undefined): string => {
   return userId;
 };
 
-const normalizeCostParsed = (report: Record<string, unknown>, metrics: Record<string, unknown> = {}) => {
+const normalizeCostParsed = (
+  report: Record<string, unknown>,
+  metrics: Record<string, unknown> = {},
+) => {
   const parsed = isObject(report.parsed) ? report.parsed : undefined;
-  if (parsed && isObject(parsed.totalSpend) && isObject(parsed.estimatedSavings)) {
+  if (
+    parsed &&
+    isObject(parsed.totalSpend) &&
+    isObject(parsed.estimatedSavings)
+  ) {
     return parsed;
   }
 
@@ -133,7 +166,7 @@ const normalizeCostParsed = (report: Record<string, unknown>, metrics: Record<st
   const currency = stringOr(source.currency, "USD");
   const monthly = numberOr(
     source.total_monthly_cost ?? source.monthly_cost ?? source.monthly,
-    0
+    0,
   );
   const savings = numberOr(
     source.total_monthly_savings ??
@@ -141,7 +174,7 @@ const normalizeCostParsed = (report: Record<string, unknown>, metrics: Record<st
         ? source.opportunity_summary.total_monthly_savings
         : undefined) ??
       source.monthly_savings,
-    0
+    0,
   );
 
   return {
@@ -156,24 +189,35 @@ const normalizeCostParsed = (report: Record<string, unknown>, metrics: Record<st
       percentOfSpend: monthly > 0 ? (savings / monthly) * 100 : 0,
     },
     serviceGroups: arrayOrEmpty(
-      source.service_family_breakdown ?? source.serviceGroups
+      source.service_family_breakdown ?? source.serviceGroups,
     ).map((item, index) => {
       const row = isObject(item) ? item : {};
       return {
-        name: stringOr(row.name ?? row.service ?? row.family, `Service ${index + 1}`),
+        name: stringOr(
+          row.name ?? row.service ?? row.family,
+          `Service ${index + 1}`,
+        ),
         amount: numberOr(row.amount ?? row.monthly_cost ?? row.cost, 0),
         currency: stringOr(row.currency, currency),
         changePercent: numberOr(row.change_percent ?? row.changePercent, 0),
       };
     }),
     recommendations: arrayOrEmpty(
-      source.recommendations ?? source.top_opportunities ?? source.opportunities
+      source.recommendations ??
+        source.top_opportunities ??
+        source.opportunities,
     ).map((item, index) => {
       const row = isObject(item) ? item : {};
       return {
         id: stringOr(row.id ?? row.resource_id, `recommendation-${index + 1}`),
-        title: stringOr(row.title ?? row.recommendation ?? row.description, "Cost recommendation"),
-        monthlySavings: numberOr(row.monthlySavings ?? row.monthly_savings ?? row.savings, 0),
+        title: stringOr(
+          row.title ?? row.recommendation ?? row.description,
+          "Cost recommendation",
+        ),
+        monthlySavings: numberOr(
+          row.monthlySavings ?? row.monthly_savings ?? row.savings,
+          0,
+        ),
         currency: stringOr(row.currency, currency),
         risk: stringOr(row.risk, "medium"),
       };
@@ -184,7 +228,10 @@ const normalizeCostParsed = (report: Record<string, unknown>, metrics: Record<st
   };
 };
 
-const normalizeWafParsed = (report: Record<string, unknown>, metrics: Record<string, unknown> = {}) => {
+const normalizeWafParsed = (
+  report: Record<string, unknown>,
+  metrics: Record<string, unknown> = {},
+) => {
   const parsed = isObject(report.parsed) ? report.parsed : undefined;
   if (parsed && isObject(parsed.score) && isObject(parsed.counts)) {
     return parsed;
@@ -192,27 +239,38 @@ const normalizeWafParsed = (report: Record<string, unknown>, metrics: Record<str
 
   const processed = isObject(report.processed) ? report.processed : {};
   const source = { ...metrics, ...processed };
-  const pillarScores = isObject(source.pillar_scores) ? source.pillar_scores : {};
-  const rules = arrayOrEmpty(report.all_rules ?? source.rules).map((item, index) => {
-    const row = isObject(item) ? item : {};
-    const outcome = stringOr(row.status ?? row.outcome, "pass").toLowerCase();
-    return {
-      id: stringOr(row.id ?? row.rule_id ?? row.name, `rule-${index + 1}`),
-      pillar: stringOr(row.pillar, "Uncategorized"),
-      title: stringOr(row.title ?? row.description, "Architecture rule"),
-      status: outcome === "fail" || outcome === "error" ? "fail" : outcome === "warn" ? "warn" : "pass",
-      severity: stringOr(row.severity, "medium").toLowerCase(),
-      resource: typeof row.resource === "string" ? row.resource : undefined,
-      evidence: typeof row.evidence === "string" ? row.evidence : undefined,
-      recommendation:
-        typeof row.recommendation === "string" ? row.recommendation : undefined,
-    };
-  });
+  const pillarScores = isObject(source.pillar_scores)
+    ? source.pillar_scores
+    : {};
+  const rules = arrayOrEmpty(report.all_rules ?? source.rules).map(
+    (item, index) => {
+      const row = isObject(item) ? item : {};
+      const outcome = stringOr(row.status ?? row.outcome, "pass").toLowerCase();
+      return {
+        id: stringOr(row.id ?? row.rule_id ?? row.name, `rule-${index + 1}`),
+        pillar: stringOr(row.pillar, "Uncategorized"),
+        title: stringOr(row.title ?? row.description, "Architecture rule"),
+        status:
+          outcome === "fail" || outcome === "error"
+            ? "fail"
+            : outcome === "warn"
+              ? "warn"
+              : "pass",
+        severity: stringOr(row.severity, "medium").toLowerCase(),
+        resource: typeof row.resource === "string" ? row.resource : undefined,
+        evidence: typeof row.evidence === "string" ? row.evidence : undefined,
+        recommendation:
+          typeof row.recommendation === "string"
+            ? row.recommendation
+            : undefined,
+      };
+    },
+  );
 
   const failedRules = rules.filter((rule) => rule.status === "fail");
   const mediumRules = rules.filter((rule) => rule.severity === "medium");
   const highRules = rules.filter(
-    (rule) => rule.severity === "high" || rule.severity === "critical"
+    (rule) => rule.severity === "high" || rule.severity === "critical",
   );
 
   return {
@@ -239,7 +297,7 @@ const normalizeWafParsed = (report: Record<string, unknown>, metrics: Record<str
 
 const normalizeBackendReportDetail = (
   input: unknown,
-  fallback: { projectId: string; reportType: "cost" | "architecture" | "waf" }
+  fallback: { projectId: string; reportType: "cost" | "architecture" | "waf" },
 ): ReportEnvelope => {
   if (!isObject(input)) {
     return normalizeReportEnvelope(input);
@@ -247,14 +305,18 @@ const normalizeBackendReportDetail = (
   const report = isObject(input.report) ? input.report : input;
   const reportType = input.report_type ?? report.kind ?? fallback.reportType;
   const kind = reportTypeToKind(reportType);
-  const projectId = stringOr(input.project_id ?? report.project_id, fallback.projectId);
+  const projectId = stringOr(
+    input.project_id ?? report.project_id,
+    fallback.projectId,
+  );
   const generatedAt = stringOr(
     input.timestamp ??
       report.generated_at ??
       (isObject(report.metadata) ? report.metadata.generated_at : undefined),
-    new Date(0).toISOString()
+    new Date(0).toISOString(),
   );
-  const parsed = kind === "waf" ? normalizeWafParsed(report) : normalizeCostParsed(report);
+  const parsed =
+    kind === "waf" ? normalizeWafParsed(report) : normalizeCostParsed(report);
   return {
     id: stringOr(report.id, `${kind}:latest:${projectId}`),
     kind,
@@ -264,7 +326,8 @@ const normalizeBackendReportDetail = (
     raw: report,
     parsed,
     formatted: isObject(report.formatted)
-      ? normalizeReportEnvelope({ ...report, kind, project_id: projectId }).formatted
+      ? normalizeReportEnvelope({ ...report, kind, project_id: projectId })
+          .formatted
       : undefined,
   };
 };
@@ -284,7 +347,10 @@ const normalizeBackendHistoryItem = (input: unknown): ReportEnvelope => {
     generatedAt,
     source: { provider: "azure" },
     raw: input,
-    parsed: kind === "waf" ? normalizeWafParsed({}, metrics) : normalizeCostParsed({}, metrics),
+    parsed:
+      kind === "waf"
+        ? normalizeWafParsed({}, metrics)
+        : normalizeCostParsed({}, metrics),
     formatted: {
       title: `${kind === "waf" ? "Well-Architected Framework" : "Cost"} report`,
       summary: stringOr(input.status, "Report available"),
@@ -294,7 +360,8 @@ const normalizeBackendHistoryItem = (input: unknown): ReportEnvelope => {
 };
 
 const normalizeBackendHistory = (input: unknown): ReportEnvelope[] => {
-  const items = isObject(input) && Array.isArray(input.items) ? input.items : input;
+  const items =
+    isObject(input) && Array.isArray(input.items) ? input.items : input;
   if (!Array.isArray(items)) {
     return normalizeReportList(input);
   }
@@ -304,7 +371,7 @@ const normalizeBackendHistory = (input: unknown): ReportEnvelope[] => {
 const fetchJson = async (
   options: ReportClientOptions,
   path: string,
-  query: Record<string, string | undefined> = {}
+  query: Record<string, string | undefined> = {},
 ): Promise<unknown> => {
   const apiBase = normalizeApiBase(options.baseUrl);
   const url = appendQuery(new URL(`${apiBase}${path}`), query);
@@ -318,18 +385,71 @@ const fetchJson = async (
     throw new Error(
       `Report request failed with status ${response.status} ${response.statusText}${
         body ? `: ${body}` : ""
-      }`
+      }`,
     );
   }
 
   return response.json();
 };
 
+const parseContentDispositionFilename = (
+  value: string | null,
+): string | undefined => {
+  if (!value) return undefined;
+  const match = value.match(/filename="?([^";]+)"?/i);
+  return match?.[1];
+};
+
+export const downloadReportPdf = async (
+  options: DownloadReportPdfOptions,
+): Promise<DownloadReportPdfResult> => {
+  const apiBase = normalizeApiBase(options.baseUrl);
+  const url = appendQuery(
+    new URL(
+      `${apiBase}/reports/${encodeURIComponent(options.projectId)}/export/pdf`,
+    ),
+    {
+      user_id: options.userId,
+      verbosity: options.verbosity || "detailed",
+      report_type: options.reportType || "all",
+      include_visuals: options.includeVisuals === false ? "false" : "true",
+    },
+  );
+  const response = await fetch(url, {
+    method: "GET",
+    headers: getCLIHeaders(options.authToken),
+  });
+
+  if (!response.ok) {
+    const body = await compactErrorBody(response);
+    throw new Error(
+      `PDF report request failed with status ${response.status} ${response.statusText}${
+        body ? `: ${body}` : ""
+      }`,
+    );
+  }
+
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  return {
+    bytes,
+    filename:
+      parseContentDispositionFilename(
+        response.headers.get("content-disposition"),
+      ) ||
+      `cloudeval-${options.projectId}-${options.verbosity || "detailed"}.pdf`,
+    contentType: response.headers.get("content-type") || "application/pdf",
+    status: response.headers.get("x-cloudeval-report-status") || undefined,
+    warningsCount: response.headers.get("x-cloudeval-report-warnings-count")
+      ? Number(response.headers.get("x-cloudeval-report-warnings-count"))
+      : undefined,
+  };
+};
+
 const postJson = async (
   options: ReportClientOptions,
   path: string,
   query: Record<string, string | undefined> = {},
-  body?: unknown
+  body?: unknown,
 ): Promise<unknown> => {
   const apiBase = normalizeApiBase(options.baseUrl);
   const url = appendQuery(new URL(`${apiBase}${path}`), query);
@@ -347,7 +467,7 @@ const postJson = async (
     throw new Error(
       `Report request failed with status ${response.status} ${response.statusText}${
         bodyText ? `: ${bodyText}` : ""
-      }`
+      }`,
     );
   }
 
@@ -357,11 +477,11 @@ const postJson = async (
 export const fetchReportResource = async (
   options: ReportClientOptions,
   path: string,
-  query: Record<string, string | undefined> = {}
+  query: Record<string, string | undefined> = {},
 ): Promise<unknown> => fetchJson(options, path, query);
 
 export const listReports = async (
-  options: ListReportsOptions
+  options: ListReportsOptions,
 ): Promise<ReportEnvelope[]> => {
   const raw = await fetchJson(options, "/reports/history", {
     user_id: requireUserId(options.userId),
@@ -375,9 +495,12 @@ export const listReports = async (
 };
 
 export const getReport = async (
-  options: GetReportOptions
+  options: GetReportOptions,
 ): Promise<ReportEnvelope> => {
-  if (options.reportId.startsWith("latest:") || options.reportId.startsWith("history:")) {
+  if (
+    options.reportId.startsWith("latest:") ||
+    options.reportId.startsWith("history:")
+  ) {
     const reports = await listReports({
       baseUrl: options.baseUrl,
       authToken: options.authToken,
@@ -394,12 +517,13 @@ export const getReport = async (
           `/reports/detail/${encodeURIComponent(found.projectId)}/${reportType}`,
           {
             user_id: requireUserId(options.userId),
-            timestamp: found.raw && isObject(found.raw) && !found.raw.is_latest
-              ? found.generatedAt
-              : undefined,
-          }
+            timestamp:
+              found.raw && isObject(found.raw) && !found.raw.is_latest
+                ? found.generatedAt
+                : undefined,
+          },
         ),
-        { projectId: found.projectId, reportType }
+        { projectId: found.projectId, reportType },
       );
     }
   }
@@ -407,34 +531,41 @@ export const getReport = async (
   const raw = await fetchJson(
     options,
     `/reports/${encodeURIComponent(options.reportId)}`,
-    { project_id: options.projectId, view: options.view }
+    { project_id: options.projectId, view: options.view },
   );
   return normalizeReportEnvelope(raw);
 };
 
 export const getCostReport = async (
-  options: GetCostReportOptions
+  options: GetCostReportOptions,
 ): Promise<ReportEnvelope> => {
   const projectId = requireProjectId(options.projectId);
   const raw = await fetchJson(
     options,
     `/reports/detail/${encodeURIComponent(projectId)}/cost`,
-    { user_id: requireUserId(options.userId) }
+    { user_id: requireUserId(options.userId) },
   );
   return normalizeBackendReportDetail(raw, { projectId, reportType: "cost" });
 };
 
 export const getWafReport = async (
-  options: GetWafReportOptions
+  options: GetWafReportOptions,
 ): Promise<ReportEnvelope> => {
   const projectId = requireProjectId(options.projectId);
   const raw = await fetchJson(
     options,
     `/reports/detail/${encodeURIComponent(projectId)}/architecture`,
-    { user_id: requireUserId(options.userId) }
+    { user_id: requireUserId(options.userId) },
   );
-  const report = normalizeBackendReportDetail(raw, { projectId, reportType: "architecture" });
-  if (options.severity && isObject(report.parsed) && Array.isArray(report.parsed.rules)) {
+  const report = normalizeBackendReportDetail(raw, {
+    projectId,
+    reportType: "architecture",
+  });
+  if (
+    options.severity &&
+    isObject(report.parsed) &&
+    Array.isArray(report.parsed.rules)
+  ) {
     return {
       ...report,
       parsed: {
@@ -442,7 +573,8 @@ export const getWafReport = async (
         rules: report.parsed.rules.filter(
           (rule: unknown) =>
             isObject(rule) &&
-            String(rule.severity).toLowerCase() === options.severity?.toLowerCase()
+            String(rule.severity).toLowerCase() ===
+              options.severity?.toLowerCase(),
         ),
       },
     };
@@ -451,71 +583,87 @@ export const getWafReport = async (
 };
 
 export const getReportDetail = async (
-  options: GetReportDetailOptions
+  options: GetReportDetailOptions,
 ): Promise<unknown> =>
   fetchJson(
     options,
     `/reports/detail/${encodeURIComponent(options.projectId)}/${encodeURIComponent(
-      options.reportType
+      options.reportType,
     )}`,
     {
       user_id: options.userId,
       timestamp: options.timestamp,
-    }
+    },
   );
 
 export const getCostReportFull = async (
-  options: ReportClientOptions & { projectId: string; userId?: string }
+  options: ReportClientOptions & { projectId: string; userId?: string },
 ): Promise<unknown> =>
-  fetchJson(options, `/cost-reports/${encodeURIComponent(options.projectId)}/full`, {
-    user_id: options.userId,
-  });
+  fetchJson(
+    options,
+    `/cost-reports/${encodeURIComponent(options.projectId)}/full`,
+    {
+      user_id: options.userId,
+    },
+  );
 
 export const getWafReportFull = async (
-  options: ReportClientOptions & { projectId: string; userId?: string }
+  options: ReportClientOptions & { projectId: string; userId?: string },
 ): Promise<unknown> =>
   fetchJson(
     options,
     `/well-architected-reports/${encodeURIComponent(options.projectId)}/full`,
     {
       user_id: options.userId,
-    }
+    },
   );
 
 export const getCostReportHistory = async (
-  options: ReportClientOptions & { projectId: string; userId?: string; timestamp?: string }
+  options: ReportClientOptions & {
+    projectId: string;
+    userId?: string;
+    timestamp?: string;
+  },
 ): Promise<unknown> =>
   options.timestamp
     ? fetchJson(
         options,
         `/cost-reports/${encodeURIComponent(options.projectId)}/historical/${encodeURIComponent(
-          options.timestamp
+          options.timestamp,
         )}`,
-        { user_id: options.userId }
+        { user_id: options.userId },
       )
-    : fetchJson(options, `/cost-reports/${encodeURIComponent(options.projectId)}/historical`, {
-        user_id: options.userId,
-      });
+    : fetchJson(
+        options,
+        `/cost-reports/${encodeURIComponent(options.projectId)}/historical`,
+        {
+          user_id: options.userId,
+        },
+      );
 
 export const getWafReportHistory = async (
-  options: ReportClientOptions & { projectId: string; userId?: string; timestamp?: string }
+  options: ReportClientOptions & {
+    projectId: string;
+    userId?: string;
+    timestamp?: string;
+  },
 ): Promise<unknown> =>
   options.timestamp
     ? fetchJson(
         options,
         `/well-architected-reports/${encodeURIComponent(
-          options.projectId
+          options.projectId,
         )}/history/${encodeURIComponent(options.timestamp)}`,
-        { user_id: options.userId }
+        { user_id: options.userId },
       )
     : fetchJson(
         options,
         `/well-architected-reports/${encodeURIComponent(options.projectId)}/history`,
-        { user_id: options.userId }
+        { user_id: options.userId },
       );
 
 const reportRunTypes = (
-  type: ReportRunType
+  type: ReportRunType,
 ): Array<Exclude<ReportRunType, "all" | "architecture">> => {
   if (type === "all") return ["cost", "waf", "unit-tests"];
   if (type === "architecture") return ["waf"];
@@ -525,7 +673,9 @@ const reportRunTypes = (
 const boolQuery = (value: boolean | undefined): string | undefined =>
   value === undefined ? undefined : String(Boolean(value));
 
-export const runReports = async (options: RunReportOptions): Promise<unknown[]> => {
+export const runReports = async (
+  options: RunReportOptions,
+): Promise<unknown[]> => {
   const projectId = requireProjectId(options.projectId);
   const userId = requireUserId(options.userId);
   const results: unknown[] = [];
@@ -533,13 +683,17 @@ export const runReports = async (options: RunReportOptions): Promise<unknown[]> 
   for (const type of reportRunTypes(options.type)) {
     if (type === "cost") {
       results.push(
-        await postJson(options, `/cost-reports/${encodeURIComponent(projectId)}/regenerate`, {
-          user_id: userId,
-          region: options.region,
-          currency: options.currency,
-          include_time_series: boolQuery(options.includeTimeSeries),
-          save_report: boolQuery(options.saveReport),
-        })
+        await postJson(
+          options,
+          `/cost-reports/${encodeURIComponent(projectId)}/regenerate`,
+          {
+            user_id: userId,
+            region: options.region,
+            currency: options.currency,
+            include_time_series: boolQuery(options.includeTimeSeries),
+            save_report: boolQuery(options.saveReport),
+          },
+        ),
       );
       continue;
     }
@@ -552,16 +706,20 @@ export const runReports = async (options: RunReportOptions): Promise<unknown[]> 
           {
             user_id: userId,
             save_report: boolQuery(options.saveReport),
-          }
-        )
+          },
+        ),
       );
       continue;
     }
 
     results.push(
-      await postJson(options, `/reports/${encodeURIComponent(projectId)}/unit-tests/regenerate`, {
-        user_id: userId,
-      })
+      await postJson(
+        options,
+        `/reports/${encodeURIComponent(projectId)}/unit-tests/regenerate`,
+        {
+          user_id: userId,
+        },
+      ),
     );
   }
 
@@ -569,7 +727,7 @@ export const runReports = async (options: RunReportOptions): Promise<unknown[]> 
 };
 
 export const getReportJobStatus = async (
-  options: ReportJobStatusOptions
+  options: ReportJobStatusOptions,
 ): Promise<unknown> =>
   fetchJson(options, `/jobs/${encodeURIComponent(options.jobId)}`, {
     user_id: requireUserId(options.userId),

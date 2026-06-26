@@ -231,7 +231,8 @@ const wafReport = {
         status: "warn",
         severity: "medium",
         moduleName: "PSRule.Rules.Azure",
-        helpUri: "https://azure.github.io/PSRule.Rules.Azure/en/rules/Azure.ManagedIdentity/",
+        helpUri:
+          "https://azure.github.io/PSRule.Rules.Azure/en/rules/Azure.ManagedIdentity/",
       },
     ],
   },
@@ -668,7 +669,10 @@ const startBackend = async (
           { id: "nsg-1", type: "Microsoft.Network/networkSecurityGroups" },
           { id: "storage-1", type: "Microsoft.Storage/storageAccounts" },
           { id: "kv-1", type: "Microsoft.KeyVault/vaults" },
-          { id: "id-1", type: "Microsoft.ManagedIdentity/userAssignedIdentities" },
+          {
+            id: "id-1",
+            type: "Microsoft.ManagedIdentity/userAssignedIdentities",
+          },
         ],
         edges: Array.from({ length: 11 }, (_, index) => ({
           id: `edge-${index + 1}`,
@@ -707,7 +711,10 @@ const startBackend = async (
     ) {
       return json(res, {
         import: { files_added: 4, files_updated: 0, files_skipped: 0 },
-        resolve: { primary_stack_id: "primary-architecture", linked_file_count: 2 },
+        resolve: {
+          primary_stack_id: "primary-architecture",
+          linked_file_count: 2,
+        },
         refresh_analysis: { project_reports_autogen: "job-reports" },
       });
     }
@@ -776,6 +783,20 @@ const startBackend = async (
     if (url.pathname === "/api/v1/reports/cost-current") {
       return json(res, costReport);
     }
+    if (url.pathname === `/api/v1/reports/${project.id}/export/pdf`) {
+      assert.equal(url.searchParams.get("user_id"), user.id);
+      assert.equal(url.searchParams.get("verbosity"), "evidence");
+      assert.equal(url.searchParams.get("report_type"), "all");
+      assert.equal(url.searchParams.get("include_visuals"), "true");
+      res.writeHead(200, {
+        "Content-Type": "application/pdf",
+        "Content-Disposition": `attachment; filename="cloudeval-${project.id}-evidence.pdf"`,
+        "X-Cloudeval-Report-Status": "complete",
+        "X-Cloudeval-Report-Warnings-Count": "0",
+      });
+      res.end("%PDF-1.4\n1 0 obj\n<<>>\nendobj\n%%EOF\n");
+      return;
+    }
     if (
       url.pathname === `/api/v1/cost-reports/${project.id}/full` ||
       url.pathname === `/api/v1/cost-reports/${githubProject.id}/full`
@@ -793,7 +814,9 @@ const startBackend = async (
             processed: {
               total_monthly_cost: options.costMonthlyAmount ?? 42,
               opportunity_summary: { total_monthly_savings: 7 },
-              cost_by_service_family: options.costServiceFamilies ?? { Compute: 30 },
+              cost_by_service_family: options.costServiceFamilies ?? {
+                Compute: 30,
+              },
               optimization_recommendations: [
                 { description: "Rightsize VM", monthly_savings: 7 },
               ],
@@ -855,7 +878,10 @@ const startBackend = async (
           },
           cost: {
             report_type: "cost",
-            metrics: { monthly_cost: options.costMonthlyAmount ?? 42, currency: "USD" },
+            metrics: {
+              monthly_cost: options.costMonthlyAmount ?? 42,
+              currency: "USD",
+            },
           },
           unit_tests: {
             report_type: "unit_tests",
@@ -997,7 +1023,9 @@ const startBackend = async (
           summary: { total_rules: 1, passed_rules: 0, failed_rules: 1 },
           filtered_results: {
             total_matching_rules: 1,
-            results: [{ rule_name: "async-template-validation", outcome: "Fail" }],
+            results: [
+              { rule_name: "async-template-validation", outcome: "Fail" },
+            ],
           },
         },
       });
@@ -1058,7 +1086,8 @@ const startBackend = async (
               passed: false,
               severity: "error",
               message: "One resource id is not derived from resourceId().",
-              recommendation: "Review template for compliance with ARM TTK best practices.",
+              recommendation:
+                "Review template for compliance with ARM TTK best practices.",
               duration_ms: 18,
               file_path: "/tmp/tmp_backend_template.json",
             },
@@ -1072,9 +1101,15 @@ const startBackend = async (
     ) {
       assert.equal(url.searchParams.get("user_id"), user.id);
       const payload = JSON.parse(body || "{}");
-      assert.equal(payload.template.resources[0].type, "Microsoft.Storage/storageAccounts");
+      assert.equal(
+        payload.template.resources[0].type,
+        "Microsoft.Storage/storageAccounts",
+      );
       if (payload.parameter_file !== undefined) {
-        assert.equal(payload.parameter_file.parameters.location.value, "eastus2");
+        assert.equal(
+          payload.parameter_file.parameters.location.value,
+          "eastus2",
+        );
       }
       assert.equal(typeof payload.options.include_only_failed, "boolean");
       const selectedRules = Array.isArray(payload.options.rule_names)
@@ -1106,7 +1141,8 @@ const startBackend = async (
             : { total_rules: 12, passed_rules: 10, failed_rules: 2 },
         requested_rule_names: selectedRules,
         filtered_results: {
-          total_matching_rules: selectedRules.length > 0 ? selectedRules.length : 2,
+          total_matching_rules:
+            selectedRules.length > 0 ? selectedRules.length : 2,
           results: [
             {
               rule_name: "storage-public-access",
@@ -1116,11 +1152,13 @@ const startBackend = async (
               target_type: "Microsoft.Storage/storageAccounts",
               info: {
                 display_name: "Disable anonymous blob access",
-                description: "Storage accounts should reject anonymous blob access.",
+                description:
+                  "Storage accounts should reject anonymous blob access.",
                 synopsis: "Anonymous blob access increases data exposure risk.",
               },
               recommendation: "Set allowBlobPublicAccess to false.",
-              documentation_url: "https://example.test/rules/storage-public-access",
+              documentation_url:
+                "https://example.test/rules/storage-public-access",
             },
           ],
         },
@@ -1131,7 +1169,9 @@ const startBackend = async (
       const payload = JSON.parse(body || "{}");
       assert.equal(payload.template.resources[0].name, "sttest001");
       assert.equal(payload.parameter_file.parameters.location.value, "eastus2");
-      assert.deepEqual(payload.include_tests, ["IDs Should Be Derived From ResourceIDs"]);
+      assert.deepEqual(payload.include_tests, [
+        "IDs Should Be Derived From ResourceIDs",
+      ]);
       return json(
         res,
         {
@@ -1145,12 +1185,18 @@ const startBackend = async (
         202,
       );
     }
-    if (url.pathname === "/api/v1/arm-template/parse" && req.method === "POST") {
+    if (
+      url.pathname === "/api/v1/arm-template/parse" &&
+      req.method === "POST"
+    ) {
       assert.equal(url.searchParams.get("user_id"), user.id);
       const payload = JSON.parse(body || "{}");
       assert.equal(payload.template.resources[0].name, "sttest001");
       if (payload.parameter_file !== undefined) {
-        assert.equal(payload.parameter_file.parameters.location.value, "eastus2");
+        assert.equal(
+          payload.parameter_file.parameters.location.value,
+          "eastus2",
+        );
       }
       return json(res, {
         success: true,
@@ -1165,7 +1211,10 @@ const startBackend = async (
         ],
       });
     }
-    if (url.pathname === "/api/v1/rule/rules/categories" && req.method === "GET") {
+    if (
+      url.pathname === "/api/v1/rule/rules/categories" &&
+      req.method === "GET"
+    ) {
       return json(res, {
         success: true,
         total_categories: 1,
@@ -1173,7 +1222,9 @@ const startBackend = async (
           security: {
             display_name: "Security",
             rule_count: 1,
-            rules: [{ rule_name: "storage-public-access", severity: "Warning" }],
+            rules: [
+              { rule_name: "storage-public-access", severity: "Warning" },
+            ],
           },
         },
       });
@@ -1288,7 +1339,10 @@ const startBackend = async (
       const payload = JSON.parse(body || "{}");
       assert.equal(payload.source, "cli");
       assert.equal(payload.project?.id, "project-github");
-      assert.equal(payload.repository?.full_name, "ganakailabs/cloudeval-github-sync-e2e");
+      assert.equal(
+        payload.repository?.full_name,
+        "ganakailabs/cloudeval-github-sync-e2e",
+      );
       assert.match(String(payload.commit_sha ?? ""), /^sha-review/);
       return json(
         res,
@@ -1324,15 +1378,20 @@ const startBackend = async (
       );
       const message = String(payload.message ?? "");
       if (
-        message.includes("Write a concise CloudEval pull request review summary") &&
-        aiSummaryRateLimitFallbackResponses < (options.aiSummaryRateLimitFallbackResponses ?? 0)
+        message.includes(
+          "Write a concise CloudEval pull request review summary",
+        ) &&
+        aiSummaryRateLimitFallbackResponses <
+          (options.aiSummaryRateLimitFallbackResponses ?? 0)
       ) {
         aiSummaryRateLimitFallbackResponses += 1;
         res.write(
           `data: ${JSON.stringify({ type: "responding", node: "generate_response", content: "The final answer model was rate-limited, so I could not complete the normal narrative pass. Based on the available tool context, here is the dependency view that was already generated.\\n\\nRequest: The PR passes gate with a low Well-Architected score (23.1) and 40 high-risk findings. Cost posture is minimal at $3.65/month. Three unit test failures require attention, though policy checks are clean. Recommend addressing high-risk findings and unit test failures before production deployment.\\n\\nThe request reached the data-fetching step, but the final answer model was rate-limited before it could compose the normal response.", status: "completed" })}\n\n`,
         );
       } else if (
-        message.includes("Write a concise CloudEval pull request review summary") &&
+        message.includes(
+          "Write a concise CloudEval pull request review summary",
+        ) &&
         aiSummaryRateLimitResponses < (options.aiSummaryRateLimitResponses ?? 0)
       ) {
         aiSummaryRateLimitResponses += 1;
@@ -1340,15 +1399,20 @@ const startBackend = async (
           `data: ${JSON.stringify({ type: "responding", node: "generate_response", content: "I'm receiving too many requests right now. Please try again in a moment.", status: "completed" })}\n\n`,
         );
       } else if (
-        message.includes("Write a concise CloudEval pull request review summary") &&
-        aiSummaryGenericFailureResponses < (options.aiSummaryGenericFailureResponses ?? 0)
+        message.includes(
+          "Write a concise CloudEval pull request review summary",
+        ) &&
+        aiSummaryGenericFailureResponses <
+          (options.aiSummaryGenericFailureResponses ?? 0)
       ) {
         aiSummaryGenericFailureResponses += 1;
         res.write(
           `data: ${JSON.stringify({ type: "responding", node: "generate_response", content: "I'm sorry, something went wrong while processing your request. Please try again or ask a different question about your Azure infrastructure.", status: "completed" })}\n\n`,
         );
       } else if (
-        message.includes("Write a concise CloudEval pull request review summary") &&
+        message.includes(
+          "Write a concise CloudEval pull request review summary",
+        ) &&
         options.aiSummaryNeverCompletes
       ) {
         setTimeout(() => {
@@ -1358,14 +1422,18 @@ const startBackend = async (
         }, 100);
         return undefined;
       } else if (
-        message.includes("Write a concise CloudEval pull request review summary") &&
+        message.includes(
+          "Write a concise CloudEval pull request review summary",
+        ) &&
         options.aiSummaryRecommendedNextStepResponse
       ) {
         res.write(
           `data: ${JSON.stringify({ type: "responding", node: "generate_response", content: "Short Summary: The gate passes, but the architecture posture is critical and validation has failing tests.\\n\\nDetails:\\n**Key risks:** Public access and weak network controls need attention.\\n**Recommended next step:** Fix the critical findings, rerun validation, and keep the pull request blocked until the gate is clean.", status: "completed" })}\n\n`,
         );
       } else if (
-        message.includes("Write a concise CloudEval pull request review summary") &&
+        message.includes(
+          "Write a concise CloudEval pull request review summary",
+        ) &&
         options.aiSummaryGraphInsightResponse
       ) {
         res.write(
@@ -1556,11 +1624,7 @@ const runProcess = async (
   const exitCode = await new Promise<number | null>((resolve) =>
     child.on("exit", resolve),
   );
-  assert.equal(
-    exitCode,
-    0,
-    Buffer.concat(stderr).toString("utf8"),
-  );
+  assert.equal(exitCode, 0, Buffer.concat(stderr).toString("utf8"));
 };
 
 const bumpPatchVersion = (version: string): string => {
@@ -1727,10 +1791,14 @@ test("skills commands list, show, doctor, and path expose public skill catalog",
   assert.match(table.stdout, /cloudeval-template-validation/);
   assert.match(table.stdout, /cloudeval-graph-intelligence/);
 
-  const listed = parseJson(await runCli(["skills", "list", "--format", "json"]));
+  const listed = parseJson(
+    await runCli(["skills", "list", "--format", "json"]),
+  );
   assert.equal(listed.command, "skills list");
   assert.equal(
-    listed.data.skills.some((skill: any) => skill.id === "cloudeval-graph-intelligence"),
+    listed.data.skills.some(
+      (skill: any) => skill.id === "cloudeval-graph-intelligence",
+    ),
     true,
   );
 
@@ -1739,7 +1807,9 @@ test("skills commands list, show, doctor, and path expose public skill catalog",
   assert.match(shown.stdout, /^# CloudEval Template Validation/m);
   assert.match(shown.stdout, /## Safety Requirements/);
 
-  const doctor = parseJson(await runCli(["skills", "doctor", "--format", "json"]));
+  const doctor = parseJson(
+    await runCli(["skills", "doctor", "--format", "json"]),
+  );
   assert.equal(doctor.command, "skills doctor");
   assert.equal(doctor.data.ok, true);
 
@@ -1861,10 +1931,7 @@ test("credentials, identity, and live capabilities commands call credential APIs
         "--non-interactive",
       ]);
       assert.equal(jsonWritten.exitCode, 0, jsonWritten.stderr);
-      assert.match(
-        await fs.readFile(jsonOutput, "utf8"),
-        /"\[redacted\]"/,
-      );
+      assert.match(await fs.readFile(jsonOutput, "utf8"), /"\[redacted\]"/);
       assert.doesNotMatch(
         await fs.readFile(jsonOutput, "utf8"),
         /cev_test_ak_01JTEST_createdsecret/,
@@ -1895,7 +1962,10 @@ test("credentials, identity, and live capabilities commands call credential APIs
           "--non-interactive",
         ]),
       );
-      assert.equal(showSecret.data.access_key, "cev_test_ak_01JTEST_createdsecret");
+      assert.equal(
+        showSecret.data.access_key,
+        "cev_test_ak_01JTEST_createdsecret",
+      );
     } finally {
       await fs.rm(outputDir, { recursive: true, force: true });
     }
@@ -2975,9 +3045,18 @@ test("projects create uploads a nested ARM workspace directory", async () => {
       path.join(workspaceDir, "nested", "network.json"),
       JSON.stringify({ resources: [] }),
     );
-    await fs.writeFile(path.join(workspaceDir, ".env"), "CLIENT_SECRET=do-not-upload\n");
-    await fs.writeFile(path.join(workspaceDir, "terraform.tfstate"), "state-secret\n");
-    await fs.writeFile(path.join(workspaceDir, "nested", "id_rsa"), "private-key\n");
+    await fs.writeFile(
+      path.join(workspaceDir, ".env"),
+      "CLIENT_SECRET=do-not-upload\n",
+    );
+    await fs.writeFile(
+      path.join(workspaceDir, "terraform.tfstate"),
+      "state-secret\n",
+    );
+    await fs.writeFile(
+      path.join(workspaceDir, "nested", "id_rsa"),
+      "private-key\n",
+    );
 
     const create = parseJson(
       await runCli([
@@ -3003,7 +3082,10 @@ test("projects create uploads a nested ARM workspace directory", async () => {
 
     assert.equal(create.command, "projects create");
     assert.equal(create.data.project.id, "project-created");
-    assert.equal(create.data.iacPipeline.resolve.primary_stack_id, "primary-architecture");
+    assert.equal(
+      create.data.iacPipeline.resolve.primary_stack_id,
+      "primary-architecture",
+    );
 
     const connectionRequest = backend.requests.find(
       (request) => request.path === "/api/v1/connection/",
@@ -3020,8 +3102,14 @@ test("projects create uploads a nested ARM workspace directory", async () => {
     assert.match(connectionRequest.body, /\.cloudeval\/config\.yaml/);
     assert.match(connectionRequest.body, /id: primary-architecture/);
     assert.match(connectionRequest.body, /name: Primary architecture/);
-    assert.match(connectionRequest.body, /Visualization source for diagrams and reports/);
-    assert.match(connectionRequest.body, /Optional CI gates for `cloudeval review` and GitHub Actions/);
+    assert.match(
+      connectionRequest.body,
+      /Visualization source for diagrams and reports/,
+    );
+    assert.match(
+      connectionRequest.body,
+      /Optional CI gates for `cloudeval review` and GitHub Actions/,
+    );
 
     const pipelineRequest = backend.requests.find(
       (request) =>
@@ -3045,7 +3133,9 @@ test("projects create compiles a Bicep workspace entry for analysis upload", asy
   const workspaceDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "cloudeval-bicep-workspace-"),
   );
-  const fakeBinDir = await fs.mkdtemp(path.join(os.tmpdir(), "cloudeval-fake-az-"));
+  const fakeBinDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "cloudeval-fake-az-"),
+  );
   try {
     await fs.writeFile(
       path.join(workspaceDir, "main.bicep"),
@@ -3087,7 +3177,9 @@ test("projects create compiles a Bicep workspace entry for analysis upload", asy
           "--no-open",
         ],
         {
-          env: { PATH: `${fakeBinDir}${path.delimiter}${process.env.PATH ?? ""}` },
+          env: {
+            PATH: `${fakeBinDir}${path.delimiter}${process.env.PATH ?? ""}`,
+          },
         },
       ),
     );
@@ -3203,7 +3295,13 @@ test("project graph commands expose graph intelligence for automation", async ()
     assert.equal(graph.data.nodes[0].id, "vm-1");
 
     const syncRuns = parseJson(
-      await runCli(["projects", "graph", "sync-runs", "project-main", ...common]),
+      await runCli([
+        "projects",
+        "graph",
+        "sync-runs",
+        "project-main",
+        ...common,
+      ]),
     );
     assert.equal(syncRuns.command, "projects graph sync-runs");
     assert.equal(syncRuns.data.active_sync_version, "sync-2");
@@ -3262,24 +3360,28 @@ test("template validation, parsing, and rule catalog commands use generic public
   ];
   try {
     await fs.writeFile(templatePath, JSON.stringify(templateFixture), "utf8");
-    await fs.writeFile(parametersPath, JSON.stringify(parameterFileFixture), "utf8");
+    await fs.writeFile(
+      parametersPath,
+      JSON.stringify(parameterFileFixture),
+      "utf8",
+    );
 
     const validationResult = await runCli([
-        "validate",
-        "template",
-        "--template-file",
-        templatePath,
-        "--parameters-file",
-        parametersPath,
-        "--failed-only",
-        "--min-severity",
-        "Warning",
-        "--rule",
-        "storage-public-access",
-        "--rule",
-        "storage-encryption",
-        ...common,
-      ]);
+      "validate",
+      "template",
+      "--template-file",
+      templatePath,
+      "--parameters-file",
+      parametersPath,
+      "--failed-only",
+      "--min-severity",
+      "Warning",
+      "--rule",
+      "storage-public-access",
+      "--rule",
+      "storage-encryption",
+      ...common,
+    ]);
     const validation = parseJson(validationResult);
     assert.equal(validation.command, "validate template");
     assert.equal(validation.data.summary.failed_rules, 2);
@@ -3345,10 +3447,16 @@ test("template validation, parsing, and rule catalog commands use generic public
     assert.equal(waitedValidation.data.jobId, "job-template-validation-1");
     assert.equal(waitedValidation.data.status.status, "SUCCEEDED");
     assert.equal(waitedValidation.data.result.summary.failed_rules, 1);
-    assert.match(waitedValidationResult.stderr, /validate template job job-template-validation-1 submitted/);
+    assert.match(
+      waitedValidationResult.stderr,
+      /validate template job job-template-validation-1 submitted/,
+    );
     assert.match(waitedValidationResult.stderr, /RUNNING 50%/);
     assert.match(waitedValidationResult.stderr, /async-template-validation/);
-    assert.match(waitedValidationResult.stderr, /Validation complete: 0 passed, 1 failed/);
+    assert.match(
+      waitedValidationResult.stderr,
+      /Validation complete: 0 passed, 1 failed/,
+    );
 
     const templateTestsResult = await runCli([
       "validate",
@@ -3386,16 +3494,32 @@ test("template validation, parsing, and rule catalog commands use generic public
       passed: false,
       severity: "error",
       message: "One resource id is not derived from resourceId().",
-      recommendation: "Review template for compliance with template validation best practices.",
+      recommendation:
+        "Review template for compliance with template validation best practices.",
       duration_ms: 18,
       file_path: "template.json",
     });
-    assert.match(templateTestsResult.stderr, /validate tests job job-template-tests-1 submitted/);
+    assert.match(
+      templateTestsResult.stderr,
+      /validate tests job job-template-tests-1 submitted/,
+    );
     assert.match(templateTestsResult.stderr, /RUNNING 50%/);
-    assert.match(templateTestsResult.stderr, /Template Should Not Contain Blanks/);
-    assert.match(templateTestsResult.stderr, /Template tests complete: 1 passed, 1 failed, 0 skipped/);
-    assert.match(templateTestsResult.stderr, /message: One resource id is not derived from resourceId\(\)\./);
-    assert.match(templateTestsResult.stderr, /recommendation: Review template for compliance with template validation best practices\./);
+    assert.match(
+      templateTestsResult.stderr,
+      /Template Should Not Contain Blanks/,
+    );
+    assert.match(
+      templateTestsResult.stderr,
+      /Template tests complete: 1 passed, 1 failed, 0 skipped/,
+    );
+    assert.match(
+      templateTestsResult.stderr,
+      /message: One resource id is not derived from resourceId\(\)\./,
+    );
+    assert.match(
+      templateTestsResult.stderr,
+      /recommendation: Review template for compliance with template validation best practices\./,
+    );
     assert.doesNotMatch(templateTestsResult.stderr, /ARM TTK/i);
     assert.doesNotMatch(templateTestsResult.stdout, /ARM TTK/i);
     assert.match(templateTestsResult.stderr, /location: template\.json/);
@@ -3414,12 +3538,12 @@ test("template validation, parsing, and rule catalog commands use generic public
     assert.equal(validationWithoutParams.data.summary.failed_rules, 2);
 
     const parseResult = await runCli([
-        "validate",
-        "parse",
-        "--template-file",
-        templatePath,
-        ...common,
-      ]);
+      "validate",
+      "parse",
+      "--template-file",
+      templatePath,
+      ...common,
+    ]);
     const parsed = parseJson(parseResult);
     assert.equal(parsed.command, "validate parse");
     assert.equal(parsed.data.resource_count, 1);
@@ -3628,6 +3752,34 @@ test("report list, show, cost, waf, rules, and download commands return report d
       "project-main-cost-report.json",
       "project-main-waf-report.json",
     ]);
+
+    const pdfOutput = path.join(outputDir, "project-report.pdf");
+    const pdfDownload = parseJson(
+      await runCli([
+        "reports",
+        "download",
+        ...common,
+        "--type",
+        "all",
+        "--format",
+        "pdf",
+        "--report-verbosity",
+        "evidence",
+        "--output",
+        pdfOutput,
+        "--frontend-url",
+        "https://app.example.test",
+        "--no-open",
+      ]),
+    );
+    assert.equal(pdfDownload.command, "reports download");
+    assert.equal(pdfDownload.data.format, "pdf");
+    assert.equal(pdfDownload.data.reportVerbosity, "evidence");
+    assert.equal(pdfDownload.data.file, pdfOutput);
+    assert.equal(
+      await fs.readFile(pdfOutput, "utf8"),
+      "%PDF-1.4\n1 0 obj\n<<>>\nendobj\n%%EOF\n",
+    );
   } finally {
     await fs.rm(outputDir, { recursive: true, force: true });
     await backend.close();
@@ -3641,33 +3793,42 @@ test("review command blocks dirty local working trees unless explicitly ignored"
   );
   try {
     await runProcess("git", ["init", "-b", "main"], repoDir);
-    await runProcess("git", ["config", "user.email", "test@example.com"], repoDir);
+    await runProcess(
+      "git",
+      ["config", "user.email", "test@example.com"],
+      repoDir,
+    );
     await runProcess("git", ["config", "user.name", "Test User"], repoDir);
-    await runProcess("git", [
-      "remote",
-      "add",
-      "origin",
-      "https://github.com/ganakailabs/cloudeval-github-sync-e2e.git",
-    ], repoDir);
-    await fs.writeFile(path.join(repoDir, "azuredeploy.json"), '{"resources":[]}\n');
+    await runProcess(
+      "git",
+      [
+        "remote",
+        "add",
+        "origin",
+        "https://github.com/ganakailabs/cloudeval-github-sync-e2e.git",
+      ],
+      repoDir,
+    );
+    await fs.writeFile(
+      path.join(repoDir, "azuredeploy.json"),
+      '{"resources":[]}\n',
+    );
     await runProcess("git", ["add", "azuredeploy.json"], repoDir);
     await runProcess("git", ["commit", "-m", "initial"], repoDir);
-    const headSha = (
-      await new Promise<string>((resolve, reject) => {
-        const child = spawn("git", ["rev-parse", "HEAD"], { cwd: repoDir });
-        const stdout: Buffer[] = [];
-        const stderr: Buffer[] = [];
-        child.stdout.on("data", (chunk) => stdout.push(Buffer.from(chunk)));
-        child.stderr.on("data", (chunk) => stderr.push(Buffer.from(chunk)));
-        child.on("exit", (code) => {
-          if (code === 0) {
-            resolve(Buffer.concat(stdout).toString("utf8").trim());
-          } else {
-            reject(new Error(Buffer.concat(stderr).toString("utf8")));
-          }
-        });
-      })
-    );
+    const headSha = await new Promise<string>((resolve, reject) => {
+      const child = spawn("git", ["rev-parse", "HEAD"], { cwd: repoDir });
+      const stdout: Buffer[] = [];
+      const stderr: Buffer[] = [];
+      child.stdout.on("data", (chunk) => stdout.push(Buffer.from(chunk)));
+      child.stderr.on("data", (chunk) => stderr.push(Buffer.from(chunk)));
+      child.on("exit", (code) => {
+        if (code === 0) {
+          resolve(Buffer.concat(stdout).toString("utf8").trim());
+        } else {
+          reject(new Error(Buffer.concat(stderr).toString("utf8")));
+        }
+      });
+    });
     await fs.writeFile(path.join(repoDir, "dirty.txt"), "local-only\n");
 
     const common = [
@@ -3693,7 +3854,8 @@ test("review command blocks dirty local working trees unless explicitly ignored"
     );
     assert.equal(
       backend.requests.some(
-        (request) => request.path === "/api/v1/projects/project-github/github/sync",
+        (request) =>
+          request.path === "/api/v1/projects/project-github/github/sync",
       ),
       false,
     );
@@ -3708,7 +3870,8 @@ test("review command blocks dirty local working trees unless explicitly ignored"
     assert.equal(ignored.data.gate.status, "warn");
 
     const syncRequest = backend.requests.find(
-      (request) => request.path === "/api/v1/projects/project-github/github/sync",
+      (request) =>
+        request.path === "/api/v1/projects/project-github/github/sync",
     );
     assert(syncRequest);
     assert.deepEqual(JSON.parse(syncRequest.body), { commit_sha: headSha });
@@ -3780,7 +3943,9 @@ test("review command includes well architected, cost, and validation gate drilld
     fullReportShape: true,
     wafFullReportFailures: 1,
   });
-  const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "cloudeval-review-gate-"));
+  const cwd = await fs.mkdtemp(
+    path.join(os.tmpdir(), "cloudeval-review-gate-"),
+  );
   try {
     await fs.mkdir(path.join(cwd, ".cloudeval"), { recursive: true });
     await fs.writeFile(
@@ -3854,13 +4019,25 @@ test("review command includes well architected, cost, and validation gate drilld
       "utf8",
     );
     assert.match(markdownArtifact, /Well-Architected drilldown/);
-    assert.match(markdownArtifact, /\| Security \| \*\*91\/100\*\* \| 🟢 EXCELLENT \|/);
+    assert.match(
+      markdownArtifact,
+      /\| Security \| \*\*91\/100\*\* \| 🟢 EXCELLENT \|/,
+    );
     assert.match(markdownArtifact, /🟢 Policy checks: GOOD/);
-    assert.match(markdownArtifact, /🟢 Cost: 42 USD\/mo \(under 100 USD\/mo budget\)/);
+    assert.match(
+      markdownArtifact,
+      /🟢 Cost: 42 USD\/mo \(under 100 USD\/mo budget\)/,
+    );
     assert.match(markdownArtifact, /^🟢 \*\*Overall\*\* : PASS/m);
     assert.match(markdownArtifact, /#### Source/);
-    assert.match(markdownArtifact, /\*\*CloudEval project\*\*: \[GitHub IaC Project\]\(http:\/\/localhost:3000\/app\/projects\/project-github\?view=preview&layout=architecture\)/);
-    assert.match(markdownArtifact, /🟢 Well-Architected Posture: 91\/100 \(EXCELLENT\)/);
+    assert.match(
+      markdownArtifact,
+      /\*\*CloudEval project\*\*: \[GitHub IaC Project\]\(http:\/\/localhost:3000\/app\/projects\/project-github\?view=preview&layout=architecture\)/,
+    );
+    assert.match(
+      markdownArtifact,
+      /🟢 Well-Architected Posture: 91\/100 \(EXCELLENT\)/,
+    );
     assert.doesNotMatch(markdownArtifact, /\bmin 85\b|\bmax 100\b/);
   } finally {
     await fs.rm(cwd, { recursive: true, force: true });
@@ -3920,7 +4097,9 @@ test("review command writes visual markdown drilldowns for PR comments", async (
       },
     ],
   });
-  const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "cloudeval-review-visual-md-"));
+  const cwd = await fs.mkdtemp(
+    path.join(os.tmpdir(), "cloudeval-review-visual-md-"),
+  );
   try {
     await fs.mkdir(path.join(cwd, ".cloudeval"), { recursive: true });
     await fs.writeFile(
@@ -3979,54 +4158,138 @@ test("review command writes visual markdown drilldowns for PR comments", async (
 
     assert.equal(result.data.gate.status, "warn");
     assert.equal(result.data.gate.validation.unitTests.failed, 3);
-    assert.equal(result.data.links.project.includes("/app/projects/project-github"), true);
-    assert.equal(result.data.links.reports.architecture.includes("/app/reports/project-github"), true);
-    assert.equal(result.data.links.reports.cost.includes("reportType=cost"), true);
-    assert.equal(result.data.links.downloads.pdf.includes("downloadPdf=1"), true);
-    assert.equal(result.data.links.workflowRun, "https://github.com/ganakailabs/cloudeval-github-sync-e2e/actions/runs/123456789");
-    assert.equal(result.data.links.downloads.reviewArtifacts, "https://github.com/ganakailabs/cloudeval-github-sync-e2e/actions/runs/123456789");
+    assert.equal(
+      result.data.links.project.includes("/app/projects/project-github"),
+      true,
+    );
+    assert.equal(
+      result.data.links.reports.architecture.includes(
+        "/app/reports/project-github",
+      ),
+      true,
+    );
+    assert.equal(
+      result.data.links.reports.cost.includes("reportType=cost"),
+      true,
+    );
+    assert.equal(
+      result.data.links.downloads.pdf.includes("downloadPdf=1"),
+      true,
+    );
+    assert.equal(
+      result.data.links.workflowRun,
+      "https://github.com/ganakailabs/cloudeval-github-sync-e2e/actions/runs/123456789",
+    );
+    assert.equal(
+      result.data.links.downloads.reviewArtifacts,
+      "https://github.com/ganakailabs/cloudeval-github-sync-e2e/actions/runs/123456789",
+    );
 
     const markdownArtifact = await fs.readFile(
       path.join(outputDir, "review.md"),
       "utf8",
     );
     assert.match(markdownArtifact, /^🟡 \*\*Overall\*\* : WARN/m);
-    assert.match(markdownArtifact, /🟢 Well-Architected Posture: 91\/100 \(EXCELLENT\)/);
+    assert.match(
+      markdownArtifact,
+      /🟢 Well-Architected Posture: 91\/100 \(EXCELLENT\)/,
+    );
     assert.match(markdownArtifact, /🔴 Validation: 3 unit tests failed/);
     assert.match(markdownArtifact, /🟢 Policy checks: GOOD/);
-    assert.match(markdownArtifact, /🟢 Cost: 42 USD\/mo \(under 100 USD\/mo budget\)/);
+    assert.match(
+      markdownArtifact,
+      /🟢 Cost: 42 USD\/mo \(under 100 USD\/mo budget\)/,
+    );
     assert.match(markdownArtifact, /#### Source/);
-    assert.match(markdownArtifact, /\*\*CloudEval project\*\*: \[GitHub IaC Project\]\(http:\/\/localhost:3000\/app\/projects\/project-github\?view=preview&layout=architecture\)/);
-    assert.match(markdownArtifact, /\*\*Repository\*\*: `ganakailabs\/cloudeval-github-sync-e2e`/);
+    assert.match(
+      markdownArtifact,
+      /\*\*CloudEval project\*\*: \[GitHub IaC Project\]\(http:\/\/localhost:3000\/app\/projects\/project-github\?view=preview&layout=architecture\)/,
+    );
+    assert.match(
+      markdownArtifact,
+      /\*\*Repository\*\*: `ganakailabs\/cloudeval-github-sync-e2e`/,
+    );
     assert.match(markdownArtifact, /\*\*Ref\*\*: `main`/);
     assert.match(markdownArtifact, /\*\*Commit\*\*: `sha-review-v`/);
     assert.match(markdownArtifact, /#### Open in CloudEval/);
-    assert.match(markdownArtifact, /\[Project preview\]\(http:\/\/localhost:3000\/app\/projects\/project-github\?view=preview&layout=architecture\)/);
-    assert.match(markdownArtifact, /\[Architecture report\]\(http:\/\/localhost:3000\/app\/reports\/project-github\?tab=architecture&reportType=architecture\)/);
-    assert.match(markdownArtifact, /\[Cost report\]\(http:\/\/localhost:3000\/app\/reports\/project-github\?tab=cost&reportType=cost\)/);
-    assert.match(markdownArtifact, /\[Download PDF\]\(http:\/\/localhost:3000\/app\/reports\/project-github\?downloadPdf=1&pdfVerbosity=full\)/);
-    assert.match(markdownArtifact, /\[Workflow run\]\(https:\/\/github.com\/ganakailabs\/cloudeval-github-sync-e2e\/actions\/runs\/123456789\)/);
-    assert.match(markdownArtifact, /\[Download review artifacts\]\(https:\/\/github.com\/ganakailabs\/cloudeval-github-sync-e2e\/actions\/runs\/123456789\)/);
+    assert.match(
+      markdownArtifact,
+      /\[Project preview\]\(http:\/\/localhost:3000\/app\/projects\/project-github\?view=preview&layout=architecture\)/,
+    );
+    assert.match(
+      markdownArtifact,
+      /\[Architecture report\]\(http:\/\/localhost:3000\/app\/reports\/project-github\?tab=architecture&reportType=architecture\)/,
+    );
+    assert.match(
+      markdownArtifact,
+      /\[Cost report\]\(http:\/\/localhost:3000\/app\/reports\/project-github\?tab=cost&reportType=cost\)/,
+    );
+    assert.match(
+      markdownArtifact,
+      /\[Download PDF\]\(http:\/\/localhost:3000\/app\/reports\/project-github\?downloadPdf=1&pdfVerbosity=full\)/,
+    );
+    assert.match(
+      markdownArtifact,
+      /\[Workflow run\]\(https:\/\/github.com\/ganakailabs\/cloudeval-github-sync-e2e\/actions\/runs\/123456789\)/,
+    );
+    assert.match(
+      markdownArtifact,
+      /\[Download review artifacts\]\(https:\/\/github.com\/ganakailabs\/cloudeval-github-sync-e2e\/actions\/runs\/123456789\)/,
+    );
     assert.doesNotMatch(markdownArtifact, /- Overall score:/);
     assert.doesNotMatch(markdownArtifact, /- Monthly estimate:/);
     assert.doesNotMatch(markdownArtifact, /Summary: 3 unit tests failed/);
-    assert.match(markdownArtifact, /\| Security \| \*\*91\/100\*\* \| 🟢 EXCELLENT \|/);
-    assert.match(markdownArtifact, /```mermaid\npie title Monthly cost by resource\n  "api-vm" : 22\n  "app-gateway" : 11\n  "diagnostic-storage" : 2\n  "Unallocated" : 7\n```/);
-    assert.match(markdownArtifact, /```mermaid\nxychart-beta\n  title "Monthly cost impact"\n  x-axis \["Current", "Optimized"\]\n  y-axis "USD\/mo" 0 --> 42\n  bar \[42, 35\]\n```/);
-    assert.match(markdownArtifact, /\| Current monthly cost \| \*\*42 USD\/mo\*\* \|/);
-    assert.match(markdownArtifact, /\| Optimized monthly cost \| \*\*35 USD\/mo\*\* \|/);
-    assert.match(markdownArtifact, /Unit tests: \*\*2 passed\*\*, \*\*3 failed\*\*, 5 total/);
+    assert.match(
+      markdownArtifact,
+      /\| Security \| \*\*91\/100\*\* \| 🟢 EXCELLENT \|/,
+    );
+    assert.match(
+      markdownArtifact,
+      /```mermaid\npie title Monthly cost by resource\n  "api-vm" : 22\n  "app-gateway" : 11\n  "diagnostic-storage" : 2\n  "Unallocated" : 7\n```/,
+    );
+    assert.match(
+      markdownArtifact,
+      /```mermaid\nxychart-beta\n  title "Monthly cost impact"\n  x-axis \["Current", "Optimized"\]\n  y-axis "USD\/mo" 0 --> 42\n  bar \[42, 35\]\n```/,
+    );
+    assert.match(
+      markdownArtifact,
+      /\| Current monthly cost \| \*\*42 USD\/mo\*\* \|/,
+    );
+    assert.match(
+      markdownArtifact,
+      /\| Optimized monthly cost \| \*\*35 USD\/mo\*\* \|/,
+    );
+    assert.match(
+      markdownArtifact,
+      /Unit tests: \*\*2 passed\*\*, \*\*3 failed\*\*, 5 total/,
+    );
     assert.match(markdownArtifact, /Validation failures/);
-    assert.match(markdownArtifact, /\| Unit test \| Secure admin credentials \| `nested\/compute.json` \| 🔴 error \| adminPassword is defined as a plain string\. Use a secure parameter or secret reference\. \|/);
-    assert.match(markdownArtifact, /\| Unit test \| Subnet should use NSG \| `nested\/network.json` \| 🟡 warning \| app subnet has no network security group\. Attach an NSG with least-privilege inbound rules\. \|/);
+    assert.match(
+      markdownArtifact,
+      /\| Unit test \| Secure admin credentials \| `nested\/compute.json` \| 🔴 error \| adminPassword is defined as a plain string\. Use a secure parameter or secret reference\. \|/,
+    );
+    assert.match(
+      markdownArtifact,
+      /\| Unit test \| Subnet should use NSG \| `nested\/network.json` \| 🟡 warning \| app subnet has no network security group\. Attach an NSG with least-privilege inbound rules\. \|/,
+    );
     assert.match(markdownArtifact, /Architecture signals/);
-    assert.match(markdownArtifact, /Scale: \*\*8 resources\*\* across \*\*7 resource types\*\*/);
-    assert.match(markdownArtifact, /Dependency shape: \*\*11 relationships\*\* \(\*\*1.38 per resource\*\*\)/);
-    assert.match(markdownArtifact, /Cost drivers: \*\*Compute\*\* and \*\*Networking\*\*/);
+    assert.match(
+      markdownArtifact,
+      /Scale: \*\*8 resources\*\* across \*\*7 resource types\*\*/,
+    );
+    assert.match(
+      markdownArtifact,
+      /Dependency shape: \*\*11 relationships\*\* \(\*\*1.38 per resource\*\*\)/,
+    );
+    assert.match(
+      markdownArtifact,
+      /Cost drivers: \*\*Compute\*\* and \*\*Networking\*\*/,
+    );
     assert.doesNotMatch(markdownArtifact, /PSRule/);
     assert(
       backend.requests.some(
-        (request) => request.path === `/api/v1/projects/${githubProject.id}/graph`,
+        (request) =>
+          request.path === `/api/v1/projects/${githubProject.id}/graph`,
       ),
     );
   } finally {
@@ -4044,7 +4307,9 @@ test("review command renders service cost pie when resource costs are unavailabl
     costResourceEstimates: [],
     reviewGraph: true,
   });
-  const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "cloudeval-review-service-cost-pie-"));
+  const cwd = await fs.mkdtemp(
+    path.join(os.tmpdir(), "cloudeval-review-service-cost-pie-"),
+  );
   try {
     await fs.mkdir(path.join(cwd, ".cloudeval"), { recursive: true });
     await fs.writeFile(
@@ -4102,8 +4367,14 @@ test("review command renders service cost pie when resource costs are unavailabl
       path.join(outputDir, "review.md"),
       "utf8",
     );
-    assert.match(markdownArtifact, /```mermaid\npie title Monthly cost by service\n  "Compute" : 11665.4\n  "Networking" : 9.49\n```/);
-    assert.doesNotMatch(markdownArtifact, /pie title Monthly cost by resource\n  "Unallocated"/);
+    assert.match(
+      markdownArtifact,
+      /```mermaid\npie title Monthly cost by service\n  "Compute" : 11665.4\n  "Networking" : 9.49\n```/,
+    );
+    assert.doesNotMatch(
+      markdownArtifact,
+      /pie title Monthly cost by resource\n  "Unallocated"/,
+    );
   } finally {
     await fs.rm(cwd, { recursive: true, force: true });
     await backend.close();
@@ -4118,7 +4389,9 @@ test("review command uses public labels and falls back to preload cost metrics",
     wafScore: 23.1,
     costMonthlyAmount: 10.219999999999999,
   });
-  const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "cloudeval-review-public-summary-"));
+  const cwd = await fs.mkdtemp(
+    path.join(os.tmpdir(), "cloudeval-review-public-summary-"),
+  );
   try {
     await fs.mkdir(path.join(cwd, ".cloudeval"), { recursive: true });
     await fs.writeFile(
@@ -4178,13 +4451,25 @@ test("review command uses public labels and falls back to preload cost metrics",
     );
     assert.doesNotMatch(markdownArtifact, /PSRule/);
     assert.match(markdownArtifact, /^🟢 \*\*Overall\*\* : PASS/m);
-    assert.match(markdownArtifact, /🔴 Well-Architected Posture: 23.1\/100 \(CRITICAL\)/);
-    assert.match(markdownArtifact, /\| Security \| \*\*23.1\/100\*\* \| 🔴 CRITICAL \|/);
+    assert.match(
+      markdownArtifact,
+      /🔴 Well-Architected Posture: 23.1\/100 \(CRITICAL\)/,
+    );
+    assert.match(
+      markdownArtifact,
+      /\| Security \| \*\*23.1\/100\*\* \| 🔴 CRITICAL \|/,
+    );
     assert.match(markdownArtifact, /🟢 Validation: GOOD/);
     assert.match(markdownArtifact, /🟢 Policy checks: GOOD/);
-    assert.match(markdownArtifact, /🟢 Cost: 10.22 USD\/mo \(under 100K budget\)/);
+    assert.match(
+      markdownArtifact,
+      /🟢 Cost: 10.22 USD\/mo \(under 100K budget\)/,
+    );
     assert.match(markdownArtifact, /#### Source/);
-    assert.match(markdownArtifact, /\*\*CloudEval project\*\*: \[GitHub IaC Project\]\(http:\/\/localhost:3000\/app\/projects\/project-github\?view=preview&layout=architecture\)/);
+    assert.match(
+      markdownArtifact,
+      /\*\*CloudEval project\*\*: \[GitHub IaC Project\]\(http:\/\/localhost:3000\/app\/projects\/project-github\?view=preview&layout=architecture\)/,
+    );
   } finally {
     await fs.rm(cwd, { recursive: true, force: true });
     await backend.close();
@@ -4195,7 +4480,9 @@ test("review command does not expose internal validation provider details", asyn
   const backend = await startBackend({
     projects: [githubProject],
   });
-  const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "cloudeval-review-public-output-"));
+  const cwd = await fs.mkdtemp(
+    path.join(os.tmpdir(), "cloudeval-review-public-output-"),
+  );
   try {
     await fs.mkdir(path.join(cwd, ".cloudeval"), { recursive: true });
     await fs.writeFile(
@@ -4244,9 +4531,15 @@ test("review command does not expose internal validation provider details", asyn
     assert.equal(result.data.gate.validation.policyChecks.failed, 0);
     assert.equal(result.data.reports.wellArchitected.available, true);
     assert.doesNotMatch(runResult.stdout, /psRule|PSRule/);
-    assert.doesNotMatch(runResult.stdout, /internal-user-id|result_ref|events_channel/);
+    assert.doesNotMatch(
+      runResult.stdout,
+      /internal-user-id|result_ref|events_channel/,
+    );
     assert.doesNotMatch(JSON.stringify(result.data), /psRule|PSRule/);
-    assert.doesNotMatch(JSON.stringify(result.data), /internal-user-id|result_ref|events_channel/);
+    assert.doesNotMatch(
+      JSON.stringify(result.data),
+      /internal-user-id|result_ref|events_channel/,
+    );
 
     const jsonArtifact = await fs.readFile(
       path.join(outputDir, "review.json"),
@@ -4257,7 +4550,10 @@ test("review command does not expose internal validation provider details", asyn
       "utf8",
     );
     assert.doesNotMatch(jsonArtifact, /psRule|PSRule/);
-    assert.doesNotMatch(jsonArtifact, /internal-user-id|result_ref|events_channel/);
+    assert.doesNotMatch(
+      jsonArtifact,
+      /internal-user-id|result_ref|events_channel/,
+    );
     assert.doesNotMatch(markdownArtifact, /psRule|PSRule/);
     assert.match(markdownArtifact, /🟢 Validation: GOOD/);
   } finally {
@@ -4272,7 +4568,9 @@ test("review command renders zero monthly cost with currency", async () => {
     fullReportShape: true,
     costMonthlyAmount: 0,
   });
-  const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "cloudeval-review-zero-cost-"));
+  const cwd = await fs.mkdtemp(
+    path.join(os.tmpdir(), "cloudeval-review-zero-cost-"),
+  );
   try {
     await fs.mkdir(path.join(cwd, ".cloudeval"), { recursive: true });
     await fs.writeFile(
@@ -4326,7 +4624,10 @@ test("review command renders zero monthly cost with currency", async () => {
       path.join(outputDir, "review.md"),
       "utf8",
     );
-    assert.match(markdownArtifact, /🟢 Cost: 0 USD\/mo \(under 100 USD\/mo budget\)/);
+    assert.match(
+      markdownArtifact,
+      /🟢 Cost: 0 USD\/mo \(under 100 USD\/mo budget\)/,
+    );
     assert.doesNotMatch(markdownArtifact, /Compute \| \*\*30 USD\/mo\*\*/);
     assert.match(markdownArtifact, /Reported total \| \*\*0 USD\/mo\*\*/);
   } finally {
@@ -4337,7 +4638,9 @@ test("review command renders zero monthly cost with currency", async () => {
 
 test("review command supports required and warn gate enforcement", async () => {
   const backend = await startBackend({ projects: [githubProject] });
-  const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "cloudeval-review-enforcement-"));
+  const cwd = await fs.mkdtemp(
+    path.join(os.tmpdir(), "cloudeval-review-enforcement-"),
+  );
   try {
     const configDir = path.join(cwd, ".cloudeval");
     await fs.mkdir(configDir, { recursive: true });
@@ -4405,7 +4708,9 @@ test("review command supports required and warn gate enforcement", async () => {
 
 test("review command accepts self-explanatory gate config aliases", async () => {
   const backend = await startBackend({ projects: [githubProject] });
-  const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "cloudeval-review-readable-gates-"));
+  const cwd = await fs.mkdtemp(
+    path.join(os.tmpdir(), "cloudeval-review-readable-gates-"),
+  );
   try {
     const configDir = path.join(cwd, ".cloudeval");
     await fs.mkdir(configDir, { recursive: true });
@@ -4499,10 +4804,14 @@ test("review command writes AI summary into json and markdown artifacts", async 
     assert.equal(result.data.aiSummary.enabled, true);
     assert.equal(result.data.aiSummary.status, "ok");
     assert.equal(result.data.aiSummary.fallbackUsed, false);
-    assert.match(result.data.aiSummary.markdown, /Review summary from dedicated endpoint/);
+    assert.match(
+      result.data.aiSummary.markdown,
+      /Review summary from dedicated endpoint/,
+    );
     assert.equal(
-      backend.requests.filter((request) => request.path === "/api/v1/chat/stream")
-        .length,
+      backend.requests.filter(
+        (request) => request.path === "/api/v1/chat/stream",
+      ).length,
       0,
     );
     const summaryRequest = backend.requests.find(
@@ -4518,7 +4827,10 @@ test("review command writes AI summary into json and markdown artifacts", async 
     const jsonArtifact = JSON.parse(
       await fs.readFile(path.join(outputDir, "review.json"), "utf8"),
     );
-    assert.match(jsonArtifact.aiSummary.markdown, /Review summary from dedicated endpoint/);
+    assert.match(
+      jsonArtifact.aiSummary.markdown,
+      /Review summary from dedicated endpoint/,
+    );
 
     const markdownArtifact = await fs.readFile(
       path.join(outputDir, "review.md"),
@@ -4583,7 +4895,10 @@ test("review command renders structured AI details from summary endpoint", async
     assert.equal(result.data.aiSummary.status, "ok");
     assert.equal(result.data.aiSummary.fallbackUsed, false);
     assert.match(result.data.aiSummary.shortSummary, /validation is failing/i);
-    assert.match(result.data.aiSummary.detailsMarkdown, /\*\*Recommended actions\*\*/);
+    assert.match(
+      result.data.aiSummary.detailsMarkdown,
+      /\*\*Recommended actions\*\*/,
+    );
 
     const markdownArtifact = await fs.readFile(
       path.join(outputDir, "review.md"),
@@ -4643,9 +4958,15 @@ test("review command replaces instruction-like AI details with deterministic evi
 
     assert.equal(result.data.aiSummary.status, "fallback");
     assert.equal(result.data.aiSummary.fallbackUsed, true);
-    assert.match(result.data.aiSummary.shortSummary, /CRITICAL well-architected posture/i);
+    assert.match(
+      result.data.aiSummary.shortSummary,
+      /CRITICAL well-architected posture/i,
+    );
     assert.match(result.data.aiSummary.detailsMarkdown, /\*\*Main risk\*\*/);
-    assert.doesNotMatch(result.data.aiSummary.detailsMarkdown, /Markdown for a collapsible AI details section/i);
+    assert.doesNotMatch(
+      result.data.aiSummary.detailsMarkdown,
+      /Markdown for a collapsible AI details section/i,
+    );
 
     const markdownArtifact = await fs.readFile(
       path.join(outputDir, "review.md"),
@@ -4653,7 +4974,10 @@ test("review command replaces instruction-like AI details with deterministic evi
     );
     assert.match(markdownArtifact, /<summary>AI details<\/summary>/);
     assert.match(markdownArtifact, /The gate is \*\*WARN\*\*/);
-    assert.doesNotMatch(markdownArtifact, /Markdown for a collapsible AI details section/i);
+    assert.doesNotMatch(
+      markdownArtifact,
+      /Markdown for a collapsible AI details section/i,
+    );
     assert.doesNotMatch(markdownArtifact, /Use short paragraphs or bullets/i);
   } finally {
     await fs.rm(outputDir, { recursive: true, force: true });
@@ -4699,7 +5023,10 @@ test("review command uses deterministic fallback when summary endpoint fails", a
     assert.equal(result.data.aiSummary.enabled, true);
     assert.equal(result.data.aiSummary.status, "fallback");
     assert.equal(result.data.aiSummary.fallbackUsed, true);
-    assert.match(result.data.aiSummary.markdown, /CloudEval review completed with/);
+    assert.match(
+      result.data.aiSummary.markdown,
+      /CloudEval review completed with/,
+    );
     assert(
       backend.requests.some(
         (request) =>
@@ -4707,8 +5034,9 @@ test("review command uses deterministic fallback when summary endpoint fails", a
       ),
     );
     assert.equal(
-      backend.requests.filter((request) => request.path === "/api/v1/chat/stream")
-        .length,
+      backend.requests.filter(
+        (request) => request.path === "/api/v1/chat/stream",
+      ).length,
       0,
     );
 
@@ -4818,8 +5146,9 @@ test("review command keeps legacy AI summary flags accepted without using chat",
     assert.equal(result.data.aiSummary.enabled, true);
     assert.equal(result.data.aiSummary.status, "ok");
     assert.equal(
-      backend.requests.filter((request) => request.path === "/api/v1/chat/stream")
-        .length,
+      backend.requests.filter(
+        (request) => request.path === "/api/v1/chat/stream",
+      ).length,
       0,
     );
     assert(

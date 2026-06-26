@@ -3780,6 +3780,13 @@ test("report list, show, cost, waf, rules, and download commands return report d
       await fs.readFile(pdfOutput, "utf8"),
       "%PDF-1.4\n1 0 obj\n<<>>\nendobj\n%%EOF\n",
     );
+
+    const downloadHelp = await runCli(["reports", "download", "--help"]);
+    assert.equal(downloadHelp.exitCode, 0, downloadHelp.stderr);
+    assert.match(
+      downloadHelp.stdout.replace(/\s+/g, " "),
+      /Output format: tui, summary, text, json, ndjson, markdown, table, pdf/,
+    );
   } finally {
     await fs.rm(outputDir, { recursive: true, force: true });
     await backend.close();

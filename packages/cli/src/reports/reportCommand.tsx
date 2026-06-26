@@ -71,6 +71,7 @@ type ReportPdfVerbosity = "brief" | "detailed" | "evidence";
 const addCommonOptions = <T extends Command>(
   command: T,
   defaultBaseUrl: string,
+  formatHelpOptions = outputFormats,
 ): T =>
   command
     .option("--base-url <url>", "Backend base URL", defaultBaseUrl)
@@ -85,7 +86,10 @@ const addCommonOptions = <T extends Command>(
       false,
     )
     .option("--project <id>", "Project ID to use")
-    .option("--format <format>", `Output format: ${outputFormats.join(", ")}`)
+    .option(
+      "--format <format>",
+      `Output format: ${formatHelpOptions.join(", ")}`,
+    )
     .option("--raw", "Show raw provider/backend payload", false)
     .option("--parsed", "Show normalized parsed report payload", false)
     .option("--formatted", "Show formatted human report payload", false)
@@ -486,6 +490,7 @@ export const registerReportsCommand = (
       .command("download")
       .description("Download report JSON or markdown locally"),
     deps.defaultBaseUrl,
+    [...outputFormats, "pdf"],
   )
     .option(
       "--type <type>",

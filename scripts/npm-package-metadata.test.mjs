@@ -17,7 +17,7 @@ test("CLI package is publishable to npm with required public artifacts", () => {
   assert.equal(pkg.private, undefined);
   assert.equal(
     pkg.description,
-    "CloudEval CLI for cloud architecture, cost, report, automation, and MCP workflows.",
+    "Review Cloud infra-as-code and live environments from CLI, CI, and MCP agents.",
   );
   assert.equal(pkg.author, "Ganak AI Labs (https://cloudeval.ai)");
   assert.equal(pkg.license, "LicenseRef-CloudEval-CLI");
@@ -29,20 +29,24 @@ test("CLI package is publishable to npm with required public artifacts", () => {
   assert.equal(pkg.repository.directory, "packages/cli");
   assert.equal(pkg.bugs.url, "https://github.com/ganakailabs/cloudeval-cli/issues");
 
-  for (const keyword of [
+  assert.deepEqual(pkg.keywords, [
     "cloudeval",
     "azure",
-    "cli",
+    "azure-devops",
+    "arm-template",
+    "bicep",
+    "infrastructure-as-code",
+    "iac-review",
+    "cloud-architecture",
+    "cloud-cost",
+    "well-architected",
+    "finops",
+    "devops",
+    "github-actions",
+    "ci-cd",
     "mcp",
     "agents",
-    "automation",
-    "iac",
-    "well-architected",
-    "cost",
-    "architecture",
-  ]) {
-    assert.ok(pkg.keywords.includes(keyword), `${keyword} keyword is included`);
-  }
+  ]);
 
   for (const binName of ["cloudeval", "cloud", "eva"]) {
     assert.equal(pkg.bin[binName], "dist/cli.js");
@@ -91,6 +95,16 @@ test("public install docs use the scoped npm package name", () => {
   assert.match(cliReadme, /https:\/\/docs\.cloudeval\.ai\/reference\/cli-overview/);
   assert.match(cliReadme, /https:\/\/github\.com\/ganakailabs\/cloudeval-cli\/issues/);
   assert.match(cliReadme, /https:\/\/discord\.gg\/tk5dcU2a7T/);
+  assert.doesNotMatch(cliReadme, /\[S_tool_/);
+  assert.match(cliReadme, /Review Azure infrastructure before merge/);
+  assert.match(cliReadme, /## Quickstart: Run Your First Azure\/IaC Review/);
+  assert.match(cliReadme, /## Trust, Privacy, And Limits/);
+  assert.match(cliReadme, /## Automation Contract/);
+  assert.match(cliReadme, /CloudEval is designed for review workflows, not silent cloud mutation/);
+  assert.ok(cliReadme.includes("cloudeval validate template \\"));
+  assert.match(cliReadme, /cloudeval mcp serve --toolset readonly/);
+  assert.match(cliReadme, /name: CloudEval review/);
+  assert.match(cliReadme, /https:\/\/github\.com\/ganakailabs\/cloudeval-azure-arm-review-example\/pull\/6/);
   assert.match(cliReadme, /docs\/assets\/images\/cli\/tui-chat\.png/);
   assert.match(cliReadme, /cloudeval agents run cost --project <project-id> --format json/);
   assert.match(cliReadme, /cloudeval uninstall --yes --remove-config/);

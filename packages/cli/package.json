@@ -86,7 +86,7 @@
     "marked-terminal": "^7.3.0",
     "react": "^18.3.1",
     "react-devtools-core": "^4.28.5",
-    "signalstory": "https://github.com/ganakailabs/signalstory/archive/refs/heads/codex/signalstory-core.tar.gz",
+    "signalstory": "https://github.com/ganakailabs/signalstory/archive/refs/tags/v0.1.0.tar.gz",
     "sql.js": "^1.14.1"
   },
   "devDependencies": {

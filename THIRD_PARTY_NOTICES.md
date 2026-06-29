@@ -14,7 +14,7 @@ This notice is not a substitute for legal review before public or enterprise dis
 | --- | ---: |
 | (MIT OR CC0-1.0) | 2 |
 | 0BSD | 1 |
-| Apache-2.0 | 50 |
+| Apache-2.0 | 51 |
 | BSD-3-Clause | 3 |
 | ISC | 12 |
 | MIT | 172 |
@@ -226,6 +226,7 @@ This notice is not a substitute for legal review before public or enterprise dis
 | semver | 7.7.3 | ISC | GitHub Inc. | https://github.com/npm/node-semver#readme |
 | shell-quote | 1.8.4 | MIT | James Halliday | https://github.com/ljharb/shell-quote |
 | signal-exit | 3.0.7 | ISC | Ben Coe | https://github.com/tapjs/signal-exit |
+| signalstory | 0.1.0 | Apache-2.0 | NOASSERTION | NOASSERTION |
 | skin-tone | 2.0.0 | MIT | Sindre Sorhus | https://github.com/sindresorhus/skin-tone#readme |
 | slice-ansi | 5.0.0 | MIT | NOASSERTION | https://github.com/chalk/slice-ansi#readme |
 | slice-ansi | 6.0.0 | MIT | NOASSERTION | https://github.com/chalk/slice-ansi#readme |

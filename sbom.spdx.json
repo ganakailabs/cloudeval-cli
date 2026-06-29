@@ -2255,6 +2255,17 @@
       "summary": "when you want to fire an event no matter how a process exits."
     },
     {
+      "SPDXID": "SPDXRef-Package-signalstory-0.1.0",
+      "name": "signalstory",
+      "versionInfo": "0.1.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "copyrightText": "NOASSERTION",
+      "summary": "Composable signal-to-story generation for evidence-grounded product, ops, and review narratives."
+    },
+    {
       "SPDXID": "SPDXRef-Package-skin-tone-2.0.0",
       "name": "skin-tone",
       "versionInfo": "2.0.0",
@@ -3677,6 +3688,11 @@
       "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
       "relationshipType": "DEPENDS_ON",
       "relatedSpdxElement": "SPDXRef-Package-signal-exit-3.0.7"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-signalstory-0.1.0"
     },
     {
       "spdxElementId": "SPDXRef-Package-CloudEval-CLI",

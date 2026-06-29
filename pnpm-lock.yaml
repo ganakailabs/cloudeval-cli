@@ -95,6 +95,9 @@ importers:
       react-devtools-core:
         specifier: ^4.28.5
         version: 4.28.5
+      signalstory:
+        specifier: https://github.com/ganakailabs/signalstory/archive/refs/heads/codex/signalstory-core.tar.gz
+        version: https://github.com/ganakailabs/signalstory/archive/refs/heads/codex/signalstory-core.tar.gz
       sql.js:
         specifier: ^1.14.1
         version: 1.14.1
@@ -2501,6 +2504,11 @@ packages:
   signale@1.4.0:
     resolution: {integrity: sha512-iuh+gPf28RkltuJC7W5MRi6XAjTDCAPC/prJUpQoG4vIP3MJZ+GTydVnodXA7pwvTKb2cA0m9OFZW/cdWy/I/w==}
     engines: {node: '>=6'}
+
+  signalstory@https://github.com/ganakailabs/signalstory/archive/refs/heads/codex/signalstory-core.tar.gz:
+    resolution: {tarball: https://github.com/ganakailabs/signalstory/archive/refs/heads/codex/signalstory-core.tar.gz}
+    version: 0.1.0
+    engines: {node: '>=20'}
 
   simple-concat@1.0.1:
     resolution: {integrity: sha512-cSFtAPtRhljv69IK0hTVZQ+OfE9nePi/rtJmw5UjHeVyVroEqJXP1sFztKUy1qU+xvz3u/sfYJLa947b7nAN2Q==}
@@ -5390,6 +5398,8 @@ snapshots:
       chalk: 2.4.2
       figures: 2.0.0
       pkg-conf: 2.1.0
+
+  signalstory@https://github.com/ganakailabs/signalstory/archive/refs/heads/codex/signalstory-core.tar.gz: {}
 
   simple-concat@1.0.1: {}
 

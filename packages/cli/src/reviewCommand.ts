@@ -14,6 +14,7 @@ import {
   type MachineOutputFormat,
 } from "./outputFormatter.js";
 import { buildFrontendUrl, resolveFrontendBaseUrl } from "./frontendLinks.js";
+import { buildSignalStoryReviewFallback } from "./signalstoryReviewAdapter.js";
 
 const DIRTY_REVIEW_MESSAGE =
   "Reviews pushed commits only. Add --ignore-dirty to review HEAD anyway.";
@@ -1635,6 +1636,21 @@ const deterministicAiSummary = (
     : undefined;
   const weakestPillarLabel = weakestPillar?.label ?? weakestPillar?.id ?? "the weakest Well-Architected pillar";
   const highRisk = numberFrom(data.gate?.wellArchitected?.risks?.high) ?? 0;
+  const signalStorySummary = buildSignalStoryReviewFallback({
+    gateStatus: String(data.gate?.status ?? "UNKNOWN").toUpperCase(),
+    score: formatScore(score),
+    rating,
+    failedTests,
+    policyStatus,
+    monthlyCost: formatMonthlyMoney(cost?.amount, cost?.currency),
+    weakestPillar: weakestPillarLabel,
+  });
+  if (signalStorySummary) {
+    return {
+      ...signalStorySummary,
+      warnings: error ? [`Review summary endpoint failed: ${error}`] : [],
+    };
+  }
   const summary = [
     `CloudEval review completed with **${String(data.gate?.status ?? "UNKNOWN").toUpperCase()}**.`,
     `Well-Architected posture is **${formatScore(score)} (${rating})**, validation has **${displayNumber(failedTests)} failed unit tests**, policy checks are **${policyStatus}**, and monthly cost is **${formatMonthlyMoney(cost?.amount, cost?.currency)}**.`,

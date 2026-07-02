@@ -1,2 +1,2 @@
 // Updated by semantic-release before each published release.
-export const CLI_VERSION = "0.30.4";
+export const CLI_VERSION = "0.31.0";

@@ -14,7 +14,7 @@
     {
       "SPDXID": "SPDXRef-Package-CloudEval-CLI",
       "name": "CloudEval CLI",
-      "versionInfo": "0.30.4",
+      "versionInfo": "0.31.0",
       "downloadLocation": "https://github.com/ganakailabs/cloudeval-cli",
       "filesAnalyzed": false,
       "licenseConcluded": "LicenseRef-CloudEval-CLI",

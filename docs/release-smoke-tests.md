@@ -138,6 +138,11 @@ The smoke script verifies:
   with `--progress stderr` that stays off stdout, detailed per-check validation
   output with `--details`, and template test-suite output through
   `cloudeval validate tests`.
+- `cloudeval review` Markdown output is covered by the non-interactive
+  mock-backend suite. The release gate should preserve the PR comment contract:
+  `## CloudEval infrastructure review`, a merge-gate/status table, CloudEval
+  link badges, visible AI summary, folded detailed AI reviewer note, open action
+  queue, Well-Architected radar/table drilldown, and cost Mermaid charts.
 - Chat stream auth recovery is covered by the non-interactive mock-backend
   suite: a stored device-login access token that is rejected as expired by
   `/chat/stream` must trigger one refresh-token exchange and one retry with the

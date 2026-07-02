@@ -895,22 +895,235 @@ const compactCostRowsForChart = (
 const markdownLink = (label: string, url?: string): string =>
   url ? `[${label}](${url})` : label;
 
-const openInCloudEvalLines = (links: Record<string, any> | undefined): string[] => {
+const shieldSegment = (value: string): string =>
+  encodeURIComponent(value.trim().replace(/-/g, "--").replace(/_/g, "__"));
+
+const badgeLink = ({
+  label,
+  message,
+  color,
+  url,
+}: {
+  label: string;
+  message: string;
+  color: string;
+  url?: string;
+}): string | undefined => {
+  if (!url) {
+    return undefined;
+  }
+  return `[![${label}](https://img.shields.io/badge/${shieldSegment(label)}-${shieldSegment(message)}-${color}?style=flat-square)](${url})`;
+};
+
+const openInCloudEvalBadges = (links: Record<string, any> | undefined): string[] => {
   if (!links) {
     return [];
   }
   const reports = asRecord(links.reports);
   const downloads = asRecord(links.downloads);
-  const entries = [
-    ["Project preview", links.project],
-    ["Architecture report", reports.architecture],
-    ["Cost report", reports.cost],
-    ["Validation details", reports.validation],
-    ["Download PDF", downloads.pdf],
-    ["Workflow run", links.workflowRun],
-    ["Download review artifacts", downloads.reviewArtifacts],
-  ].filter((entry): entry is [string, string] => typeof entry[1] === "string" && entry[1].length > 0);
-  return entries.map(([label, url]) => `- ${markdownLink(label, url)}`);
+  return [
+    badgeLink({
+      label: "Project",
+      message: "preview",
+      color: "2563eb",
+      url: typeof links.project === "string" ? links.project : undefined,
+    }),
+    badgeLink({
+      label: "Report",
+      message: "architecture",
+      color: "16a34a",
+      url: typeof reports.architecture === "string" ? reports.architecture : undefined,
+    }),
+    badgeLink({
+      label: "Cost",
+      message: "drilldown",
+      color: "0f766e",
+      url: typeof reports.cost === "string" ? reports.cost : undefined,
+    }),
+    badgeLink({
+      label: "Validation",
+      message: "details",
+      color: "d97706",
+      url: typeof reports.validation === "string" ? reports.validation : undefined,
+    }),
+    badgeLink({
+      label: "PDF",
+      message: "download",
+      color: "7c3aed",
+      url: typeof downloads.pdf === "string" ? downloads.pdf : undefined,
+    }),
+    badgeLink({
+      label: "Workflow",
+      message: "run",
+      color: "475569",
+      url: typeof links.workflowRun === "string" ? links.workflowRun : undefined,
+    }),
+    badgeLink({
+      label: "Artifacts",
+      message: "review",
+      color: "475569",
+      url:
+        typeof downloads.reviewArtifacts === "string"
+          ? downloads.reviewArtifacts
+          : undefined,
+    }),
+  ].filter((entry): entry is string => Boolean(entry));
+};
+
+const signalTableCell = (summaryLine: string): string => {
+  const match = summaryLine.match(/^(\S+)\s+[^:]+:\s*(.+)$/);
+  if (!match) {
+    return compactMarkdownCell(summaryLine);
+  }
+  return `${match[1]} **${compactMarkdownCell(match[2])}**`;
+};
+
+const reviewDecisionLine = ({
+  gateStatus,
+  score,
+  rating,
+}: {
+  gateStatus: string;
+  score?: unknown;
+  rating?: ScoreRating;
+}): string => {
+  if (gateStatus === "FAIL") {
+    return `${statusIcon(gateStatus)} **FAIL** - configured gates failed. Do not merge until the action queue is resolved and CloudEval is rerun.`;
+  }
+  if (gateStatus === "WARN") {
+    return `${statusIcon(gateStatus)} **WARN** - configured gates are warning-only or non-blocking for this run. Review the action queue before merge.`;
+  }
+  if (rating === "CRITICAL" || rating === "POOR") {
+    return `${statusIcon(gateStatus)} **PASS** - configured gates passed, but observed Well-Architected posture is **${formatScore(score)} (${rating})**. Tighten gate thresholds if this posture should block pull requests.`;
+  }
+  return `${statusIcon(gateStatus)} **PASS** - configured gates passed for this review. Use the drilldowns below to keep the posture improving.`;
+};
+
+const strongestPillarRisk = (
+  pillars: Array<Record<string, any>>,
+): { label: string; score: number; rating?: ScoreRating } | undefined =>
+  pillars
+    .map((pillar) => ({
+      label: String(pillar.label ?? pillar.id ?? "Well-Architected pillar"),
+      score: numberFrom(pillar.score),
+    }))
+    .filter((pillar): pillar is { label: string; score: number } => pillar.score !== undefined)
+    .sort((left, right) => left.score - right.score)
+    .map((pillar) => ({
+      ...pillar,
+      rating: scoreRating(pillar.score),
+    }))[0];
+
+const reviewActionItems = ({
+  data,
+  pillars,
+  cost,
+  validation,
+}: {
+  data: Record<string, any>;
+  pillars: Array<Record<string, any>>;
+  cost?: Record<string, any>;
+  validation?: Record<string, any>;
+}): string[] => {
+  const endpointActions = Array.isArray(data.aiSummary?.recommendedActions)
+    ? data.aiSummary.recommendedActions
+        .map((action: unknown) => compactMarkdownCell(action, ""))
+        .filter(Boolean)
+    : [];
+  const failedUnitTests = numberFrom(validation?.unitTests?.failed) ?? 0;
+  const failedPolicyChecks = numberFrom(validation?.policyChecks?.failed) ?? 0;
+  const weakest = strongestPillarRisk(pillars);
+  const currentCost = numberFrom(cost?.amount);
+  const savings = numberFrom(data.gate?.cost?.estimatedSavings?.amount);
+  const currency = cost?.currency ?? data.gate?.cost?.estimatedSavings?.currency;
+  const actions: string[] = [...endpointActions];
+  if (failedUnitTests > 0 || failedPolicyChecks > 0) {
+    const parts: string[] = [];
+    if (failedUnitTests > 0) {
+      parts.push(`${displayNumber(failedUnitTests)} failed unit tests`);
+    }
+    if (failedPolicyChecks > 0) {
+      parts.push(`${displayNumber(failedPolicyChecks)} failed policy checks`);
+    }
+    actions.push(
+      `**Fix validation failures** - resolve ${joinReadableList(parts)} and rerun CloudEval review.`,
+    );
+  }
+  if (weakest) {
+    actions.push(
+      `**Prioritize ${weakest.label}** - weakest pillar is **${formatScore(weakest.score)} (${weakest.rating ?? "UNKNOWN"})**.`,
+    );
+  }
+  if (currentCost !== undefined) {
+    const savingsText =
+      savings !== undefined && savings > 0
+        ? `; review the estimated **${formatMonthlyMoney(savings, currency)}** savings`
+        : "";
+    actions.push(
+      `**Review cost drivers** - current monthly cost is **${formatMonthlyMoney(currentCost, currency)}**${savingsText}.`,
+    );
+  }
+  if (Array.isArray(data.gate?.failures)) {
+    for (const failure of data.gate.failures) {
+      actions.push(`**Address gate failure** - ${compactMarkdownCell(failure)}.`);
+    }
+  }
+  actions.push("**Rerun CloudEval** - confirm the updated gate, reports, and PR comment after remediation.");
+  const unique: string[] = [];
+  for (const action of actions) {
+    if (!unique.includes(action)) {
+      unique.push(action);
+    }
+    if (unique.length >= 3) {
+      break;
+    }
+  }
+  return unique.map((action, index) => `${index + 1}. ${action}`);
+};
+
+const mermaidAxisId = (label: string): string => {
+  const normalized = normalizeKey(label).replace(/[^a-z0-9_]/g, "_");
+  return normalized || "pillar";
+};
+
+const wellArchitectedRadarLines = (
+  pillars: Array<Record<string, any>>,
+): string[] => {
+  const scored = pillars
+    .map((pillar) => {
+      const label = String(pillar.label ?? pillar.id ?? "Pillar");
+      const score = numberFrom(pillar.score);
+      return score === undefined
+        ? undefined
+        : {
+            id: mermaidAxisId(label),
+            label,
+            score,
+          };
+    })
+    .filter(
+      (pillar): pillar is { id: string; label: string; score: number } =>
+        pillar !== undefined,
+    );
+  if (scored.length < 3) {
+    return [];
+  }
+  return [
+    "```mermaid",
+    "radar-beta",
+    "  title Well-Architected posture",
+    `  axis ${scored
+      .map((pillar) => `${pillar.id}["${mermaidLabel(pillar.label)}"]`)
+      .join(", ")}`,
+    `  curve current["Current"]{${scored
+      .map((pillar) => trimNumber(pillar.score, 3))
+      .join(", ")}}`,
+    "  max 100",
+    "  min 0",
+    "```",
+    "",
+    "_If GitHub does not render Mermaid radar charts yet, use the table below as the fallback._",
+  ];
 };
 
 const monthlyCostImpactLines = (
@@ -1536,7 +1749,7 @@ const renderAiSummarySections = (shortSummary: string, detailsMarkdown: string):
     lines.push(
       "",
       "<details>",
-      "<summary>AI details</summary>",
+      "<summary><strong>Detailed AI reviewer note - evidence, reasoning, and next actions</strong></summary>",
       "",
       detailsMarkdown.trim(),
       "",
@@ -1568,6 +1781,12 @@ type GenerateAiSummaryInput = {
   data: Record<string, any>;
 };
 
+type ReviewSummaryPreferences = {
+  model?: string;
+  mode?: "ask" | "agent";
+  agentProfileId?: string;
+};
+
 const githubWorkflowRunUrl = (): string | undefined => {
   const server = process.env.GITHUB_SERVER_URL;
   const repo = process.env.GITHUB_REPOSITORY;
@@ -1586,7 +1805,10 @@ const reviewSurface = (): "local_review" | "pull_request" => {
     : "local_review";
 };
 
-const buildReviewSummaryPayload = (data: Record<string, any>): Record<string, any> => ({
+const buildReviewSummaryPayload = (
+  data: Record<string, any>,
+  preferences: ReviewSummaryPreferences = {},
+): Record<string, any> => ({
   source: process.env.GITHUB_ACTIONS === "true" ? "github_action" : "cli",
   surface: reviewSurface(),
   project: data.project ?? { id: data.projectId },
@@ -1606,6 +1828,13 @@ const buildReviewSummaryPayload = (data: Record<string, any>): Record<string, an
   policy: data.gate?.validation?.policy ?? data.gate?.policy ?? {},
   architecture_signals: data.gate?.architecture ?? {},
   changed_files: data.changedFiles ?? [],
+  ai_preferences: {
+    mode: preferences.mode ?? "ask",
+    ...(preferences.agentProfileId
+      ? { agent_profile_id: preferences.agentProfileId }
+      : {}),
+    ...(preferences.model ? { model: preferences.model } : {}),
+  },
 });
 
 const deterministicAiSummary = (
@@ -1646,9 +1875,15 @@ const deterministicAiSummary = (
     weakestPillar: weakestPillarLabel,
   });
   if (signalStorySummary) {
+    const signalStoryShortSummary = String(signalStorySummary.shortSummary ?? "").trim();
+    const signalStoryDetailsMarkdown = String(signalStorySummary.detailsMarkdown ?? "").trim();
     return {
       ...signalStorySummary,
       warnings: error ? [`Review summary endpoint failed: ${error}`] : [],
+      markdown: renderAiSummarySections(
+        signalStoryShortSummary,
+        signalStoryDetailsMarkdown,
+      ),
     };
   }
   const summary = [
@@ -1675,7 +1910,11 @@ const deterministicAiSummary = (
 
 const generateAiSummary = async (input: GenerateAiSummaryInput): Promise<Record<string, any>> => {
   try {
-    const payload = buildReviewSummaryPayload(input.data);
+    const payload = buildReviewSummaryPayload(input.data, {
+      model: input.model,
+      mode: input.mode,
+      agentProfileId: input.agentProfileId,
+    });
     const response = await fetchCloudEvalJson<Record<string, any>>({
       baseUrl: input.baseUrl,
       authToken: input.token,
@@ -1732,8 +1971,11 @@ const buildMarkdownSummary = (data: Record<string, any>): string => {
   const repository = String(data.repo ?? "unknown repository");
   const ref = String(data.ref ?? "unknown ref");
   const commit = String(data.commitSha ?? "unknown").slice(0, 12);
-  const pillarLines = Array.isArray(data.gate?.wellArchitected?.pillars)
-    ? data.gate.wellArchitected.pillars.map((pillar: Record<string, any>) => {
+  const pillars = Array.isArray(data.gate?.wellArchitected?.pillars)
+    ? data.gate.wellArchitected.pillars
+    : [];
+  const pillarLines = pillars.length
+    ? pillars.map((pillar: Record<string, any>) => {
         const rating = scoreRating(pillar.score);
         return `| ${pillar.label} | **${formatScore(pillar.score)}** | ${scoreRatingIcon(rating)} ${rating ?? "UNKNOWN"} |`;
       })
@@ -1766,49 +2008,87 @@ const buildMarkdownSummary = (data: Record<string, any>): string => {
   const costPieTitle = namedResourceCosts.length
     ? "Monthly cost by resource"
     : "Monthly cost by service";
-  const openLinks = openInCloudEvalLines(data.links);
+  const linkBadges = openInCloudEvalBadges(data.links);
   const architectureLines = architectureSignalLines({
     architecture,
     costServices,
     costCurrency: cost?.currency,
     highRiskFindings: data.gate?.wellArchitected?.risks?.high,
-    pillars: Array.isArray(data.gate?.wellArchitected?.pillars)
-      ? data.gate.wellArchitected.pillars
-      : [],
+    pillars,
   });
   const validationRows = validationFailureRows(validation);
   const overallRating = scoreRating(score);
+  const actionLines = reviewActionItems({
+    data,
+    pillars,
+    cost,
+    validation,
+  });
+  const radarLines = wellArchitectedRadarLines(pillars);
   const lines = [
-    `${statusIcon(data.gate?.status)} **Overall** : ${gateStatus}`,
-    `${scoreRatingIcon(overallRating)} Well-Architected Posture: ${formatScore(score)} (${overallRating ?? "UNKNOWN"})`,
-    validationSummaryLine(validation),
-    policySummaryLine(validation),
-    costSummaryLine(cost),
+    "## CloudEval infrastructure review",
     "",
-    "#### Source",
+    "| Signal | Result |",
+    "| --- | --- |",
+    `| Merge gate | ${statusIcon(data.gate?.status)} **${gateStatus}** |`,
+    `| Observed posture | ${scoreRatingIcon(overallRating)} **${formatScore(score)} (${overallRating ?? "UNKNOWN"})** |`,
+    `| Validation | ${signalTableCell(validationSummaryLine(validation))} |`,
+    `| Policy | ${signalTableCell(policySummaryLine(validation))} |`,
+    `| Cost | ${signalTableCell(costSummaryLine(cost))} |`,
+  ];
+  if (linkBadges.length) {
+    lines.push("", "### Links", "", linkBadges.join(" "));
+  }
+  lines.push(
+    "",
+    "### Decision",
+    "",
+    reviewDecisionLine({ gateStatus, score, rating: overallRating }),
+    "",
+    "<details>",
+    "<summary><strong>Source</strong></summary>",
     "",
     `- **CloudEval project**: ${projectDisplay}`,
     `- **Repository**: \`${repository}\``,
     `- **Ref**: \`${ref}\``,
     `- **Commit**: \`${commit}\``,
-  ];
-  if (openLinks.length) {
-    lines.push("", "#### Open in CloudEval", "", ...openLinks);
-  }
+    "",
+    "</details>",
+  );
   if (data.aiSummary?.markdown) {
-    lines.push("", "#### AI summary", "", data.aiSummary.markdown);
+    lines.push("", "### AI summary", "", data.aiSummary.markdown);
+  }
+  if (actionLines.length) {
+    lines.push(
+      "",
+      "<details open>",
+      `<summary><strong>Action queue - ${actionLines.length} recommended fixes</strong></summary>`,
+      "",
+      ...actionLines,
+      "",
+      "</details>",
+    );
   }
   if (Array.isArray(data.gate?.failures) && data.gate.failures.length) {
-    lines.push("", "#### Gate failures", "", ...data.gate.failures.map((failure: string) => `- ${failure}`));
+    lines.push(
+      "",
+      "<details>",
+      "<summary><strong>Gate failures</strong></summary>",
+      "",
+      ...data.gate.failures.map((failure: string) => `- ${failure}`),
+      "",
+      "</details>",
+    );
   }
   if (pillarLines.length) {
     lines.push(
       "",
       "<details>",
-      "<summary>Well-Architected drilldown</summary>",
+      "<summary><strong>Well-Architected drilldown</strong></summary>",
       "",
       ...riskLines,
       "",
+      ...(radarLines.length ? [...radarLines, ""] : []),
       "| Pillar | Score | Rating |",
       "| --- | ---: | --- |",
       ...pillarLines,
@@ -1856,7 +2136,7 @@ const buildMarkdownSummary = (data: Record<string, any>): string => {
       lines.push(
         "",
         "<details>",
-        "<summary>Cost drilldown</summary>",
+        "<summary><strong>Cost drilldown</strong></summary>",
         "",
         ...costLines,
         "",
@@ -1868,7 +2148,7 @@ const buildMarkdownSummary = (data: Record<string, any>): string => {
     lines.push(
       "",
       "<details>",
-      `<summary>${validationRows.length ? "Validation failures" : "Validation details"}</summary>`,
+      `<summary><strong>${validationRows.length ? "Validation failures" : "Validation details"}</strong></summary>`,
       "",
       ...validationDetailLines(validation),
       ...(validationRows.length
@@ -1887,7 +2167,7 @@ const buildMarkdownSummary = (data: Record<string, any>): string => {
     lines.push(
       "",
       "<details>",
-      "<summary>Architecture signals</summary>",
+      "<summary><strong>Architecture signals</strong></summary>",
       "",
       ...architectureLines,
       "",

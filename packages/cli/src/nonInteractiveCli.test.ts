@@ -281,6 +281,7 @@ const startBackend = async (
     reviewSummaryResponse?: Record<string, unknown>;
     fullReportShape?: boolean;
     wafScore?: number;
+    wafPillarScores?: Record<string, number>;
     wafFullReportFailures?: number;
     emptyCostFullReport?: boolean;
     costMonthlyAmount?: number;
@@ -844,11 +845,14 @@ const startBackend = async (
         return json(res, { detail: "WAF report is still generating" }, 404);
       }
       if (options.fullReportShape) {
+        const pillarScores = options.wafPillarScores ?? {
+          Security: options.wafScore ?? 91,
+        };
         return json(res, {
           project_id: githubProject.id,
           project_name: githubProject.name,
           overall_score: options.wafScore ?? 91,
-          pillar_scores: { Security: options.wafScore ?? 91 },
+          pillar_scores: pillarScores,
           critical_issues_count: 0,
           high_issues_count: 0,
           top_critical_issues: [],
@@ -871,7 +875,9 @@ const startBackend = async (
             report_type: "architecture",
             metrics: {
               overall_score: options.wafScore ?? 91,
-              pillar_scores: { security: options.wafScore ?? 91 },
+              pillar_scores: options.wafPillarScores ?? {
+                security: options.wafScore ?? 91,
+              },
               total_rules: 10,
               ...(options.architectureMetrics ?? {}),
             },
@@ -4025,25 +4031,29 @@ test("review command includes well architected, cost, and validation gate drilld
       path.join(outputDir, "review.md"),
       "utf8",
     );
+    assert.match(markdownArtifact, /^## CloudEval infrastructure review/m);
     assert.match(markdownArtifact, /Well-Architected drilldown/);
     assert.match(
       markdownArtifact,
       /\| Security \| \*\*91\/100\*\* \| 🟢 EXCELLENT \|/,
     );
-    assert.match(markdownArtifact, /🟢 Policy checks: GOOD/);
     assert.match(
       markdownArtifact,
-      /🟢 Cost: 42 USD\/mo \(under 100 USD\/mo budget\)/,
-    );
-    assert.match(markdownArtifact, /^🟢 \*\*Overall\*\* : PASS/m);
-    assert.match(markdownArtifact, /#### Source/);
-    assert.match(
-      markdownArtifact,
-      /\*\*CloudEval project\*\*: \[GitHub IaC Project\]\(http:\/\/localhost:3000\/app\/projects\/project-github\?view=preview&layout=architecture\)/,
+      /\| Policy \| 🟢 \*\*GOOD\*\* \|/,
     );
     assert.match(
       markdownArtifact,
-      /🟢 Well-Architected Posture: 91\/100 \(EXCELLENT\)/,
+      /\| Cost \| 🟢 \*\*42 USD\/mo \(under 100 USD\/mo budget\)\*\* \|/,
+    );
+    assert.match(markdownArtifact, /\| Merge gate \| 🟢 \*\*PASS\*\* \|/);
+    assert.match(markdownArtifact, /### Links/);
+    assert.match(
+      markdownArtifact,
+      /\[!\[Project\]\(https:\/\/img\.shields\.io\/badge\/Project-preview-2563eb\?style=flat-square\)\]\(http:\/\/localhost:3000\/app\/projects\/project-github\?view=preview&layout=architecture\)/,
+    );
+    assert.match(
+      markdownArtifact,
+      /\| Observed posture \| 🟢 \*\*91\/100 \(EXCELLENT\)\*\* \|/,
     );
     assert.doesNotMatch(markdownArtifact, /\bmin 85\b|\bmax 100\b/);
   } finally {
@@ -4056,6 +4066,13 @@ test("review command writes visual markdown drilldowns for PR comments", async (
   const backend = await startBackend({
     projects: [githubProject],
     fullReportShape: true,
+    wafPillarScores: {
+      Security: 91,
+      Reliability: 72,
+      "Cost Optimization": 84,
+      "Operational Excellence": 88,
+      "Performance Efficiency": 79,
+    },
     costServiceFamilies: { Compute: 30, Networking: 12 },
     costResourceEstimates: [
       {
@@ -4196,52 +4213,56 @@ test("review command writes visual markdown drilldowns for PR comments", async (
       path.join(outputDir, "review.md"),
       "utf8",
     );
-    assert.match(markdownArtifact, /^🟡 \*\*Overall\*\* : WARN/m);
+    assert.match(markdownArtifact, /^## CloudEval infrastructure review/m);
+    assert.match(markdownArtifact, /\| Merge gate \| 🟡 \*\*WARN\*\* \|/);
     assert.match(
       markdownArtifact,
-      /🟢 Well-Architected Posture: 91\/100 \(EXCELLENT\)/,
-    );
-    assert.match(markdownArtifact, /🔴 Validation: 3 unit tests failed/);
-    assert.match(markdownArtifact, /🟢 Policy checks: GOOD/);
-    assert.match(
-      markdownArtifact,
-      /🟢 Cost: 42 USD\/mo \(under 100 USD\/mo budget\)/,
-    );
-    assert.match(markdownArtifact, /#### Source/);
-    assert.match(
-      markdownArtifact,
-      /\*\*CloudEval project\*\*: \[GitHub IaC Project\]\(http:\/\/localhost:3000\/app\/projects\/project-github\?view=preview&layout=architecture\)/,
+      /\| Observed posture \| 🟢 \*\*91\/100 \(EXCELLENT\)\*\* \|/,
     );
     assert.match(
       markdownArtifact,
-      /\*\*Repository\*\*: `ganakailabs\/cloudeval-github-sync-e2e`/,
+      /\| Validation \| 🔴 \*\*3 unit tests failed\*\* \|/,
+    );
+    assert.match(
+      markdownArtifact,
+      /\| Cost \| 🟢 \*\*42 USD\/mo \(under 100 USD\/mo budget\)\*\* \|/,
+    );
+    assert.match(markdownArtifact, /### Links/);
+    assert.match(
+      markdownArtifact,
+      /\[!\[Project\]\(https:\/\/img\.shields\.io\/badge\/Project-preview-2563eb\?style=flat-square\)\]\(http:\/\/localhost:3000\/app\/projects\/project-github\?view=preview&layout=architecture\)/,
     );
     assert.match(markdownArtifact, /\*\*Ref\*\*: `main`/);
     assert.match(markdownArtifact, /\*\*Commit\*\*: `sha-review-v`/);
-    assert.match(markdownArtifact, /#### Open in CloudEval/);
     assert.match(
       markdownArtifact,
-      /\[Project preview\]\(http:\/\/localhost:3000\/app\/projects\/project-github\?view=preview&layout=architecture\)/,
+      /\[!\[Report\]\(https:\/\/img\.shields\.io\/badge\/Report-architecture-16a34a\?style=flat-square\)\]\(http:\/\/localhost:3000\/app\/reports\/project-github\?tab=architecture&reportType=architecture\)/,
     );
     assert.match(
       markdownArtifact,
-      /\[Architecture report\]\(http:\/\/localhost:3000\/app\/reports\/project-github\?tab=architecture&reportType=architecture\)/,
+      /\[!\[Cost\]\(https:\/\/img\.shields\.io\/badge\/Cost-drilldown-0f766e\?style=flat-square\)\]\(http:\/\/localhost:3000\/app\/reports\/project-github\?tab=cost&reportType=cost\)/,
     );
     assert.match(
       markdownArtifact,
-      /\[Cost report\]\(http:\/\/localhost:3000\/app\/reports\/project-github\?tab=cost&reportType=cost\)/,
+      /\[!\[Validation\]\(https:\/\/img\.shields\.io\/badge\/Validation-details-d97706\?style=flat-square\)\]\(http:\/\/localhost:3000\/app\/reports\/project-github\?tab=validation&reportType=unit_tests\)/,
     );
     assert.match(
       markdownArtifact,
-      /\[Download PDF\]\(http:\/\/localhost:3000\/app\/reports\/project-github\?downloadPdf=1&pdfVerbosity=full\)/,
+      /\[!\[PDF\]\(https:\/\/img\.shields\.io\/badge\/PDF-download-7c3aed\?style=flat-square\)\]\(http:\/\/localhost:3000\/app\/reports\/project-github\?downloadPdf=1&pdfVerbosity=full\)/,
     );
     assert.match(
       markdownArtifact,
-      /\[Workflow run\]\(https:\/\/github.com\/ganakailabs\/cloudeval-github-sync-e2e\/actions\/runs\/123456789\)/,
+      /\[!\[Workflow\]\(https:\/\/img\.shields\.io\/badge\/Workflow-run-475569\?style=flat-square\)\]\(https:\/\/github.com\/ganakailabs\/cloudeval-github-sync-e2e\/actions\/runs\/123456789\)/,
     );
     assert.match(
       markdownArtifact,
-      /\[Download review artifacts\]\(https:\/\/github.com\/ganakailabs\/cloudeval-github-sync-e2e\/actions\/runs\/123456789\)/,
+      /\[!\[Artifacts\]\(https:\/\/img\.shields\.io\/badge\/Artifacts-review-475569\?style=flat-square\)\]\(https:\/\/github.com\/ganakailabs\/cloudeval-github-sync-e2e\/actions\/runs\/123456789\)/,
+    );
+    assert.match(markdownArtifact, /### Decision/);
+    assert.match(markdownArtifact, /configured gates are warning-only/i);
+    assert.match(
+      markdownArtifact,
+      /<details open>\n<summary><strong>Action queue - 3 recommended fixes<\/strong><\/summary>/,
     );
     assert.doesNotMatch(markdownArtifact, /- Overall score:/);
     assert.doesNotMatch(markdownArtifact, /- Monthly estimate:/);
@@ -4249,6 +4270,11 @@ test("review command writes visual markdown drilldowns for PR comments", async (
     assert.match(
       markdownArtifact,
       /\| Security \| \*\*91\/100\*\* \| 🟢 EXCELLENT \|/,
+    );
+    assert.match(markdownArtifact, /```mermaid\nradar-beta\n  title Well-Architected posture/);
+    assert.match(
+      markdownArtifact,
+      /curve current\["Current"\]\{91, 72, 84, 88, 79\}/,
     );
     assert.match(
       markdownArtifact,
@@ -4457,25 +4483,24 @@ test("review command uses public labels and falls back to preload cost metrics",
       "utf8",
     );
     assert.doesNotMatch(markdownArtifact, /PSRule/);
-    assert.match(markdownArtifact, /^🟢 \*\*Overall\*\* : PASS/m);
+    assert.match(markdownArtifact, /\| Merge gate \| 🟢 \*\*PASS\*\* \|/);
     assert.match(
       markdownArtifact,
-      /🔴 Well-Architected Posture: 23.1\/100 \(CRITICAL\)/,
+      /\| Observed posture \| 🔴 \*\*23.1\/100 \(CRITICAL\)\*\* \|/,
     );
     assert.match(
       markdownArtifact,
       /\| Security \| \*\*23.1\/100\*\* \| 🔴 CRITICAL \|/,
     );
-    assert.match(markdownArtifact, /🟢 Validation: GOOD/);
-    assert.match(markdownArtifact, /🟢 Policy checks: GOOD/);
+    assert.match(markdownArtifact, /\| Validation \| 🟢 \*\*GOOD\*\* \|/);
+    assert.match(markdownArtifact, /\| Policy \| 🟢 \*\*GOOD\*\* \|/);
     assert.match(
       markdownArtifact,
-      /🟢 Cost: 10.22 USD\/mo \(under 100K budget\)/,
+      /\| Cost \| 🟢 \*\*10.22 USD\/mo \(under 100K budget\)\*\* \|/,
     );
-    assert.match(markdownArtifact, /#### Source/);
     assert.match(
       markdownArtifact,
-      /\*\*CloudEval project\*\*: \[GitHub IaC Project\]\(http:\/\/localhost:3000\/app\/projects\/project-github\?view=preview&layout=architecture\)/,
+      /\[!\[Project\]\(https:\/\/img\.shields\.io\/badge\/Project-preview-2563eb\?style=flat-square\)\]\(http:\/\/localhost:3000\/app\/projects\/project-github\?view=preview&layout=architecture\)/,
     );
   } finally {
     await fs.rm(cwd, { recursive: true, force: true });
@@ -4562,7 +4587,7 @@ test("review command does not expose internal validation provider details", asyn
       /internal-user-id|result_ref|events_channel/,
     );
     assert.doesNotMatch(markdownArtifact, /psRule|PSRule/);
-    assert.match(markdownArtifact, /🟢 Validation: GOOD/);
+    assert.match(markdownArtifact, /\| Validation \| 🟢 \*\*GOOD\*\* \|/);
   } finally {
     await fs.rm(cwd, { recursive: true, force: true });
     await backend.close();
@@ -4633,7 +4658,7 @@ test("review command renders zero monthly cost with currency", async () => {
     );
     assert.match(
       markdownArtifact,
-      /🟢 Cost: 0 USD\/mo \(under 100 USD\/mo budget\)/,
+      /\| Cost \| 🟢 \*\*0 USD\/mo \(under 100 USD\/mo budget\)\*\* \|/,
     );
     assert.doesNotMatch(markdownArtifact, /Compute \| \*\*30 USD\/mo\*\*/);
     assert.match(markdownArtifact, /Reported total \| \*\*0 USD\/mo\*\*/);
@@ -4843,9 +4868,12 @@ test("review command writes AI summary into json and markdown artifacts", async 
       path.join(outputDir, "review.md"),
       "utf8",
     );
-    assert.match(markdownArtifact, /#### AI summary/);
+    assert.match(markdownArtifact, /### AI summary/);
     assert.match(markdownArtifact, /\nReview summary from dedicated endpoint/);
-    assert.match(markdownArtifact, /<summary>AI details<\/summary>/);
+    assert.match(
+      markdownArtifact,
+      /<summary><strong>Detailed AI reviewer note - evidence, reasoning, and next actions<\/strong><\/summary>/,
+    );
     assert.doesNotMatch(markdownArtifact, /\*\*Short summary:\*\*/);
     assert.doesNotMatch(markdownArtifact, /I can’t execute tests/i);
   } finally {
@@ -4912,7 +4940,10 @@ test("review command renders structured AI details from summary endpoint", async
       "utf8",
     );
     assert.match(markdownArtifact, /\nThe gate warns/);
-    assert.match(markdownArtifact, /<summary>AI details<\/summary>/);
+    assert.match(
+      markdownArtifact,
+      /<summary><strong>Detailed AI reviewer note - evidence, reasoning, and next actions<\/strong><\/summary>/,
+    );
     assert.match(markdownArtifact, /\*\*Recommended actions\*\*/);
     assert.doesNotMatch(markdownArtifact, /\*\*Short summary:\*\*/);
   } finally {
@@ -4979,8 +5010,11 @@ test("review command replaces instruction-like AI details with deterministic evi
       path.join(outputDir, "review.md"),
       "utf8",
     );
-    assert.match(markdownArtifact, /<summary>AI details<\/summary>/);
-    assert.match(markdownArtifact, /The gate is \*\*WARN\*\*/);
+    assert.match(
+      markdownArtifact,
+      /<summary><strong>Detailed AI reviewer note - evidence, reasoning, and next actions<\/strong><\/summary>/,
+    );
+    assert.match(markdownArtifact, /CloudEval review completed with WARN/);
     assert.doesNotMatch(
       markdownArtifact,
       /Markdown for a collapsible AI details section/i,
@@ -5053,12 +5087,12 @@ test("review command uses deterministic fallback when summary endpoint fails", a
     );
     assert.match(markdownArtifact, /CloudEval review completed with/);
     assert.match(markdownArtifact, /\*\*WARN\*\*/);
-    assert.match(markdownArtifact, /\*\*91\/100 \(EXCELLENT\)\*\*/);
-    assert.match(markdownArtifact, /\*\*0 failed unit tests\*\*/);
+    assert.match(markdownArtifact, /91\/100 \(EXCELLENT\)/);
+    assert.match(markdownArtifact, /0 failed unit tests/);
     assert.match(markdownArtifact, /\*\*Main risk\*\*/);
-    assert.match(markdownArtifact, /The gate is \*\*WARN\*\*/);
+    assert.match(markdownArtifact, /CloudEval review completed with WARN/);
     assert.match(markdownArtifact, /\*\*Evidence used\*\*/);
-    assert.match(markdownArtifact, /\*\*architecture signals\*\*/);
+    assert.match(markdownArtifact, /Architecture signals/);
     assert.doesNotMatch(markdownArtifact, /AI summary unavailable/i);
   } finally {
     await fs.rm(outputDir, { recursive: true, force: true });
@@ -5112,7 +5146,7 @@ test("review command skips review summary endpoint when AI summary is disabled",
       path.join(outputDir, "review.md"),
       "utf8",
     );
-    assert.doesNotMatch(markdownArtifact, /#### AI summary/);
+    assert.doesNotMatch(markdownArtifact, /### AI summary/);
   } finally {
     await fs.rm(outputDir, { recursive: true, force: true });
     await backend.close();
@@ -5140,6 +5174,8 @@ test("review command keeps legacy AI summary flags accepted without using chat",
         "--ignore-dirty",
         "--poll-interval",
         "10",
+        "--model",
+        "gpt-4.1",
         "--ai-summary-mode",
         "agent",
         "--ai-summary-profile",
@@ -5164,6 +5200,17 @@ test("review command keeps legacy AI summary flags accepted without using chat",
           request.path === "/api/v1/projects/project-github/review/summary",
       ),
     );
+    const summaryRequest = backend.requests.find(
+      (request) =>
+        request.path === "/api/v1/projects/project-github/review/summary",
+    );
+    assert(summaryRequest);
+    const summaryPayload = JSON.parse(summaryRequest.body);
+    assert.deepEqual(summaryPayload.ai_preferences, {
+      mode: "agent",
+      agent_profile_id: "architecture",
+      model: "gpt-4.1",
+    });
   } finally {
     await backend.close();
   }

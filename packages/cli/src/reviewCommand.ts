@@ -1086,6 +1086,32 @@ const mermaidAxisId = (label: string): string => {
   return normalized || "pillar";
 };
 
+const compactMermaidAxisLabel = (label: string): string => {
+  const compactLabels: Record<string, string> = {
+    security: "Security",
+    reliability: "Reliability",
+    cost_optimization: "Cost",
+    operational_excellence: "Ops",
+    performance_efficiency: "Performance",
+  };
+  const normalized = normalizeKey(label);
+  if (compactLabels[normalized]) {
+    return compactLabels[normalized];
+  }
+  const cleaned = label.trim().replace(/\s+/g, " ");
+  if (cleaned.length <= 16) {
+    return cleaned;
+  }
+  const words = cleaned.split(" ");
+  if (words.length > 1) {
+    return words
+      .slice(0, 2)
+      .map((word) => (word.length > 8 ? word.slice(0, 8) : word))
+      .join(" ");
+  }
+  return cleaned.slice(0, 16);
+};
+
 const wellArchitectedRadarLines = (
   pillars: Array<Record<string, any>>,
 ): string[] => {
@@ -1113,13 +1139,19 @@ const wellArchitectedRadarLines = (
     "radar-beta",
     "  title Well-Architected posture",
     `  axis ${scored
-      .map((pillar) => `${pillar.id}["${mermaidLabel(pillar.label)}"]`)
+      .map(
+        (pillar) =>
+          `${pillar.id}["${mermaidLabel(compactMermaidAxisLabel(pillar.label))}"]`,
+      )
       .join(", ")}`,
     `  curve current["Current"]{${scored
       .map((pillar) => trimNumber(pillar.score, 3))
       .join(", ")}}`,
+    "  showLegend false",
     "  max 100",
     "  min 0",
+    "  graticule polygon",
+    "  ticks 4",
     "```",
     "",
     "_If GitHub does not render Mermaid radar charts yet, use the table below as the fallback._",
@@ -2088,7 +2120,11 @@ const buildMarkdownSummary = (data: Record<string, any>): string => {
       "",
       ...riskLines,
       "",
-      ...(radarLines.length ? [...radarLines, ""] : []),
+      ...(radarLines.length
+        ? ["**Radar (compact labels)**", "", ...radarLines, ""]
+        : []),
+      "**Scores**",
+      "",
       "| Pillar | Score | Rating |",
       "| --- | ---: | --- |",
       ...pillarLines,
@@ -2104,14 +2140,18 @@ const buildMarkdownSummary = (data: Record<string, any>): string => {
       cost?.currency ?? data.gate?.cost?.estimatedSavings?.currency,
     );
     if (impactLines.length) {
-      costLines.push(...impactLines);
+      costLines.push("**Cost impact**", "", ...impactLines);
     } else if (data.gate?.cost?.estimatedSavings?.amount !== undefined) {
       costLines.push(
+        "**Cost impact**",
+        "",
         `- Estimated savings: **${formatMonthlyMoney(data.gate.cost.estimatedSavings.amount, data.gate.cost.estimatedSavings.currency)}**`,
       );
     }
     if (costPieRows.length) {
       costLines.push(
+        "",
+        "**Cost split**",
         "",
         "```mermaid",
         `pie title ${costPieTitle}`,

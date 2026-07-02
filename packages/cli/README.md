@@ -119,6 +119,21 @@ jobs:
 
 Public example: [passing baseline PR #6](https://github.com/ganakailabs/cloudeval-azure-arm-review-example/pull/6) in [`ganakailabs/cloudeval-azure-arm-review-example`](https://github.com/ganakailabs/cloudeval-azure-arm-review-example). Review comments show a merge-gate table, CloudEval report badges, a visible AI summary, a folded detailed AI reviewer note, a compact Well-Architected radar/table drilldown, and cost Mermaid charts grouped for quick scanning.
 
+To include a PDF in each review artifact bundle, opt in from `.cloudeval/config.yaml`:
+
+```yaml
+ci:
+  review:
+    outputs:
+      pdf:
+        enabled: true
+        report_type: all
+        verbosity: evidence
+        fail_on_error: false
+```
+
+When `cloudeval review --output <dir>` runs, the CLI writes `<dir>/review.pdf` alongside `review.json` and `review.md`. In GitHub Actions, `ganakailabs/cloudeval-action` uploads that file when `upload_artifacts: true`; PR comments keep both the CloudEval-hosted `PDF` badge and the GitHub `Artifacts` badge.
+
 ### MCP For Codex, Cursor, Claude, VS Code
 
 Start with read-only agent integration:

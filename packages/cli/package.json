@@ -1,6 +1,6 @@
 {
   "name": "@ganakailabs/cloudeval-cli",
-  "version": "0.30.3",
+  "version": "0.30.4",
   "license": "LicenseRef-CloudEval-CLI",
   "type": "module",
   "description": "Review Cloud infra-as-code and live environments from CLI, CI, and MCP agents.",

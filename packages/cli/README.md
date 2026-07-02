@@ -134,6 +134,15 @@ ci:
 
 When `cloudeval review --output <dir>` runs, the CLI writes `<dir>/review.pdf` alongside `review.json` and `review.md`. In GitHub Actions, `ganakailabs/cloudeval-action` uploads that file when `upload_artifacts: true`; PR comments keep both the CloudEval-hosted `PDF` badge and the GitHub `Artifacts` badge.
 
+Supported PDF output keys:
+
+| Key | Supported values | Default |
+| --- | --- | --- |
+| `enabled` | `true`, `false` | `false` |
+| `report_type` | `all`, `architecture`, `cost`, `unit_tests` | `all` |
+| `verbosity` | `brief`, `detailed`, `evidence` | `evidence` |
+| `fail_on_error` | `true`, `false` | `false` |
+
 ### MCP For Codex, Cursor, Claude, VS Code
 
 Start with read-only agent integration:

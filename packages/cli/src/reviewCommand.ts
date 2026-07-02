@@ -40,6 +40,16 @@ type ReviewOptions = AuthGuardOptions & {
   model?: string;
 };
 
+type ReviewPdfReportType = "all" | "architecture" | "cost" | "unit_tests";
+type ReviewPdfVerbosity = "brief" | "detailed" | "evidence";
+
+type ReviewPdfOutputConfig = {
+  enabled: boolean;
+  reportType: ReviewPdfReportType;
+  verbosity: ReviewPdfVerbosity;
+  failOnError: boolean;
+};
+
 export interface RegisterReviewCommandOptions extends AuthGuardDeps {
   defaultBaseUrl: string;
 }
@@ -173,6 +183,115 @@ const readConfigText = async (cwd: string, options: ReviewOptions): Promise<stri
   } catch {
     return undefined;
   }
+};
+
+const findYamlBlock = (
+  configText: string | undefined,
+  pathKeys: string[],
+): string | undefined => {
+  if (!configText) return undefined;
+  const lines = configText.split(/\r?\n/).map((raw) => ({
+    raw,
+    indent: raw.match(/^\s*/)?.[0].length ?? 0,
+    trimmed: raw.trim(),
+  }));
+  let searchStart = 0;
+  let searchEnd = lines.length;
+  let parentIndent = -1;
+  for (const key of pathKeys) {
+    let found = -1;
+    for (let index = searchStart; index < searchEnd; index += 1) {
+      const line = lines[index];
+      if (line.trimmed === `${key}:` && line.indent > parentIndent) {
+        found = index;
+        break;
+      }
+    }
+    if (found === -1) {
+      return undefined;
+    }
+    const blockIndent = lines[found].indent;
+    let blockEnd = searchEnd;
+    for (let index = found + 1; index < searchEnd; index += 1) {
+      const line = lines[index];
+      if (line.trimmed && line.indent <= blockIndent) {
+        blockEnd = index;
+        break;
+      }
+    }
+    searchStart = found + 1;
+    searchEnd = blockEnd;
+    parentIndent = blockIndent;
+  }
+  return lines.slice(searchStart, searchEnd).map((line) => line.raw).join("\n");
+};
+
+const yamlScalarValue = (
+  block: string | undefined,
+  ...keys: string[]
+): string | undefined => {
+  if (!block) return undefined;
+  for (const key of keys) {
+    const match = block.match(
+      new RegExp(`^\\s*${key}\\s*:\\s*["']?([^"'\\n#]+)["']?\\s*(?:#.*)?$`, "m"),
+    );
+    if (match?.[1]?.trim()) {
+      return match[1].trim();
+    }
+  }
+  return undefined;
+};
+
+const yamlBooleanValue = (
+  block: string | undefined,
+  ...keys: string[]
+): boolean | undefined => {
+  const value = yamlScalarValue(block, ...keys);
+  if (value === undefined) return undefined;
+  if (/^(true|yes|on|1)$/i.test(value)) return true;
+  if (/^(false|no|off|0)$/i.test(value)) return false;
+  return undefined;
+};
+
+const normalizeReviewPdfReportType = (
+  value: string | undefined,
+): ReviewPdfReportType => {
+  const normalized = String(value ?? "all").trim().toLowerCase().replace(/-/g, "_");
+  if (normalized === "cost") return "cost";
+  if (normalized === "waf" || normalized === "architecture") return "architecture";
+  if (normalized === "unit_tests" || normalized === "validation") return "unit_tests";
+  return "all";
+};
+
+const normalizeReviewPdfVerbosity = (
+  value: string | undefined,
+): ReviewPdfVerbosity => {
+  const normalized = String(value ?? "evidence").trim().toLowerCase();
+  if (normalized === "brief" || normalized === "short") return "brief";
+  if (normalized === "detailed") return "detailed";
+  if (normalized === "evidence" || normalized === "full" || normalized === "extended") {
+    return "evidence";
+  }
+  return "evidence";
+};
+
+const parseReviewPdfOutputConfig = (
+  configText?: string,
+): ReviewPdfOutputConfig | undefined => {
+  const block = findYamlBlock(configText, ["ci", "review", "outputs", "pdf"]);
+  if (!block) {
+    return undefined;
+  }
+  return {
+    enabled: yamlBooleanValue(block, "enabled") ?? false,
+    reportType: normalizeReviewPdfReportType(
+      yamlScalarValue(block, "report_type", "reportType", "type"),
+    ),
+    verbosity: normalizeReviewPdfVerbosity(
+      yamlScalarValue(block, "verbosity", "pdf_verbosity", "pdfVerbosity"),
+    ),
+    failOnError: yamlBooleanValue(block, "fail_on_error", "failOnError") ?? false,
+  };
 };
 
 const parseGateConfig = (configText?: string):
@@ -1570,6 +1689,76 @@ const safeFetch = async <T>(input: Parameters<typeof fetchCloudEvalJson<T>>[0]):
   }
 };
 
+const writeReviewPdfOutput = async ({
+  config,
+  outputDir,
+  baseUrl,
+  token,
+  projectId,
+  userId,
+}: {
+  config?: ReviewPdfOutputConfig;
+  outputDir?: string;
+  baseUrl: string;
+  token?: string;
+  projectId: string;
+  userId?: string;
+}): Promise<Record<string, any> | undefined> => {
+  if (!config) {
+    return undefined;
+  }
+  const base = {
+    enabled: config.enabled,
+    reportType: config.reportType,
+    verbosity: config.verbosity,
+    failOnError: config.failOnError,
+  };
+  if (!config.enabled) {
+    return { ...base, status: "skipped" };
+  }
+  if (!outputDir) {
+    return {
+      ...base,
+      status: "skipped",
+      reason: "PDF output requires --output so the file can be attached as an artifact.",
+    };
+  }
+  try {
+    const core = await import("@cloudeval/core");
+    const pdf = await core.downloadReportPdf({
+      baseUrl,
+      authToken: token,
+      projectId,
+      userId,
+      verbosity: config.verbosity,
+      reportType: config.reportType,
+      includeVisuals: true,
+    });
+    if (!pdf.bytes.length) {
+      throw new Error("Backend returned an empty PDF.");
+    }
+    await fs.mkdir(outputDir, { recursive: true });
+    const file = path.join(outputDir, "review.pdf");
+    await fs.writeFile(file, pdf.bytes);
+    return {
+      ...base,
+      status: "written",
+      file,
+      bytes: pdf.bytes.length,
+      contentType: pdf.contentType,
+      backendFilename: pdf.filename,
+      reportStatus: pdf.status,
+      warningsCount: pdf.warningsCount ?? 0,
+    };
+  } catch (error: any) {
+    return {
+      ...base,
+      status: "failed",
+      error: error?.message ?? "PDF download failed.",
+    };
+  }
+};
+
 const parsePositiveInteger = (
   value: string | undefined,
   flagName: string,
@@ -2411,10 +2600,27 @@ export const registerReviewCommand = (
       } else {
         data.aiSummary = { enabled: false };
       }
-      const summaryMarkdown = buildMarkdownSummary(data);
       const filesWritten: string[] = [];
-      if (options.output) {
-        const outputDir = path.resolve(options.output);
+      const outputDir = options.output ? path.resolve(options.output) : undefined;
+      const pdfOutput = await writeReviewPdfOutput({
+        config: parseReviewPdfOutputConfig(configText),
+        outputDir,
+        baseUrl: context.baseUrl,
+        token: context.token,
+        projectId,
+        userId: scopedUserId,
+      });
+      if (pdfOutput) {
+        data.outputs = {
+          ...asRecord(data.outputs),
+          pdf: pdfOutput,
+        };
+        if (pdfOutput.status === "written" && typeof pdfOutput.file === "string") {
+          filesWritten.push(pdfOutput.file);
+        }
+      }
+      const summaryMarkdown = buildMarkdownSummary(data);
+      if (outputDir) {
         await fs.mkdir(outputDir, { recursive: true });
         const jsonPath = path.join(outputDir, "review.json");
         const markdownPath = path.join(outputDir, "review.md");
@@ -2428,6 +2634,10 @@ export const registerReviewCommand = (
         format: options.format,
         filesWritten,
       });
+      if (pdfOutput?.status === "failed" && pdfOutput.failOnError === true) {
+        process.exitCode = 1;
+        return;
+      }
       if (data.gate.status === "fail") {
         process.exitCode = 1;
         return;

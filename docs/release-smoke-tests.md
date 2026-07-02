@@ -143,7 +143,9 @@ The smoke script verifies:
   `## CloudEval infrastructure review`, a merge-gate/status table, CloudEval
   link badges, visible AI summary, folded detailed AI reviewer note, open action
   queue, compact Well-Architected radar/table drilldown, and grouped cost
-  Mermaid charts.
+  Mermaid charts. When `.cloudeval/config.yaml` enables
+  `ci.review.outputs.pdf.enabled`, the review output directory should include
+  `review.pdf` and JSON metadata under `data.outputs.pdf`.
 - Chat stream auth recovery is covered by the non-interactive mock-backend
   suite: a stored device-login access token that is rejected as expired by
   `/chat/stream` must trigger one refresh-token exchange and one retry with the

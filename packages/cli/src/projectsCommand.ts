@@ -348,6 +348,13 @@ const generateWorkspaceConfig = (
     "#     fail_when_high_risk_findings_exist: true",
     "#     fail_when_validation_fails: true",
     "#     max_monthly_cost_usd: 500",
+    "#   review:",
+    "#     outputs:",
+    "#       pdf:",
+    "#         enabled: true",
+    "#         report_type: all",
+    "#         verbosity: evidence",
+    "#         fail_on_error: false",
     "",
   ]
     .filter((line) => line.length > 0)

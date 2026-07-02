@@ -298,6 +298,7 @@ const startBackend = async (
     policyCheckResults?: Array<Record<string, unknown>>;
     reviewGraph?: boolean;
     architectureMetrics?: Record<string, number>;
+    pdfExportStatus?: number;
   } = {},
 ) => {
   const requests: RecordedRequest[] = [];
@@ -784,14 +785,25 @@ const startBackend = async (
     if (url.pathname === "/api/v1/reports/cost-current") {
       return json(res, costReport);
     }
-    if (url.pathname === `/api/v1/reports/${project.id}/export/pdf`) {
+    if (
+      url.pathname === `/api/v1/reports/${project.id}/export/pdf` ||
+      url.pathname === `/api/v1/reports/${githubProject.id}/export/pdf`
+    ) {
       assert.equal(url.searchParams.get("user_id"), user.id);
       assert.equal(url.searchParams.get("verbosity"), "evidence");
       assert.equal(url.searchParams.get("report_type"), "all");
       assert.equal(url.searchParams.get("include_visuals"), "true");
+      const pdfProjectId = url.pathname.split("/")[4] || project.id;
+      if (options.pdfExportStatus && options.pdfExportStatus >= 400) {
+        return json(
+          res,
+          { error: "PDF export unavailable" },
+          options.pdfExportStatus,
+        );
+      }
       res.writeHead(200, {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="cloudeval-${project.id}-evidence.pdf"`,
+        "Content-Disposition": `attachment; filename="cloudeval-${pdfProjectId}-evidence.pdf"`,
         "X-Cloudeval-Report-Status": "complete",
         "X-Cloudeval-Report-Warnings-Count": "0",
       });
@@ -4676,6 +4688,231 @@ test("review command renders zero monthly cost with currency", async () => {
     );
     assert.doesNotMatch(markdownArtifact, /Compute \| \*\*30 USD\/mo\*\*/);
     assert.match(markdownArtifact, /Reported total \| \*\*0 USD\/mo\*\*/);
+  } finally {
+    await fs.rm(cwd, { recursive: true, force: true });
+    await backend.close();
+  }
+});
+
+test("review command downloads configured PDF output from YAML", async () => {
+  const backend = await startBackend({
+    projects: [githubProject],
+    fullReportShape: true,
+  });
+  const cwd = await fs.mkdtemp(
+    path.join(os.tmpdir(), "cloudeval-review-pdf-output-"),
+  );
+  try {
+    await fs.mkdir(path.join(cwd, ".cloudeval"), { recursive: true });
+    await fs.writeFile(
+      path.join(cwd, ".cloudeval", "config.yaml"),
+      [
+        "ci:",
+        "  review:",
+        "    outputs:",
+        "      pdf:",
+        "        enabled: true",
+        "        report_type: all",
+        "        verbosity: evidence",
+        "        fail_on_error: false",
+        "  gates:",
+        "    enforcement: warn",
+        "    overall_score_min: 80",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+
+    const outputDir = path.join(cwd, "review-output");
+    const result = parseJson(
+      await runCli(
+        [
+          "review",
+          "--base-url",
+          backend.baseUrl,
+          "--access-key",
+          "test-token",
+          "--project",
+          "project-github",
+          "--repo",
+          "ganakailabs/cloudeval-github-sync-e2e",
+          "--ref",
+          "main",
+          "--commit-sha",
+          "sha-review-pdf-output",
+          "--ignore-dirty",
+          "--no-ai-summary",
+          "--poll-interval",
+          "10",
+          "--format",
+          "json",
+          "--output",
+          outputDir,
+          "--non-interactive",
+        ],
+        { cwd },
+      ),
+    );
+
+    const pdfPath = path.join(outputDir, "review.pdf");
+    const pdfBytes = await fs.readFile(pdfPath, "utf8");
+    assert.match(pdfBytes, /^%PDF-1\.4/);
+    assert.equal(result.data.outputs.pdf.enabled, true);
+    assert.equal(result.data.outputs.pdf.status, "written");
+    assert.equal(result.data.outputs.pdf.file, pdfPath);
+    assert.equal(result.data.outputs.pdf.reportType, "all");
+    assert.equal(result.data.outputs.pdf.verbosity, "evidence");
+    assert.equal(result.data.outputs.pdf.bytes > 0, true);
+    assert(
+      backend.requests.some(
+        (request) =>
+          request.path === "/api/v1/reports/project-github/export/pdf" &&
+          request.query.get("report_type") === "all" &&
+          request.query.get("verbosity") === "evidence",
+      ),
+    );
+  } finally {
+    await fs.rm(cwd, { recursive: true, force: true });
+    await backend.close();
+  }
+});
+
+test("review command records PDF output failure as non-blocking by default", async () => {
+  const backend = await startBackend({
+    projects: [githubProject],
+    fullReportShape: true,
+    pdfExportStatus: 503,
+  });
+  const cwd = await fs.mkdtemp(
+    path.join(os.tmpdir(), "cloudeval-review-pdf-nonblocking-"),
+  );
+  try {
+    await fs.mkdir(path.join(cwd, ".cloudeval"), { recursive: true });
+    await fs.writeFile(
+      path.join(cwd, ".cloudeval", "config.yaml"),
+      [
+        "ci:",
+        "  review:",
+        "    outputs:",
+        "      pdf:",
+        "        enabled: true",
+        "        report_type: all",
+        "        verbosity: evidence",
+        "  gates:",
+        "    enforcement: warn",
+        "    overall_score_min: 80",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+
+    const outputDir = path.join(cwd, "review-output");
+    const result = await runCli(
+      [
+        "review",
+        "--base-url",
+        backend.baseUrl,
+        "--access-key",
+        "test-token",
+        "--project",
+        "project-github",
+        "--repo",
+        "ganakailabs/cloudeval-github-sync-e2e",
+        "--ref",
+        "main",
+        "--commit-sha",
+        "sha-review-pdf-nonblocking",
+        "--ignore-dirty",
+        "--no-ai-summary",
+        "--poll-interval",
+        "10",
+        "--format",
+        "json",
+        "--output",
+        outputDir,
+        "--non-interactive",
+      ],
+      { cwd },
+    );
+
+    assert.equal(result.exitCode, 0);
+    const json = JSON.parse(result.stdout);
+    assert.equal(json.data.outputs.pdf.status, "failed");
+    assert.match(json.data.outputs.pdf.error, /PDF report request failed/);
+    await assert.rejects(
+      fs.stat(path.join(outputDir, "review.pdf")),
+      /ENOENT/,
+    );
+  } finally {
+    await fs.rm(cwd, { recursive: true, force: true });
+    await backend.close();
+  }
+});
+
+test("review command fails when configured PDF output is required", async () => {
+  const backend = await startBackend({
+    projects: [githubProject],
+    fullReportShape: true,
+    pdfExportStatus: 503,
+  });
+  const cwd = await fs.mkdtemp(
+    path.join(os.tmpdir(), "cloudeval-review-pdf-required-"),
+  );
+  try {
+    await fs.mkdir(path.join(cwd, ".cloudeval"), { recursive: true });
+    await fs.writeFile(
+      path.join(cwd, ".cloudeval", "config.yaml"),
+      [
+        "ci:",
+        "  review:",
+        "    outputs:",
+        "      pdf:",
+        "        enabled: true",
+        "        report_type: all",
+        "        verbosity: evidence",
+        "        fail_on_error: true",
+        "  gates:",
+        "    enforcement: warn",
+        "    overall_score_min: 80",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+
+    const outputDir = path.join(cwd, "review-output");
+    const result = await runCli(
+      [
+        "review",
+        "--base-url",
+        backend.baseUrl,
+        "--access-key",
+        "test-token",
+        "--project",
+        "project-github",
+        "--repo",
+        "ganakailabs/cloudeval-github-sync-e2e",
+        "--ref",
+        "main",
+        "--commit-sha",
+        "sha-review-pdf-required",
+        "--ignore-dirty",
+        "--no-ai-summary",
+        "--poll-interval",
+        "10",
+        "--format",
+        "json",
+        "--output",
+        outputDir,
+        "--non-interactive",
+      ],
+      { cwd },
+    );
+
+    assert.equal(result.exitCode, 1);
+    const json = JSON.parse(result.stdout);
+    assert.equal(json.data.outputs.pdf.status, "failed");
+    assert.equal(json.data.outputs.pdf.failOnError, true);
+    assert.match(json.data.outputs.pdf.error, /PDF report request failed/);
   } finally {
     await fs.rm(cwd, { recursive: true, force: true });
     await backend.close();

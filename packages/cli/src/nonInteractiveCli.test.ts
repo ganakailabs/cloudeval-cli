@@ -4274,8 +4274,22 @@ test("review command writes visual markdown drilldowns for PR comments", async (
     assert.match(markdownArtifact, /```mermaid\nradar-beta\n  title Well-Architected posture/);
     assert.match(
       markdownArtifact,
+      new RegExp(
+        'axis security\\["Security"\\], reliability\\["Reliability"\\], ' +
+          'cost_optimization\\["Cost"\\], operational_excellence\\["Ops"\\], ' +
+          'performance_efficiency\\["Performance"\\]',
+      ),
+    );
+    assert.match(
+      markdownArtifact,
       /curve current\["Current"\]\{91, 72, 84, 88, 79\}/,
     );
+    assert.match(markdownArtifact, /showLegend false/);
+    assert.match(markdownArtifact, /graticule polygon/);
+    assert.match(markdownArtifact, /ticks 4/);
+    assert.match(markdownArtifact, /\*\*Radar \(compact labels\)\*\*/);
+    assert.match(markdownArtifact, /\*\*Cost impact\*\*/);
+    assert.match(markdownArtifact, /\*\*Cost split\*\*/);
     assert.match(
       markdownArtifact,
       /```mermaid\npie title Monthly cost by resource\n  "api-vm" : 22\n  "app-gateway" : 11\n  "diagnostic-storage" : 2\n  "Unallocated" : 7\n```/,

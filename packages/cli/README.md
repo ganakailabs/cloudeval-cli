@@ -117,7 +117,7 @@ jobs:
             --non-interactive
 ```
 
-Public example: [passing baseline PR #6](https://github.com/ganakailabs/cloudeval-azure-arm-review-example/pull/6) in [`ganakailabs/cloudeval-azure-arm-review-example`](https://github.com/ganakailabs/cloudeval-azure-arm-review-example).
+Public example: [passing baseline PR #6](https://github.com/ganakailabs/cloudeval-azure-arm-review-example/pull/6) in [`ganakailabs/cloudeval-azure-arm-review-example`](https://github.com/ganakailabs/cloudeval-azure-arm-review-example). Review comments show a merge-gate table, CloudEval report badges, a visible AI summary, a folded detailed AI reviewer note, a Well-Architected radar/table drilldown, and cost Mermaid charts.
 
 ### MCP For Codex, Cursor, Claude, VS Code
 

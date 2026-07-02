@@ -160,6 +160,7 @@ cloudeval rules search "public network" --format json
 cloudeval reports list
 cloudeval actions list --type architecture,cost,unit-tests --format json
 cloudeval actions open --print-url --no-open
+cloudeval review --repo owner/repo --ref feature/infra-change --commit-sha <sha> --output cloudeval-review --format json --non-interactive
 cloudeval capabilities --format json
 cloudeval doctor --deep
 ```

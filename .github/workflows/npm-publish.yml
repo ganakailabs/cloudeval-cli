@@ -36,7 +36,7 @@ jobs:
           echo "Resolved release ref: $release_tag"
       - uses: actions/checkout@v6.0.2
         with:
-          ref: ${{ steps.release-ref.outputs.release_tag }}
+          ref: ${{ github.event.workflow_run.head_branch || github.ref }}
           fetch-depth: 0
       - name: Verify release ref matches package version
         run: |

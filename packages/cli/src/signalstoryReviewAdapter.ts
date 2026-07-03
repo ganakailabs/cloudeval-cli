@@ -1,3 +1,4 @@
+import { cloudevalReviewRulePack } from "@ganakailabs/cloudeval-signalstory-rules/review";
 import {
   createSignalStoryEngine,
   renderPlainText,
@@ -10,6 +11,7 @@ export type SignalStoryReviewInput = {
   gateStatus: string;
   score: string;
   rating: string;
+  scoreRating: string;
   failedTests: number;
   policyStatus: string;
   monthlyCost: string;
@@ -19,52 +21,11 @@ export type SignalStoryReviewInput = {
 export const renderSignalStoryPlainText = (parts: SignalStoryPart[] = []): string =>
   renderPlainText(parts);
 
-const REVIEW_FALLBACK_RULE_PACK = {
-  id: "cloudeval-review-fallback",
-  rules: [
-    {
-      id: "review-fallback",
-      when: { signal: "gateStatus", exists: true },
-      story: {
-        id: "review-fallback",
-        severity: "high",
-        icon: "git-pull-request",
-        priority: 100,
-        sentence: [
-          { text: "CloudEval review completed with " },
-          { path: "gateStatus", marks: ["bold"] },
-          { text: ". Well-Architected posture is " },
-          { path: "score", marks: ["bold"] },
-          { text: " (" },
-          { path: "rating", marks: ["bold"] },
-          { text: "), validation has " },
-          { path: "failedTests", suffix: " failed unit tests", marks: ["bold"] },
-          { text: ", policy checks are " },
-          { path: "policyStatus", marks: ["bold"] },
-          { text: ", and monthly cost is " },
-          { path: "monthlyCost", marks: ["bold"] },
-          { text: ". Prioritize " },
-          { text: "failed validation checks", marks: ["bold"] },
-          { text: " and " },
-          { path: "weakestPillar", marks: ["bold"] },
-          { text: " first." },
-        ],
-        rationale: [
-          {
-            text: "Failed validation, weak architecture pillars, and cost over budget are the highest-signal remediation inputs before merge.",
-          },
-        ],
-        action: { label: "Fix failed validation checks and rerun the review." },
-      },
-    },
-  ],
-};
-
 export const buildSignalStoryReviewFallback = (
   input: SignalStoryReviewInput
 ): Record<string, unknown> | null => {
   const engine = createSignalStoryEngine({
-    rulePacks: [REVIEW_FALLBACK_RULE_PACK],
+    rulePacks: [cloudevalReviewRulePack],
   });
   const stories = engine.generate({ signals: input });
   const primary = stories[0];

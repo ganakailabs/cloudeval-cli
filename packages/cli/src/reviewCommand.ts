@@ -2085,11 +2085,11 @@ const deterministicAiSummary = (
         )[0]
     : undefined;
   const weakestPillarLabel = weakestPillar?.label ?? weakestPillar?.id ?? "the weakest Well-Architected pillar";
-  const highRisk = numberFrom(data.gate?.wellArchitected?.risks?.high) ?? 0;
   const signalStorySummary = buildSignalStoryReviewFallback({
     gateStatus: String(data.gate?.status ?? "UNKNOWN").toUpperCase(),
     score: formatScore(score),
     rating,
+    scoreRating: `${formatScore(score)} (${rating})`,
     failedTests,
     policyStatus,
     monthlyCost: formatMonthlyMoney(cost?.amount, cost?.currency),
@@ -2107,26 +2107,7 @@ const deterministicAiSummary = (
       ),
     };
   }
-  const summary = [
-    `CloudEval review completed with **${String(data.gate?.status ?? "UNKNOWN").toUpperCase()}**.`,
-    `Well-Architected posture is **${formatScore(score)} (${rating})**, validation has **${displayNumber(failedTests)} failed unit tests**, policy checks are **${policyStatus}**, and monthly cost is **${formatMonthlyMoney(cost?.amount, cost?.currency)}**.`,
-    `Prioritize **failed validation checks** and **${weakestPillarLabel}** first.`,
-  ].join(" ");
-  const detailsMarkdown = [
-    `**Main risk**\nThe gate is **${String(data.gate?.status ?? "UNKNOWN").toUpperCase()}** with Well-Architected posture **${formatScore(score)} (${rating})**, **${displayNumber(failedTests)} failed unit tests**, and monthly cost **${formatMonthlyMoney(cost?.amount, cost?.currency)}**.`,
-    `**Why it matters**\n${highRisk > 0 ? `There are **${displayNumber(highRisk)} high-risk findings**. ` : ""}Validation failures, weak architecture pillars, and cost over budget are the highest-signal remediation inputs before merge.`,
-    `**Recommended actions**\nFix **${displayNumber(failedTests)} failed unit tests**, address **${weakestPillarLabel}**, review cost drivers against the budget, rerun CloudEval review, and compare the updated gate.`,
-    "**Evidence used**\n**Gate status**, **Well-Architected score**, **validation totals**, **policy totals**, **monthly cost**, and **architecture signals**.",
-  ].join("\n\n");
-  return {
-    enabled: true,
-    status: "fallback",
-    fallbackUsed: true,
-    warnings: error ? [`Review summary endpoint failed: ${error}`] : [],
-    shortSummary: summary,
-    detailsMarkdown,
-    markdown: renderAiSummarySections(summary, detailsMarkdown),
-  };
+  throw new Error("CloudEval SignalStory review rules did not produce a deterministic fallback summary.");
 };
 
 const generateAiSummary = async (input: GenerateAiSummaryInput): Promise<Record<string, any>> => {

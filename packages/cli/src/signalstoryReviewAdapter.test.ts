@@ -10,6 +10,7 @@ test("builds deterministic review fallback from installed SignalStory runtime", 
     gateStatus: "FAIL",
     score: "64/100",
     rating: "FAIR",
+    scoreRating: "64/100 (FAIR)",
     failedTests: 2,
     policyStatus: "GOOD",
     monthlyCost: "$120/mo",
@@ -22,4 +23,5 @@ test("builds deterministic review fallback from installed SignalStory runtime", 
   );
   assert.match(String(fallback?.markdown), /### CloudEval review summary/);
   assert.match(String(fallback?.markdown), /\*\*FAIL\*\*/);
+  assert.ok(String(fallback?.markdown).includes("**64/100 \\(FAIR\\)**"));
 });

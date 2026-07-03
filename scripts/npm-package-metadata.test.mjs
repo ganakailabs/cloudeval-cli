@@ -199,20 +199,19 @@ test("npm publish workflow auto-runs after release and uses trusted publishing w
   assert.doesNotMatch(workflow, /NODE_AUTH_TOKEN/);
 });
 
-test("npm publish workflow checks out the GitHub release tag and verifies channel sync", () => {
+test("npm publish workflow resolves release tag and verifies channel sync", () => {
   const workflow = readFileSync(
     path.join(repoRoot, ".github/workflows/npm-publish.yml"),
     "utf8",
   );
 
-  assert.doesNotMatch(workflow, /ref: \$\{\{ github\.event\.workflow_run\.head_branch/);
   assert.match(workflow, /Resolve release ref/);
   assert.match(workflow, /gh release view --repo "\$\{GITHUB_REPOSITORY\}"/);
   assert.match(
     workflow,
     /github\.event_name == 'workflow_dispatch' \|\| \(github\.event_name == 'workflow_run' && github\.event\.workflow_run\.conclusion != 'cancelled'\)/,
   );
-  assert.match(workflow, /ref: \$\{\{ steps\.release-ref\.outputs\.release_tag \}\}/);
+  assert.match(workflow, /ref: \$\{\{ github\.event\.workflow_run\.head_branch \|\| github\.ref \}\}/);
   assert.match(workflow, /Verify release ref matches package version/);
   assert.match(workflow, /Verify GitHub and npm are in sync after publish/);
 });

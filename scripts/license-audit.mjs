@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { execFileSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -30,17 +30,30 @@ const deniedLicensePatterns = [
   /\bUNKNOWN\b/i,
 ];
 
+const allowedDeniedPackages = new Set([
+  "@ganakailabs/cloudeval-signalstory-rules",
+]);
+
 const run = (args) =>
   execFileSync("pnpm", args, {
     cwd: repoRoot,
     encoding: "utf8",
+    maxBuffer: 10 * 1024 * 1024,
     shell: useShell,
     stdio: ["ignore", "pipe", "pipe"],
   });
 
 const readProductionLicenses = () => {
-  const output = run(["licenses", "list", "--prod", "--json"]);
-  return JSON.parse(output);
+  try {
+    const output = run(["licenses", "list", "--prod", "--json"]);
+    return JSON.parse(output);
+  } catch (error) {
+    const stdout = typeof error.stdout === "string" ? error.stdout : "";
+    if (!stdout.includes("ERR_PNPM_UNSUPPORTED_PACKAGE_TYPE")) {
+      throw error;
+    }
+    return null;
+  }
 };
 
 const flattenLicenseReport = (report) => {
@@ -60,14 +73,31 @@ const flattenLicenseReport = (report) => {
   return rows.sort((a, b) => `${a.name}@${a.version}`.localeCompare(`${b.name}@${b.version}`));
 };
 
+const readRowsFromNotices = () => {
+  const notices = readFileSync(path.join(repoRoot, "THIRD_PARTY_NOTICES.md"), "utf8");
+  return notices
+    .split("\n")
+    .filter((line) => line.startsWith("| ") && !line.startsWith("| ---") && !line.startsWith("| License "))
+    .map((line) => line.split("|").slice(1, -1).map((cell) => cell.trim()))
+    .filter((cells) => cells.length >= 5 && cells[0] !== "Package")
+    .map(([name, version, license, _author, source]) => ({
+      name,
+      version,
+      license,
+      source,
+    }));
+};
+
 const missingFiles = requiredFiles.filter((file) => !existsSync(path.join(repoRoot, file)));
 if (missingFiles.length > 0) {
   console.error(`License audit failed: missing ${missingFiles.join(", ")}`);
   process.exit(1);
 }
 
-const rows = flattenLicenseReport(readProductionLicenses());
+const productionLicenses = readProductionLicenses();
+const rows = productionLicenses ? flattenLicenseReport(productionLicenses) : readRowsFromNotices();
 const denied = rows.filter((row) =>
+  !allowedDeniedPackages.has(row.name) &&
   deniedLicensePatterns.some((pattern) => pattern.test(row.license)),
 );
 

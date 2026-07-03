@@ -23,6 +23,12 @@ jobs:
         with:
           node-version: 20
           cache: pnpm
+      - name: Configure private rules package access
+        shell: bash
+        env:
+          CLOUDEVAL_SIGNALSTORY_RULES_SSH_KEY: ${{ secrets.CLOUDEVAL_SIGNALSTORY_RULES_SSH_KEY || secrets.SIGNALSTORY_RULES_SSH_KEY }}
+          CLOUDEVAL_SIGNALSTORY_RULES_TOKEN: ${{ secrets.CLOUDEVAL_SIGNALSTORY_RULES_TOKEN || secrets.SIGNALSTORY_RULES_TOKEN }}
+        run: bash scripts/configure-private-github-dependencies.sh
       - name: Install deps
         run: pnpm install
       - name: Test npm package metadata
@@ -70,6 +76,12 @@ jobs:
       - uses: oven-sh/setup-bun@v2.2.0
         with:
           bun-version: "1.3.3"
+      - name: Configure private rules package access
+        shell: bash
+        env:
+          CLOUDEVAL_SIGNALSTORY_RULES_SSH_KEY: ${{ secrets.CLOUDEVAL_SIGNALSTORY_RULES_SSH_KEY || secrets.SIGNALSTORY_RULES_SSH_KEY }}
+          CLOUDEVAL_SIGNALSTORY_RULES_TOKEN: ${{ secrets.CLOUDEVAL_SIGNALSTORY_RULES_TOKEN || secrets.SIGNALSTORY_RULES_TOKEN }}
+        run: bash scripts/configure-private-github-dependencies.sh
       - name: Install deps
         run: pnpm install --frozen-lockfile
       - name: Test npm package metadata

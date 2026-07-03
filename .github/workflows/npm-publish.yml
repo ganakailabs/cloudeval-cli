@@ -57,6 +57,12 @@ jobs:
           package-manager-cache: false
       - name: Install npm 11
         run: npm install -g npm@^11.10.0
+      - name: Configure private rules package access
+        shell: bash
+        env:
+          CLOUDEVAL_SIGNALSTORY_RULES_SSH_KEY: ${{ secrets.CLOUDEVAL_SIGNALSTORY_RULES_SSH_KEY || secrets.SIGNALSTORY_RULES_SSH_KEY }}
+          CLOUDEVAL_SIGNALSTORY_RULES_TOKEN: ${{ secrets.CLOUDEVAL_SIGNALSTORY_RULES_TOKEN || secrets.SIGNALSTORY_RULES_TOKEN }}
+        run: bash scripts/configure-private-github-dependencies.sh
       - name: Install deps
         run: pnpm install --frozen-lockfile
       - name: Test npm package metadata

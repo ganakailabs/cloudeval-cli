@@ -19,11 +19,75 @@ const run = (args) =>
   execFileSync("pnpm", args, {
     cwd: repoRoot,
     encoding: "utf8",
+    maxBuffer: 10 * 1024 * 1024,
     shell: useShell,
     stdio: ["ignore", "pipe", "pipe"],
   });
 
-const report = JSON.parse(run(["licenses", "list", "--prod", "--json"]));
+const privateRulesSshUrl = "git+ssh://git@github.com/ganakailabs/cloudeval-signalstory-rules.git";
+
+const entryToLicenseRecord = (entry) => {
+  const packageJsonPath = path.join(entry.path, "package.json");
+  const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8"));
+  return {
+    name: packageJson.name || entry.from,
+    versions: [packageJson.version || entry.version || "unknown"],
+    license: packageJson.license || "NOASSERTION",
+    author:
+      typeof packageJson.author === "string"
+        ? packageJson.author
+        : packageJson.author?.name || "NOASSERTION",
+    repository: packageJson.repository,
+    homepage: packageJson.homepage,
+    description: packageJson.description || "",
+  };
+};
+
+const readLicenseReportFromPackageTree = () => {
+  const roots = JSON.parse(run(["--filter", cliPackage.name, "list", "--prod", "--json", "--depth", "Infinity"]));
+  const recordsByPackage = new Map();
+
+  const visit = (entry) => {
+    if (!entry || !entry.path) {
+      return;
+    }
+    const key = `${entry.from || entry.name}@${entry.version || "unknown"}`;
+    if (!recordsByPackage.has(key)) {
+      recordsByPackage.set(key, entryToLicenseRecord(entry));
+    }
+    for (const child of Object.values(entry.dependencies || {})) {
+      visit(child);
+    }
+  };
+
+  for (const root of roots) {
+    for (const dependency of Object.values(root.dependencies || {})) {
+      visit(dependency);
+    }
+  }
+
+  const grouped = {};
+  for (const record of recordsByPackage.values()) {
+    const license = record.license || "NOASSERTION";
+    grouped[license] = grouped[license] || [];
+    grouped[license].push(record);
+  }
+  return grouped;
+};
+
+const readLicenseReport = () => {
+  try {
+    return JSON.parse(run(["licenses", "list", "--prod", "--json"]));
+  } catch (error) {
+    const stdout = typeof error.stdout === "string" ? error.stdout : "";
+    if (!stdout.includes("ERR_PNPM_UNSUPPORTED_PACKAGE_TYPE") || !stdout.includes(privateRulesSshUrl)) {
+      throw error;
+    }
+    return readLicenseReportFromPackageTree();
+  }
+};
+
+const report = readLicenseReport();
 
 const sourceFor = (entry) => {
   if (typeof entry.homepage === "string" && entry.homepage.length > 0) {

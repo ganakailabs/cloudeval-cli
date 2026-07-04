@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { answerHitlQuestions, summarizeHitlRequest } from "./hitlPrompt.js";
+import {
+  answerHitlQuestions,
+  getInitialHitlOptionIndex,
+  nextHitlOptionIndex,
+  resolveHitlAnswer,
+  summarizeHitlRequest,
+} from "./hitlPrompt.js";
 
 const approvalQuestion = {
   id: "approval_0",
@@ -11,22 +17,37 @@ const approvalQuestion = {
   ],
 };
 
-test("answerHitlQuestions uses the recommended option when the user presses enter", async () => {
+test("answerHitlQuestions does not approve a recommended option from blank enter", async () => {
   const prompts: string[] = [];
   const responses = await answerHitlQuestions([approvalQuestion], async (prompt) => {
     prompts.push(prompt);
     return "";
   });
 
-  assert.deepEqual(responses, [{ question_id: "approval_0", answer: "approve" }]);
+  assert.deepEqual(responses, []);
   assert.match(prompts[0], /1\. Approve \(recommended\)/);
   assert.match(prompts[0], /2\. Reject/);
+  assert.doesNotMatch(prompts[0], /Choose option \[1\]/);
 });
 
 test("answerHitlQuestions accepts numbered options", async () => {
   const responses = await answerHitlQuestions([approvalQuestion], async () => "2");
 
   assert.deepEqual(responses, [{ question_id: "approval_0", answer: "reject" }]);
+});
+
+test("resolveHitlAnswer requires explicit option input", () => {
+  assert.equal(resolveHitlAnswer(approvalQuestion, ""), undefined);
+  assert.equal(resolveHitlAnswer(approvalQuestion, "yes"), "approve");
+  assert.equal(resolveHitlAnswer(approvalQuestion, "no"), "reject");
+  assert.equal(resolveHitlAnswer(approvalQuestion, "1"), "approve");
+});
+
+test("HITL option navigation starts with no selected approval", () => {
+  assert.equal(getInitialHitlOptionIndex(approvalQuestion), -1);
+  assert.equal(nextHitlOptionIndex(-1, 1, approvalQuestion.options.length), 0);
+  assert.equal(nextHitlOptionIndex(-1, -1, approvalQuestion.options.length), 1);
+  assert.equal(nextHitlOptionIndex(0, -1, approvalQuestion.options.length), 1);
 });
 
 test("summarizeHitlRequest reports the pending action without implying an empty response", () => {

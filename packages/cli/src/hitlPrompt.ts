@@ -1,6 +1,6 @@
 import { createInterface } from "node:readline/promises";
 import type { Readable, Writable } from "node:stream";
-import type { HitlOption, HitlQuestion, HitlResponse } from "@cloudeval/shared";
+import type { HitlQuestion, HitlResponse } from "@cloudeval/shared";
 
 export const HITL_REQUIRED_EXIT_CODE = 6;
 
@@ -12,10 +12,24 @@ type HitlSummaryOptions = {
   frontendUrl?: string;
 };
 
-const recommendedOption = (question: HitlQuestion): HitlOption | undefined =>
-  question.options?.find((option) => option.id === question.recommended_option_id) ??
-  question.options?.find((option) => option.recommended) ??
-  question.options?.[0];
+export const NO_HITL_OPTION_SELECTED = -1;
+
+export const getInitialHitlOptionIndex = (_question?: HitlQuestion): number =>
+  NO_HITL_OPTION_SELECTED;
+
+export const nextHitlOptionIndex = (
+  current: number,
+  direction: 1 | -1,
+  optionCount: number
+): number => {
+  if (optionCount <= 0) {
+    return NO_HITL_OPTION_SELECTED;
+  }
+  if (current < 0 || current >= optionCount) {
+    return direction > 0 ? 0 : optionCount - 1;
+  }
+  return (current + direction + optionCount) % optionCount;
+};
 
 const optionLines = (question: HitlQuestion): string[] =>
   (question.options ?? []).map((option, index) => {
@@ -24,15 +38,17 @@ const optionLines = (question: HitlQuestion): string[] =>
     return `${index + 1}. ${option.label}${isRecommended ? " (recommended)" : ""}`;
   });
 
-const resolveOptionAnswer = (
+export const resolveHitlAnswer = (
   question: HitlQuestion,
   rawAnswer: string
-): string => {
+): string | undefined => {
   const options = question.options ?? [];
   const trimmed = rawAnswer.trim();
-  const fallback = recommendedOption(question);
-  if (!trimmed && fallback) {
-    return fallback.id;
+  if (!trimmed) {
+    return undefined;
+  }
+  if (!options.length) {
+    return trimmed;
   }
 
   const number = Number(trimmed);
@@ -73,11 +89,7 @@ const questionPrompt = (question: HitlQuestion, index: number, total: number): s
   const options = optionLines(question);
   if (options.length) {
     lines.push("", ...options);
-    const fallback = recommendedOption(question);
-    const fallbackIndex = fallback
-      ? (question.options ?? []).findIndex((option) => option.id === fallback.id) + 1
-      : undefined;
-    lines.push("", `Choose option${fallbackIndex ? ` [${fallbackIndex}]` : ""}: `);
+    lines.push("", "Choose option: ");
   } else {
     lines.push("", "Answer: ");
   }
@@ -92,9 +104,7 @@ export const answerHitlQuestions = async (
   for (let index = 0; index < questions.length; index += 1) {
     const question = questions[index]!;
     const answer = await ask(questionPrompt(question, index, questions.length));
-    const resolved = question.options?.length
-      ? resolveOptionAnswer(question, answer)
-      : answer.trim();
+    const resolved = resolveHitlAnswer(question, answer);
     if (resolved) {
       responses.push({ question_id: question.id, answer: resolved });
     }

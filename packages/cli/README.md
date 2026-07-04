@@ -195,7 +195,8 @@ CloudEval separates machine output from human/operator messages:
 - **stderr**: prompts, warnings, progress, browser-open messages, and MCP diagnostics;
 - **JSON/NDJSON**: use `--format json` for one final payload or `--format ndjson` for streaming events where supported;
 - **exit codes**: non-zero exits indicate failed commands, validation failures, missing auth, or required human approval;
-- **non-interactive mode**: use `--non-interactive` in CI so commands fail instead of prompting.
+- **non-interactive mode**: use `--non-interactive` in CI so commands fail instead of prompting;
+- **HITL approvals**: interactive approval prompts require an explicit option number, yes/no-style answer, or typed response; blank Enter does not approve the recommended option.
 
 Recommended CI shape:
 

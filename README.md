@@ -181,10 +181,13 @@ stays docked so prompt entry does not compete with the transcript. Grounded
 answers show numbered citations and a Sources section instead of raw
 `[S_tool_...]` tags, with citation numbers highlighted inline; `/copy` copies
 the latest assistant response and `/download` writes a Markdown transcript with
-the same references. Project and Connection tabs show a selected-item detail
-pane for backend fields, report coverage, sync state, and linked records; use
-`J`/`K` or Up/Down on Projects and Connections to move the selected row, then
-Enter to confirm it. The billing header separates credits left from observed
+the same references. Graph insight blocks render as bordered terminal cards
+instead of exposing raw `graph-insight` markers. HITL approval prompts require an
+explicit option selection or typed answer; pressing Enter on a blank approval
+prompt does not choose the recommended option. Project and Connection tabs show
+a selected-item detail pane for backend fields, report coverage, sync state, and
+linked records; use `J`/`K` or Up/Down on Projects and Connections to move the
+selected row, then Enter to confirm it. The billing header separates credits left from observed
 credits used so usage does not look like the current budget. Use the Profile
 control or `/profile cost` to run the current prompt with an Agent Profile;
 selecting a profile switches the TUI to Agent mode, and selecting Ask mode
@@ -356,6 +359,8 @@ Output contract:
   result only has a worker-local temp file path, CloudEval reports the submitted
   template filename instead;
 - with `--non-interactive`, human approval exits with code `6` and returns `HITL_REQUIRED`;
+- interactive HITL prompts require an explicit option number, yes/no-style
+  answer, or typed response; blank Enter does not approve the recommended option;
 - `--show-sensitive-ids` shows full account/session-style IDs only on trusted machines. It does not unredact tokens.
 
 ## Docs

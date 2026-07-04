@@ -108,6 +108,34 @@ test("toCitationExportContent includes quote excerpt when present", () => {
   assert.match(exported, /Storage encryption/);
 });
 
+test("fallback reference labels hide tool prefixes and numeric source suffixes", () => {
+  const references = buildCitationReferences({
+    content: "Graph finding.[S_tool_graph_insights_0]",
+  });
+
+  assert.equal(references[0]?.label, "Graph insights");
+  assert.equal(
+    toCitationExportContent({ content: "Graph finding.[S_tool_graph_insights_0]" }),
+    [
+      "Graph finding.[1]",
+      "",
+      "---",
+      "## References",
+      "- [1] Graph insights",
+    ].join("\n")
+  );
+});
+
+test("toCitationExportContent strips graph insight markers from exports", () => {
+  const exported = toCitationExportContent({
+    content:
+      "Summary.[S_tool_graph_insights_0]\n\n<!-- graph-insight:compact -->\n\n## **Topology**\n- VM to NIC.",
+  });
+
+  assert.doesNotMatch(exported, /graph-insight/);
+  assert.match(exported, /## \*\*Topology\*\*/);
+});
+
 test("toCitationExportContent appends references for copy and download", () => {
   const content = "Architecture risk summary.[S_tool_architecture_dashboard_0]";
 

@@ -6,6 +6,7 @@ import SyntaxHighlight from "ink-syntax-highlight";
 import { terminalTheme } from "../theme.js";
 import {
   buildCitationReferences,
+  stripGraphInsightMarkers,
   toDisplayCitationContent,
   type CitationReference,
 } from "../citationContent.js";
@@ -28,10 +29,13 @@ export const getTranscriptRoleColor = (role: "user" | "assistant"): string | und
   role === "user" ? terminalTheme.userName : terminalTheme.aiName;
 
 interface ParsedBlock {
-  type: "text" | "code";
+  type: "text" | "code" | "graphInsight";
   content: string;
   language?: string;
 }
+
+const GRAPH_INSIGHT_MARKER_RE =
+  /<!--\s*graph-insight(?::[A-Za-z0-9_-]+)?\s*-->/i;
 
 const normalizeFenceLanguage = (language?: string): string => {
   const normalized = (language ?? "")
@@ -47,19 +51,51 @@ export const getSyntaxHighlightLanguage = (language?: string): string => {
   return supportsLanguage(normalized) ? normalized : "text";
 };
 
-const parseMarkdown = (text: string): ParsedBlock[] => {
+const splitGraphInsightTextBlocks = (text: string): ParsedBlock[] => {
+  const blocks: ParsedBlock[] = [];
+  let cursor = 0;
+  let insightMode = false;
+  let remaining = text;
+  let match: RegExpExecArray | null;
+
+  while ((match = GRAPH_INSIGHT_MARKER_RE.exec(remaining)) !== null) {
+    const before = remaining.slice(0, match.index);
+    if (before) {
+      const content = insightMode
+        ? stripGraphInsightMarkers(before).trimStart()
+        : stripGraphInsightMarkers(before);
+      if (content.trim()) {
+        blocks.push({ type: insightMode ? "graphInsight" : "text", content });
+      }
+    }
+    cursor += match.index + match[0].length;
+    remaining = text.slice(cursor);
+    insightMode = true;
+  }
+
+  if (remaining) {
+    const content = insightMode
+      ? stripGraphInsightMarkers(remaining).trimStart()
+      : stripGraphInsightMarkers(remaining);
+    if (content.trim()) {
+      blocks.push({ type: insightMode ? "graphInsight" : "text", content });
+    }
+  }
+
+  return blocks;
+};
+
+export const parseAssistantMarkdownBlocks = (text: string): ParsedBlock[] => {
   const blocks: ParsedBlock[] = [];
   const parts = text.split(/```/g);
 
   for (let i = 0; i < parts.length; i++) {
     const part = parts[i];
     if (i % 2 === 0) {
-      // Even indices are text (outside code blocks)
       if (part) {
-        blocks.push({ type: "text", content: part });
+        blocks.push(...splitGraphInsightTextBlocks(part));
       }
     } else {
-      // Odd indices are code
       const newlineIndex = part.indexOf("\n");
       let language = "";
       let code = part;
@@ -228,7 +264,7 @@ const FormattedContent: React.FC<{
     return <MarkdownText content={content} />;
   }
 
-  const blocks = parseMarkdown(content);
+  const blocks = parseAssistantMarkdownBlocks(content);
   const references = buildCitationReferences({
     content,
     toolsUsed: message.toolsUsed,
@@ -252,6 +288,21 @@ const FormattedContent: React.FC<{
               marginY={1}
             >
               <SyntaxHighlight code={block.content} language={syntaxLanguage} />
+            </TitledBox>
+          );
+        }
+        if (block.type === "graphInsight") {
+          return (
+            <TitledBox
+              key={idx}
+              title="Graph Insight"
+              borderStyle="single"
+              borderColor={terminalTheme.brand}
+              padding={0}
+              paddingX={1}
+              marginY={1}
+            >
+              <MarkdownText content={toDisplayCitationContent(block.content)} />
             </TitledBox>
           );
         }

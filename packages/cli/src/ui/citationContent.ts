@@ -2,6 +2,8 @@ import type { ChatCitationEntry, ChatToolSourceEntry } from "@cloudeval/shared";
 
 const CITATION_TAG_RE = /\[S([A-Za-z0-9_\-]+)\]/g;
 const CITATION_TAG_ALT_RE = /\[(tool_[A-Za-z0-9_\-]+)\]/g;
+const GRAPH_INSIGHT_MARKER_RE =
+  /^[ \t]*<!--\s*graph-insight(?::[A-Za-z0-9_-]+)?\s*-->[ \t]*\n?/gim;
 const DEFAULT_MAX_INLINE_CITATIONS_PER_SOURCE = 3;
 const ALIGNMENT_LOW_SCORE = 70;
 const QUOTE_EXCERPT_MAX = 120;
@@ -25,6 +27,9 @@ export interface CitationReference {
 
 export const normalizeCitationSourceId = (sourceId: string): string =>
   sourceId.startsWith("_tool_") ? sourceId.slice(1) : sourceId;
+
+export const stripGraphInsightMarkers = (content: string): string =>
+  content.replace(GRAPH_INSIGHT_MARKER_RE, "").replace(/\n{3,}/g, "\n\n");
 
 const findCitationMatches = (value: string): CitationMatch[] => {
   const matches: CitationMatch[] = [];
@@ -84,15 +89,16 @@ export const toDisplayCitationContent = (
   content: string,
   options: { maxInlinePerSource?: number } = {}
 ): string => {
-  if (!content) {
-    return content;
+  const cleanedContent = stripGraphInsightMarkers(content);
+  if (!cleanedContent) {
+    return cleanedContent;
   }
-  const matches = findCitationMatches(content);
+  const matches = findCitationMatches(cleanedContent);
   if (!matches.length) {
-    return content;
+    return cleanedContent;
   }
 
-  const sourceIdToNumber = citationNumberMap(content);
+  const sourceIdToNumber = citationNumberMap(cleanedContent);
   const perSourceCount = new Map<string, number>();
   const maxInlinePerSource =
     options.maxInlinePerSource ?? DEFAULT_MAX_INLINE_CITATIONS_PER_SOURCE;
@@ -100,7 +106,7 @@ export const toDisplayCitationContent = (
   let result = "";
 
   for (const match of matches) {
-    result += content.slice(cursor, match.index);
+    result += cleanedContent.slice(cursor, match.index);
     const count = (perSourceCount.get(match.sourceId) ?? 0) + 1;
     perSourceCount.set(match.sourceId, count);
     const number = sourceIdToNumber.get(match.sourceId);
@@ -110,7 +116,7 @@ export const toDisplayCitationContent = (
     cursor = match.end;
   }
 
-  return result + content.slice(cursor);
+  return result + cleanedContent.slice(cursor);
 };
 
 const firstString = (...values: unknown[]): string | undefined => {
@@ -127,10 +133,13 @@ const firstString = (...values: unknown[]): string | undefined => {
 };
 
 const fallbackSourceLabel = (sourceId: string): string =>
-  sourceId
+  (
+    sourceId
     .replace(/^tool_/, "")
+      .replace(/[_:-]+\d+$/, "")
     .replace(/[_:-]+/g, " ")
-    .trim() || sourceId;
+      .trim() || sourceId
+  ).replace(/^./, (char) => char.toUpperCase());
 
 export const buildCitationReferences = ({
   content,
@@ -234,9 +243,10 @@ export const toCitationExportContent = ({
   toolsUsed?: ChatToolSourceEntry[];
   citations?: ChatCitationEntry[];
 }): string => {
-  const displayContent = toDisplayCitationContent(content);
+  const cleanedContent = stripGraphInsightMarkers(content);
+  const displayContent = toDisplayCitationContent(cleanedContent);
   const references = buildReferencesSection(
-    buildCitationReferences({ content, toolsUsed, citations })
+    buildCitationReferences({ content: cleanedContent, toolsUsed, citations })
   );
   return references ? `${displayContent.trim()}\n\n${references}` : displayContent;
 };

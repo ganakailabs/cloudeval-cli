@@ -166,6 +166,11 @@ import {
   recordSessionTurn,
   type LocalSession,
 } from "../sessionsStore.js";
+import {
+  getInitialHitlOptionIndex,
+  nextHitlOptionIndex,
+  resolveHitlAnswer,
+} from "../hitlPrompt.js";
 
 export interface AppProps {
   baseUrl: string;
@@ -1166,19 +1171,6 @@ const BottomControls: React.FC<{ tab: WorkspaceTab }> = ({ tab }) => (
     ) : null}
   </Box>
 );
-
-const recommendedOptionIndex = (question?: HitlQuestion): number => {
-  if (!question?.options?.length) {
-    return 0;
-  }
-  const recommendedId =
-    question.recommended_option_id ??
-    question.options.find((option) => option.recommended)?.id;
-  const index = recommendedId
-    ? question.options.findIndex((option) => option.id === recommendedId)
-    : -1;
-  return index >= 0 ? index : 0;
-};
 
 const isSpecifyOption = (option?: { id: string; label: string }) =>
   option?.id === "specify" || option?.label === "I'll specify";
@@ -2275,7 +2267,7 @@ export const App: React.FC<AppProps> = ({
       return;
     }
     setHitlQuestionIndex(0);
-    setHitlOptionIndex(recommendedOptionIndex(chatState.hitl.questions[0]));
+    setHitlOptionIndex(getInitialHitlOptionIndex(chatState.hitl.questions[0]));
   }, [chatState.hitl?.messageId]);
 
   useEffect(() => {
@@ -2283,7 +2275,7 @@ export const App: React.FC<AppProps> = ({
       return;
     }
     setHitlOptionIndex(
-      recommendedOptionIndex(chatState.hitl.questions[hitlQuestionIndex])
+      getInitialHitlOptionIndex(chatState.hitl.questions[hitlQuestionIndex])
     );
   }, [chatState.hitl?.messageId, hitlQuestionIndex]);
 
@@ -2427,9 +2419,15 @@ export const App: React.FC<AppProps> = ({
       return;
     }
 
+    const resolvedAnswer = resolveHitlAnswer(currentQuestion, answer);
+    if (!resolvedAnswer) {
+      setNotice("Choose a HITL option with Up/Down or type an answer first.");
+      return;
+    }
+
     const nextAnswers = {
       ...hitlAnswers,
-      [currentQuestion.id]: answer,
+      [currentQuestion.id]: resolvedAnswer,
     };
     const nextUnansweredIndex = hitl.questions.findIndex(
       (question) => !nextAnswers[question.id]
@@ -2478,6 +2476,7 @@ export const App: React.FC<AppProps> = ({
 
     const option = question.options?.[hitlOptionIndex];
     if (!option) {
+      setNotice("Choose a HITL option with Up/Down or type an answer first.");
       return;
     }
 
@@ -3950,12 +3949,14 @@ export const App: React.FC<AppProps> = ({
          }
          if (key.upArrow && optionCount > 0) {
            setHitlOptionIndex((current) =>
-             current === 0 ? optionCount - 1 : current - 1
+             nextHitlOptionIndex(current, -1, optionCount)
            );
            return;
          }
          if (key.downArrow && optionCount > 0) {
-           setHitlOptionIndex((current) => (current + 1) % optionCount);
+           setHitlOptionIndex((current) =>
+             nextHitlOptionIndex(current, 1, optionCount)
+           );
            return;
          }
          if (key.return && !input.trim()) {

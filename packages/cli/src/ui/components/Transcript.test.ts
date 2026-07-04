@@ -6,6 +6,7 @@ import { hasRenderableTranscriptMessages } from "../transcriptModel";
 import {
   getTranscriptRoleColor,
   getSyntaxHighlightLanguage,
+  parseAssistantMarkdownBlocks,
   summarizeThinkingLedger,
   tokenizeInlineMarkdown,
 } from "./Transcript.js";
@@ -79,6 +80,20 @@ test("tokenizeInlineMarkdown marks citation numbers for colored rendering", () =
     { type: "citation", text: "[2]" },
     { type: "text", text: "." },
   ]);
+});
+
+test("parseAssistantMarkdownBlocks promotes graph insight marker to a card block", () => {
+  const blocks = parseAssistantMarkdownBlocks(
+    "Intro.[S_tool_graph_insights_0]\n\n<!-- graph-insight:compact -->\n\n## **Topology**\n- VM to NIC."
+  );
+
+  assert.deepEqual(
+    blocks.map((block) => block.type),
+    ["text", "graphInsight"]
+  );
+  assert.match(blocks[0]?.content ?? "", /Intro/);
+  assert.match(blocks[1]?.content ?? "", /Topology/);
+  assert.doesNotMatch(blocks[1]?.content ?? "", /graph-insight/);
 });
 
 test("transcript role labels use distinct bright persona colors", () => {

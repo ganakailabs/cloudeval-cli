@@ -158,10 +158,12 @@ The smoke script verifies:
   report artifact chips, streaming work is labeled as a task ledger, raw
   `[S_tool_...]` citation tags render as highlighted numbered sources, `/copy`
   copies the latest assistant response, `/download` writes a Markdown chat
-  transcript, `/thread new` creates another independent open session, the
-  Thread selector can switch open sessions plus local/cloud threads, Projects
-  and Connections show selected-item details, `J`/`K` and Up/Down move selected
-  project/connection rows, Enter confirms the selected row, typing `/` opens
+  transcript, graph insight blocks render as bordered terminal cards without
+  exposing raw `graph-insight` markers, HITL prompts do not approve a
+  recommended option from blank Enter, `/thread new` creates another independent
+  open session, the Thread selector can switch open sessions plus local/cloud
+  threads, Projects and Connections show selected-item details, `J`/`K` and
+  Up/Down move selected project/connection rows, Enter confirms the selected row, typing `/` opens
   the bottom slash-command completion strip, Tab or Up/Down moves the active
   command, Right accepts the ghost text, Enter chooses the highlighted command,
   and the billing header separates credits left from observed credits used.

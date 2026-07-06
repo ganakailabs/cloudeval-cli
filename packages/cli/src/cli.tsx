@@ -41,6 +41,10 @@ import {
 import { registerAgentsCommand } from "./agentsCommand.js";
 import { registerValidateCommand } from "./validateCommand.js";
 import { registerRulesCommand } from "./rulesCommand.js";
+import { registerIacCommand } from "./iacCommand.js";
+import { registerFindingsCommand } from "./findingsCommand.js";
+import { registerCiCommand } from "./ciCommand.js";
+import { registerGraphCommand } from "./graphCommand.js";
 import { registerConfigCommand } from "./configCommand.js";
 import { registerDiagnosticsCommands } from "./diagnosticsCommand.js";
 import { registerModelsCommand } from "./modelsCommand.js";
@@ -1081,6 +1085,16 @@ registerValidateCommand(program, {
 });
 
 registerRulesCommand(program, {
+  defaultBaseUrl: DEFAULT_BASE_URL,
+  resolveBaseUrl,
+  readStdinValue,
+  isHeadlessEnvironment,
+});
+
+registerIacCommand(program);
+registerFindingsCommand(program);
+registerCiCommand(program);
+registerGraphCommand(program, {
   defaultBaseUrl: DEFAULT_BASE_URL,
   resolveBaseUrl,
   readStdinValue,

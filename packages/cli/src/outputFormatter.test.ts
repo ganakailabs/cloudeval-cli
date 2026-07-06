@@ -30,6 +30,48 @@ test("formatSuccessEnvelope creates stable machine envelope", () => {
   );
 });
 
+test("formatSuccessEnvelope includes IDE evidence metadata when provided", () => {
+  assert.deepEqual(
+    formatSuccessEnvelope({
+      command: "review local",
+      data: { runId: "run-1" },
+      schemaVersion: "2026-07-ide-v1",
+      freshness: {
+        source: "local",
+        observedAt: "2026-07-06T00:00:00.000Z",
+        stale: false,
+      },
+      evidence: [
+        {
+          id: "evidence-1",
+          source: "local",
+          observedAt: "2026-07-06T00:00:00.000Z",
+          description: "Local template validation evidence",
+        },
+      ],
+    }),
+    {
+      ok: true,
+      command: "review local",
+      data: { runId: "run-1" },
+      schemaVersion: "2026-07-ide-v1",
+      freshness: {
+        source: "local",
+        observedAt: "2026-07-06T00:00:00.000Z",
+        stale: false,
+      },
+      evidence: [
+        {
+          id: "evidence-1",
+          source: "local",
+          observedAt: "2026-07-06T00:00:00.000Z",
+          description: "Local template validation evidence",
+        },
+      ],
+    }
+  );
+});
+
 test("formatErrorEnvelope creates stable machine error envelope", () => {
   assert.deepEqual(formatErrorEnvelope("auth", new Error("login required")), {
     ok: false,

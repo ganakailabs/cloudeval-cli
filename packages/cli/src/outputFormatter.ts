@@ -83,6 +83,9 @@ export interface SuccessEnvelope<T = unknown> {
   frontendUrl?: string;
   filesWritten?: string[];
   traceId?: string;
+  schemaVersion?: string;
+  freshness?: unknown;
+  evidence?: unknown[];
 }
 
 export interface ErrorEnvelope {
@@ -104,6 +107,9 @@ export const formatSuccessEnvelope = <T>(input: {
   frontendUrl?: string;
   filesWritten?: string[];
   traceId?: string;
+  schemaVersion?: string;
+  freshness?: unknown;
+  evidence?: unknown[];
 }): SuccessEnvelope<T> => {
   const envelope: SuccessEnvelope<T> = {
     ok: true,
@@ -121,6 +127,15 @@ export const formatSuccessEnvelope = <T>(input: {
   }
   if (input.traceId) {
     envelope.traceId = input.traceId;
+  }
+  if (input.schemaVersion) {
+    envelope.schemaVersion = input.schemaVersion;
+  }
+  if (input.freshness) {
+    envelope.freshness = input.freshness;
+  }
+  if (input.evidence?.length) {
+    envelope.evidence = input.evidence;
   }
   return envelope;
 };
@@ -348,6 +363,9 @@ export const formatOutput = <T>(input: {
   warnings?: string[];
   filesWritten?: string[];
   traceId?: string;
+  schemaVersion?: string;
+  freshness?: unknown;
+  evidence?: unknown[];
   showSensitiveIds?: boolean;
   redactSensitiveSecrets?: boolean;
 }): string => {
@@ -368,6 +386,9 @@ export const formatOutput = <T>(input: {
         warnings: input.warnings,
         filesWritten: input.filesWritten,
         traceId: input.traceId,
+        schemaVersion: input.schemaVersion,
+        freshness: input.freshness,
+        evidence: input.evidence,
       }),
       null,
       2
@@ -403,6 +424,9 @@ export const writeFormattedOutput = async <T>(input: {
   warnings?: string[];
   filesWritten?: string[];
   traceId?: string;
+  schemaVersion?: string;
+  freshness?: unknown;
+  evidence?: unknown[];
   showSensitiveIds?: boolean;
   redactSensitiveSecrets?: boolean;
 }) => {

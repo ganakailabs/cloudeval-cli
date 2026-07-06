@@ -70,6 +70,18 @@ import {
   listProjectSyncRuns,
 } from "./graphClient.js";
 import {
+  buildCiInitPlan,
+  buildDraftFix,
+  buildFindingEvidence,
+  buildGraphNeighborhood,
+  buildReviewLocalRun,
+} from "./ideContracts.js";
+import {
+  buildIacDetectData,
+  buildIacIndexData,
+  IDE_SCHEMA_VERSION,
+} from "./iacCommand.js";
+import {
   getRule,
   getRuleCategories,
   formatTemplateProgressEvent,
@@ -216,6 +228,7 @@ type McpToolsetName =
   | "reports"
   | "billing"
   | "graph"
+  | "ide"
   | "validation";
 
 const MCP_PROTOCOL_VERSION = "2025-06-18";
@@ -1708,6 +1721,97 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
       requiresAuth: false,
     },
   },
+  {
+    name: "cloudeval_iac_detect",
+    title: "Detect IaC",
+    description: "Detect ARM, Bicep, Terraform, and OpenTofu files in a workspace.",
+    inputSchema: makeInputSchema({
+      workspace: { type: "string", description: "Workspace directory.", default: "." },
+    }),
+    outputSchema: envelopeSchema,
+    annotations: { readOnlyHint: true, destructiveHint: false, requiresAuth: false },
+  },
+  {
+    name: "cloudeval_iac_index",
+    title: "Index IaC",
+    description: "Index resources and ranges in an IaC file or workspace.",
+    inputSchema: makeInputSchema({
+      file: { type: "string", description: "IaC file path." },
+      workspace: { type: "string", description: "Workspace directory.", default: "." },
+    }),
+    outputSchema: envelopeSchema,
+    annotations: { readOnlyHint: true, destructiveHint: false, requiresAuth: false },
+  },
+  {
+    name: "cloudeval_review_local",
+    title: "Review Local IaC",
+    description: "Run the IDE local review path. This tool indexes resources and returns local support state.",
+    inputSchema: makeInputSchema({
+      file: { type: "string", description: "IaC file path." },
+      workspace: { type: "string", description: "Workspace directory.", default: "." },
+      projectId: projectIdProperty,
+    }),
+    outputSchema: envelopeSchema,
+    annotations: { readOnlyHint: false, destructiveHint: false, requiresAuth: false },
+  },
+  {
+    name: "cloudeval_get_finding_evidence",
+    title: "Get Finding Evidence",
+    description: "Read evidence for a finding from a CloudEval IDE run cache.",
+    inputSchema: makeInputSchema({
+      workspace: { type: "string", description: "Workspace directory.", default: "." },
+      runId: { type: "string", description: "IDE run id." },
+      findingId: { type: "string", description: "Finding id." },
+    }, ["runId", "findingId"]),
+    outputSchema: envelopeSchema,
+    annotations: { readOnlyHint: true, destructiveHint: false, requiresAuth: false },
+  },
+  {
+    name: "cloudeval_get_resource_context",
+    title: "Get Resource Context",
+    description: "Return indexed resources for an IaC file or workspace.",
+    inputSchema: makeInputSchema({
+      file: { type: "string", description: "IaC file path." },
+      workspace: { type: "string", description: "Workspace directory.", default: "." },
+    }),
+    outputSchema: envelopeSchema,
+    annotations: { readOnlyHint: true, destructiveHint: false, requiresAuth: false },
+  },
+  {
+    name: "cloudeval_explain_blast_radius",
+    title: "Explain Blast Radius",
+    description: "Fetch CloudEval graph-neighborhood evidence for a project resource.",
+    inputSchema: makeInputSchema({
+      projectId: projectIdProperty,
+      resourceId: { type: "string", description: "CloudEval resource id or IaC address." },
+      limit: { type: "number", description: "Maximum graph insight items." },
+    }, ["resourceId"]),
+    outputSchema: envelopeSchema,
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true, requiresAuth: true },
+  },
+  {
+    name: "cloudeval_draft_fix",
+    title: "Draft Fix",
+    description: "Return a non-mutating draft-fix proposal for a finding.",
+    inputSchema: makeInputSchema({
+      workspace: { type: "string", description: "Workspace directory.", default: "." },
+      runId: { type: "string", description: "IDE run id." },
+      findingId: { type: "string", description: "Finding id." },
+    }, ["runId", "findingId"]),
+    outputSchema: envelopeSchema,
+    annotations: { readOnlyHint: false, destructiveHint: false, requiresAuth: false },
+  },
+  {
+    name: "cloudeval_generate_ci_gate",
+    title: "Generate CI Gate",
+    description: "Generate CloudEval CI gate files. This MCP tool returns file contents and does not write files.",
+    inputSchema: makeInputSchema({
+      projectId: projectIdProperty,
+      provider: { type: "string", enum: ["github-actions", "azure-pipelines"] },
+    }, ["projectId"]),
+    outputSchema: envelopeSchema,
+    annotations: { readOnlyHint: false, destructiveHint: false, requiresAuth: false },
+  },
 ];
 
 export const mcpToolNames = mcpToolDefinitions.map((tool) => tool.name);
@@ -1877,6 +1981,22 @@ const MCP_TOOLSETS: Record<McpToolsetName, readonly string[]> = {
     "recipes_list",
     "recipes_get",
   ],
+  ide: [
+    "capabilities_get",
+    "cloudeval_iac_detect",
+    "cloudeval_iac_index",
+    "cloudeval_review_local",
+    "cloudeval_get_finding_evidence",
+    "cloudeval_get_resource_context",
+    "cloudeval_explain_blast_radius",
+    "cloudeval_draft_fix",
+    "cloudeval_generate_ci_gate",
+    "projects_list",
+    "projects_get",
+    "projects_graph_insights",
+    "template_validate",
+    "rules_get",
+  ],
   validation: [
     "capabilities_get",
     "template_validate",
@@ -1952,18 +2072,84 @@ const mcpResourceDefinitions: McpResourceDefinition[] = [
     description: "Public CloudEval SKILL.md catalog for agent reasoning.",
     mimeType: "application/json",
   },
+  {
+    uri: "cloudeval://workspace/detections",
+    name: "workspace-detections",
+    title: "Workspace IaC Detections",
+    description: "Auth-free local IaC detection results for the current workspace.",
+    mimeType: "application/json",
+  },
+  {
+    uri: "cloudeval://runs/latest",
+    name: "latest-ide-run",
+    title: "Latest IDE Review Run",
+    description: "Latest CloudEval IDE review run when available from local cache.",
+    mimeType: "application/json",
+  },
+  {
+    uri: "cloudeval://findings/latest",
+    name: "latest-findings",
+    title: "Latest IDE Findings",
+    description: "Latest local IDE findings when available from local cache.",
+    mimeType: "application/json",
+  },
 ];
 
-const mcpPromptDefinitions: McpPromptDefinition[] = recipes.map((recipe) => ({
-  name: recipe.id,
-  title: recipe.title,
-  description: recipe.description,
-  arguments: recipe.inputs.map((input) => ({
-    name: input.name === "projectId" ? "projectId" : input.name,
-    description: input.description,
-    required: input.required,
+const idePromptDefinitions: McpPromptDefinition[] = [
+  {
+    name: "review_current_iac_file",
+    title: "Review Current IaC File",
+    description: "Index and review the current IaC file using CloudEval evidence where available.",
+    arguments: [{ name: "file", description: "IaC file path.", required: true }],
+  },
+  {
+    name: "explain_finding_with_evidence",
+    title: "Explain Finding With Evidence",
+    description: "Explain a CloudEval finding using evidence, freshness, confidence, and resource mapping.",
+    arguments: [
+      { name: "runId", description: "IDE run id.", required: true },
+      { name: "findingId", description: "Finding id.", required: true },
+    ],
+  },
+  {
+    name: "draft_safe_fix",
+    title: "Draft Safe Fix",
+    description: "Draft a non-mutating fix proposal for a CloudEval finding.",
+    arguments: [
+      { name: "runId", description: "IDE run id.", required: true },
+      { name: "findingId", description: "Finding id.", required: true },
+    ],
+  },
+  {
+    name: "generate_ci_gate",
+    title: "Generate CI Gate",
+    description: "Generate a CloudEval CI gate using the existing cloudeval review command.",
+    arguments: [{ name: "projectId", description: "CloudEval project id.", required: true }],
+  },
+  {
+    name: "explain_blast_radius",
+    title: "Explain Blast Radius",
+    description: "Explain blast radius using CloudEval graph-neighborhood evidence.",
+    arguments: [
+      { name: "projectId", description: "CloudEval project id.", required: true },
+      { name: "resourceId", description: "Resource id or IaC address.", required: true },
+    ],
+  },
+];
+
+const mcpPromptDefinitions: McpPromptDefinition[] = [
+  ...recipes.map((recipe) => ({
+    name: recipe.id,
+    title: recipe.title,
+    description: recipe.description,
+    arguments: recipe.inputs.map((input) => ({
+      name: input.name === "projectId" ? "projectId" : input.name,
+      description: input.description,
+      required: input.required,
+    })),
   })),
-}));
+  ...idePromptDefinitions,
+];
 
 const MCP_RESOURCE_TOOL_REQUIREMENTS: Record<string, readonly string[]> = {
   "cloudeval://capabilities": ["capabilities_get"],
@@ -1972,18 +2158,28 @@ const MCP_RESOURCE_TOOL_REQUIREMENTS: Record<string, readonly string[]> = {
   "cloudeval://reports/latest": ["reports_list"],
   "cloudeval://recipes": ["recipes_list"],
   "cloudeval://skills": ["capabilities_get"],
+  "cloudeval://workspace/detections": ["cloudeval_iac_detect"],
+  "cloudeval://runs/latest": ["cloudeval_review_local"],
+  "cloudeval://findings/latest": ["cloudeval_get_finding_evidence"],
 };
 
 const promptRequirementTools = (tools: string[]): string[] =>
   tools.filter((tool) => tool !== "ask" && tool !== "recipes_run");
 
 const MCP_PROMPT_TOOL_REQUIREMENTS: Record<string, readonly string[]> =
-  Object.fromEntries(
-    recipes.map((recipe) => [
-      recipe.id,
-      promptRequirementTools(recipe.mcpTools),
-    ]),
-  );
+  {
+    ...Object.fromEntries(
+      recipes.map((recipe) => [
+        recipe.id,
+        promptRequirementTools(recipe.mcpTools),
+      ]),
+    ),
+    review_current_iac_file: ["cloudeval_iac_index"],
+    explain_finding_with_evidence: ["cloudeval_get_finding_evidence"],
+    draft_safe_fix: ["cloudeval_draft_fix"],
+    generate_ci_gate: ["cloudeval_generate_ci_gate"],
+    explain_blast_radius: ["cloudeval_explain_blast_radius"],
+  };
 
 const hasRequiredTools = (
   requiredTools: readonly string[] | undefined,
@@ -4208,6 +4404,142 @@ const buildToolHandlers = (
     });
   });
 
+  handlers.set("cloudeval_iac_detect", async (args) => {
+    const data = await buildIacDetectData({
+      workspace: stringValue(args.workspace) ?? ".",
+    });
+    return formatSuccessEnvelope({
+      command: "iac detect",
+      data,
+      schemaVersion: IDE_SCHEMA_VERSION,
+      freshness: { source: "local", observedAt: new Date().toISOString(), stale: false },
+    });
+  });
+
+  handlers.set("cloudeval_iac_index", async (args) => {
+    const data = await buildIacIndexData({
+      file: stringValue(args.file),
+      workspace: stringValue(args.workspace) ?? ".",
+    });
+    return formatSuccessEnvelope({
+      command: "iac index",
+      data,
+      schemaVersion: IDE_SCHEMA_VERSION,
+      freshness: { source: "local", observedAt: new Date().toISOString(), stale: false },
+    });
+  });
+
+  handlers.set("cloudeval_review_local", async (args) => {
+    const workspace = path.resolve(stringValue(args.workspace) ?? ".");
+    const indexData = await buildIacIndexData({
+      file: stringValue(args.file),
+      workspace,
+    });
+    const run = await buildReviewLocalRun({
+      command: "review local",
+      workspace,
+      indexes: indexData.indexes,
+      validationData: { details: [] },
+      warnings: indexData.indexes
+        .filter((index) => index.supportLevel === "indexed_only")
+        .map((index) => `${index.adapter} is indexed only; deep findings require scanner-backed evidence.`),
+    });
+    return formatSuccessEnvelope({
+      command: "review local",
+      data: run,
+      traceId: run.id,
+      schemaVersion: IDE_SCHEMA_VERSION,
+      freshness: run.freshness,
+      evidence: run.evidence,
+    });
+  });
+
+  handlers.set("cloudeval_get_finding_evidence", async (args) => {
+    const data = await buildFindingEvidence({
+      workspace: path.resolve(stringValue(args.workspace) ?? "."),
+      runId: stringValue(args.runId) ?? "",
+      findingId: stringValue(args.findingId) ?? "",
+    });
+    return formatSuccessEnvelope({
+      command: "findings evidence",
+      data,
+      traceId: stringValue(args.runId),
+      schemaVersion: IDE_SCHEMA_VERSION,
+      freshness: data.freshness,
+      evidence: data.evidenceRefs,
+    });
+  });
+
+  handlers.set("cloudeval_get_resource_context", async (args) => {
+    const data = await buildIacIndexData({
+      file: stringValue(args.file),
+      workspace: stringValue(args.workspace) ?? ".",
+    });
+    return formatSuccessEnvelope({
+      command: "iac index",
+      data,
+      schemaVersion: IDE_SCHEMA_VERSION,
+      freshness: { source: "local", observedAt: new Date().toISOString(), stale: false },
+    });
+  });
+
+  handlers.set("cloudeval_explain_blast_radius", async (args) => {
+    const config = await resolveInvocationConfig(serverOptions, args);
+    const auth = await resolveAuth(config, { requireUser: true });
+    const projectId = stringValue(args.projectId) ?? config.defaultProjectId;
+    const resourceId = stringValue(args.resourceId);
+    if (!projectId || !resourceId) {
+      throw new Error("projectId and resourceId are required.");
+    }
+    const graphData = await getProjectGraphInsights({
+      baseUrl: config.baseUrl,
+      authToken: auth.token,
+      userId: auth.user!.id,
+      projectId,
+      resourceId,
+      focus: "impact",
+      limit: numberValue(args.limit),
+    });
+    const data = buildGraphNeighborhood({ projectId, resourceId, graphData });
+    return formatSuccessEnvelope({
+      command: "graph neighborhood",
+      data,
+      schemaVersion: IDE_SCHEMA_VERSION,
+    });
+  });
+
+  handlers.set("cloudeval_draft_fix", async (args) => {
+    const data = await buildDraftFix({
+      workspace: path.resolve(stringValue(args.workspace) ?? "."),
+      runId: stringValue(args.runId) ?? "",
+      findingId: stringValue(args.findingId) ?? "",
+    });
+    return formatSuccessEnvelope({
+      command: "findings draft-fix",
+      data,
+      traceId: stringValue(args.runId),
+      schemaVersion: IDE_SCHEMA_VERSION,
+      evidence: data.evidenceRefs,
+    });
+  });
+
+  handlers.set("cloudeval_generate_ci_gate", async (args) => {
+    const projectId = stringValue(args.projectId);
+    if (!projectId) {
+      throw new Error("projectId is required.");
+    }
+    const data = buildCiInitPlan({
+      projectId,
+      provider: stringValue(args.provider),
+      write: false,
+    });
+    return formatSuccessEnvelope({
+      command: "ci init",
+      data,
+      schemaVersion: IDE_SCHEMA_VERSION,
+    });
+  });
+
   return handlers;
 };
 
@@ -4248,6 +4580,50 @@ const readMcpResource = async (
         ),
       ],
     };
+  }
+
+  if (uri === "cloudeval://workspace/detections") {
+    const envelope = await handlers.get("cloudeval_iac_detect")?.({
+      workspace: process.cwd(),
+    });
+    return { contents: [resourceText(uri, envelope ?? {})] };
+  }
+
+  if (uri === "cloudeval://runs/latest" || uri === "cloudeval://findings/latest") {
+    const runsDir = path.join(process.cwd(), ".cloudeval", "ide-runs");
+    try {
+      const entries = await fs.readdir(runsDir, { withFileTypes: true });
+      const files = await Promise.all(
+        entries
+          .filter((entry) => entry.isFile() && entry.name.endsWith(".json"))
+          .map(async (entry) => {
+            const file = path.join(runsDir, entry.name);
+            const stat = await fs.stat(file);
+            return { file, mtimeMs: stat.mtimeMs };
+          }),
+      );
+      const latest = files.sort((left, right) => right.mtimeMs - left.mtimeMs)[0];
+      if (!latest) {
+        return {
+          contents: [resourceText(uri, { ok: true, data: { run: null, findings: [] } })],
+        };
+      }
+      const run = JSON.parse(await fs.readFile(latest.file, "utf8"));
+      return {
+        contents: [
+          resourceText(
+            uri,
+            uri === "cloudeval://findings/latest"
+              ? { ok: true, data: { runId: run.id, findings: run.findings ?? [] } }
+              : { ok: true, data: run },
+          ),
+        ],
+      };
+    } catch {
+      return {
+        contents: [resourceText(uri, { ok: true, data: { run: null, findings: [] } })],
+      };
+    }
   }
 
   const toolName =
@@ -4306,6 +4682,21 @@ const renderPromptText = (name: string, args: JsonRecord): string => {
       name: stringValue(args.name),
       outputPath: stringValue(args.outputPath),
     });
+  }
+  if (name === "review_current_iac_file") {
+    return `Use cloudeval_iac_index on ${promptArgument(args, "file", "the active IaC file")}, then use cloudeval_review_local. Explain support level honestly and cite evidence freshness.`;
+  }
+  if (name === "explain_finding_with_evidence") {
+    return `Use cloudeval_get_finding_evidence with runId=${promptArgument(args, "runId", "<run-id>")} and findingId=${promptArgument(args, "findingId", "<finding-id>")}. Explain the finding, resource mapping, confidence, freshness, and next action.`;
+  }
+  if (name === "draft_safe_fix") {
+    return `Use cloudeval_draft_fix with runId=${promptArgument(args, "runId", "<run-id>")} and findingId=${promptArgument(args, "findingId", "<finding-id>")}. Return only a reviewable proposal and do not mutate cloud state.`;
+  }
+  if (name === "generate_ci_gate") {
+    return `Use cloudeval_generate_ci_gate with projectId=${promptArgument(args, "projectId", "<project-id>")}. Show generated files and ask for explicit confirmation before writing anything.`;
+  }
+  if (name === "explain_blast_radius") {
+    return `Use cloudeval_explain_blast_radius with projectId=${promptArgument(args, "projectId", "<project-id>")} and resourceId=${promptArgument(args, "resourceId", "<resource-id>")}. Explain impact scope and evidence gaps.`;
   }
   throw new Error(`Unknown prompt: ${name}`);
 };
@@ -4943,7 +5334,7 @@ export const registerMcpCommand = (
     )
     .option(
       "--toolset <name>",
-      "Toolset to expose: all, readonly, projects, reports, billing",
+      `Toolset to expose: ${MCP_TOOLSET_NAMES.join(", ")}`,
       "readonly",
     )
     .option("--config-path <path>", "Override MCP client config path")

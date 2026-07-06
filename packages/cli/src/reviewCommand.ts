@@ -15,6 +15,7 @@ import {
 } from "./outputFormatter.js";
 import { buildFrontendUrl, resolveFrontendBaseUrl } from "./frontendLinks.js";
 import { buildSignalStoryReviewFallback } from "./signalstoryReviewAdapter.js";
+import { registerReviewLocalCommand } from "./reviewLocalCommand.js";
 
 const DIRTY_REVIEW_MESSAGE =
   "Reviews pushed commits only. Add --ignore-dirty to review HEAD anyway.";
@@ -2413,6 +2414,8 @@ export const registerReviewCommand = (
     .option("--progress <mode>", "Accepted for CI parity; review does not stream progress.", "none")
     .option("--model <model>", "Accepted for CI parity with ask/agent modes.")
     .option("--format <format>", "Output format: text, json, ndjson, markdown", "text");
+
+  registerReviewLocalCommand(command, deps);
 
   command.action(async (options: ReviewOptions, actionCommand) => {
     try {

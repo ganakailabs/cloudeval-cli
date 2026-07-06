@@ -70,6 +70,34 @@ cloudeval validate template \
   --format json
 ```
 
+### IDE IaC Detection And Indexing
+
+Use `iac detect` and `iac index` when an editor, agent, or script needs a stable
+resource map without requiring CloudEval auth:
+
+```bash
+cloudeval iac detect --workspace . --format json
+cloudeval iac index --file ./infra/main.bicep --format json
+cloudeval iac index --workspace . --format json
+```
+
+These commands emit the IDE schema envelope with resource ranges, adapters, and
+support levels. ARM JSON and Bicep are marked `full`; Terraform and OpenTofu are
+marked `indexed_only` until scanner-backed CloudEval findings are available.
+
+For VS Code and MCP workflows, use the IDE review/evidence commands:
+
+```bash
+cloudeval review local --file ./infra/main.bicep --project <project-id> --format json
+cloudeval findings evidence <finding-id> --run <run-id> --format json
+cloudeval findings draft-fix <finding-id> --run <run-id> --format json
+cloudeval graph neighborhood --project <project-id> --resource <resource-id> --format json
+cloudeval ci init --provider github-actions --project <project-id> --format json
+```
+
+`ci init` previews files by default and writes only when `--write` is supplied.
+`findings draft-fix` is non-mutating and returns a proposal/evidence bundle.
+
 ### Live Azure Sync
 
 Use CloudEval projects and reports after connecting Azure in the app or CLI:

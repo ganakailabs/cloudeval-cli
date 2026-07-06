@@ -3,7 +3,15 @@ import os from "node:os";
 import path from "node:path";
 
 export type McpSetupClient = "codex" | "claude" | "cursor" | "vscode" | "generic";
-export type McpSetupToolset = "all" | "readonly" | "projects" | "reports" | "billing";
+export type McpSetupToolset =
+  | "all"
+  | "readonly"
+  | "projects"
+  | "reports"
+  | "billing"
+  | "graph"
+  | "ide"
+  | "validation";
 
 export interface McpServerConfig {
   command: string;
@@ -41,6 +49,9 @@ const TOOLSETS = new Set<McpSetupToolset>([
   "projects",
   "reports",
   "billing",
+  "graph",
+  "ide",
+  "validation",
 ]);
 
 export const normalizeMcpSetupClient = (value: string): McpSetupClient => {
@@ -56,7 +67,7 @@ export const normalizeMcpSetupToolset = (value?: string): McpSetupToolset => {
   if (TOOLSETS.has(normalized)) {
     return normalized;
   }
-  throw new Error("MCP toolset must be one of: all, readonly, projects, reports, billing.");
+  throw new Error("MCP toolset must be one of: all, readonly, projects, reports, billing, graph, ide, validation.");
 };
 
 const defaultConfigPath = (client: McpSetupClient): string | undefined => {

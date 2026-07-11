@@ -302,6 +302,7 @@ const parseGateConfig = (configText?: string):
       pillarScoreMin?: number;
       pillarScoreMins: Record<string, number>;
       failOnHighRisk: boolean;
+      failOnPostureFindings: boolean;
       failOnValidationErrors: boolean;
       maxMonthlyCost?: number;
     }
@@ -379,6 +380,12 @@ const parseGateConfig = (configText?: string):
       "fail_on_high_risk",
       "fail_when_high_risk_findings_exist",
     ) ?? true,
+    failOnPostureFindings: firstBooleanValue(
+      "fail_on_cloud_posture_findings",
+      "fail_when_cloud_posture_findings_exist",
+      "fail_on_posture_findings",
+      "fail_when_posture_findings_exist",
+    ) ?? false,
     failOnValidationErrors: firstBooleanValue(
       "fail_on_validation_errors",
       "fail_when_validation_fails",
@@ -1710,6 +1717,12 @@ const evaluateGate = ({
     posture.releaseBlockers > 0
   ) {
     failures.push(`${posture.releaseBlockers} Cloud Posture release blockers`);
+  } else if (
+    gateConfig.failOnPostureFindings &&
+    posture.findingCount !== undefined &&
+    posture.findingCount > 0
+  ) {
+    failures.push(`${posture.findingCount} Cloud Posture findings require review`);
   }
   if (gateConfig.failOnValidationErrors && (failedPolicyChecks > 0 || failedUnitTests > 0)) {
     failures.push(

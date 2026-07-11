@@ -171,6 +171,18 @@ Supported PDF output keys:
 | `verbosity` | `brief`, `detailed`, `evidence` | `evidence` |
 | `fail_on_error` | `true`, `false` | `false` |
 
+To block pull requests on scanner-backed Cloud Posture findings, enable the
+Cloud Posture findings gate. This is useful for AWS CloudFormation enrichment
+from AWS Guard, Checkov, and cfn-lint without treating those findings as
+Well-Architected scores:
+
+```yaml
+ci:
+  gates:
+    enforcement: block_pull_request
+    fail_when_cloud_posture_findings_exist: true
+```
+
 ### MCP For Codex, Cursor, Claude, VS Code
 
 Start with read-only agent integration:

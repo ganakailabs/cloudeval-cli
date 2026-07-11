@@ -4153,6 +4153,71 @@ test("review command waits for nested GitHub report refresh jobs before evaluati
   }
 });
 
+test("review command can block required gates from post-sync Cloud Posture findings", async () => {
+  const backend = await startBackend({
+    projects: [githubProject],
+    githubPostureStatusAfterSync: {
+      gate_result: "warn",
+      finding_count: 2,
+      scanner_count: 3,
+    },
+  });
+  const cwd = await fs.mkdtemp(
+    path.join(os.tmpdir(), "cloudeval-review-posture-findings-gate-"),
+  );
+  try {
+    await fs.mkdir(path.join(cwd, ".cloudeval"), { recursive: true });
+    await fs.writeFile(
+      path.join(cwd, ".cloudeval", "config.yaml"),
+      [
+        "ci:",
+        "  gates:",
+        "    enforcement: block_pull_request",
+        "    fail_when_cloud_posture_findings_exist: true",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+
+    const result = await runCli(
+      [
+        "review",
+        "--base-url",
+        backend.baseUrl,
+        "--access-key",
+        "test-token",
+        "--project",
+        "project-github",
+        "--repo",
+        "ganakailabs/cloudeval-github-sync-e2e",
+        "--ref",
+        "main",
+        "--commit-sha",
+        "sha-review-posture-findings",
+        "--ignore-dirty",
+        "--no-ai-summary",
+        "--poll-interval",
+        "10",
+        "--format",
+        "json",
+        "--non-interactive",
+      ],
+      { cwd },
+    );
+
+    assert.equal(result.exitCode, 1);
+    const json = JSON.parse(result.stdout);
+    assert.equal(json.data.gate.status, "fail");
+    assert.equal(json.data.gate.posture.status, "warn");
+    assert.equal(json.data.gate.posture.findingCount, 2);
+    assert.equal(json.data.gate.thresholds.failOnPostureFindings, true);
+    assert.match(json.data.gate.failures[0], /2 Cloud Posture findings require review/i);
+  } finally {
+    await fs.rm(cwd, { recursive: true, force: true });
+    await backend.close();
+  }
+});
+
 test("review command includes well architected, cost, and validation gate drilldown", async () => {
   const backend = await startBackend({
     projects: [githubProject],

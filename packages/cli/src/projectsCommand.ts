@@ -346,6 +346,7 @@ const generateWorkspaceConfig = (
     "#     minimum_well_architected_score: 80",
     "#     minimum_pillar_score: 75",
     "#     fail_when_high_risk_findings_exist: true",
+    "#     fail_when_cloud_posture_findings_exist: false",
     "#     fail_when_validation_fails: true",
     "#     max_monthly_cost_usd: 500",
     "#   review:",

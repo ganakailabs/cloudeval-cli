@@ -365,6 +365,7 @@ ci:
   gates:
     enforcement: block_pull_request
     fail_when_high_risk_findings_exist: true
+    fail_when_cloud_posture_findings_exist: false
     fail_when_validation_fails: true
   review:
     outputs:

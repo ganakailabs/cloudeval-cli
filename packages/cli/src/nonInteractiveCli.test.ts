@@ -300,6 +300,8 @@ const startBackend = async (
     architectureMetrics?: Record<string, number>;
     pdfExportStatus?: number;
     githubPostureStatusAfterSync?: Record<string, unknown>;
+    nestedGithubRefreshJob?: boolean;
+    staleReportsUntilNestedRefresh?: boolean;
   } = {},
 ) => {
   const requests: RecordedRequest[] = [];
@@ -311,10 +313,12 @@ const startBackend = async (
   let aiSummaryGenericFailureResponses = 0;
   let wafFullReportRequests = 0;
   let githubSyncCompleted = false;
+  let githubNestedRefreshCompleted = false;
   const visibleProjects = () =>
     [...(options.projects ?? [project]), ...createdProjects].map((item) => {
       if (
         githubSyncCompleted &&
+        (!options.staleReportsUntilNestedRefresh || githubNestedRefreshCompleted) &&
         options.githubPostureStatusAfterSync &&
         item.id === githubProject.id
       ) {
@@ -1015,6 +1019,33 @@ const startBackend = async (
         user_id: "internal-user-id",
         result_ref: { result_blob_path: "internal/result.json" },
         events_channel: "user:internal-user-id",
+      });
+    }
+    if (url.pathname === "/api/v1/jobs/job-github-sync-1/result") {
+      assert.equal(url.searchParams.get("user_id"), user.id);
+      return json(res, {
+        result: {
+          refresh_analysis: options.nestedGithubRefreshJob
+            ? {
+                project_reports_autogen: {
+                  job_id: "job-github-reports-1",
+                  status: "QUEUED",
+                  operation: "project_reports_autogen",
+                },
+              }
+            : {},
+        },
+      });
+    }
+    if (url.pathname === "/api/v1/jobs/job-github-reports-1") {
+      assert.equal(url.searchParams.get("project_id"), githubProject.id);
+      assert.equal(url.searchParams.get("user_id"), user.id);
+      githubNestedRefreshCompleted = true;
+      return json(res, {
+        job_id: "job-github-reports-1",
+        status: "SUCCEEDED",
+        operation: "project_reports_autogen",
+        progress: 100,
       });
     }
     if (url.pathname === "/api/v1/jobs/job-template-validation-1") {
@@ -4036,6 +4067,86 @@ test("review command fails required gates from post-sync Cloud Posture status", 
     assert.equal(json.data.gate.posture.status, "fail");
     assert.equal(json.data.gate.posture.releaseBlockers, 2);
     assert.match(json.data.gate.failures[0], /Cloud Posture gate failed/i);
+  } finally {
+    await fs.rm(cwd, { recursive: true, force: true });
+    await backend.close();
+  }
+});
+
+test("review command waits for nested GitHub report refresh jobs before evaluating gates", async () => {
+  const backend = await startBackend({
+    projects: [githubProject],
+    nestedGithubRefreshJob: true,
+    staleReportsUntilNestedRefresh: true,
+    githubPostureStatusAfterSync: {
+      gate_result: "fail",
+      finding_count: 7,
+      release_blocker_count: 3,
+      scanner_count: 3,
+    },
+  });
+  const cwd = await fs.mkdtemp(
+    path.join(os.tmpdir(), "cloudeval-review-nested-refresh-"),
+  );
+  try {
+    await fs.mkdir(path.join(cwd, ".cloudeval"), { recursive: true });
+    await fs.writeFile(
+      path.join(cwd, ".cloudeval", "config.yaml"),
+      [
+        "ci:",
+        "  gates:",
+        "    enforcement: required",
+        "    overall_score_min: 80",
+        "    fail_on_high_risk: true",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+
+    const result = await runCli(
+      [
+        "review",
+        "--base-url",
+        backend.baseUrl,
+        "--access-key",
+        "test-token",
+        "--project",
+        "project-github",
+        "--repo",
+        "ganakailabs/cloudeval-github-sync-e2e",
+        "--ref",
+        "main",
+        "--commit-sha",
+        "sha-review-nested-refresh",
+        "--ignore-dirty",
+        "--no-ai-summary",
+        "--poll-interval",
+        "10",
+        "--format",
+        "json",
+        "--non-interactive",
+      ],
+      { cwd },
+    );
+
+    assert.equal(result.exitCode, 1);
+    const json = JSON.parse(result.stdout);
+    assert.equal(json.data.gate.status, "fail");
+    assert.equal(json.data.gate.posture.releaseBlockers, 3);
+    assert.equal(json.data.sync.nestedJobs[0].jobId, "job-github-reports-1");
+    assert.equal(json.data.source.commit_sha, "sha-review-nested-refresh");
+    assert.equal(
+      backend.requests.some(
+        (request) => request.path === "/api/v1/jobs/job-github-sync-1/result",
+      ),
+      true,
+    );
+    assert.equal(
+      backend.requests.some(
+        (request) => request.path === "/api/v1/jobs/job-github-reports-1",
+      ),
+      true,
+    );
   } finally {
     await fs.rm(cwd, { recursive: true, force: true });
     await backend.close();

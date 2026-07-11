@@ -485,6 +485,7 @@ const publicJobStatus = (value: unknown): Record<string, any> | undefined => {
 const reviewSyncStatus = (
   sync: unknown,
   finalStatus?: unknown,
+  nestedStatuses?: unknown[],
 ): Record<string, any> => {
   const syncRecord = asRecord(sync);
   return {
@@ -492,6 +493,7 @@ const reviewSyncStatus = (
     projectId: syncRecord.project_id ?? syncRecord.projectId,
     commitSha: syncRecord.commit_sha ?? syncRecord.commitSha,
     finalStatus: publicJobStatus(finalStatus),
+    nestedJobs: (nestedStatuses ?? []).map(publicJobStatus).filter(Boolean),
   };
 };
 
@@ -1910,6 +1912,132 @@ const waitForJob = async ({
   }
 };
 
+const fetchJobResult = async ({
+  baseUrl,
+  token,
+  userId,
+  jobId,
+}: {
+  baseUrl: string;
+  token?: string;
+  userId?: string;
+  jobId: string;
+}): Promise<unknown> => {
+  const query = new URLSearchParams();
+  if (userId) {
+    query.set("user_id", userId);
+  }
+  const suffix = query.toString();
+  return safeFetch<unknown>({
+    baseUrl,
+    authToken: token,
+    path: `/jobs/${encodeURIComponent(jobId)}/result${suffix ? `?${suffix}` : ""}`,
+  });
+};
+
+const maybeJobId = (value: unknown): string | undefined => {
+  if (typeof value === "string") {
+    return /^[0-9a-f-]{8,}$/i.test(value.trim()) ? value.trim() : undefined;
+  }
+  const record = firstRecord(value);
+  if (!record) {
+    return undefined;
+  }
+  const direct = [
+    record.job_id,
+    record.jobId,
+    record.id,
+    asRecord(record.job).job_id,
+    asRecord(record.job).jobId,
+    asRecord(record.job).id,
+  ].find((candidate): candidate is string =>
+    typeof candidate === "string" && candidate.trim().length > 0,
+  );
+  if (direct) {
+    return direct;
+  }
+  const statusUrl = String(record.status_url ?? record.statusUrl ?? "").trim();
+  const match = statusUrl.match(/\/jobs\/([^/?#]+)/);
+  return match?.[1];
+};
+
+const collectNestedJobIds = (value: unknown): string[] => {
+  const seen = new Set<string>();
+  const ids: string[] = [];
+  const visit = (candidate: unknown, keyHint = "") => {
+    if (candidate === null || candidate === undefined) {
+      return;
+    }
+    const id = maybeJobId(candidate);
+    if (id && !seen.has(id)) {
+      seen.add(id);
+      ids.push(id);
+    }
+    if (Array.isArray(candidate)) {
+      for (const item of candidate) {
+        visit(item, keyHint);
+      }
+      return;
+    }
+    if (typeof candidate !== "object") {
+      return;
+    }
+    for (const [key, child] of Object.entries(candidate as Record<string, unknown>)) {
+      const normalizedKey = normalizeKey(key || keyHint);
+      if (
+        normalizedKey.includes("refresh_analysis") ||
+        normalizedKey.includes("report") ||
+        normalizedKey.includes("sync") ||
+        normalizedKey.includes("job")
+      ) {
+        visit(child, normalizedKey);
+      }
+    }
+  };
+  const root = asRecord(value);
+  visit(root.result ?? root.data ?? value);
+  return ids;
+};
+
+const waitForNestedJobs = async ({
+  baseUrl,
+  token,
+  userId,
+  projectId,
+  parentJobId,
+  pollIntervalMs,
+  waitTimeoutMs,
+}: {
+  baseUrl: string;
+  token?: string;
+  userId?: string;
+  projectId: string;
+  parentJobId?: string;
+  pollIntervalMs: number;
+  waitTimeoutMs: number;
+}): Promise<Record<string, any>[]> => {
+  if (!parentJobId) {
+    return [];
+  }
+  const result = await fetchJobResult({ baseUrl, token, userId, jobId: parentJobId });
+  const nestedJobIds = collectNestedJobIds(result).filter((jobId) => jobId !== parentJobId);
+  const statuses: Record<string, any>[] = [];
+  for (const nestedJobId of nestedJobIds) {
+    statuses.push(
+      await waitForJob({
+        baseUrl,
+        token,
+        userId,
+        projectId,
+        jobId: nestedJobId,
+        pollIntervalMs,
+        waitTimeoutMs,
+      }),
+    );
+  }
+  return statuses;
+};
+
 const fetchProjectById = async ({
   baseUrl,
   token,
@@ -2534,6 +2662,25 @@ export const registerReviewCommand = (
               ),
             })
           : undefined;
+      const nestedJobStatuses = options.wait === false
+        ? []
+        : await waitForNestedJobs({
+            baseUrl: context.baseUrl,
+            token: context.token,
+            userId: scopedUserId,
+            projectId,
+            parentJobId: extractJobId(sync),
+            pollIntervalMs: parsePositiveInteger(
+              options.pollInterval,
+              "--poll-interval",
+              5000,
+            ),
+            waitTimeoutMs: parsePositiveInteger(
+              options.waitTimeout,
+              "--wait-timeout",
+              900000,
+            ),
+          });
       const project =
         (options.wait === false
           ? initialProject
@@ -2619,7 +2766,17 @@ export const registerReviewCommand = (
         ref,
         commitSha,
         sourceRoot,
-        sync: reviewSyncStatus(sync, finalStatus),
+        source: {
+          repo,
+          ref,
+          commit_sha: commitSha,
+          source_root: sourceRoot,
+          project_commit_sha:
+            asRecord(project?.iac_source ?? project?.iacSource).commit_sha ??
+            asRecord(project?.iac_source ?? project?.iacSource).commitSha,
+          surface: reviewSurface(),
+        },
+        sync: reviewSyncStatus(sync, finalStatus, nestedJobStatuses),
         reports: reviewReportStatuses({ cost, waf, preload, graph }),
         gate: evaluateGate({ configText, waf, cost, preload, graph, project }),
       };

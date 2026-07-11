@@ -1484,6 +1484,49 @@ const extractArchitectureInsights = ({
   };
 };
 
+const extractPostureGate = (project?: Record<string, any>) => {
+  const status = asRecord(project?.status);
+  const dashboard = asRecord(project?.dashboard);
+  const reports = asRecord(project?.reports);
+  const posture = asRecord(
+    status.posture ??
+      dashboard.posture ??
+      reports.posture ??
+      project?.posture,
+  );
+  const gate = asRecord(posture.gate ?? posture.release_gate);
+  const rawStatus = String(
+    posture.gate_result ??
+      posture.gateResult ??
+      posture.release_gate_status ??
+      posture.releaseGateStatus ??
+      gate.status ??
+      "",
+  )
+    .trim()
+    .toLowerCase();
+  return {
+    status: rawStatus || undefined,
+    findingCount: numberFrom(
+      posture.finding_count,
+      posture.findingCount,
+      posture.open_findings,
+      posture.openFindings,
+      posture.total_findings,
+      posture.totalFindings,
+    ),
+    releaseBlockers: numberFrom(
+      posture.release_blocker_count,
+      posture.releaseBlockerCount,
+      posture.blocking_count,
+      posture.blockingCount,
+      gate.blocking_count,
+      gate.blockingCount,
+    ),
+    scannerCount: numberFrom(posture.scanner_count, posture.scannerCount),
+  };
+};
+
 const evaluateGate = ({
   configText,
   waf,
@@ -1500,6 +1543,7 @@ const evaluateGate = ({
   project?: Record<string, any>;
 }) => {
   const gateConfig = parseGateConfig(configText);
+  const posture = extractPostureGate(project);
   const overallScore = numberFrom(
     waf?.overall_score,
     waf?.report?.overall_score,
@@ -1635,6 +1679,7 @@ const evaluateGate = ({
       cost: costSummary,
       validation,
       architecture,
+      posture,
     };
   }
   const failures: string[] = [];
@@ -1653,6 +1698,17 @@ const evaluateGate = ({
   }
   const failedPolicyChecks = validation.policyChecks.failed ?? 0;
   const failedUnitTests = validation.unitTests.failed ?? 0;
+  if (["fail", "failed", "block", "blocked"].includes(posture.status ?? "")) {
+    failures.push(
+      `Cloud Posture gate failed${posture.releaseBlockers !== undefined ? ` with ${posture.releaseBlockers} release blockers` : ""}`,
+    );
+  } else if (
+    gateConfig.failOnHighRisk &&
+    posture.releaseBlockers !== undefined &&
+    posture.releaseBlockers > 0
+  ) {
+    failures.push(`${posture.releaseBlockers} Cloud Posture release blockers`);
+  }
   if (gateConfig.failOnValidationErrors && (failedPolicyChecks > 0 || failedUnitTests > 0)) {
     failures.push(
       `validation has ${failedPolicyChecks} failed policy checks and ${failedUnitTests} failed unit tests`,
@@ -1679,6 +1735,7 @@ const evaluateGate = ({
     cost: costSummary,
     validation,
     architecture,
+    posture,
   };
 };
 
@@ -2446,14 +2503,14 @@ export const registerReviewCommand = (
         body: commitSha ? { commit_sha: commitSha } : {},
         idempotencyKey: `cloudeval-review-${projectId}-${commitSha ?? "head"}`,
       });
-      const project = await fetchProjectById({
+      const initialProject = await fetchProjectById({
         baseUrl: context.baseUrl,
         token: context.token,
         projectId,
       });
       const projectUserId =
-        typeof project?.user_id === "string" && project.user_id.trim()
-          ? project.user_id
+        typeof initialProject?.user_id === "string" && initialProject.user_id.trim()
+          ? initialProject.user_id
           : undefined;
       const scopedUserId = context.user?.id ?? projectUserId;
       const finalStatus = options.wait === false
@@ -2477,6 +2534,14 @@ export const registerReviewCommand = (
               ),
             })
           : undefined;
+      const project =
+        (options.wait === false
+          ? initialProject
+          : await fetchProjectById({
+              baseUrl: context.baseUrl,
+              token: context.token,
+              projectId,
+            })) ?? initialProject;
       const [{ cost, waf, preload, graph }, configText] = await Promise.all([
         waitForReviewReports({
           baseUrl: context.baseUrl,

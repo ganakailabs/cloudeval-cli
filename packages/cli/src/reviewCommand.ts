@@ -1998,6 +1998,8 @@ const collectNestedJobIds = (value: unknown): string[] => {
     for (const [key, child] of Object.entries(candidate as Record<string, unknown>)) {
       const normalizedKey = normalizeKey(key || keyHint);
       if (
+        normalizedKey === "result" ||
+        normalizedKey === "data" ||
         normalizedKey.includes("refresh_analysis") ||
         normalizedKey.includes("report") ||
         normalizedKey.includes("sync") ||

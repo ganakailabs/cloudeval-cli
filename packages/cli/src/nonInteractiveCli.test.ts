@@ -301,6 +301,7 @@ const startBackend = async (
     pdfExportStatus?: number;
     githubPostureStatusAfterSync?: Record<string, unknown>;
     nestedGithubRefreshJob?: boolean;
+    doubleWrappedGithubSyncResult?: boolean;
     staleReportsUntilNestedRefresh?: boolean;
   } = {},
 ) => {
@@ -1023,18 +1024,19 @@ const startBackend = async (
     }
     if (url.pathname === "/api/v1/jobs/job-github-sync-1/result") {
       assert.equal(url.searchParams.get("user_id"), user.id);
+      const refreshAnalysis = options.nestedGithubRefreshJob
+        ? {
+            project_reports_autogen: {
+              job_id: "job-github-reports-1",
+              status: "QUEUED",
+              operation: "project_reports_autogen",
+            },
+          }
+        : {};
       return json(res, {
-        result: {
-          refresh_analysis: options.nestedGithubRefreshJob
-            ? {
-                project_reports_autogen: {
-                  job_id: "job-github-reports-1",
-                  status: "QUEUED",
-                  operation: "project_reports_autogen",
-                },
-              }
-            : {},
-        },
+        result: options.doubleWrappedGithubSyncResult
+          ? { result: { refresh_analysis: refreshAnalysis } }
+          : { refresh_analysis: refreshAnalysis },
       });
     }
     if (url.pathname === "/api/v1/jobs/job-github-reports-1") {
@@ -4077,6 +4079,7 @@ test("review command waits for nested GitHub report refresh jobs before evaluati
   const backend = await startBackend({
     projects: [githubProject],
     nestedGithubRefreshJob: true,
+    doubleWrappedGithubSyncResult: true,
     staleReportsUntilNestedRefresh: true,
     githubPostureStatusAfterSync: {
       gate_result: "fail",

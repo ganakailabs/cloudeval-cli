@@ -299,6 +299,7 @@ const startBackend = async (
     reviewGraph?: boolean;
     architectureMetrics?: Record<string, number>;
     pdfExportStatus?: number;
+    githubPostureStatusAfterSync?: Record<string, unknown>;
   } = {},
 ) => {
   const requests: RecordedRequest[] = [];
@@ -309,6 +310,24 @@ const startBackend = async (
   let aiSummaryRateLimitFallbackResponses = 0;
   let aiSummaryGenericFailureResponses = 0;
   let wafFullReportRequests = 0;
+  let githubSyncCompleted = false;
+  const visibleProjects = () =>
+    [...(options.projects ?? [project]), ...createdProjects].map((item) => {
+      if (
+        githubSyncCompleted &&
+        options.githubPostureStatusAfterSync &&
+        item.id === githubProject.id
+      ) {
+        return {
+          ...item,
+          status: {
+            ...((item as Record<string, unknown>).status as Record<string, unknown> | undefined),
+            posture: options.githubPostureStatusAfterSync,
+          },
+        };
+      }
+      return item;
+    });
 
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url ?? "/", "http://127.0.0.1");
@@ -393,10 +412,7 @@ const startBackend = async (
         url.pathname === "/api/v1/projects/") &&
       req.method === "GET"
     ) {
-      return json(res, [
-        ...(options.projects ?? [project]),
-        ...createdProjects,
-      ]);
+      return json(res, visibleProjects());
     }
     if (
       url.pathname === "/api/v1/projects/project-github/github/sync" &&
@@ -511,10 +527,7 @@ const startBackend = async (
       }
     }
     if (url.pathname === `/api/v1/projects/user/${authUser.id}`) {
-      return json(res, [
-        ...(options.projects ?? [project]),
-        ...createdProjects,
-      ]);
+      return json(res, visibleProjects());
     }
     if (url.pathname === "/api/v1/onboard/quick" && req.method === "POST") {
       const payload = JSON.parse(body || "{}");
@@ -993,6 +1006,7 @@ const startBackend = async (
     if (url.pathname === "/api/v1/jobs/job-github-sync-1") {
       assert.equal(url.searchParams.get("project_id"), githubProject.id);
       assert.equal(url.searchParams.get("user_id"), user.id);
+      githubSyncCompleted = true;
       return json(res, {
         job_id: "job-github-sync-1",
         status: "SUCCEEDED",
@@ -3958,6 +3972,72 @@ test("review command waits by default and can skip waiting explicitly", async ()
       false,
     );
   } finally {
+    await backend.close();
+  }
+});
+
+test("review command fails required gates from post-sync Cloud Posture status", async () => {
+  const backend = await startBackend({
+    projects: [githubProject],
+    githubPostureStatusAfterSync: {
+      gate_result: "fail",
+      finding_count: 9,
+      release_blocker_count: 2,
+      scanner_count: 3,
+    },
+  });
+  const cwd = await fs.mkdtemp(
+    path.join(os.tmpdir(), "cloudeval-review-posture-gate-"),
+  );
+  try {
+    await fs.mkdir(path.join(cwd, ".cloudeval"), { recursive: true });
+    await fs.writeFile(
+      path.join(cwd, ".cloudeval", "config.yaml"),
+      [
+        "ci:",
+        "  gates:",
+        "    enforcement: required",
+        "    overall_score_min: 90",
+        "    fail_on_high_risk: true",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+
+    const result = await runCli(
+      [
+        "review",
+        "--base-url",
+        backend.baseUrl,
+        "--access-key",
+        "test-token",
+        "--project",
+        "project-github",
+        "--repo",
+        "ganakailabs/cloudeval-github-sync-e2e",
+        "--ref",
+        "main",
+        "--commit-sha",
+        "sha-review-posture-fail",
+        "--ignore-dirty",
+        "--no-ai-summary",
+        "--poll-interval",
+        "10",
+        "--format",
+        "json",
+        "--non-interactive",
+      ],
+      { cwd },
+    );
+
+    assert.equal(result.exitCode, 1);
+    const json = JSON.parse(result.stdout);
+    assert.equal(json.data.gate.status, "fail");
+    assert.equal(json.data.gate.posture.status, "fail");
+    assert.equal(json.data.gate.posture.releaseBlockers, 2);
+    assert.match(json.data.gate.failures[0], /Cloud Posture gate failed/i);
+  } finally {
+    await fs.rm(cwd, { recursive: true, force: true });
     await backend.close();
   }
 });

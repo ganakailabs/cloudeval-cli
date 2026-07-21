@@ -150,6 +150,12 @@ The smoke script verifies:
   suite: a stored device-login access token that is rejected as expired by
   `/chat/stream` must trigger one refresh-token exchange and one retry with the
   refreshed access token.
+- Chat visualization negotiation is covered by shared, core, non-interactive,
+  and TUI tests. The request must advertise the terminal
+  `cloudeval.visualization/v1` profile; malformed or oversized artifacts must be
+  rejected; JSON/NDJSON must retain validated artifacts without polluting
+  stdout with progress; live and Markdown copies must deduplicate by artifact
+  id.
 - Terminal UI Agent Profile coverage is handled by the CLI unit suite and a
   manual TUI smoke: the chat context rail or docked composer controls must show
   `Profile [Profile]`, `/profile` must open the Agent Profile selector,
@@ -158,15 +164,18 @@ The smoke script verifies:
   report artifact chips, streaming work is labeled as a task ledger, raw
   `[S_tool_...]` citation tags render as highlighted numbered sources, `/copy`
   copies the latest assistant response, `/download` writes a Markdown chat
-  transcript, graph insight blocks render as bordered terminal cards without
+  transcript, Flint line/bar/proportional/scatter/heatmap/table output remains
+  within the terminal width, Mermaid flows render as edge lists or bounded
+  source, graph insight blocks render as bordered terminal cards without
   exposing raw `graph-insight` markers, Mermaid flowcharts inside Graph Insight
   cards render in a roomy TTY with `--graph-diagram auto`, ASCII mode produces
-  plain ASCII output, `--graph-diagram off` leaves Mermaid
-  source visible, unsupported Mermaid syntax falls back to source, HITL prompts
-  do not approve a recommended option from blank Enter, `/thread new` creates
-  another independent open session, the Thread selector can switch open sessions
-  plus local/cloud threads, Projects and Connections show selected-item details,
-  `J`/`K` and Up/Down move selected project/connection rows, Enter confirms the selected row, typing `/` opens
+  plain ASCII output, `--graph-diagram off` leaves Mermaid source visible, and
+  unsupported Mermaid syntax falls back to source. HITL prompts must not approve
+  a recommended option from blank Enter. `/thread new` creates another independent
+  open session; the Thread selector can switch open sessions plus local/cloud
+  threads. Projects and Connections show selected-item details; `J`/`K` and
+  Up/Down move selected project/connection rows; Enter confirms the selected row;
+  typing `/` opens
   the bottom slash-command completion strip, Tab or Up/Down moves the active
   command, Right accepts the ghost text, Enter chooses the highlighted command,
   and the billing header separates credits left from observed credits used.

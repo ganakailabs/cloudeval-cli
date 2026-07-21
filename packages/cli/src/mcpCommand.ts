@@ -3071,6 +3071,9 @@ const buildToolHandlers = (
         profile,
         prompt,
         response: finalMessage?.content || responseText,
+        ...(finalMessage?.visualizations?.length
+          ? { visualizations: finalMessage.visualizations }
+          : {}),
         threadId,
         project: { id: project.id, name: project.name },
       },
@@ -3602,6 +3605,9 @@ const buildToolHandlers = (
       command: "ask",
       data: {
         response: finalResponse,
+        ...(finalMessage?.visualizations?.length
+          ? { visualizations: finalMessage.visualizations }
+          : {}),
         threadId: chatState.threadId,
         mode,
         project: {

@@ -1905,6 +1905,14 @@ program
                   progressEventFromChunk(chunk, { verbose: options.verbose }),
                 );
 
+                if (ndjsonOutput && chunk.type === "visualization") {
+                  writeAskDataEvent({
+                    type: "visualization",
+                    artifact: chunk.artifact,
+                    threadId: chatState.threadId,
+                  });
+                }
+
                 if (chunk.type === "hitl_request") {
                   pendingHitlRequest = chunk;
                   if (ndjsonOutput) {
@@ -2128,6 +2136,7 @@ program
       const finalMessage = [...chatState.messages]
         .reverse()
         .find((m) => m.role === "assistant");
+      const finalVisualizations = finalMessage?.visualizations ?? [];
       let finalResponse = collapseRepeatedAssistantText(
         finalMessage?.content || responseText || "",
       );
@@ -2220,6 +2229,9 @@ program
           question,
           data: {
             response: finalResponse,
+            ...(finalVisualizations.length > 0
+              ? { visualizations: finalVisualizations }
+              : {}),
             threadId: chatState.threadId,
             project: {
               id: project.id,
@@ -2250,6 +2262,9 @@ program
           command: commandName,
           data: {
             response: finalResponse,
+            ...(finalVisualizations.length > 0
+              ? { visualizations: finalVisualizations }
+              : {}),
             threadId: chatState.threadId,
             project: {
               id: project.id,

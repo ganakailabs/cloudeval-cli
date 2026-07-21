@@ -23,6 +23,7 @@ Cloudeval helps teams catch infrastructure risk before merge:
 - reviews **ARM JSON** and **Bicep-generated ARM JSON** templates;
 - validates templates from local files or CI workspaces;
 - connects to live Azure context for cloud review workflows;
+- renders negotiated Flint chart artifacts and Mermaid diagrams as terminal-safe Unicode, tables, edge lists, or source fallbacks;
 - exposes machine-readable output for scripts and GitHub Actions;
 - runs as an MCP server for Codex, Cursor, Claude, VS Code, and other clients.
 
@@ -116,7 +117,21 @@ when `--graph-diagram auto` detects a roomy TTY. Use `unicode` or `ascii` to
 force a terminal renderer, or `off` to keep Mermaid source blocks. Unsupported
 Mermaid syntax falls back to source instead of breaking the transcript.
 
-`projects overview` aggregates project metadata, matching connections, latest report status, graph availability, graph deep links, and credit state for IDEs such as the Cloudeval VS Code extension. Optional layers that are unavailable are returned as warnings or graph gaps instead of inventing project data.
+Interactive chat requests advertise a versioned terminal presentation profile.
+When the backend returns `cloudeval.visualization/v1`, the TUI renders supported
+chart families with Unicode and Mermaid flows as edge lists. Unsupported chart
+types use their required table fallback. No browser, SVG renderer, or native
+sidecar is required.
+
+For automation, `ask` and `agent` JSON results add
+`data.visualizations` when artifacts are present. NDJSON emits each artifact as
+`{"type":"visualization","artifact":...}` and repeats the validated list in
+the final result. Text and Markdown keep the canonical fenced response.
+
+`projects overview` aggregates project metadata, matching connections, latest
+report status, graph availability, graph deep links, and credit state for IDEs
+such as the Cloudeval VS Code extension. Optional layers that are unavailable
+are returned as warnings or graph gaps instead of inventing project data.
 
 ### GitHub Actions / CI
 

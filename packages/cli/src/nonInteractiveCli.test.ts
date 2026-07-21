@@ -66,6 +66,31 @@ const connection = {
   type: "template",
 };
 
+const visualizationArtifact = {
+  schema: "cloudeval.visualization/v1",
+  id: "monthly-cost-by-service",
+  kind: "chart",
+  format: "flint",
+  title: "Monthly cost by service",
+  renderer: "chartjs",
+  data: {
+    values: [
+      { service: "Compute", cost: 120 },
+      { service: "Storage", cost: 40 },
+    ],
+  },
+  spec: { type: "bar", x: "service", y: "cost" },
+  config: { type: "bar", data: { labels: ["Compute", "Storage"] } },
+  fallback: {
+    type: "table",
+    columns: ["service", "cost"],
+    rows: [
+      ["Compute", 120],
+      ["Storage", 40],
+    ],
+  },
+};
+
 const templateFixture = {
   $schema:
     "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
@@ -297,6 +322,7 @@ const startBackend = async (
     authUser?: typeof user;
     projects?: (typeof project)[];
     expireFirstStreamToken?: boolean;
+    visualizationArtifact?: Record<string, unknown>;
     streamAssistantMessageOnly?: boolean;
     aiSummaryRateLimitResponses?: number;
     aiSummaryRateLimitFallbackResponses?: number;
@@ -1468,6 +1494,11 @@ const startBackend = async (
       res.write(
         `data: ${JSON.stringify({ type: "metadata", thread_id: "thread-test", trace_id: "trace-test" })}\n\n`,
       );
+      if (options.visualizationArtifact) {
+        res.write(
+          `data: ${JSON.stringify({ type: "visualization", artifact: options.visualizationArtifact })}\n\n`,
+        );
+      }
       const message = String(payload.message ?? "");
       if (
         message.includes(
@@ -1805,7 +1836,7 @@ test("non-interactive discovery commands are machine-readable", async () => {
 });
 
 test("recipes commands list, show, and run implemented Cloudeval workflows", async () => {
-  const backend = await startBackend();
+  const backend = await startBackend({ visualizationArtifact });
   try {
     const table = await runCli(["recipes", "list"]);
     assert.equal(table.exitCode, 0, table.stderr);
@@ -1858,6 +1889,7 @@ test("recipes commands list, show, and run implemented Cloudeval workflows", asy
     assert.equal(run.data.recipeId, "cloudeval-cloud-cost-review");
     assert.equal(run.data.mode, "ask");
     assert.equal(run.data.response, "Mock answer from Cloudeval AI.");
+    assert.deepEqual(run.data.visualizations, [visualizationArtifact]);
 
     const streamRequest = backend.requests.find(
       (request) => request.path === "/api/v1/chat/stream",
@@ -6288,7 +6320,7 @@ test("agents list falls back to bundled profiles when backend catalog route is m
 });
 
 test("agents run sends the selected Agent Profile to chat stream", async () => {
-  const backend = await startBackend();
+  const backend = await startBackend({ visualizationArtifact });
   try {
     const result = parseJson(
       await runCli([
@@ -6309,6 +6341,7 @@ test("agents run sends the selected Agent Profile to chat stream", async () => {
     );
 
     assert.equal(result.command, "agents run");
+    assert.deepEqual(result.data.visualizations, [visualizationArtifact]);
     assert.equal(result.data.profile.display_name, "Cost");
     assert.equal(result.data.response, "Report summary ready.");
 
@@ -6478,6 +6511,75 @@ test("ask streams a single answer non-interactively with selected project and mo
     assert.equal(streamRequest.authorization, "Bearer test-token");
   } finally {
     await fs.rm(home, { recursive: true, force: true });
+    await backend.close();
+  }
+});
+
+test("ask negotiates terminal visualizations and preserves them in JSON and NDJSON", async () => {
+  const backend = await startBackend({ visualizationArtifact });
+  try {
+    const jsonResult = parseJson(
+      await runCli([
+        "ask",
+        "Show monthly cost",
+        "--base-url",
+        backend.baseUrl,
+        "--access-key",
+        "test-token",
+        "--project",
+        "project-main",
+        "--format",
+        "json",
+        "--non-interactive",
+      ]),
+    );
+    assert.deepEqual(jsonResult.data.visualizations, [visualizationArtifact]);
+
+    const request = backend.requests.find(
+      (entry) => entry.path === "/api/v1/chat/stream",
+    );
+    assert(request);
+    assert.deepEqual(JSON.parse(request.body).presentation, {
+      profile: "terminal",
+      artifact_schema: "cloudeval.visualization/v1",
+      accepts: ["flint-v1", "mermaid-v11"],
+      fallbacks: [
+        "unicode",
+        "table",
+        "edge-list",
+        "source",
+        "plain-markdown",
+      ],
+    });
+
+    const ndjson = await runCli([
+      "ask",
+      "Show monthly cost",
+      "--base-url",
+      backend.baseUrl,
+      "--access-key",
+      "test-token",
+      "--project",
+      "project-main",
+      "--format",
+      "ndjson",
+      "--progress",
+      "none",
+      "--non-interactive",
+    ]);
+    assert.equal(ndjson.exitCode, 0, ndjson.stderr);
+    const events = ndjson.stdout
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line));
+    assert.deepEqual(
+      events.find((event) => event.type === "visualization")?.artifact,
+      visualizationArtifact,
+    );
+    assert.deepEqual(events.at(-1)?.data.visualizations, [
+      visualizationArtifact,
+    ]);
+  } finally {
     await backend.close();
   }
 });

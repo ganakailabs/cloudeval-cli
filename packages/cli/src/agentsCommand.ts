@@ -335,11 +335,11 @@ export const registerAgentsCommand = (program: Command, deps: AgentsDeps) => {
               throw new Error(chunk.message || chunk.description || "Agent Profile run failed.");
             }
           }
-          const finalResponse =
-            [...chatState.messages]
-              .reverse()
-              .find((message: any) => message.role === "assistant")
-              ?.content || responseText;
+          const finalMessage = [...chatState.messages]
+            .reverse()
+            .find((message: any) => message.role === "assistant");
+          const finalResponse = finalMessage?.content || responseText;
+          const finalVisualizations = finalMessage?.visualizations ?? [];
           const frontendUrl = buildFrontendUrl({
             baseUrl: resolveFrontendBaseUrl({
               frontendUrl: options.frontendUrl ?? cliConfig.frontendUrl,
@@ -374,6 +374,9 @@ export const registerAgentsCommand = (program: Command, deps: AgentsDeps) => {
             profile,
             prompt,
             response: finalResponse,
+            ...(finalVisualizations.length > 0
+              ? { visualizations: finalVisualizations }
+              : {}),
             threadId,
             project: { id: project.id, name: project.name },
             frontendUrl,

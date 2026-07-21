@@ -19,7 +19,8 @@
   ],
   "scripts": {
     "build": "tsup",
-    "lint": "tsc --noEmit -p tsconfig.json"
+    "lint": "tsc --noEmit -p tsconfig.json",
+    "test": "tsx --test src/visualizationArtifacts.test.ts"
   },
   "devDependencies": {
     "tsup": "^8.3.0",

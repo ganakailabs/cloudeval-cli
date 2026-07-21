@@ -98,6 +98,8 @@ import {
   type CliTelemetry,
 } from "./telemetry.js";
 
+process.env.CLOUDEVAL_CLI_VERSION ||= CLI_VERSION;
+
 const DEFAULT_BASE_URL = getDefaultBaseUrl();
 const ASK_STREAM_IDLE_TIMEOUT_MS = 90_000;
 const AGENT_STREAM_IDLE_TIMEOUT_MS = 180_000;

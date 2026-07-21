@@ -54,9 +54,67 @@ test("streamChat normalizes the API base URL", async () => {
       requestBody,
       /"messages":\[\{"role":"user","content":"hello"\}\]/,
     );
+    const payload = JSON.parse(requestBody);
+    assert.deepEqual(payload.presentation, {
+      profile: "terminal",
+      artifact_schema: "cloudeval.visualization/v1",
+      accepts: ["flint-v1", "mermaid-v11"],
+      fallbacks: [
+        "unicode",
+        "table",
+        "edge-list",
+        "source",
+        "plain-markdown",
+      ],
+    });
+    assert.notEqual(requestHeaders["X-Client-Version"], "0.1.0");
     assert.equal(chunks.length, 2);
     assert.equal(chunks[0]?.type, "metadata");
     assert.equal(chunks[1]?.type, "responding");
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test("streamChat validates visualization SSE events", async () => {
+  const originalFetch = global.fetch;
+  global.fetch = async () =>
+    responseFromText(
+      `data: ${JSON.stringify({
+        type: "visualization",
+        artifact: {
+          schema: "cloudeval.visualization/v1",
+          id: "cost-chart",
+          kind: "chart",
+          format: "flint",
+          title: "Cost",
+          renderer: "chartjs",
+          data: { values: [{ service: "Compute", cost: 120 }] },
+          spec: { type: "bar" },
+          config: {},
+          fallback: {
+            type: "table",
+            columns: ["service", "cost"],
+            rows: [["Compute", 120]],
+          },
+        },
+      })}\n\n` + "data: [DONE]\n\n",
+    );
+
+  try {
+    const chunks = [];
+    for await (const chunk of streamChat({
+      baseUrl: "http://127.0.0.1:8787/api/v1",
+      message: "chart",
+      threadId: "thread-chart",
+      user: { id: "user-1", name: "User" },
+    })) {
+      chunks.push(chunk);
+    }
+    assert.equal(chunks[0]?.type, "visualization");
+    if (chunks[0]?.type === "visualization") {
+      assert.equal(chunks[0].artifact.id, "cost-chart");
+    }
   } finally {
     global.fetch = originalFetch;
   }

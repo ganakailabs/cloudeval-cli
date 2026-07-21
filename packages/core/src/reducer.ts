@@ -36,6 +36,9 @@ const cloneMessage = (message: ChatMessage): ChatMessage => ({
     ? message.citationMarkers.map((entry) => ({ ...entry }))
     : undefined,
   citations: message.citations ? message.citations.map((entry) => ({ ...entry })) : undefined,
+  visualizations: message.visualizations
+    ? message.visualizations.map((entry) => ({ ...entry }))
+    : undefined,
 });
 
 const finalizeOpenSteps = (
@@ -373,6 +376,30 @@ export const reduceChunk = (state: ChatState, chunk: Chunk): ChatState => {
       error,
       messages,
       hitl: undefined,
+    };
+  }
+
+  if (chunk.type === "visualization") {
+    const [stateWithMessage, streamingMessage] = ensureAssistantMessage(
+      next,
+      chunk.receivedAt
+    );
+    const updatedMessage = cloneMessage(streamingMessage);
+    const existing = updatedMessage.visualizations ?? [];
+    const index = existing.findIndex((artifact) => artifact.id === chunk.artifact.id);
+    updatedMessage.visualizations =
+      index >= 0
+        ? existing.map((artifact, artifactIndex) =>
+            artifactIndex === index ? chunk.artifact : artifact
+          )
+        : [...existing, chunk.artifact];
+    updatedMessage.updatedAt = chunk.receivedAt;
+    return {
+      ...stateWithMessage,
+      messages: stateWithMessage.messages.map((message) =>
+        message.id === updatedMessage.id ? updatedMessage : message
+      ),
+      activeMessageId: updatedMessage.id,
     };
   }
 

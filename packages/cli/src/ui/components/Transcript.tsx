@@ -1,6 +1,10 @@
 import React from "react";
 import { Box, Text } from "ink";
-import { ChatMessage } from "@cloudeval/shared";
+import {
+  ChatMessage,
+  extractVisualizationArtifactsFromMarkdown,
+  type VisualizationArtifact,
+} from "@cloudeval/shared";
 import { supportsLanguage } from "cli-highlight";
 import SyntaxHighlight from "ink-syntax-highlight";
 import { terminalTheme } from "../theme.js";
@@ -20,6 +24,7 @@ import {
 import { hasRenderableTranscriptMessages } from "../transcriptModel.js";
 import { Spinner } from "./Spinner.js";
 import { TitledBox } from "./TitledBox.js";
+import { renderTerminalVisualization } from "../terminalVisualizations.js";
 
 export interface TranscriptProps {
   messages: ChatMessage[];
@@ -29,6 +34,7 @@ export interface TranscriptProps {
   emptyLabel?: string;
   animate?: boolean;
   graphDiagramMode?: GraphDiagramMode;
+  terminalWidth?: number;
 }
 
 const AI_NAME = "Cloudeval AI";
@@ -40,10 +46,11 @@ export const getGraphInsightDiagramWrapMode = (
   status: TerminalMermaidRenderResult["status"]
 ): "truncate" | "wrap" => (status === "rendered" ? "truncate" : "wrap");
 
-interface ParsedBlock {
-  type: "text" | "code" | "graphInsight";
+export interface ParsedBlock {
+  type: "text" | "code" | "graphInsight" | "visualization";
   content: string;
   language?: string;
+  artifact?: VisualizationArtifact;
 }
 
 const GRAPH_INSIGHT_MARKER_RE =
@@ -65,29 +72,49 @@ export const getSyntaxHighlightLanguage = (language?: string): string => {
 
 const parseMarkdownBlocks = (text: string): ParsedBlock[] => {
   const blocks: ParsedBlock[] = [];
-  const parts = text.split(/```/g);
-
-  for (let i = 0; i < parts.length; i++) {
-    const part = parts[i];
-    if (i % 2 === 0) {
-      if (part) {
-        const content = stripGraphInsightMarkers(part);
-        if (content.trim()) {
-          blocks.push({ type: "text", content });
-        }
+  const addText = (content: string) => {
+    const normalized = stripGraphInsightMarkers(content);
+    if (normalized.trim()) {
+      blocks.push({ type: "text", content: normalized });
+    }
+  };
+  const fencePattern = /```([^\n`]*)\n([\s\S]*?)```/g;
+  let cursor = 0;
+  for (const match of text.matchAll(fencePattern)) {
+    const index = match.index ?? cursor;
+    addText(text.slice(cursor, index));
+    const language = normalizeFenceLanguage(match[1]);
+    const code = match[2];
+    if (language === "flint" || language === "chart" || language === "mermaid") {
+      const artifact = extractVisualizationArtifactsFromMarkdown(match[0])[0];
+      if (artifact) {
+        blocks.push({ type: "visualization", content: code, language, artifact });
+      } else {
+        blocks.push({ type: "code", content: code, language });
       }
     } else {
-      const newlineIndex = part.indexOf("\n");
-      let language = "";
-      let code = part;
+      blocks.push({ type: "code", content: code, language: match[1].trim() });
+    }
+    cursor = index + match[0].length;
+  }
 
-      if (newlineIndex !== -1) {
-        language = part.substring(0, newlineIndex).trim();
-        code = part.substring(newlineIndex + 1);
-      }
-
-      // If code is empty but we have a block, keep it empty
-      blocks.push({ type: "code", content: code, language });
+  const tail = text.slice(cursor);
+  const unmatchedFence = tail.indexOf("```");
+  if (unmatchedFence < 0) {
+    addText(tail);
+  } else {
+    addText(tail.slice(0, unmatchedFence));
+    const incomplete = tail.slice(unmatchedFence + 3);
+    const newline = incomplete.indexOf("\n");
+    const language = normalizeFenceLanguage(
+      newline >= 0 ? incomplete.slice(0, newline) : incomplete,
+    );
+    if (language !== "flint" && language !== "chart" && language !== "mermaid") {
+      blocks.push({
+        type: "code",
+        language,
+        content: newline >= 0 ? incomplete.slice(newline + 1) : "",
+      });
     }
   }
   return blocks;
@@ -316,13 +343,23 @@ const FormattedContent: React.FC<{
   message: ChatMessage;
   role: "user" | "assistant";
   graphDiagramMode?: GraphDiagramMode;
-}> = ({ message, role, graphDiagramMode }) => {
+  terminalWidth: number;
+}> = ({ message, role, graphDiagramMode, terminalWidth }) => {
   const content = message.content;
   if (role === "user") {
     return <MarkdownText content={content} />;
   }
 
   const blocks = parseAssistantMarkdownBlocks(content);
+  const renderedIds = new Set(
+    blocks
+      .filter((block) => block.type === "visualization")
+      .map((block) => block.artifact?.id)
+      .filter((id): id is string => Boolean(id)),
+  );
+  const liveOnlyArtifacts = (message.visualizations ?? []).filter(
+    (artifact) => !renderedIds.has(artifact.id),
+  );
   const references = buildCitationReferences({
     content,
     toolsUsed: message.toolsUsed,
@@ -332,6 +369,26 @@ const FormattedContent: React.FC<{
   return (
     <Box flexDirection="column">
       {blocks.map((block, idx) => {
+        if (block.type === "visualization" && block.artifact) {
+          const rendered = renderTerminalVisualization(block.artifact, terminalWidth);
+          return (
+            <TitledBox
+              key={`${block.artifact.id}-${idx}`}
+              title={rendered.title}
+              borderStyle="single"
+              borderColor={terminalTheme.brand}
+              padding={0}
+              paddingX={1}
+              marginY={1}
+            >
+              <Box flexDirection="column">
+                {rendered.lines.map((line, lineIndex) => (
+                  <Text key={`${block.artifact?.id}-${lineIndex}`}>{line || " "}</Text>
+                ))}
+              </Box>
+            </TitledBox>
+          );
+        }
         if (block.type === "code") {
           const syntaxLanguage = getSyntaxHighlightLanguage(block.language);
           const blockTitle = block.language ? normalizeFenceLanguage(block.language) : "Code";
@@ -372,6 +429,26 @@ const FormattedContent: React.FC<{
             key={idx}
             content={toDisplayCitationContent(block.content)}
           />
+        );
+      })}
+      {liveOnlyArtifacts.map((artifact) => {
+        const rendered = renderTerminalVisualization(artifact, terminalWidth);
+        return (
+          <TitledBox
+            key={`live-${artifact.id}`}
+            title={rendered.title}
+            borderStyle="single"
+            borderColor={terminalTheme.brand}
+            padding={0}
+            paddingX={1}
+            marginY={1}
+          >
+            <Box flexDirection="column">
+              {rendered.lines.map((line, lineIndex) => (
+                <Text key={`${artifact.id}-${lineIndex}`}>{line || " "}</Text>
+              ))}
+            </Box>
+          </TitledBox>
         );
       })}
       <CitationReferences references={references} />
@@ -580,6 +657,7 @@ export const Transcript: React.FC<TranscriptProps> = ({
   emptyLabel = "Thread is empty.",
   animate = true,
   graphDiagramMode,
+  terminalWidth = process.stdout.columns || 100,
 }) => {
   const completedMessages = messages.filter(m => !m.pending || m.role === "user");
   const streamingMessage = excludeStreaming ? null : messages.find(m => m.role === "assistant" && m.pending);
@@ -618,6 +696,7 @@ export const Transcript: React.FC<TranscriptProps> = ({
                    message={message}
                    role={message.role as any}
                    graphDiagramMode={graphDiagramMode}
+                   terminalWidth={terminalWidth}
                  />
                ) : !hasThinkingSteps && !message.error ? (
                  <Text dimColor>No final response content.</Text>
@@ -682,7 +761,7 @@ export const Transcript: React.FC<TranscriptProps> = ({
                 animate={animate}
               />
               <Box paddingLeft={0}>
-                  <FormattedContent message={streamingMessage} role="assistant" />
+                  <FormattedContent message={streamingMessage} role="assistant" terminalWidth={terminalWidth} />
                   <Text color={terminalTheme.cursor}>|</Text>
               </Box>
             </Box>

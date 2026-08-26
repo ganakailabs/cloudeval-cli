@@ -171,6 +171,7 @@ import {
   nextHitlOptionIndex,
   resolveHitlAnswer,
 } from "../hitlPrompt.js";
+import type { GraphDiagramMode } from "./graphInsightDiagram.js";
 
 export interface AppProps {
   baseUrl: string;
@@ -187,6 +188,7 @@ export interface AppProps {
   disableAnim?: boolean;
   forceAnim?: boolean;
   skipHealthCheck?: boolean;
+  graphDiagramMode?: GraphDiagramMode;
 }
 
 const bootSteps = [
@@ -1248,6 +1250,7 @@ export const App: React.FC<AppProps> = ({
   disableAnim = false,
   forceAnim = false,
   skipHealthCheck = true, // Disable health check by default
+  graphDiagramMode,
 }) => {
   const { exit } = useApp();
   const [phase, setPhase] = useState<"boot" | "ready" | "error">("boot");
@@ -4294,6 +4297,7 @@ export const App: React.FC<AppProps> = ({
               expandedThinkingMessageIds={expandedThinkingMessageIds}
               emptyLabel={isSearching ? "No matching messages." : "Thread is empty."}
               animate={animationsEnabled}
+              graphDiagramMode={graphDiagramMode}
             />
             <CitationSourceInspector
               reference={citationInspectorRef}

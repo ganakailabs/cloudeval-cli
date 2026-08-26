@@ -23,6 +23,14 @@ test("completes known value options", () => {
   );
 });
 
+test("completes graph diagram options for interactive commands", () => {
+  const tuiResult = completeCliWords(["tui", "--graph"]);
+  const chatResult = completeCliWords(["chat", "--graph"]);
+
+  assert.ok(tuiResult.some((candidate) => candidate.value === "--graph-diagram"));
+  assert.ok(chatResult.some((candidate) => candidate.value === "--graph-diagram"));
+});
+
 test("completes completion command shell values", () => {
   const result = completeCliWords(["completion", "p"]);
   assert.deepEqual(

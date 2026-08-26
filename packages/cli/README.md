@@ -105,8 +105,14 @@ Use CloudEval projects and reports after connecting Azure in the app or CLI:
 ```bash
 cloudeval projects list
 cloudeval reports list
+cloudeval tui --graph-diagram auto
 cloudeval ask "Summarize my Azure architecture risks" --format json
 ```
+
+Terminal UI Graph Insight cards render Mermaid flowcharts as terminal diagrams
+when `--graph-diagram auto` detects a roomy TTY. Use `unicode` or `ascii` to
+force a terminal renderer, or `off` to keep Mermaid source blocks. Unsupported
+Mermaid syntax falls back to source instead of breaking the transcript.
 
 ### GitHub Actions / CI
 

@@ -10,6 +10,12 @@ import {
   toDisplayCitationContent,
   type CitationReference,
 } from "../citationContent.js";
+import {
+  parseGraphInsightContentBlocks,
+  renderTerminalMermaid,
+  resolveGraphDiagramMode,
+  type GraphDiagramMode,
+} from "../graphInsightDiagram.js";
 import { hasRenderableTranscriptMessages } from "../transcriptModel.js";
 import { Spinner } from "./Spinner.js";
 import { TitledBox } from "./TitledBox.js";
@@ -21,6 +27,7 @@ export interface TranscriptProps {
   expandedThinkingMessageIds?: Set<string>;
   emptyLabel?: string;
   animate?: boolean;
+  graphDiagramMode?: GraphDiagramMode;
 }
 
 const AI_NAME = "Cloudeval AI";
@@ -51,41 +58,7 @@ export const getSyntaxHighlightLanguage = (language?: string): string => {
   return supportsLanguage(normalized) ? normalized : "text";
 };
 
-const splitGraphInsightTextBlocks = (text: string): ParsedBlock[] => {
-  const blocks: ParsedBlock[] = [];
-  let cursor = 0;
-  let insightMode = false;
-  let remaining = text;
-  let match: RegExpExecArray | null;
-
-  while ((match = GRAPH_INSIGHT_MARKER_RE.exec(remaining)) !== null) {
-    const before = remaining.slice(0, match.index);
-    if (before) {
-      const content = insightMode
-        ? stripGraphInsightMarkers(before).trimStart()
-        : stripGraphInsightMarkers(before);
-      if (content.trim()) {
-        blocks.push({ type: insightMode ? "graphInsight" : "text", content });
-      }
-    }
-    cursor += match.index + match[0].length;
-    remaining = text.slice(cursor);
-    insightMode = true;
-  }
-
-  if (remaining) {
-    const content = insightMode
-      ? stripGraphInsightMarkers(remaining).trimStart()
-      : stripGraphInsightMarkers(remaining);
-    if (content.trim()) {
-      blocks.push({ type: insightMode ? "graphInsight" : "text", content });
-    }
-  }
-
-  return blocks;
-};
-
-export const parseAssistantMarkdownBlocks = (text: string): ParsedBlock[] => {
+const parseMarkdownBlocks = (text: string): ParsedBlock[] => {
   const blocks: ParsedBlock[] = [];
   const parts = text.split(/```/g);
 
@@ -93,7 +66,10 @@ export const parseAssistantMarkdownBlocks = (text: string): ParsedBlock[] => {
     const part = parts[i];
     if (i % 2 === 0) {
       if (part) {
-        blocks.push(...splitGraphInsightTextBlocks(part));
+        const content = stripGraphInsightMarkers(part);
+        if (content.trim()) {
+          blocks.push({ type: "text", content });
+        }
       }
     } else {
       const newlineIndex = part.indexOf("\n");
@@ -108,6 +84,23 @@ export const parseAssistantMarkdownBlocks = (text: string): ParsedBlock[] => {
       // If code is empty but we have a block, keep it empty
       blocks.push({ type: "code", content: code, language });
     }
+  }
+  return blocks;
+};
+
+export const parseAssistantMarkdownBlocks = (text: string): ParsedBlock[] => {
+  const marker = GRAPH_INSIGHT_MARKER_RE.exec(text);
+  if (!marker) {
+    return parseMarkdownBlocks(text);
+  }
+
+  const before = text.slice(0, marker.index);
+  const graphInsightContent = stripGraphInsightMarkers(
+    text.slice(marker.index + marker[0].length)
+  ).trimStart();
+  const blocks = parseMarkdownBlocks(before);
+  if (graphInsightContent.trim()) {
+    blocks.push({ type: "graphInsight", content: graphInsightContent });
   }
   return blocks;
 };
@@ -255,10 +248,66 @@ const CitationReferences: React.FC<{ references: CitationReference[] }> = ({
   );
 };
 
+const GraphInsightMarkdown: React.FC<{
+  content: string;
+  graphDiagramMode?: GraphDiagramMode;
+}> = ({ content, graphDiagramMode }) => {
+  const diagramMode = resolveGraphDiagramMode({ requested: graphDiagramMode });
+  const blocks = parseGraphInsightContentBlocks(content);
+
+  return (
+    <Box flexDirection="column">
+      {blocks.map((block, index) => {
+        const key = `graph-insight-${index}`;
+        if (block.type === "text") {
+          return <MarkdownText key={key} content={block.content} />;
+        }
+        if (block.type === "mermaid") {
+          const rendered = renderTerminalMermaid(block.content, {
+            mode: diagramMode,
+          });
+          if (rendered.status === "rendered") {
+            return (
+              <Box key={key} flexDirection="column" marginY={1}>
+                <Text color={terminalTheme.brand}>Diagram</Text>
+                <Text wrap="wrap">{rendered.content}</Text>
+              </Box>
+            );
+          }
+          return (
+            <Box key={key} flexDirection="column" marginY={1}>
+              <Text color={terminalTheme.brand}>
+                {rendered.status === "disabled"
+                  ? "Mermaid source"
+                  : "Mermaid fallback"}
+              </Text>
+              {rendered.status === "fallback" && rendered.reason ? (
+                <Text dimColor wrap="wrap">
+                  {rendered.reason}
+                </Text>
+              ) : null}
+              <Text dimColor wrap="wrap">{rendered.content}</Text>
+            </Box>
+          );
+        }
+        return (
+          <Box key={key} flexDirection="column" marginY={1}>
+            <Text color={terminalTheme.brand}>
+              {block.language === "text" ? "Code" : block.language}
+            </Text>
+            <Text dimColor wrap="wrap">{block.content.trimEnd()}</Text>
+          </Box>
+        );
+      })}
+    </Box>
+  );
+};
+
 const FormattedContent: React.FC<{
   message: ChatMessage;
   role: "user" | "assistant";
-}> = ({ message, role }) => {
+  graphDiagramMode?: GraphDiagramMode;
+}> = ({ message, role, graphDiagramMode }) => {
   const content = message.content;
   if (role === "user") {
     return <MarkdownText content={content} />;
@@ -302,7 +351,10 @@ const FormattedContent: React.FC<{
               paddingX={1}
               marginY={1}
             >
-              <MarkdownText content={toDisplayCitationContent(block.content)} />
+              <GraphInsightMarkdown
+                content={toDisplayCitationContent(block.content)}
+                graphDiagramMode={graphDiagramMode}
+              />
             </TitledBox>
           );
         }
@@ -518,6 +570,7 @@ export const Transcript: React.FC<TranscriptProps> = ({
   expandedThinkingMessageIds,
   emptyLabel = "Thread is empty.",
   animate = true,
+  graphDiagramMode,
 }) => {
   const completedMessages = messages.filter(m => !m.pending || m.role === "user");
   const streamingMessage = excludeStreaming ? null : messages.find(m => m.role === "assistant" && m.pending);
@@ -552,7 +605,11 @@ export const Transcript: React.FC<TranscriptProps> = ({
             ) : null}
             <Box paddingLeft={0}>
                {content ? (
-                 <FormattedContent message={message} role={message.role as any} />
+                 <FormattedContent
+                   message={message}
+                   role={message.role as any}
+                   graphDiagramMode={graphDiagramMode}
+                 />
                ) : !hasThinkingSteps && !message.error ? (
                  <Text dimColor>No final response content.</Text>
                ) : null}

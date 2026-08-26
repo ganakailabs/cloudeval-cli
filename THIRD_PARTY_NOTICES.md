@@ -14,7 +14,7 @@ This notice is not a substitute for legal review before public or enterprise dis
 | --- | ---: |
 | (MIT OR CC0-1.0) | 2 |
 | 0BSD | 1 |
-| Apache-2.0 | 51 |
+| Apache-2.0 | 53 |
 | BSD-3-Clause | 3 |
 | ISC | 12 |
 | MIT | 177 |
@@ -55,6 +55,7 @@ This notice is not a substitute for legal review before public or enterprise dis
 | @opentelemetry/api | 1.9.1 | Apache-2.0 | OpenTelemetry Authors | https://github.com/open-telemetry/opentelemetry-js/tree/main/api |
 | @opentelemetry/configuration | 0.217.0 | Apache-2.0 | OpenTelemetry Authors | https://github.com/open-telemetry/opentelemetry-js/tree/main/experimental/packages/configuration |
 | @opentelemetry/context-async-hooks | 2.7.1 | Apache-2.0 | OpenTelemetry Authors | https://github.com/open-telemetry/opentelemetry-js/tree/main/packages/opentelemetry-context-async-hooks |
+| @opentelemetry/core | 2.10.0 | Apache-2.0 | OpenTelemetry Authors | https://github.com/open-telemetry/opentelemetry-js/tree/main/packages/opentelemetry-core |
 | @opentelemetry/core | 2.7.1 | Apache-2.0 | OpenTelemetry Authors | https://github.com/open-telemetry/opentelemetry-js/tree/main/packages/opentelemetry-core |
 | @opentelemetry/exporter-logs-otlp-grpc | 0.217.0 | Apache-2.0 | OpenTelemetry Authors | https://github.com/open-telemetry/opentelemetry-js/tree/main/experimental/packages/exporter-logs-otlp-grpc |
 | @opentelemetry/exporter-logs-otlp-http | 0.217.0 | Apache-2.0 | OpenTelemetry Authors | https://github.com/open-telemetry/opentelemetry-js/tree/main/experimental/packages/exporter-logs-otlp-http |
@@ -80,7 +81,7 @@ This notice is not a substitute for legal review before public or enterprise dis
 | @opentelemetry/otlp-grpc-exporter-base | 0.217.0 | Apache-2.0 | OpenTelemetry Authors | https://github.com/open-telemetry/opentelemetry-js/tree/main/experimental/packages/otlp-grpc-exporter-base |
 | @opentelemetry/otlp-transformer | 0.217.0 | Apache-2.0 | OpenTelemetry Authors | https://github.com/open-telemetry/opentelemetry-js/tree/main/experimental/packages/otlp-transformer |
 | @opentelemetry/propagator-b3 | 2.7.1 | Apache-2.0 | OpenTelemetry Authors | https://github.com/open-telemetry/opentelemetry-js/tree/main/packages/opentelemetry-propagator-b3 |
-| @opentelemetry/propagator-jaeger | 2.7.1 | Apache-2.0 | OpenTelemetry Authors | https://github.com/open-telemetry/opentelemetry-js/tree/main/packages/opentelemetry-propagator-jaeger |
+| @opentelemetry/propagator-jaeger | 2.10.0 | Apache-2.0 | OpenTelemetry Authors | https://github.com/open-telemetry/opentelemetry-js/tree/main/packages/opentelemetry-propagator-jaeger |
 | @opentelemetry/redis-common | 0.38.3 | Apache-2.0 | OpenTelemetry Authors | https://github.com/open-telemetry/opentelemetry-js-contrib/tree/main/packages/redis-common#readme |
 | @opentelemetry/resource-detector-azure | 0.25.0 | Apache-2.0 | OpenTelemetry Authors | https://github.com/open-telemetry/opentelemetry-js-contrib/tree/main/packages/resource-detector-azure#readme |
 | @opentelemetry/resources | 2.7.1 | Apache-2.0 | OpenTelemetry Authors | https://github.com/open-telemetry/opentelemetry-js/tree/main/packages/opentelemetry-resources |
@@ -155,6 +156,7 @@ This notice is not a substitute for legal review before public or enterprise dis
 | fecha | 4.2.3 | MIT | Taylor Hakes | https://github.com/taylorhakes/fecha |
 | forwarded-parse | 2.1.2 | MIT | Luigi Pinca | https://github.com/lpinca/forwarded-parse |
 | get-caller-file | 2.0.5 | ISC | Stefan Penner | https://github.com/stefanpenner/get-caller-file#readme |
+| grok-mermaid | 0.2.3 | Apache-2.0 | Alexey Zaytsev <alexey.zaytsev@gmail.com> | github:xl0/grok-mermaid |
 | has-flag | 4.0.0 | MIT | Sindre Sorhus | sindresorhus/has-flag |
 | highlight.js | 10.7.3 | BSD-3-Clause | Ivan Sagalaev | https://highlightjs.org/ |
 | http-proxy-agent | 7.0.2 | MIT | Nathan Rajlich <nathan@tootallnate.net> (http://n8.io/) | https://github.com/TooTallNate/proxy-agents.git |
@@ -229,7 +231,7 @@ This notice is not a substitute for legal review before public or enterprise dis
 | safer-buffer | 2.1.2 | MIT | Nikita Skovoroda | git+https://github.com/ChALkeR/safer-buffer.git |
 | scheduler | 0.23.2 | MIT | NOASSERTION | https://reactjs.org/ |
 | semver | 7.7.3 | ISC | GitHub Inc. | git+https://github.com/npm/node-semver.git |
-| shell-quote | 1.8.4 | MIT | James Halliday | https://github.com/ljharb/shell-quote |
+| shell-quote | 1.10.0 | MIT | James Halliday | https://github.com/ljharb/shell-quote |
 | signal-exit | 3.0.7 | ISC | Ben Coe <ben@npmjs.com> | https://github.com/tapjs/signal-exit |
 | signalstory | 0.1.0 | Apache-2.0 | NOASSERTION | NOASSERTION |
 | skin-tone | 2.0.0 | MIT | Sindre Sorhus | sindresorhus/skin-tone |

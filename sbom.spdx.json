@@ -363,6 +363,17 @@
       "summary": "OpenTelemetry AsyncLocalStorage-based Context Manager"
     },
     {
+      "SPDXID": "SPDXRef-Package--opentelemetry-core-2.10.0",
+      "name": "@opentelemetry/core",
+      "versionInfo": "2.10.0",
+      "downloadLocation": "https://github.com/open-telemetry/opentelemetry-js/tree/main/packages/opentelemetry-core",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "copyrightText": "OpenTelemetry Authors",
+      "summary": "OpenTelemetry Core provides constants and utilities shared by all OpenTelemetry SDK packages."
+    },
+    {
       "SPDXID": "SPDXRef-Package--opentelemetry-core-2.7.1",
       "name": "@opentelemetry/core",
       "versionInfo": "2.7.1",
@@ -638,9 +649,9 @@
       "summary": "OpenTelemetry B3 propagator provides context propagation for systems that are using the B3 header format"
     },
     {
-      "SPDXID": "SPDXRef-Package--opentelemetry-propagator-jaeger-2.7.1",
+      "SPDXID": "SPDXRef-Package--opentelemetry-propagator-jaeger-2.10.0",
       "name": "@opentelemetry/propagator-jaeger",
-      "versionInfo": "2.7.1",
+      "versionInfo": "2.10.0",
       "downloadLocation": "https://github.com/open-telemetry/opentelemetry-js/tree/main/packages/opentelemetry-propagator-jaeger",
       "filesAnalyzed": false,
       "licenseConcluded": "Apache-2.0",
@@ -1463,6 +1474,17 @@
       "summary": ""
     },
     {
+      "SPDXID": "SPDXRef-Package-grok-mermaid-0.2.3",
+      "name": "grok-mermaid",
+      "versionInfo": "0.2.3",
+      "downloadLocation": "github:xl0/grok-mermaid",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "copyrightText": "Alexey Zaytsev <alexey.zaytsev@gmail.com>",
+      "summary": "Render Mermaid diagrams as Unicode box-drawing art for terminals"
+    },
+    {
       "SPDXID": "SPDXRef-Package-has-flag-4.0.0",
       "name": "has-flag",
       "versionInfo": "4.0.0",
@@ -2277,9 +2299,9 @@
       "summary": "The semantic version parser used by npm."
     },
     {
-      "SPDXID": "SPDXRef-Package-shell-quote-1.8.4",
+      "SPDXID": "SPDXRef-Package-shell-quote-1.10.0",
       "name": "shell-quote",
-      "versionInfo": "1.8.4",
+      "versionInfo": "1.10.0",
       "downloadLocation": "https://github.com/ljharb/shell-quote",
       "filesAnalyzed": false,
       "licenseConcluded": "MIT",
@@ -2898,6 +2920,11 @@
     {
       "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
       "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package--opentelemetry-core-2.10.0"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
       "relatedSpdxElement": "SPDXRef-Package--opentelemetry-core-2.7.1"
     },
     {
@@ -3023,7 +3050,7 @@
     {
       "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
       "relationshipType": "DEPENDS_ON",
-      "relatedSpdxElement": "SPDXRef-Package--opentelemetry-propagator-jaeger-2.7.1"
+      "relatedSpdxElement": "SPDXRef-Package--opentelemetry-propagator-jaeger-2.10.0"
     },
     {
       "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
@@ -3398,6 +3425,11 @@
     {
       "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
       "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-grok-mermaid-0.2.3"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
+      "relationshipType": "DEPENDS_ON",
       "relatedSpdxElement": "SPDXRef-Package-has-flag-4.0.0"
     },
     {
@@ -3768,7 +3800,7 @@
     {
       "spdxElementId": "SPDXRef-Package-CloudEval-CLI",
       "relationshipType": "DEPENDS_ON",
-      "relatedSpdxElement": "SPDXRef-Package-shell-quote-1.8.4"
+      "relatedSpdxElement": "SPDXRef-Package-shell-quote-1.10.0"
     },
     {
       "spdxElementId": "SPDXRef-Package-CloudEval-CLI",

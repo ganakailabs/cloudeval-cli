@@ -146,6 +146,7 @@ npm uninstall -g @ganakailabs/cloudeval-cli # if installed through npm
 
 ```bash
 cloudeval                         # Terminal UI
+cloudeval tui --graph-diagram ascii
 cloudeval ask "Summarize my cloud risk" --format json
 cloudeval agent "Find cost and architecture risks" --format json
 cloudeval agents list
@@ -182,9 +183,13 @@ answers show numbered citations and a Sources section instead of raw
 `[S_tool_...]` tags, with citation numbers highlighted inline; `/copy` copies
 the latest assistant response and `/download` writes a Markdown transcript with
 the same references. Graph insight blocks render as bordered terminal cards
-instead of exposing raw `graph-insight` markers. HITL approval prompts require an
-explicit option selection or typed answer; pressing Enter on a blank approval
-prompt does not choose the recommended option. Project and Connection tabs show
+instead of exposing raw `graph-insight` markers; when a card contains a
+conservative Mermaid flowchart, `--graph-diagram auto` renders a terminal
+diagram in roomy TTYs, `unicode` or `ascii` force a mode, and `off` keeps the
+Mermaid source fallback. Unsupported Mermaid syntax stays visible as source
+instead of breaking the transcript. HITL approval prompts require an explicit
+option selection or typed answer; pressing Enter on a blank approval prompt does
+not choose the recommended option. Project and Connection tabs show
 a selected-item detail pane for backend fields, report coverage, sync state, and
 linked records; use `J`/`K` or Up/Down on Projects and Connections to move the
 selected row, then Enter to confirm it. The billing header separates credits left from observed

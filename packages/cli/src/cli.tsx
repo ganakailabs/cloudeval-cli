@@ -45,6 +45,7 @@ import { registerIacCommand } from "./iacCommand.js";
 import { registerFindingsCommand } from "./findingsCommand.js";
 import { registerCiCommand } from "./ciCommand.js";
 import { registerGraphCommand } from "./graphCommand.js";
+import { resolveGraphDiagramMode } from "./ui/graphInsightDiagram.js";
 import { registerConfigCommand } from "./configCommand.js";
 import { registerDiagnosticsCommands } from "./diagnosticsCommand.js";
 import { registerModelsCommand } from "./modelsCommand.js";
@@ -1295,6 +1296,11 @@ program
   .option("--model <name>", "Model name")
   .option("--debug", "Log raw chunks", false)
   .option("--health-check", "Enable health check (disabled by default)")
+  .option(
+    "--graph-diagram <mode>",
+    "Graph insight Mermaid rendering: auto, unicode, ascii, off",
+    "auto",
+  )
   .option("--no-banner", "Disable ASCII banner")
   .option("--animate", "Enable TUI animations (default)")
   .option("--no-anim", "Disable TUI animations")
@@ -1311,6 +1317,9 @@ program
     const cliConfig = await resolveCliConfig(command);
     const initialMode =
       normalizeCliMode(options.mode ?? cliConfig.mode) ?? "ask";
+    const graphDiagramMode = resolveGraphDiagramMode({
+      requested: options.graphDiagram,
+    });
 
     let accessKey: string | undefined = options.accessKey;
     if (options.accessKeyStdin) {
@@ -1345,6 +1354,7 @@ program
         disableAnim={options.anim === false}
         forceAnim={options.animate === true}
         skipHealthCheck={!options.healthCheck}
+        graphDiagramMode={graphDiagramMode}
       />,
     );
     await app.waitUntilExit();
@@ -1374,6 +1384,11 @@ program
   .option("--mode <mode>", "Initial chat mode: ask, agent")
   .option("--debug", "Log raw chunks", false)
   .option("--health-check", "Enable health check (disabled by default)")
+  .option(
+    "--graph-diagram <mode>",
+    "Graph insight Mermaid rendering: auto, unicode, ascii, off",
+    "auto",
+  )
   .option("--no-banner", "Disable ASCII banner")
   .option("--animate", "Enable TUI animations (default)")
   .option("--no-anim", "Disable TUI animations")
@@ -1444,6 +1459,9 @@ program
         disableAnim={options.anim === false}
         forceAnim={options.animate === true}
         skipHealthCheck={!options.healthCheck}
+        graphDiagramMode={resolveGraphDiagramMode({
+          requested: options.graphDiagram,
+        })}
       />,
     );
     await app.waitUntilExit();

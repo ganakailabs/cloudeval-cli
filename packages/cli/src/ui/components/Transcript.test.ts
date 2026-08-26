@@ -96,6 +96,32 @@ test("parseAssistantMarkdownBlocks promotes graph insight marker to a card block
   assert.doesNotMatch(blocks[1]?.content ?? "", /graph-insight/);
 });
 
+test("parseAssistantMarkdownBlocks keeps mermaid fences inside graph insight cards", () => {
+  const blocks = parseAssistantMarkdownBlocks(
+    [
+      "Intro.[S_tool_graph_insights_0]",
+      "",
+      "<!-- graph-insight:compact -->",
+      "",
+      "## **Topology**",
+      "```mermaid",
+      "flowchart LR",
+      "  VM1[VM 1] --> Pool[Backend Pool]",
+      "```",
+      "",
+      "## **Risk**",
+      "- Backend pool drift.",
+    ].join("\n")
+  );
+
+  assert.deepEqual(
+    blocks.map((block) => block.type),
+    ["text", "graphInsight"]
+  );
+  assert.match(blocks[1]?.content ?? "", /```mermaid\nflowchart LR/);
+  assert.match(blocks[1]?.content ?? "", /Backend pool drift/);
+});
+
 test("transcript role labels use distinct bright persona colors", () => {
   assert.deepEqual(terminalPalette.userName, {
     dark: "cyanBright",

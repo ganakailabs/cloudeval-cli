@@ -6,6 +6,7 @@ import { hasRenderableTranscriptMessages } from "../transcriptModel";
 import {
   getTranscriptRoleColor,
   getSyntaxHighlightLanguage,
+  getGraphInsightDiagramWrapMode,
   parseAssistantMarkdownBlocks,
   summarizeThinkingLedger,
   tokenizeInlineMarkdown,
@@ -120,6 +121,12 @@ test("parseAssistantMarkdownBlocks keeps mermaid fences inside graph insight car
   );
   assert.match(blocks[1]?.content ?? "", /```mermaid\nflowchart LR/);
   assert.match(blocks[1]?.content ?? "", /Backend pool drift/);
+});
+
+test("rendered graph insight diagrams do not use prose wrapping", () => {
+  assert.equal(getGraphInsightDiagramWrapMode("rendered"), "truncate");
+  assert.equal(getGraphInsightDiagramWrapMode("fallback"), "wrap");
+  assert.equal(getGraphInsightDiagramWrapMode("disabled"), "wrap");
 });
 
 test("transcript role labels use distinct bright persona colors", () => {

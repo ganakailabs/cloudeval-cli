@@ -15,6 +15,7 @@ import {
   renderTerminalMermaid,
   resolveGraphDiagramMode,
   type GraphDiagramMode,
+  type TerminalMermaidRenderResult,
 } from "../graphInsightDiagram.js";
 import { hasRenderableTranscriptMessages } from "../transcriptModel.js";
 import { Spinner } from "./Spinner.js";
@@ -34,6 +35,10 @@ const AI_NAME = "Cloudeval AI";
 
 export const getTranscriptRoleColor = (role: "user" | "assistant"): string | undefined =>
   role === "user" ? terminalTheme.userName : terminalTheme.aiName;
+
+export const getGraphInsightDiagramWrapMode = (
+  status: TerminalMermaidRenderResult["status"]
+): "truncate" | "wrap" => (status === "rendered" ? "truncate" : "wrap");
 
 interface ParsedBlock {
   type: "text" | "code" | "graphInsight";
@@ -270,7 +275,9 @@ const GraphInsightMarkdown: React.FC<{
             return (
               <Box key={key} flexDirection="column" marginY={1}>
                 <Text color={terminalTheme.brand}>Diagram</Text>
-                <Text wrap="wrap">{rendered.content}</Text>
+                <Text wrap={getGraphInsightDiagramWrapMode(rendered.status)}>
+                  {rendered.content}
+                </Text>
               </Box>
             );
           }
@@ -286,7 +293,9 @@ const GraphInsightMarkdown: React.FC<{
                   {rendered.reason}
                 </Text>
               ) : null}
-              <Text dimColor wrap="wrap">{rendered.content}</Text>
+              <Text dimColor wrap={getGraphInsightDiagramWrapMode(rendered.status)}>
+                {rendered.content}
+              </Text>
             </Box>
           );
         }

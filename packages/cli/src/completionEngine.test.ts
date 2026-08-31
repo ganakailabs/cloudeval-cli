@@ -49,6 +49,7 @@ test("projects subcommand phase lists only subcommands", () => {
   const result = completeCliWords(["projects", ""]);
   assert.ok(result.every((c) => !c.value.startsWith("--")));
   assert.ok(result.some((c) => c.value === "list"));
+  assert.ok(result.some((c) => c.value === "overview"));
   assert.ok(result.some((c) => c.value === "create"));
 });
 

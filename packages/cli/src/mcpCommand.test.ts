@@ -10,6 +10,17 @@ import test from "node:test";
 const packageRoot = fileURLToPath(new URL("..", import.meta.url));
 const MCP_RESPONSE_TIMEOUT_MS = 15_000;
 const MCP_CLOSE_TIMEOUT_MS = 10_000;
+const EXPECTED_AGENT_PROFILE_IDS = [
+  "architecture",
+  "cost",
+  "triage",
+  "remediation",
+  "visual-explainer",
+  "scripter",
+  "change-reviewer",
+  "evidence-auditor",
+  "security-reviewer",
+];
 
 const user = {
   id: "user-1",
@@ -760,7 +771,7 @@ test("mcp agent_profiles_list and get fall back to bundled profiles when backend
     assert.equal(listed.result.isError, false);
     assert.deepEqual(
       listed.result.structuredContent.data.profiles.map((profile: any) => profile.id),
-      ["architecture", "cost", "triage", "remediation"],
+      EXPECTED_AGENT_PROFILE_IDS,
     );
 
     mcp.send({
@@ -814,6 +825,7 @@ test("mcp serve filters tools by safety toolset", async () => {
       "capabilities_get",
       "projects_list",
       "projects_get",
+      "projects_overview",
       "projects_graph_get",
       "projects_graph_timeline",
       "projects_graph_diff",
@@ -883,6 +895,31 @@ test("mcp serve filters tools by safety toolset", async () => {
     assert.equal(blocked.id, 3);
     assert.equal(blocked.error.code, -32602);
     assert.match(blocked.error.message, /not available in toolset readonly/);
+  } finally {
+    const closed = await mcp.close();
+    assert.equal(closed.exitCode, 0, closed.stderr);
+  }
+});
+
+test("mcp serve exposes IDE project cockpit tools", async () => {
+  const mcp = await startMcp(["--toolset", "ide"]);
+  try {
+    await initialize(mcp);
+
+    mcp.send({ jsonrpc: "2.0", id: 2, method: "tools/list" });
+    const listed = await mcp.read();
+    const names = listed.result.tools.map((tool: any) => tool.name);
+    for (const expected of [
+      "projects_overview",
+      "projects_graph_get",
+      "projects_graph_insights",
+      "reports_list",
+      "connections_list",
+      "billing_summary",
+    ]) {
+      assert(names.includes(expected), `${expected} should be available in ide`);
+    }
+    assert.equal(names.includes("reports_run"), false);
   } finally {
     const closed = await mcp.close();
     assert.equal(closed.exitCode, 0, closed.stderr);

@@ -305,6 +305,7 @@ export const cliCommands: CliCommandMetadata[] = [
     options: [
       "list",
       "get",
+      "overview",
       "open",
       "create",
       "export-diagram",
@@ -351,6 +352,7 @@ export const cliCommands: CliCommandMetadata[] = [
     workflows: [
       "projects list",
       "projects get",
+      "projects overview",
       "projects open",
       "projects create",
       "projects export-diagram",

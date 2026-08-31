@@ -16,6 +16,13 @@ import {
 import { buildFrontendUrl, resolveFrontendBaseUrl } from "./frontendLinks.js";
 import { buildSignalStoryReviewFallback } from "./signalstoryReviewAdapter.js";
 import { registerReviewLocalCommand } from "./reviewLocalCommand.js";
+import { collectReviewDiff, parseReviewDiffConfig } from "./reviewDiff.js";
+import {
+  buildReviewAnnotations,
+  extractReviewFindings,
+  parseReviewGithubConfig,
+} from "./reviewFindings.js";
+import { buildReviewSarifLog } from "./reviewSarif.js";
 
 const DIRTY_REVIEW_MESSAGE =
   "Reviews pushed commits only. Add --ignore-dirty to review HEAD anyway.";
@@ -35,6 +42,12 @@ type ReviewOptions = AuthGuardOptions & {
   aiSummaryProfile?: string;
   ignoreDirty?: boolean;
   output?: string;
+  githubChecks?: boolean;
+  checksAnnotationLimit?: string;
+  checksAllFiles?: boolean;
+  checksIncludeNotices?: boolean;
+  sarif?: boolean;
+  sarifOutput?: string;
   format?: MachineOutputFormat;
   quiet?: boolean;
   progress?: string;
@@ -448,6 +461,20 @@ const publicFinding = (rule: Record<string, any>): Record<string, any> => ({
   id: rule.id ?? rule.rule_id ?? rule.ruleId,
   pillar: rule.pillar,
   title: rule.title ?? rule.name,
+  message: rule.message ?? rule.reason ?? rule.description,
+  recommendation: rule.recommendation ?? rule.remediation ?? rule.fix,
+  path:
+    rule.file_path ??
+    rule.filePath ??
+    rule.path ??
+    rule.source_file ??
+    rule.sourceFile,
+  line:
+    rule.line ??
+    rule.line_number ??
+    rule.lineNumber ??
+    rule.start_line ??
+    rule.startLine,
   status: rule.status ?? rule.outcome,
   severity: rule.severity,
 });
@@ -1317,6 +1344,29 @@ const monthlyCostImpactLines = (
   ];
 };
 
+const changedFileLines = (files: unknown): string[] => {
+  const changed = (Array.isArray(files) ? files : [])
+    .map(asRecord)
+    .filter((file) => typeof file.path === "string" && file.path.trim())
+    .slice(0, 15);
+  if (!changed.length) {
+    return [];
+  }
+  return [
+    "| File | Change |",
+    "| --- | ---: |",
+    ...changed.map((file) => {
+      const additions = numberFrom(file.additions);
+      const deletions = numberFrom(file.deletions);
+      const stats =
+        additions !== undefined || deletions !== undefined
+          ? `+${additions ?? 0} / -${deletions ?? 0}`
+          : String(file.status ?? "changed");
+      return `| \`${compactMarkdownCell(file.path)}\` | ${compactMarkdownCell(file.status ?? "changed")} (${stats}) |`;
+    }),
+  ];
+};
+
 type ReviewPillar = {
   id: string;
   label: string;
@@ -1832,6 +1882,41 @@ const writeReviewPdfOutput = async ({
   }
 };
 
+const writeReviewSarifOutput = async ({
+  enabled,
+  outputFile,
+  category,
+  data,
+}: {
+  enabled: boolean;
+  outputFile?: string;
+  category: string;
+  data: Record<string, any>;
+}): Promise<Record<string, any> | undefined> => {
+  if (!enabled) {
+    return undefined;
+  }
+  if (!outputFile) {
+    return {
+      enabled,
+      category,
+      status: "skipped",
+      reason: "SARIF output requires --output or --sarif-output.",
+    };
+  }
+  const findings = extractReviewFindings(data).filter((finding) => finding.path);
+  const sarif = buildReviewSarifLog({ findings, category });
+  await fs.mkdir(path.dirname(outputFile), { recursive: true });
+  await fs.writeFile(outputFile, JSON.stringify(sarif, null, 2), "utf8");
+  return {
+    enabled,
+    category,
+    status: "written",
+    file: outputFile,
+    resultCount: sarif.runs[0].results.length,
+  };
+};
+
 const parsePositiveInteger = (
   value: string | undefined,
   flagName: string,
@@ -1842,7 +1927,7 @@ const parsePositiveInteger = (
   }
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed <= 0) {
-    throw new Error(`${flagName} must be a positive number of milliseconds.`);
+    throw new Error(`${flagName} must be a positive number.`);
   }
   return Math.floor(parsed);
 };
@@ -2249,6 +2334,7 @@ const buildReviewSummaryPayload = (
   validation: data.gate?.validation ?? {},
   policy: data.gate?.validation?.policy ?? data.gate?.policy ?? {},
   architecture_signals: data.gate?.architecture ?? {},
+  diff_summary: data.diffSummary ?? {},
   changed_files: data.changedFiles ?? [],
   ai_preferences: {
     mode: preferences.mode ?? "ask",
@@ -2419,6 +2505,7 @@ const buildMarkdownSummary = (data: Record<string, any>): string => {
     highRiskFindings: data.gate?.wellArchitected?.risks?.high,
     pillars,
   });
+  const changedLines = changedFileLines(data.changedFiles);
   const validationRows = validationFailureRows(validation);
   const overallRating = scoreRating(score);
   const actionLines = reviewActionItems({
@@ -2458,6 +2545,17 @@ const buildMarkdownSummary = (data: Record<string, any>): string => {
     "",
     "</details>",
   );
+  if (changedLines.length) {
+    lines.push(
+      "",
+      "<details>",
+      "<summary><strong>Changed files</strong></summary>",
+      "",
+      ...changedLines,
+      "",
+      "</details>",
+    );
+  }
   if (data.aiSummary?.markdown) {
     lines.push("", "### AI summary", "", data.aiSummary.markdown);
   }
@@ -2610,6 +2708,12 @@ export const registerReviewCommand = (
     .option("--ai-summary-profile <profile-id>", "Agent Profile id when --ai-summary-mode agent is used.", "architecture")
     .option("--ignore-dirty", "Review HEAD even if the local working tree has uncommitted changes.", false)
     .option("--output <dir>", "Write review.json and review.md into a directory.")
+    .option("--github-checks", "Include GitHub Checks annotation payload in review.json.")
+    .option("--checks-annotation-limit <n>", "Maximum GitHub Checks annotations to emit.")
+    .option("--checks-all-files", "Allow GitHub Checks annotations for unchanged files.")
+    .option("--checks-include-notices", "Include notice-level GitHub Checks annotations.")
+    .option("--sarif", "Write review.sarif.json when --output is set.")
+    .option("--sarif-output <path>", "Write SARIF output to a specific file.")
     .option("--quiet", "Accepted for CI parity; review output stays machine-readable.", false)
     .option("--progress <mode>", "Accepted for CI parity; review does not stream progress.", "none")
     .option("--model <model>", "Accepted for CI parity with ask/agent modes.")
@@ -2724,6 +2828,17 @@ export const registerReviewCommand = (
         }),
         readConfigText(cwd, options),
       ]);
+      const diffConfig = parseReviewDiffConfig(configText);
+      const diff = await collectReviewDiff({
+        cwd,
+        baseRef: diffConfig.baseRef,
+        headRef: commitSha ?? "HEAD",
+        maxFiles: diffConfig.maxFiles,
+        maxPatchBytes: diffConfig.maxPatchBytes,
+        enabled: diffConfig.enabled,
+      });
+      const githubReviewConfig = parseReviewGithubConfig(configText);
+      const outputDir = options.output ? path.resolve(options.output) : undefined;
       const frontendBaseUrl = resolveFrontendBaseUrl({ apiBaseUrl: context.baseUrl });
       const projectUrl = buildFrontendUrl({
         baseUrl: frontendBaseUrl,
@@ -2791,9 +2906,47 @@ export const registerReviewCommand = (
             asRecord(project?.iac_source ?? project?.iacSource).commitSha,
           surface: reviewSurface(),
         },
+        changedFiles: diff.changedFiles,
+        diffSummary: diff.summary,
+        warnings: diff.warnings,
         sync: reviewSyncStatus(sync, finalStatus, nestedJobStatuses),
         reports: reviewReportStatuses({ cost, waf, preload, graph }),
         gate: evaluateGate({ configText, waf, cost, preload, graph, project }),
+      };
+      const checksEnabled = Boolean(options.githubChecks) || githubReviewConfig.checks.enabled;
+      const annotationLimit =
+        options.checksAnnotationLimit !== undefined
+          ? parsePositiveInteger(options.checksAnnotationLimit, "--checks-annotation-limit", 50)
+          : githubReviewConfig.checks.annotationLimit;
+      const annotations = buildReviewAnnotations(data, {
+        annotationLimit,
+        changedFilesOnly: options.checksAllFiles
+          ? false
+          : githubReviewConfig.checks.changedFilesOnly,
+        includeNotices: options.checksIncludeNotices
+          ? true
+          : githubReviewConfig.checks.includeNotices,
+      });
+      data.github = {
+        checks: {
+          enabled: checksEnabled,
+          name: githubReviewConfig.checks.name,
+          annotationLimit,
+          changedFilesOnly: options.checksAllFiles
+            ? false
+            : githubReviewConfig.checks.changedFilesOnly,
+          includeNotices: options.checksIncludeNotices
+            ? true
+            : githubReviewConfig.checks.includeNotices,
+          annotations: checksEnabled ? annotations : [],
+          annotationCount: checksEnabled ? annotations.length : 0,
+        },
+        sarif: {
+          enabled: Boolean(options.sarif) || githubReviewConfig.sarif.enabled,
+          category: githubReviewConfig.sarif.category,
+          upload: githubReviewConfig.sarif.upload,
+          failOnUploadError: githubReviewConfig.sarif.failOnUploadError,
+        },
       };
       if (options.aiSummary !== false) {
         try {
@@ -2822,7 +2975,6 @@ export const registerReviewCommand = (
         data.aiSummary = { enabled: false };
       }
       const filesWritten: string[] = [];
-      const outputDir = options.output ? path.resolve(options.output) : undefined;
       const pdfOutput = await writeReviewPdfOutput({
         config: parseReviewPdfOutputConfig(configText),
         outputDir,
@@ -2838,6 +2990,25 @@ export const registerReviewCommand = (
         };
         if (pdfOutput.status === "written" && typeof pdfOutput.file === "string") {
           filesWritten.push(pdfOutput.file);
+        }
+      }
+      const sarifOutput = await writeReviewSarifOutput({
+        enabled: Boolean(data.github?.sarif?.enabled),
+        outputFile: options.sarifOutput
+          ? path.resolve(options.sarifOutput)
+          : outputDir
+            ? path.join(outputDir, "review.sarif.json")
+            : undefined,
+        category: String(data.github?.sarif?.category ?? "cloudeval-iac"),
+        data,
+      });
+      if (sarifOutput) {
+        data.outputs = {
+          ...asRecord(data.outputs),
+          sarif: sarifOutput,
+        };
+        if (sarifOutput.status === "written" && typeof sarifOutput.file === "string") {
+          filesWritten.push(sarifOutput.file);
         }
       }
       const summaryMarkdown = buildMarkdownSummary(data);

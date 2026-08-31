@@ -104,6 +104,8 @@ Use CloudEval projects and reports after connecting Azure in the app or CLI:
 
 ```bash
 cloudeval projects list
+cloudeval projects overview <project-id> --format json
+cloudeval projects graph <project-id> --format json
 cloudeval reports list
 cloudeval tui --graph-diagram auto
 cloudeval ask "Summarize my Azure architecture risks" --format json
@@ -113,6 +115,8 @@ Terminal UI Graph Insight cards render Mermaid flowcharts as terminal diagrams
 when `--graph-diagram auto` detects a roomy TTY. Use `unicode` or `ascii` to
 force a terminal renderer, or `off` to keep Mermaid source blocks. Unsupported
 Mermaid syntax falls back to source instead of breaking the transcript.
+
+`projects overview` aggregates project metadata, matching connections, latest report status, graph availability, graph deep links, and credit state for IDEs such as the CloudEval VS Code extension. Optional layers that are unavailable are returned as warnings or graph gaps instead of inventing project data.
 
 ### GitHub Actions / CI
 
@@ -152,6 +156,23 @@ jobs:
 ```
 
 Public example: [passing baseline PR #6](https://github.com/ganakailabs/cloudeval-azure-arm-review-example/pull/6) in [`ganakailabs/cloudeval-azure-arm-review-example`](https://github.com/ganakailabs/cloudeval-azure-arm-review-example). Review comments show a merge-gate table, CloudEval report badges, a visible AI summary, a folded detailed AI reviewer note, a compact Well-Architected radar/table drilldown, and cost Mermaid charts grouped for quick scanning.
+
+For GitHub-backed CloudEval projects, use the high-level review command from a clean pushed commit:
+
+```bash
+cloudeval review \
+  --project "$CLOUDEVAL_PROJECT_ID" \
+  --repo "$GITHUB_REPOSITORY" \
+  --ref "$GITHUB_REF_NAME" \
+  --commit-sha "$GITHUB_SHA" \
+  --github-checks \
+  --sarif \
+  --output cloudeval-review \
+  --format json \
+  --non-interactive
+```
+
+`--github-checks` records source-mapped annotations in `review.json` for the GitHub Action to post through the CloudEval GitHub App. `--sarif` writes `review.sarif.json` for GitHub code scanning upload.
 
 To include a PDF in each review artifact bundle, opt in from `.cloudeval/config.yaml`:
 
@@ -195,6 +216,13 @@ Start with read-only agent integration:
 
 ```bash
 cloudeval mcp serve --toolset readonly
+```
+
+For IDE project-cockpit workflows, use the focused IDE toolset. It exposes project overview, graph, report, connection, billing-summary, rule, and recipe tools without enabling report generation or local file writes:
+
+```bash
+cloudeval mcp serve --toolset ide
+cloudeval mcp setup vscode --toolset ide
 ```
 
 Setup docs: [MCP client setup](https://docs.cloudeval.ai/reference/mcp-client-setup.md) and [agent automation rules](https://docs.cloudeval.ai/reference/agent-and-automation-rules.md).
@@ -269,6 +297,7 @@ Common setup commands:
 codex mcp add cloudeval -- cloudeval mcp serve --toolset readonly
 cloudeval mcp setup cursor --dry-run --toolset readonly --format json
 cloudeval mcp setup vscode --dry-run --toolset readonly --format json
+cloudeval mcp setup vscode --dry-run --toolset ide --format json
 ```
 
 MCP stdout is reserved for JSON-RPC. Diagnostics go to stderr.

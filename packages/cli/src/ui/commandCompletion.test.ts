@@ -28,6 +28,11 @@ const context = {
     { label: "Cost", value: "cost" },
     { label: "Triage", value: "triage" },
     { label: "Remediation", value: "remediation" },
+    { label: "Visual Explainer", value: "visual-explainer" },
+    { label: "Scripter", value: "scripter" },
+    { label: "Change Reviewer", value: "change-reviewer" },
+    { label: "Evidence Auditor", value: "evidence-auditor" },
+    { label: "Security Reviewer", value: "security-reviewer" },
   ],
   threads: [
     { label: "New thread", value: "new" },
@@ -96,7 +101,7 @@ test("completePromptInput and resolvePromptCommand support agent profile selecti
   const completion = completePromptInput("/profile c", context);
 
   assert.equal(completion?.value, "/profile cost");
-  assert.deepEqual(completion?.candidates, ["cost"]);
+  assert.deepEqual(completion?.candidates, ["cost", "change-reviewer"]);
   assert.equal(completion?.ghostSuffix, "ost");
 
   assert.deepEqual(resolvePromptCommand("/profile", context), {

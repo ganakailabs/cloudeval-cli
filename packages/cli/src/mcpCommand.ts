@@ -62,6 +62,7 @@ import {
   normalizeProjectDiagramImageLayout,
   resolveProjectDiagramImageFrontendUrl,
 } from "./projectDiagramImage.js";
+import { buildProjectOverview } from "./projectsCommand.js";
 import {
   getProjectGraph,
   getProjectGraphDiff,
@@ -227,6 +228,7 @@ type McpToolsetName =
   | "projects"
   | "reports"
   | "billing"
+  | "ide"
   | "graph"
   | "ide"
   | "validation";
@@ -336,7 +338,7 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
     name: "agent_profiles_list",
     title: "List Agent Profiles",
     description:
-      "List backend-owned CloudEval Agent Profiles such as Architecture, Cost, Triage, and Remediation.",
+      "List backend-owned CloudEval Agent Profiles such as Architecture, Cost, Change Reviewer, Evidence Auditor, and Security Reviewer.",
     inputSchema: makeInputSchema({}),
     outputSchema: envelopeSchema,
     annotations: {
@@ -426,6 +428,29 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
       readOnlyHint: true,
       destructiveHint: false,
       openWorldHint: true,
+    },
+  },
+  {
+    name: "projects_overview",
+    title: "Get Project Overview",
+    description:
+      "Fetch a CloudEval project cockpit overview with graph, report, connection, credit, and deep-link metadata for IDE and agent workflows.",
+    inputSchema: makeInputSchema(
+      {
+        projectId: {
+          ...projectIdProperty,
+          description:
+            "CloudEval project id to inspect. Defaults to the configured project when omitted.",
+        },
+      },
+    ),
+    outputSchema: envelopeSchema,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: true,
+      requiresAuth: true,
+      mayExposeSensitiveData: true,
     },
   },
   {
@@ -1821,6 +1846,8 @@ const MCP_TOOL_ALIASES: Record<string, string> = {
   "capabilities.get": "capabilities_get",
   "projects.list": "projects_list",
   "projects.get": "projects_get",
+  "projects.overview": "projects_overview",
+  "cloudeval_project_overview": "projects_overview",
   "agentProfiles.list": "agent_profiles_list",
   "agentProfiles.get": "agent_profiles_get",
   "agentProfiles.run": "agent_profiles_run",
@@ -1885,6 +1912,7 @@ const MCP_TOOLSETS: Record<McpToolsetName, readonly string[]> = {
     "agent_profiles_get",
     "projects_list",
     "projects_get",
+    "projects_overview",
     "projects_graph_get",
     "projects_graph_timeline",
     "projects_graph_diff",
@@ -1930,6 +1958,7 @@ const MCP_TOOLSETS: Record<McpToolsetName, readonly string[]> = {
     "capabilities_get",
     "projects_list",
     "projects_get",
+    "projects_overview",
     "connections_list",
     "connections_get",
     "projects_export_diagram",
@@ -1938,6 +1967,40 @@ const MCP_TOOLSETS: Record<McpToolsetName, readonly string[]> = {
     "projects_graph_diff",
     "projects_graph_insights",
     "projects_graph_sync_runs",
+    "recipes_list",
+    "recipes_get",
+    "open_url",
+  ],
+  ide: [
+    "capabilities_get",
+    "cloudeval_iac_detect",
+    "cloudeval_iac_index",
+    "cloudeval_review_local",
+    "cloudeval_get_finding_evidence",
+    "cloudeval_get_resource_context",
+    "cloudeval_explain_blast_radius",
+    "cloudeval_draft_fix",
+    "cloudeval_generate_ci_gate",
+    "projects_list",
+    "projects_get",
+    "projects_overview",
+    "connections_list",
+    "connections_get",
+    "projects_graph_get",
+    "projects_graph_timeline",
+    "projects_graph_insights",
+    "projects_graph_sync_runs",
+    "reports_list",
+    "reports_show",
+    "reports_cost",
+    "reports_waf",
+    "reports_rules",
+    "billing_summary",
+    "billing_usage",
+    "rules_categories",
+    "rules_search",
+    "rules_get",
+    "template_validate",
     "recipes_list",
     "recipes_get",
     "open_url",
@@ -1973,6 +2036,7 @@ const MCP_TOOLSETS: Record<McpToolsetName, readonly string[]> = {
     "capabilities_get",
     "projects_list",
     "projects_get",
+    "projects_overview",
     "projects_graph_get",
     "projects_graph_timeline",
     "projects_graph_diff",
@@ -1980,22 +2044,6 @@ const MCP_TOOLSETS: Record<McpToolsetName, readonly string[]> = {
     "projects_graph_sync_runs",
     "recipes_list",
     "recipes_get",
-  ],
-  ide: [
-    "capabilities_get",
-    "cloudeval_iac_detect",
-    "cloudeval_iac_index",
-    "cloudeval_review_local",
-    "cloudeval_get_finding_evidence",
-    "cloudeval_get_resource_context",
-    "cloudeval_explain_blast_radius",
-    "cloudeval_draft_fix",
-    "cloudeval_generate_ci_gate",
-    "projects_list",
-    "projects_get",
-    "projects_graph_insights",
-    "template_validate",
-    "rules_get",
   ],
   validation: [
     "capabilities_get",
@@ -2322,6 +2370,10 @@ const withEnvelope = <T>(input: {
   frontendUrl?: string;
   filesWritten?: string[];
   traceId?: string;
+  warnings?: string[];
+  schemaVersion?: string;
+  freshness?: unknown;
+  evidence?: unknown[];
 }): SuccessEnvelope<T> =>
   formatSuccessEnvelope({
     command: input.command,
@@ -2329,6 +2381,10 @@ const withEnvelope = <T>(input: {
     frontendUrl: input.frontendUrl,
     filesWritten: input.filesWritten,
     traceId: input.traceId,
+    warnings: input.warnings,
+    schemaVersion: input.schemaVersion,
+    freshness: input.freshness,
+    evidence: input.evidence,
   });
 
 const rangeToDates = (range?: string): { startAt?: string; endAt?: string } => {
@@ -3066,6 +3122,37 @@ const buildToolHandlers = (
       command: "projects get",
       data: project,
       frontendUrl,
+    });
+  });
+
+  handlers.set("projects_overview", async (args) => {
+    const config = await resolveInvocationConfig(serverOptions, args);
+    const auth = await resolveAuth(config, { requireUser: true });
+    const projectId = stringValue(args.projectId) ?? config.defaultProjectId;
+    if (!projectId) {
+      throw new Error("projectId is required.");
+    }
+    const { overview, warnings, frontendUrl } = await buildProjectOverview({
+      context: {
+        baseUrl: config.baseUrl,
+        token: auth.token,
+        user: auth.user!,
+      },
+      core: auth.core,
+      projectId,
+      options: { frontendUrl: config.frontendUrl },
+    });
+    return withEnvelope({
+      command: "projects overview",
+      data: overview,
+      frontendUrl,
+      warnings,
+      schemaVersion: "2026-07-ide-v1",
+      freshness: {
+        source: "project",
+        observedAt: new Date().toISOString(),
+        stale: false,
+      },
     });
   });
 

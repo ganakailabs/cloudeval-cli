@@ -89,8 +89,8 @@ importers:
         specifier: ^2.0.2
         version: 2.0.2(ink@4.4.1(@types/react@18.3.27)(react-devtools-core@4.28.5)(react@18.3.1))(react@18.3.1)
       ink-text-input:
-        specifier: ^5.0.1
-        version: 5.0.1(ink@4.4.1(@types/react@18.3.27)(react-devtools-core@4.28.5)(react@18.3.1))(react@18.3.1)
+        specifier: ^6.0.0
+        version: 6.0.0(ink@4.4.1(@types/react@18.3.27)(react-devtools-core@4.28.5)(react@18.3.1))(react@18.3.1)
       marked:
         specifier: ^17.0.1
         version: 17.0.1
@@ -1710,12 +1710,12 @@ packages:
       ink: ^5.1.0
       react: ^18.3.1
 
-  ink-text-input@5.0.1:
-    resolution: {integrity: sha512-crnsYJalG4EhneOFnr/q+Kzw1RgmXI2KsBaLFE6mpiIKxAtJLUnvygOF2IUKO8z4nwkSkveGRBMd81RoYdRSag==}
-    engines: {node: '>=14.16'}
+  ink-text-input@6.0.0:
+    resolution: {integrity: sha512-Fw64n7Yha5deb1rHY137zHTAbSTNelUKuB5Kkk2HACXEtwIHBCf9OH2tP/LQ9fRYTl1F0dZgbW0zPnZk6FA9Lw==}
+    engines: {node: '>=18'}
     peerDependencies:
-      ink: ^4.0.0
-      react: ^18.0.0
+      ink: '>=5'
+      react: '>=18'
 
   ink@4.4.1:
     resolution: {integrity: sha512-rXckvqPBB0Krifk5rn/5LvQGmyXwCUpBfmTwbkQNBY9JY8RSl3b8OftBNEYxg4+SWUhEKcPifgope28uL9inlA==}
@@ -2356,6 +2356,7 @@ packages:
   prebuild-install@7.1.1:
     resolution: {integrity: sha512-jAXscXWMcCK8GgCoHOfIr0ODh5ai8mj63L2nWrjuAgXE6tDyYGnx4/8o/rCgU+B4JSyZBKbeZqzhtwtC3ovxjw==}
     engines: {node: '>=10'}
+    deprecated: No longer maintained. Please contact the author of the relevant native addon; alternatives are available.
     hasBin: true
 
   pretty-ms@9.3.0:
@@ -2782,10 +2783,6 @@ packages:
   type-fest@2.19.0:
     resolution: {integrity: sha512-RAH822pAdBgcNMAfWnCBU3CFZcfZ/i1eZjwFU/dsLKumyuuP3niueg2UAukXYF0E2AAoc82ZSSf9J0WQBinzHA==}
     engines: {node: '>=12.20'}
-
-  type-fest@3.13.1:
-    resolution: {integrity: sha512-tLq3bSNx+xSpwvAJnzrK0Ep5CLNWjvFTOp71URMaAEWBfRb9nnJiBoUe0tF8bI4ZFO3omgBR6NvnbzVUT3Ly4g==}
-    engines: {node: '>=14.16'}
 
   type-fest@4.41.0:
     resolution: {integrity: sha512-TeTSQ6H5YHvpqVwBRcnLDCBnDOHWYu7IvGbHT6N8AOymcr9PJGjc1GTtiWZTYg0NCgYwvnYWEkVChQAr9bjfwA==}
@@ -4655,12 +4652,12 @@ snapshots:
       ink: 4.4.1(@types/react@18.3.27)(react-devtools-core@4.28.5)(react@18.3.1)
       react: 18.3.1
 
-  ink-text-input@5.0.1(ink@4.4.1(@types/react@18.3.27)(react-devtools-core@4.28.5)(react@18.3.1))(react@18.3.1):
+  ink-text-input@6.0.0(ink@4.4.1(@types/react@18.3.27)(react-devtools-core@4.28.5)(react@18.3.1))(react@18.3.1):
     dependencies:
       chalk: 5.6.2
       ink: 4.4.1(@types/react@18.3.27)(react-devtools-core@4.28.5)(react@18.3.1)
       react: 18.3.1
-      type-fest: 3.13.1
+      type-fest: 4.41.0
 
   ink@4.4.1(@types/react@18.3.27)(react-devtools-core@4.28.5)(react@18.3.1):
     dependencies:
@@ -5694,8 +5691,6 @@ snapshots:
   type-fest@1.4.0: {}
 
   type-fest@2.19.0: {}
-
-  type-fest@3.13.1: {}
 
   type-fest@4.41.0: {}
 

@@ -21,6 +21,9 @@ export type SignalStoryReviewInput = {
 export const renderSignalStoryPlainText = (parts: SignalStoryPart[] = []): string =>
   renderPlainText(parts);
 
+const normalizePublicBrand = (text: string): string =>
+  text.replace(/\bCloudEval\b/g, "Cloudeval");
+
 export const buildSignalStoryReviewFallback = (
   input: SignalStoryReviewInput
 ): Record<string, unknown> | null => {
@@ -32,11 +35,11 @@ export const buildSignalStoryReviewFallback = (
   if (!primary) {
     return null;
   }
-  const shortSummary = renderSignalStoryPlainText(primary.sentence);
+  const shortSummary = normalizePublicBrand(renderSignalStoryPlainText(primary.sentence));
   const detailsMarkdown = [
-    `**Main risk**\n${renderSignalStoryPlainText(primary.sentence)}`,
-    `**Why it matters**\n${renderSignalStoryPlainText(primary.rationale ?? [])}`,
-    `**Recommended actions**\n${primary.action?.label ?? "Rerun the review after remediation."}`,
+    `**Main risk**\n${shortSummary}`,
+    `**Why it matters**\n${normalizePublicBrand(renderSignalStoryPlainText(primary.rationale ?? []))}`,
+    `**Recommended actions**\n${normalizePublicBrand(primary.action?.label ?? "Rerun the review after remediation.")}`,
     "**Evidence used**\n**Gate status**, **Well-Architected score**, **validation totals**, **policy totals**, and **monthly cost**.",
   ].join("\n\n");
 
@@ -47,8 +50,8 @@ export const buildSignalStoryReviewFallback = (
     warnings: [],
     shortSummary,
     detailsMarkdown,
-    markdown: renderGithubSummary(stories as SignalStoryStory[], {
+    markdown: normalizePublicBrand(renderGithubSummary(stories as SignalStoryStory[], {
       title: "Cloudeval review summary",
-    }),
+    })),
   };
 };

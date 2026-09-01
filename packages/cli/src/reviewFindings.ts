@@ -2,7 +2,7 @@ export type ReviewFindingLevel = "failure" | "warning" | "notice";
 
 export type ReviewFinding = {
   id: string;
-  kind: "unit_test" | "policy_check" | "well_architected";
+  kind: "unit_test" | "policy_check" | "well_architected" | "gate_summary";
   title: string;
   message: string;
   path?: string;
@@ -81,6 +81,42 @@ const normalizePath = (
     }
   }
   return raw;
+};
+
+const isCloudEvalGeneratedPath = (raw: string): boolean =>
+  /^\.cloudeval\/(bundles|connections|template-cache|snapshots|ps-rule\.yaml)/.test(raw);
+
+const isReviewableSourcePath = (raw: string): boolean => {
+  const path = raw.replace(/\\/g, "/").replace(/^\/+/, "");
+  if (!path || isCloudEvalGeneratedPath(path)) return false;
+  if (path === ".cloudeval/config.yaml") return true;
+  return /\.(json|bicep|bicepparam|tf|tfvars|ya?ml)$/i.test(path);
+};
+
+const firstAddedLineFromPatch = (patch: unknown): number | undefined => {
+  if (typeof patch !== "string" || !patch.trim()) return undefined;
+  let currentLine: number | undefined;
+  let firstHunkLine: number | undefined;
+  for (const line of patch.split(/\r?\n/)) {
+    const hunk = line.match(/^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
+    if (hunk) {
+      currentLine = Number(hunk[1]);
+      if (Number.isFinite(currentLine) && firstHunkLine === undefined) {
+        firstHunkLine = currentLine;
+      }
+      continue;
+    }
+    if (currentLine === undefined) continue;
+    if (line.startsWith("+++") || line.startsWith("\\ No newline")) continue;
+    if (line.startsWith("+")) return currentLine;
+    if (line.startsWith(" ")) {
+      currentLine += 1;
+      continue;
+    }
+    if (line.startsWith("-")) continue;
+    currentLine += 1;
+  }
+  return firstHunkLine;
 };
 
 const severityLevel = (record: Record<string, any>): ReviewFindingLevel => {
@@ -188,8 +224,8 @@ export const extractReviewFindings = (data: Record<string, any>): ReviewFinding[
   const sourceRoot = compactText(data.sourceRoot ?? data.source_root, "");
   const changedPaths = new Set(
     (Array.isArray(data.changedFiles) ? data.changedFiles : [])
-      .map((file) => compactText(asRecord(file).path))
-      .filter(Boolean),
+      .map((file) => normalizePath(asRecord(file).path, sourceRoot))
+      .filter((path): path is string => Boolean(path)),
   );
   const validation = asRecord(data.gate?.validation);
   const wellArchitected = asRecord(data.gate?.wellArchitected);
@@ -226,6 +262,87 @@ export const extractReviewFindings = (data: Record<string, any>): ReviewFinding[
       fallbackPrefix: "Architecture finding",
     }),
   ];
+};
+
+const changedSourceLocations = (
+  data: Record<string, any>,
+): Array<{ path: string; line: number }> => {
+  const sourceRoot = compactText(data.sourceRoot ?? data.source_root, "");
+  const files = Array.isArray(data.changedFiles) ? data.changedFiles : [];
+  const locations: Array<{ path: string; line: number }> = [];
+  for (const item of files) {
+    const record = asRecord(item);
+    const status = compactText(record.status).toLowerCase();
+    if (status === "deleted") continue;
+    const path = normalizePath(record.path, sourceRoot);
+    if (!path || !isReviewableSourcePath(path)) continue;
+    locations.push({
+      path,
+      line: Math.max(
+        1,
+        Math.floor(
+          numberFrom(
+            record.first_added_line,
+            record.firstAddedLine,
+            firstAddedLineFromPatch(record.patch),
+            1,
+          ) ?? 1,
+        ),
+      ),
+    });
+  }
+  return locations;
+};
+
+const reviewNeedsAttention = (data: Record<string, any>): boolean => {
+  const gate = asRecord(data.gate);
+  const status = compactText(gate.status).toLowerCase();
+  if (["fail", "failed", "warn", "warning"].includes(status)) return true;
+  if (Array.isArray(gate.failures) && gate.failures.length > 0) return true;
+  const validation = asRecord(gate.validation);
+  const unitTests = asRecord(validation.unitTests);
+  const policyChecks = asRecord(validation.policyChecks);
+  return (
+    Number(unitTests.failed ?? unitTests.failed_tests ?? 0) > 0 ||
+    Number(policyChecks.failed ?? policyChecks.failed_checks ?? 0) > 0
+  );
+};
+
+const gateSummaryMessage = (data: Record<string, any>): string => {
+  const gate = asRecord(data.gate);
+  const failures = Array.isArray(gate.failures)
+    ? gate.failures.map((item) => compactText(item)).filter(Boolean)
+    : [];
+  const status = compactText(gate.status, "review").toUpperCase();
+  const headline = `Cloudeval review ${status === "FAIL" ? "failed" : "needs attention"} for this change.`;
+  const evidence = failures.length
+    ? `Gate evidence: ${failures.slice(0, 4).join("; ")}.`
+    : "Detailed source-mapped findings were not available in the report payload.";
+  return `${headline} ${evidence} See the PR summary for report links and drilldowns.`;
+};
+
+export const buildLocatedReviewFindings = (data: Record<string, any>): ReviewFinding[] => {
+  const findings = extractReviewFindings(data);
+  if (findings.some((finding) => finding.path)) {
+    return findings;
+  }
+  if (!reviewNeedsAttention(data)) {
+    return findings;
+  }
+  return changedSourceLocations(data)
+    .slice(0, 5)
+    .map((location, index) => ({
+      id: `gate-summary:${slug(location.path)}`,
+      kind: "gate_summary",
+      title: index === 0 ? "Cloudeval gate failed" : "Cloudeval review context",
+      message: gateSummaryMessage(data),
+      path: location.path,
+      startLine: location.line,
+      endLine: location.line,
+      level:
+        compactText(asRecord(data.gate).status).toLowerCase() === "fail" ? "failure" : "warning",
+      severity: compactText(asRecord(data.gate).status, "review"),
+    }));
 };
 
 const yamlBlock = (configText: string | undefined, pathKeys: string[]): string | undefined => {
@@ -320,10 +437,10 @@ export const buildReviewAnnotations = (
 ): GitHubCheckAnnotation[] => {
   const changedPaths = new Set(
     (Array.isArray(data.changedFiles) ? data.changedFiles : [])
-      .map((file) => compactText(asRecord(file).path))
-      .filter(Boolean),
+      .map((file) => normalizePath(asRecord(file).path, data.sourceRoot ?? data.source_root))
+      .filter((path): path is string => Boolean(path)),
   );
-  return extractReviewFindings(data)
+  return buildLocatedReviewFindings(data)
     .filter((finding) => finding.path)
     .filter((finding) => options.includeNotices || finding.level !== "notice")
     .filter(

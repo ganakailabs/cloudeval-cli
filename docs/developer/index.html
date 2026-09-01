@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>CloudEval CLI Developer Setup</title>
+    <title>Cloudeval CLI Developer Setup</title>
     <style>
       body {
         background: #0b0f0a;
@@ -72,22 +72,22 @@
   <body>
     <main>
       <h1>Developer Setup</h1>
-      <p>CloudEval CLI exposes cloud evaluation workflows to terminals, CI, and agent hosts through normal commands, public skills, reusable recipes, and MCP.</p>
-      <section class="screenshots" aria-label="CloudEval CLI screenshots">
+      <p>Cloudeval CLI exposes cloud evaluation workflows to terminals, CI, and agent hosts through normal commands, public skills, reusable recipes, and MCP.</p>
+      <section class="screenshots" aria-label="Cloudeval CLI screenshots">
         <figure>
-          <img src="../assets/images/cli/tui-chat.png" alt="CloudEval terminal chat interface">
+          <img src="../assets/images/cli/tui-chat.png" alt="Cloudeval terminal chat interface">
           <figcaption>Terminal chat and Agent mode</figcaption>
         </figure>
         <figure>
-          <img src="../assets/images/cli/overview.png" alt="CloudEval terminal overview dashboard">
+          <img src="../assets/images/cli/overview.png" alt="Cloudeval terminal overview dashboard">
           <figcaption>Cloud workspace overview</figcaption>
         </figure>
         <figure>
-          <img src="../assets/images/cli/reports.png" alt="CloudEval terminal reports dashboard">
+          <img src="../assets/images/cli/reports.png" alt="Cloudeval terminal reports dashboard">
           <figcaption>Reports and evidence views</figcaption>
         </figure>
         <figure>
-          <img src="../assets/images/cli/billing.png" alt="CloudEval terminal billing panel">
+          <img src="../assets/images/cli/billing.png" alt="Cloudeval terminal billing panel">
           <figcaption>Billing and usage panel</figcaption>
         </figure>
       </section>
@@ -97,8 +97,8 @@
       <p>Use npm on Node.js 20+ machines. Use the standalone installer when you want release binaries, shell aliases, completions, or optional local agent onboarding.</p>
       <pre><code>curl -fsSL https://cli.cloudeval.ai/install.sh | bash</code></pre>
       <pre><code>irm https://cli.cloudeval.ai/install.ps1 | iex</code></pre>
-      <p>Use the bash installer on macOS, Linux, WSL2, and Git Bash. Use the PowerShell installer on Windows and Linux when PowerShell 7+ is available. The bash installer detects common agent clients and IDEs such as Codex, Claude Desktop, Cursor, and VS Code. Optional setup prompts detect existing CloudEval MCP config, skip clients that are already configured, run login when approved, configure MCP for missing clients that can be set up automatically, and summarize manual-only clients with a follow-up command. Interactive <code>cloudeval update</code> uses the same installer and can ask whether to onboard MCP after updating the binary; <code>cloudeval update --yes</code> stays unattended. When new MCP capabilities are installed, restart or reload configured MCP clients when you are ready; CloudEval does not restart those apps automatically. Release downloads prefer compressed assets, show compact labeled progress bars in interactive terminals, and use timeout/stall checks so slow CDN transfers fail clearly. On non-Windows platforms, the installer can create <code>eva</code> and <code>cloud</code> aliases. Nothing is written to agent or IDE config unless you approve it.</p>
-      <p>The Terminal UI keeps starter prompts hidden until you run <code>/starter</code>. Use the Thread control or <code>/thread</code> to switch open chat sessions, recent CloudEval chat threads, and local CLI sessions; <code>/thread new</code> starts another independent open session. Roomy terminals show a context rail with project, thread, model, mode, profile, report artifact chips; narrower terminals keep the chat first and expose the same controls through the docked composer and slash commands. Typing <code>/</code> opens a bottom command completion strip; use Tab or Up/Down to move, Right to accept the ghost text, and Enter to choose the highlighted command. Streaming work appears as a task ledger in the thread. Grounded answers show highlighted numbered citations and a Sources section instead of raw <code>[S_tool_...]</code> tags; <code>/copy</code> copies the latest assistant response and <code>/download</code> writes a Markdown transcript with the same references. Project and Connection tabs include selected-item detail panes for backend fields, report coverage, sync state, and linked records; use <code>J</code>/<code>K</code> or Up/Down on Projects and Connections to move the selected row, then Enter to confirm it. The billing header separates credits left from observed credits used, and banner details include the logged-in user. Use the Profile control or <code>/profile cost</code> to choose an Agent Profile; choosing a profile switches to Agent mode, while choosing Ask mode clears the profile back to the default chat flow. Press <code>Esc</code> from the prompt to leave text editing and use tab, arrow, or number shortcuts for controls and tabs; type again to resume editing. Busy loaders and the input cursor can be disabled with <code>--no-anim</code>. Focused controls and the active top tab use the shared warm banner-yellow accent, with the active tab filled across its full button interior and highlighted label text.</p>
+      <p>Use the bash installer on macOS, Linux, WSL2, and Git Bash. Use the PowerShell installer on Windows and Linux when PowerShell 7+ is available. The bash installer detects common agent clients and IDEs such as Codex, Claude Desktop, Cursor, and VS Code. Optional setup prompts detect existing Cloudeval MCP config, skip clients that are already configured, run login when approved, configure MCP for missing clients that can be set up automatically, and summarize manual-only clients with a follow-up command. Interactive <code>cloudeval update</code> uses the same installer and can ask whether to onboard MCP after updating the binary; <code>cloudeval update --yes</code> stays unattended. When new MCP capabilities are installed, restart or reload configured MCP clients when you are ready; Cloudeval does not restart those apps automatically. Release downloads prefer compressed assets, show compact labeled progress bars in interactive terminals, and use timeout/stall checks so slow CDN transfers fail clearly. On non-Windows platforms, the installer can create <code>eva</code> and <code>cloud</code> aliases. Nothing is written to agent or IDE config unless you approve it.</p>
+      <p>The Terminal UI keeps starter prompts hidden until you run <code>/starter</code>. Use the Thread control or <code>/thread</code> to switch open chat sessions, recent Cloudeval chat threads, and local CLI sessions; <code>/thread new</code> starts another independent open session. Roomy terminals show a context rail with project, thread, model, mode, profile, report artifact chips; narrower terminals keep the chat first and expose the same controls through the docked composer and slash commands. Typing <code>/</code> opens a bottom command completion strip; use Tab or Up/Down to move, Right to accept the ghost text, and Enter to choose the highlighted command. Streaming work appears as a task ledger in the thread. Grounded answers show highlighted numbered citations and a Sources section instead of raw <code>[S_tool_...]</code> tags; <code>/copy</code> copies the latest assistant response and <code>/download</code> writes a Markdown transcript with the same references. Project and Connection tabs include selected-item detail panes for backend fields, report coverage, sync state, and linked records; use <code>J</code>/<code>K</code> or Up/Down on Projects and Connections to move the selected row, then Enter to confirm it. The billing header separates credits left from observed credits used, and banner details include the logged-in user. Use the Profile control or <code>/profile cost</code> to choose an Agent Profile; choosing a profile switches to Agent mode, while choosing Ask mode clears the profile back to the default chat flow. Press <code>Esc</code> from the prompt to leave text editing and use tab, arrow, or number shortcuts for controls and tabs; type again to resume editing. Busy loaders and the input cursor can be disabled with <code>--no-anim</code>. Focused controls and the active top tab use the shared warm banner-yellow accent, with the active tab filled across its full button interior and highlighted label text.</p>
       <pre><code>curl -fsSL https://cli.cloudeval.ai/install.sh | CLOUDEVAL_INSTALL_AGENT_SETUP=0 bash
 curl -fsSL https://cli.cloudeval.ai/install.sh | CLOUDEVAL_INSTALL_MCP_CLIENTS=codex,cursor bash</code></pre>
       <p>Use <code>cloudeval uninstall</code> to remove installer-owned local artifacts. Config, sessions, and auth under <code>~/.config/cloudeval</code> are kept unless <code>--remove-config</code> is provided.</p>
@@ -127,7 +127,7 @@ cloudeval agents run architecture "Review architecture risks" --project &lt;proj
       <p>When a profile run omits a prompt, the CLI uses a deterministic starter prompt for the selected project source and mode. Local CLI hooks are opt-in and can be bypassed per run with <code>--no-hooks</code>.</p>
 
       <h2>Recipes</h2>
-      <p>Recipes are thin wrappers over implemented CloudEval capabilities. They now cover cost, WAF, architecture, reports, project inventory and health, connections, credentials, billing, models, sessions, onboarding, frontend links, MCP setup, and architecture/dependency visualizations. Ask/agent-backed recipes can consume credits. Guide recipes print commands for explicit side effects such as project creation, report or diagram writes, browser opens, checkout flows, credential mutation, or MCP config changes.</p>
+      <p>Recipes are thin wrappers over implemented Cloudeval capabilities. They now cover cost, WAF, architecture, reports, project inventory and health, connections, credentials, billing, models, sessions, onboarding, frontend links, MCP setup, and architecture/dependency visualizations. Ask/agent-backed recipes can consume credits. Guide recipes print commands for explicit side effects such as project creation, report or diagram writes, browser opens, checkout flows, credential mutation, or MCP config changes.</p>
       <pre><code>cloudeval recipes list
 cloudeval recipes show cloudeval-cloud-cost-review
 cloudeval recipes run cloudeval-cloud-cost-review --project &lt;project-id&gt; --format json --non-interactive

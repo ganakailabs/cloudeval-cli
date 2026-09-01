@@ -1,9 +1,9 @@
 # Release Smoke Tests
 
 Use the release smoke script to verify the same install path users run for a
-published CloudEval CLI release. The script executes the public installer in an
+published Cloudeval CLI release. The script executes the public installer in an
 isolated temporary `HOME`, verifies the installed files, then runs a small set of
-agent-safe commands against the real CloudEval backend FQDN,
+agent-safe commands against the real Cloudeval backend FQDN,
 `https://cloudeval.ai`.
 
 ## Quick Run
@@ -76,7 +76,7 @@ when npm is behind, and fails if GitHub and npm still diverge afterward.
 
 ## Defaults
 
-The script uses the public CloudEval FQDN by default:
+The script uses the public Cloudeval FQDN by default:
 
 ```bash
 CLOUDEVAL_SMOKE_INSTALLER_URL=https://cli.cloudeval.ai/install.sh
@@ -113,12 +113,12 @@ The smoke script verifies:
 - Interactive update/install flows can offer optional MCP onboarding for
   missing detected clients, all clients, or selected clients; unattended
   `--yes`/CI flows skip the prompt unless explicitly configured. MCP onboarding
-  detects existing CloudEval MCP config, skips clients that are already set up,
+  detects existing Cloudeval MCP config, skips clients that are already set up,
   avoids prompts when only manual-only setup remains, keeps per-client output
   concise, and ends with a summary instead of printing full setup tables during
   installation.
 - Updates and installs never restart MCP clients automatically. When existing
-  CloudEval MCP clients are detected or configured, output tells users to
+  Cloudeval MCP clients are detected or configured, output tells users to
   restart or reload those clients when they are ready to load new tools,
   resources, or prompts.
 - The installed CLI resolves from `PATH`.
@@ -140,7 +140,7 @@ The smoke script verifies:
   `cloudeval validate tests`.
 - `cloudeval review` Markdown output is covered by the non-interactive
   mock-backend suite. The release gate should preserve the PR comment contract:
-  `## CloudEval infrastructure review`, a merge-gate/status table, CloudEval
+  `## Cloudeval infrastructure review`, a merge-gate/status table, Cloudeval
   link badges, visible AI summary, folded detailed AI reviewer note, open action
   queue, compact Well-Architected radar/table drilldown, and grouped cost
   Mermaid charts. When `.cloudeval/config.yaml` enables
@@ -255,7 +255,7 @@ traces, or raw error messages.
 A successful unauthenticated run looks like this:
 
 ```text
-==> Installing CloudEval CLI through the public installer
+==> Installing Cloudeval CLI through the public installer
 repo=ganakailabs/cloudeval-cli
 requested_version=latest
 resolved_version=v0.7.3
@@ -314,7 +314,7 @@ of commands.
 
 Use the read-only smoke script when you want broader CLI command coverage
 against the real backend and the public frontend FQDN without creating or
-mutating CloudEval resources:
+mutating Cloudeval resources:
 
 ```bash
 pnpm smoke:readonly:real

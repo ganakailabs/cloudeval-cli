@@ -1,19 +1,19 @@
 ---
 name: cloudeval-projects
-description: Use when listing, inspecting, creating, opening, or health-checking CloudEval projects and template project workflows.
+description: Use when listing, inspecting, creating, opening, or health-checking Cloudeval projects and template project workflows.
 ---
 
-# CloudEval Projects
+# Cloudeval Projects
 
 ## WHEN
 - Use for project inventory, project healthchecks, template-file or template-URL project creation, and frontend project links.
 - Use before report, WAF, cost, or diagram work when a project id is missing.
 
 ## DO NOT USE FOR
-- Unsupported project sources or cloud analysis outside CloudEval project APIs.
+- Unsupported project sources or cloud analysis outside Cloudeval project APIs.
 - Dumping raw project payloads containing customer or provider identifiers into public docs.
 
-## Required CloudEval Context
+## Required Cloudeval Context
 - Auth is required for private project list/get/create.
 - Template project creation requires `--template-file` or `--template-url`; parameters are optional.
 - Provider must be one already accepted by `cloudeval projects create`.

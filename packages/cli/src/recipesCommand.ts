@@ -111,12 +111,12 @@ const renderRecipesTable = (): string =>
       { key: "category", header: "Category", width: 14 },
       { key: "safety", header: "Safety", maxWidth: 18 },
     ],
-    { emptyMessage: "No CloudEval recipes found." },
+    { emptyMessage: "No Cloudeval recipes found." },
   );
 
 const renderRecipesMarkdown = (): string =>
   [
-    "# CloudEval Recipes",
+    "# Cloudeval Recipes",
     "",
     ...recipes.map((recipe) => [
       `## ${recipe.title}`,
@@ -210,7 +210,7 @@ const resolveProject = async (
   const projects = await core.getProjects(baseUrl, token, context.user.id);
   const selected = projects.find((project: any) => project.name === "Playground") ?? projects[0];
   if (!selected) {
-    throw new Error("No project is available. Provide --project or create a CloudEval project.");
+    throw new Error("No project is available. Provide --project or create a Cloudeval project.");
   }
   return selected;
 };
@@ -295,7 +295,7 @@ const runChatRecipe = async (
       responseText = latestMessage?.content || (chunk as any).content;
     }
     if (chunk.type === "error") {
-      throw new Error((chunk as any).message || (chunk as any).description || "CloudEval recipe failed.");
+      throw new Error((chunk as any).message || (chunk as any).description || "Cloudeval recipe failed.");
     }
   }
 
@@ -304,7 +304,7 @@ const runChatRecipe = async (
     .find((message: any) => message.role === "assistant");
   const finalResponse = collapseRepeatedAssistantText(finalMessage?.content || responseText || "");
   if (!finalResponse.trim()) {
-    throw new Error("No final response returned by CloudEval for this recipe.");
+    throw new Error("No final response returned by Cloudeval for this recipe.");
   }
 
   const frontendUrl = buildFrontendUrl({
@@ -356,18 +356,18 @@ export const registerRecipesCommand = (
   program: Command,
   deps: RegisterRecipesCommandOptions,
 ) => {
-  const command = program.command("recipes").description("CloudEval reusable recipes and agent skills");
+  const command = program.command("recipes").description("Cloudeval reusable recipes and agent skills");
 
   command
     .command("list")
-    .description("List CloudEval recipes")
+    .description("List Cloudeval recipes")
     .option("--format <format>", "Output format: table, text, json, ndjson, markdown", "table")
     .option("--output <file>", "Output file")
     .action((options: CommonRecipeOptions) => writeRecipeList(options));
 
   command
     .command("show")
-    .description("Show a CloudEval recipe")
+    .description("Show a Cloudeval recipe")
     .argument("<id>", "Recipe id")
     .option("--format <format>", "Output format: text, json, ndjson, markdown", "markdown")
     .option("--output <file>", "Output file")
@@ -383,7 +383,7 @@ export const registerRecipesCommand = (
   addAuthOptions(
     command
       .command("run")
-      .description("Run a CloudEval recipe or print explicit commands for side-effecting recipes")
+      .description("Run a Cloudeval recipe or print explicit commands for side-effecting recipes")
       .argument("<id>", "Recipe id"),
     deps.defaultBaseUrl,
   )

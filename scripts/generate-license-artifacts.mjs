@@ -112,7 +112,7 @@ for (const [license, packages] of Object.entries(report)) {
         license,
         author: entry.author || "NOASSERTION",
         source: sourceFor(entry),
-        description: entry.description || "",
+        description: String(entry.description || "").replace(/\bCloudEval\b/g, "Cloudeval"),
       });
     }
   }
@@ -130,12 +130,12 @@ const escapeCell = (value) => String(value).replaceAll("|", "\\|").replace(/\s+/
 const noticeLines = [
   "# Third Party Notices",
   "",
-  "This file lists production third-party packages included in CloudEval CLI release artifacts.",
+  "This file lists production third-party packages included in Cloudeval CLI release artifacts.",
   "It is generated from the pnpm production dependency graph.",
   "",
   `Generated: ${generatedAt}`,
   "",
-  "CloudEval-authored code is licensed under LICENSE. Third-party packages remain governed by their own licenses.",
+  "Cloudeval-authored code is licensed under LICENSE. Third-party packages remain governed by their own licenses.",
   "This notice is not a substitute for legal review before public or enterprise distribution.",
   "",
   "## License Summary",
@@ -175,7 +175,7 @@ const sbom = {
   spdxVersion: "SPDX-2.3",
   dataLicense: "CC0-1.0",
   SPDXID: "SPDXRef-DOCUMENT",
-  name: "CloudEval CLI production dependency SBOM",
+  name: "Cloudeval CLI production dependency SBOM",
   documentNamespace: `https://github.com/ganakailabs/cloudeval-cli/sbom/${generatedAt}`,
   creationInfo: {
     created: generatedAt,
@@ -184,7 +184,7 @@ const sbom = {
   packages: [
     {
       SPDXID: "SPDXRef-Package-CloudEval-CLI",
-      name: "CloudEval CLI",
+      name: "Cloudeval CLI",
       versionInfo: cliPackage.version,
       downloadLocation: "https://github.com/ganakailabs/cloudeval-cli",
       filesAnalyzed: false,

@@ -92,7 +92,7 @@ export const resolveAuthContext = async (
   } catch (error) {
     if (!accessKey && core.isAuthLookupFailure(error)) {
       throw new Error(
-        "Stored authentication was rejected by CloudEval. Run `cloudeval login` and retry."
+        "Stored authentication was rejected by Cloudeval. Run `cloudeval login` and retry."
       );
     }
     throw error;

@@ -138,7 +138,7 @@ export const registerReviewLocalCommand = (
   )
     .option("--file <path>", "IaC file to review")
     .option("--workspace <path>", "Workspace directory")
-    .option("--project <id>", "CloudEval project id for report comparison/evidence")
+    .option("--project <id>", "Cloudeval project id for report comparison/evidence")
     .option("--compare <mode>", "Optional comparison mode, e.g. latest-report")
     .option("--details", "Include normalized finding details", false)
     .option("--no-wait", "Submit validation and return without waiting")

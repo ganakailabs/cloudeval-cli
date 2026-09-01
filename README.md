@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="docs/assets/images/cli/tui-chat.png" alt="CloudEval CLI terminal UI" width="100%">
+  <img src="docs/assets/images/cli/tui-chat.png" alt="Cloudeval CLI terminal UI" width="100%">
 </p>
 
-# CloudEval CLI
+# Cloudeval CLI
 
 **Your cloud, in the terminal: evaluated, reported, and agent-ready.**
 
@@ -11,13 +11,13 @@
 [![npm downloads](https://img.shields.io/npm/dm/@ganakailabs/cloudeval-cli?style=flat-square&logo=npm&label=npm%20downloads)](https://www.npmjs.com/package/@ganakailabs/cloudeval-cli)
 [![GitHub downloads](https://img.shields.io/github/downloads/ganakailabs/cloudeval-cli/total?style=flat-square&logo=github&label=release%20downloads)](https://github.com/ganakailabs/cloudeval-cli/releases)
 [![Release health](https://img.shields.io/github/actions/workflow/status/ganakailabs/cloudeval-cli/semantic-release.yml?branch=main&style=flat-square&label=release%20health)](https://github.com/ganakailabs/cloudeval-cli/actions/workflows/semantic-release.yml)
-[![CloudEval](https://img.shields.io/badge/product-CloudEval-b6f23c?style=flat-square&labelColor=0b0f0a)](https://cloudeval.ai)
+[![Cloudeval](https://img.shields.io/badge/product-Cloudeval-b6f23c?style=flat-square&labelColor=0b0f0a)](https://cloudeval.ai)
 [![Docs](https://img.shields.io/badge/docs-docs.cloudeval.ai-2d6cdf?style=flat-square&logo=readthedocs&logoColor=white)](https://docs.cloudeval.ai/cli/get-started)
 [![Discord](https://img.shields.io/badge/Discord-community-5865F2?style=flat-square&logo=discord&logoColor=white)](https://discord.gg/tk5dcU2a7T)
 [![Issues](https://img.shields.io/github/issues/ganakailabs/cloudeval-cli?style=flat-square&logo=github&label=issues)](https://github.com/ganakailabs/cloudeval-cli/issues)
 [![AGENTS.md](https://img.shields.io/badge/contributors-AGENTS.md-555?style=flat-square)](https://github.com/ganakailabs/cloudeval-cli/blob/main/AGENTS.md)
 
-CloudEval CLI turns **ARM templates**, **GitHub-hosted IaC**, and **live Azure context** into cost, architecture, and Well-Architected signals. Use it as a terminal UI, a scriptable automation client, or an MCP server for Codex, Cursor, Claude, VS Code, and any stdio JSON-RPC client.
+Cloudeval CLI turns **ARM templates**, **GitHub-hosted IaC**, and **live Azure context** into cost, architecture, and Well-Architected signals. Use it as a terminal UI, a scriptable automation client, or an MCP server for Codex, Cursor, Claude, VS Code, and any stdio JSON-RPC client.
 
 ## Why Use It
 
@@ -69,7 +69,7 @@ The installer:
 - downloads checksum-verified GitHub release assets and installs `cloudeval`;
 - creates the `eva` and `cloud` aliases on non-Windows platforms;
 - can install shell completions for bash, zsh, and fish;
-- can offer concise MCP setup for detected Codex, Claude Desktop, Cursor, and VS Code clients, skipping clients where CloudEval MCP is already configured and avoiding prompts when only manual-only setup remains;
+- can offer concise MCP setup for detected Codex, Claude Desktop, Cursor, and VS Code clients, skipping clients where Cloudeval MCP is already configured and avoiding prompts when only manual-only setup remains;
 - asks whether to share limited CLI telemetry, defaulting to yes; declining writes `telemetry.enabled=false`;
 - explains credential setup but does not create access keys or write secrets into MCP client config;
 - shows compact labeled progress bars in interactive terminals;
@@ -97,7 +97,7 @@ setup` afterward when you want MCP client configuration.
 
 ## Telemetry
 
-CloudEval CLI sends curated custom events to Azure Application Insights by
+Cloudeval CLI sends curated custom events to Azure Application Insights by
 default. Events cover command family, success, duration, safe option enums, CLI
 version, Node/runtime version, OS major version, architecture, install source,
 update/install outcomes, MCP tool names, and TUI launch/exit metadata. After
@@ -129,10 +129,10 @@ cloudeval update --yes
 ```
 
 After an update, restart or reload configured MCP clients when you are ready to
-load newly exposed CloudEval tools, resources, or prompts. CloudEval does not
+load newly exposed Cloudeval tools, resources, or prompts. Cloudeval does not
 restart Codex, Claude, Cursor, VS Code, or other MCP hosts automatically.
 
-Uninstall local installer-owned artifacts while keeping CloudEval config,
+Uninstall local installer-owned artifacts while keeping Cloudeval config,
 sessions, and auth by default:
 
 ```bash
@@ -169,9 +169,9 @@ cloudeval doctor --deep
 Full docs: [Get started with the CLI](https://docs.cloudeval.ai/cli/get-started) and [CLI command reference](https://docs.cloudeval.ai/cli/commands).
 
 Inside the Terminal UI, use the Thread control or `/thread` to switch open chat
-sessions, recent CloudEval chat threads, and local CLI sessions. `/thread new`
+sessions, recent Cloudeval chat threads, and local CLI sessions. `/thread new`
 starts another independent open session, and `/open` jumps to the same chat
-thread in CloudEval when the active session has a thread id. Roomy terminals show
+thread in Cloudeval when the active session has a thread id. Roomy terminals show
 a context rail with project, thread, model, mode, profile, report artifact
 chips; narrower terminals keep the
 chat first and expose the same controls through the composer and slash commands.
@@ -227,7 +227,7 @@ includes the Well-Architected review lens, so there is no separate Well-Architec
 Agent Profile. When `agents run` omits a prompt, the CLI uses a starter prompt for
 the selected project source and profile mode: template or live sync, ask or
 agent. The choice is deterministic for automation. Profile runs send only
-`agent_profile_id`; CloudEval applies profile instructions, planning lens, and
+`agent_profile_id`; Cloudeval applies profile instructions, planning lens, and
 response defaults on the backend. `agents list` and `agents show` first try the
 backend profile catalog; if the profile catalog endpoint requires sign-in or is
 not available, they fall back to the bundled public catalog so discovery still
@@ -312,7 +312,7 @@ Developer setup details: [cli.cloudeval.ai/developer/](https://cli.cloudeval.ai/
 
 ## Recipes And Skills
 
-CloudEval recipes are reusable workflows for agents and humans. Current recipes cover cost review, WAF triage, architecture review, template project review, report summaries, report generation planning, report export packs, billing review, top-up readiness, project inventory and healthchecks, connection audit, credential setup and rotation, model selection, session recovery, CLI onboarding checks, frontend workspace links, architecture/dependency diagram exports, and MCP setup.
+Cloudeval recipes are reusable workflows for agents and humans. Current recipes cover cost review, WAF triage, architecture review, template project review, report summaries, report generation planning, report export packs, billing review, top-up readiness, project inventory and healthchecks, connection audit, credential setup and rotation, model selection, session recovery, CLI onboarding checks, frontend workspace links, architecture/dependency diagram exports, and MCP setup.
 
 ```bash
 cloudeval recipes list
@@ -362,7 +362,7 @@ Output contract:
   so final JSON/NDJSON remains parseable on stdout. Completed progress includes
   failing check/test details such as message, recommendation, severity, and
   file/template or resource location when available. If a completed backend
-  result only has a worker-local temp file path, CloudEval reports the submitted
+  result only has a worker-local temp file path, Cloudeval reports the submitted
   template filename instead;
 - with `--non-interactive`, human approval exits with code `6` and returns `HITL_REQUIRED`;
 - interactive HITL prompts require an explicit option number, yes/no-style
@@ -412,7 +412,7 @@ pnpm security:scan
 
 ## Community
 
-- [CloudEval app](https://cloudeval.ai)
+- [Cloudeval app](https://cloudeval.ai)
 - [Docs](https://docs.cloudeval.ai/)
 - [Releases](https://github.com/ganakailabs/cloudeval-cli/releases)
 - [Issues](https://github.com/ganakailabs/cloudeval-cli/issues)
@@ -420,7 +420,7 @@ pnpm security:scan
 
 ## License
 
-CloudEval CLI is proprietary software provided under the [CloudEval CLI License](LICENSE).
+Cloudeval CLI is proprietary software provided under the [Cloudeval CLI License](LICENSE).
 Production third-party package attribution is tracked in
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md), with a release SBOM in
 [sbom.spdx.json](sbom.spdx.json). Published installer releases also download

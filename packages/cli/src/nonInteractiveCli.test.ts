@@ -421,7 +421,7 @@ const startBackend = async (
     }
     if (url.pathname === "/api/v1/capabilities") {
       return json(res, {
-        product: "CloudEval",
+        product: "Cloudeval",
         auth: { supports: ["oauth_device_flow", "access_key", "mcp_stdio"] },
         current_identity: {
           type: "user",
@@ -1471,7 +1471,7 @@ const startBackend = async (
       const message = String(payload.message ?? "");
       if (
         message.includes(
-          "Write a concise CloudEval pull request review summary",
+          "Write a concise Cloudeval pull request review summary",
         ) &&
         aiSummaryRateLimitFallbackResponses <
           (options.aiSummaryRateLimitFallbackResponses ?? 0)
@@ -1482,7 +1482,7 @@ const startBackend = async (
         );
       } else if (
         message.includes(
-          "Write a concise CloudEval pull request review summary",
+          "Write a concise Cloudeval pull request review summary",
         ) &&
         aiSummaryRateLimitResponses < (options.aiSummaryRateLimitResponses ?? 0)
       ) {
@@ -1492,7 +1492,7 @@ const startBackend = async (
         );
       } else if (
         message.includes(
-          "Write a concise CloudEval pull request review summary",
+          "Write a concise Cloudeval pull request review summary",
         ) &&
         aiSummaryGenericFailureResponses <
           (options.aiSummaryGenericFailureResponses ?? 0)
@@ -1503,7 +1503,7 @@ const startBackend = async (
         );
       } else if (
         message.includes(
-          "Write a concise CloudEval pull request review summary",
+          "Write a concise Cloudeval pull request review summary",
         ) &&
         options.aiSummaryNeverCompletes
       ) {
@@ -1515,7 +1515,7 @@ const startBackend = async (
         return undefined;
       } else if (
         message.includes(
-          "Write a concise CloudEval pull request review summary",
+          "Write a concise Cloudeval pull request review summary",
         ) &&
         options.aiSummaryRecommendedNextStepResponse
       ) {
@@ -1524,7 +1524,7 @@ const startBackend = async (
         );
       } else if (
         message.includes(
-          "Write a concise CloudEval pull request review summary",
+          "Write a concise Cloudeval pull request review summary",
         ) &&
         options.aiSummaryGraphInsightResponse
       ) {
@@ -1804,7 +1804,7 @@ test("non-interactive discovery commands are machine-readable", async () => {
   assert.match(dynamicCompletion.stdout, /^completion\tcommand\t/m);
 });
 
-test("recipes commands list, show, and run implemented CloudEval workflows", async () => {
+test("recipes commands list, show, and run implemented Cloudeval workflows", async () => {
   const backend = await startBackend();
   try {
     const table = await runCli(["recipes", "list"]);
@@ -1864,7 +1864,7 @@ test("recipes commands list, show, and run implemented CloudEval workflows", asy
     );
     assert(streamRequest);
     const payload = JSON.parse(streamRequest.body);
-    assert.match(payload.message, /CloudEval cost review/);
+    assert.match(payload.message, /Cloudeval cost review/);
     assert.equal(payload.project.id, "project-main");
     assert.equal(payload.settings.mode, "ask");
 
@@ -1896,7 +1896,7 @@ test("skills commands list, show, doctor, and path expose public skill catalog",
 
   const shown = await runCli(["skills", "show", "template-validation"]);
   assert.equal(shown.exitCode, 0, shown.stderr);
-  assert.match(shown.stdout, /^# CloudEval Template Validation/m);
+  assert.match(shown.stdout, /^# Cloudeval Template Validation/m);
   assert.match(shown.stdout, /## Safety Requirements/);
 
   const doctor = parseJson(
@@ -2252,7 +2252,7 @@ test("update command text output is a human summary, not a field/value table", a
     });
 
     assert.equal(result.exitCode, 0, result.stderr);
-    assert.match(result.stdout, /^CloudEval CLI Update\n/);
+    assert.match(result.stdout, /^Cloudeval CLI Update\n/);
     assert.match(result.stdout, /Status: up to date/);
     assert.doesNotMatch(result.stdout, /^Field\s+Value/m);
     assert.doesNotMatch(result.stdout, /^-+\s+-+/m);
@@ -2568,7 +2568,7 @@ test("mcp setup human output is readable and avoids generic field tables", async
     );
 
     assert.equal(result.exitCode, 0, result.stderr);
-    assert.match(result.stdout, /^CloudEval MCP setup\n/);
+    assert.match(result.stdout, /^Cloudeval MCP setup\n/);
     assert.match(result.stdout, /Client: Claude/);
     assert.match(result.stdout, /Status: wrote config/);
     assert.match(
@@ -2577,7 +2577,7 @@ test("mcp setup human output is readable and avoids generic field tables", async
     );
     assert.match(
       result.stdout,
-      /Restart Claude Desktop to load the CloudEval MCP server/,
+      /Restart Claude Desktop to load the Cloudeval MCP server/,
     );
     assert.doesNotMatch(result.stdout, /Merge the shown/);
     assert.doesNotMatch(result.stdout, /^Field\s+Value/m);
@@ -2686,7 +2686,7 @@ test("status human output is a readable summary instead of formatter tables", as
   try {
     const result = await runCli(["status", "--base-url", backend.baseUrl]);
     assert.equal(result.exitCode, 0, result.stderr);
-    assert.match(result.stdout, /^CloudEval CLI Status$/m);
+    assert.match(result.stdout, /^Cloudeval CLI Status$/m);
     assert.match(result.stdout, /^Profile:\s+default$/m);
     assert.match(
       result.stdout,
@@ -2754,7 +2754,7 @@ test("auth-gated project commands clear backend-rejected stored auth", async () 
     assert.match(result.stderr, /Run `cloudeval login` and retry/);
     assert.match(
       result.stderr,
-      /Stored authentication was rejected by CloudEval/,
+      /Stored authentication was rejected by Cloudeval/,
     );
     await assert.rejects(fs.stat(configPath), { code: "ENOENT" });
     assert.deepEqual(JSON.parse(await fs.readFile(secretsPath, "utf8")), {});
@@ -4329,7 +4329,7 @@ test("review command includes well architected, cost, and validation gate drilld
       path.join(outputDir, "review.md"),
       "utf8",
     );
-    assert.match(markdownArtifact, /^## CloudEval infrastructure review/m);
+    assert.match(markdownArtifact, /^## Cloudeval infrastructure review/m);
     assert.match(markdownArtifact, /Well-Architected drilldown/);
     assert.match(
       markdownArtifact,
@@ -4511,7 +4511,7 @@ test("review command writes visual markdown drilldowns for PR comments", async (
       path.join(outputDir, "review.md"),
       "utf8",
     );
-    assert.match(markdownArtifact, /^## CloudEval infrastructure review/m);
+    assert.match(markdownArtifact, /^## Cloudeval infrastructure review/m);
     assert.match(markdownArtifact, /\| Merge gate \| 🟡 \*\*WARN\*\* \|/);
     assert.match(
       markdownArtifact,
@@ -5570,7 +5570,7 @@ test("review command renders structured AI details from summary endpoint", async
       summary:
         "The gate warns because validation is failing while architecture posture is critical.",
       details:
-        "**Main risk**\nFailed tests and weak security posture can mask deploy-time regressions.\n\n**Recommended actions**\nFix failed unit tests and rerun CloudEval review.",
+        "**Main risk**\nFailed tests and weak security posture can mask deploy-time regressions.\n\n**Recommended actions**\nFix failed unit tests and rerun Cloudeval review.",
       risk_highlights: ["Validation failed."],
       recommended_actions: ["Fix failed tests."],
       evidence_used: ["validation", "well_architected"],
@@ -5640,9 +5640,9 @@ test("review command deduplicates repeated AI detail recommendations", async () 
       summary:
         "The review failed because validation and cost optimization need remediation.",
       details:
-        "**Main risk**\nThe gate is failing.\n\n**Recommended actions**\n- Fix **2 failed unit tests** and rerun CloudEval review.\n- Fix the two failing unit tests and re-run the validation suite.\n- Increase cost optimization to meet the minimum threshold.\n\n**Evidence used**\nValidation totals and Well-Architected scores.",
+        "**Main risk**\nThe gate is failing.\n\n**Recommended actions**\n- Fix **2 failed unit tests** and rerun Cloudeval review.\n- Fix the two failing unit tests and re-run the validation suite.\n- Increase cost optimization to meet the minimum threshold.\n\n**Evidence used**\nValidation totals and Well-Architected scores.",
       recommended_actions: [
-        "Fix 2 failed unit tests and rerun CloudEval review.",
+        "Fix 2 failed unit tests and rerun Cloudeval review.",
         "Fix the two failing unit tests and re-run the validation suite.",
         "Increase cost optimization to meet the minimum threshold.",
       ],
@@ -5757,7 +5757,7 @@ test("review command replaces instruction-like AI details with deterministic evi
       markdownArtifact,
       /<summary><strong>Detailed AI reviewer note - evidence, reasoning, and next actions<\/strong><\/summary>/,
     );
-    assert.match(markdownArtifact, /CloudEval review completed with WARN/);
+    assert.match(markdownArtifact, /Cloudeval review completed with WARN/);
     assert.doesNotMatch(
       markdownArtifact,
       /Markdown for a collapsible AI details section/i,
@@ -5809,7 +5809,7 @@ test("review command uses deterministic fallback when summary endpoint fails", a
     assert.equal(result.data.aiSummary.fallbackUsed, true);
     assert.match(
       result.data.aiSummary.markdown,
-      /CloudEval review completed with/,
+      /Cloudeval review completed with/,
     );
     assert(
       backend.requests.some(
@@ -5828,12 +5828,12 @@ test("review command uses deterministic fallback when summary endpoint fails", a
       path.join(outputDir, "review.md"),
       "utf8",
     );
-    assert.match(markdownArtifact, /CloudEval review completed with/);
+    assert.match(markdownArtifact, /Cloudeval review completed with/);
     assert.match(markdownArtifact, /\*\*WARN\*\*/);
     assert.match(markdownArtifact, /91\/100 \(EXCELLENT\)/);
     assert.match(markdownArtifact, /0 failed unit tests/);
     assert.match(markdownArtifact, /\*\*Main risk\*\*/);
-    assert.match(markdownArtifact, /CloudEval review completed with WARN/);
+    assert.match(markdownArtifact, /Cloudeval review completed with WARN/);
     assert.match(markdownArtifact, /\*\*Evidence used\*\*/);
     assert.match(markdownArtifact, /Architecture signals/);
     assert.doesNotMatch(markdownArtifact, /AI summary unavailable/i);
@@ -6620,7 +6620,7 @@ test("agent prints thinking progress and fails clearly when no final answer is r
     assert.equal(empty.exitCode, 1);
     assert.equal(empty.stdout, "");
     assert.match(empty.stderr, /\[thinking\] Loading cost reports/);
-    assert.match(empty.stderr, /No final response returned by CloudEval/);
+    assert.match(empty.stderr, /No final response returned by Cloudeval/);
     assert.match(empty.stderr, /last stream status: complete/);
   } finally {
     await backend.close();
@@ -6777,7 +6777,7 @@ test("agent routes progress, data, errors, and verbose logs to the correct strea
     assert.equal(jsonErrorBody.command, "agent");
     assert.match(
       jsonErrorBody.error.message,
-      /No final response returned by CloudEval/,
+      /No final response returned by Cloudeval/,
     );
 
     const verbose = await runCli(

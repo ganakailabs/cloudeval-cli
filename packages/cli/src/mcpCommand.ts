@@ -268,24 +268,24 @@ const commonToolProperties = {
   baseUrl: {
     type: "string",
     description:
-      "CloudEval API base URL. Defaults to the MCP server --base-url, active profile, CLOUDEVAL_BASE_URL, or the public API.",
+      "Cloudeval API base URL. Defaults to the MCP server --base-url, active profile, CLOUDEVAL_BASE_URL, or the public API.",
   },
   frontendUrl: {
     type: "string",
     description:
-      "CloudEval frontend base URL for generated links. Defaults to --frontend-url, active profile, CLOUDEVAL_FRONTEND_URL, or public frontend.",
+      "Cloudeval frontend base URL for generated links. Defaults to --frontend-url, active profile, CLOUDEVAL_FRONTEND_URL, or public frontend.",
   },
   profile: {
     type: "string",
     description:
-      "CloudEval CLI config profile to read defaults from. Defaults to the server --profile or CLOUDEVAL_PROFILE.",
+      "Cloudeval CLI config profile to read defaults from. Defaults to the server --profile or CLOUDEVAL_PROFILE.",
   },
 };
 
 const projectIdProperty = {
   type: "string",
   description:
-    "CloudEval project id. Defaults to active profile defaultProjectId, then Playground/first project where supported.",
+    "Cloudeval project id. Defaults to active profile defaultProjectId, then Playground/first project where supported.",
 };
 
 const templatePathProperty = {
@@ -314,9 +314,9 @@ const makeInputSchema = (
 export const mcpToolDefinitions: McpToolDefinition[] = [
   {
     name: "capabilities_get",
-    title: "Get CloudEval Capabilities",
+    title: "Get Cloudeval Capabilities",
     description:
-      "Return CloudEval CLI and MCP capability metadata for agent planning.",
+      "Return Cloudeval CLI and MCP capability metadata for agent planning.",
     inputSchema: makeInputSchema({}),
     outputSchema: envelopeSchema,
     annotations: { readOnlyHint: true, destructiveHint: false },
@@ -325,7 +325,7 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
     name: "projects_list",
     title: "List Projects",
     description:
-      "List CloudEval projects visible to the authenticated account.",
+      "List Cloudeval projects visible to the authenticated account.",
     inputSchema: makeInputSchema({}),
     outputSchema: envelopeSchema,
     annotations: {
@@ -338,7 +338,7 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
     name: "agent_profiles_list",
     title: "List Agent Profiles",
     description:
-      "List backend-owned CloudEval Agent Profiles such as Architecture, Cost, Change Reviewer, Evidence Auditor, and Security Reviewer.",
+      "List backend-owned Cloudeval Agent Profiles such as Architecture, Cost, Change Reviewer, Evidence Auditor, and Security Reviewer.",
     inputSchema: makeInputSchema({}),
     outputSchema: envelopeSchema,
     annotations: {
@@ -351,7 +351,7 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
   {
     name: "agent_profiles_get",
     title: "Get Agent Profile",
-    description: "Fetch one CloudEval Agent Profile by id.",
+    description: "Fetch one Cloudeval Agent Profile by id.",
     inputSchema: makeInputSchema(
       {
         profileId: {
@@ -373,7 +373,7 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
     name: "agent_profiles_run",
     title: "Run Agent Profile",
     description:
-      "Run a CloudEval Agent Profile against a project through the normal chat stream contract.",
+      "Run a Cloudeval Agent Profile against a project through the normal chat stream contract.",
     inputSchema: makeInputSchema(
       {
         profileId: {
@@ -413,12 +413,12 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
     name: "projects_get",
     title: "Get Project",
     description:
-      "Fetch one CloudEval project by id from the authenticated account's project list.",
+      "Fetch one Cloudeval project by id from the authenticated account's project list.",
     inputSchema: makeInputSchema(
       {
         projectId: {
           ...projectIdProperty,
-          description: "CloudEval project id to fetch.",
+          description: "Cloudeval project id to fetch.",
         },
       },
       ["projectId"],
@@ -434,13 +434,13 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
     name: "projects_overview",
     title: "Get Project Overview",
     description:
-      "Fetch a CloudEval project cockpit overview with graph, report, connection, credit, and deep-link metadata for IDE and agent workflows.",
+      "Fetch a Cloudeval project cockpit overview with graph, report, connection, credit, and deep-link metadata for IDE and agent workflows.",
     inputSchema: makeInputSchema(
       {
         projectId: {
           ...projectIdProperty,
           description:
-            "CloudEval project id to inspect. Defaults to the configured project when omitted.",
+            "Cloudeval project id to inspect. Defaults to the configured project when omitted.",
         },
       },
     ),
@@ -457,7 +457,7 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
     name: "connections_list",
     title: "List Connections",
     description:
-      "List CloudEval cloud/template connections visible to the authenticated account.",
+      "List Cloudeval cloud/template connections visible to the authenticated account.",
     inputSchema: makeInputSchema({}),
     outputSchema: envelopeSchema,
     annotations: {
@@ -472,12 +472,12 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
     name: "connections_get",
     title: "Get Connection",
     description:
-      "Fetch one CloudEval connection by id from the authenticated account's connection list.",
+      "Fetch one Cloudeval connection by id from the authenticated account's connection list.",
     inputSchema: makeInputSchema(
       {
         connectionId: {
           type: "string",
-          description: "CloudEval connection id to fetch.",
+          description: "Cloudeval connection id to fetch.",
         },
       },
       ["connectionId"],
@@ -500,7 +500,7 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
       {
         projectId: {
           ...projectIdProperty,
-          description: "CloudEval project id to render.",
+          description: "Cloudeval project id to render.",
         },
         layout: {
           type: "string",
@@ -647,14 +647,14 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
   },
   {
     name: "ask",
-    title: "Ask CloudEval",
+    title: "Ask Cloudeval",
     description:
-      "Ask CloudEval a one-shot question, optionally scoped to a project and model.",
+      "Ask Cloudeval a one-shot question, optionally scoped to a project and model.",
     inputSchema: makeInputSchema(
       {
         question: {
           type: "string",
-          description: "Question or instruction to send to CloudEval.",
+          description: "Question or instruction to send to Cloudeval.",
         },
         projectId: projectIdProperty,
         model: {
@@ -670,7 +670,7 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
         mode: {
           type: "string",
           enum: ["ask", "agent"],
-          description: "CloudEval runtime mode. Defaults to ask.",
+          description: "Cloudeval runtime mode. Defaults to ask.",
           default: "ask",
         },
       },
@@ -690,7 +690,7 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
     name: "models_list",
     title: "List Models",
     description:
-      "List backend-supported CloudEval models for the active account or access key.",
+      "List backend-supported Cloudeval models for the active account or access key.",
     inputSchema: makeInputSchema({}),
     outputSchema: envelopeSchema,
     annotations: {
@@ -736,7 +736,7 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
   {
     name: "sessions_list",
     title: "List Sessions",
-    description: "List local CloudEval CLI session history summaries.",
+    description: "List local Cloudeval CLI session history summaries.",
     inputSchema: makeInputSchema({
       limit: { type: "number", default: 20 },
     }),
@@ -752,7 +752,7 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
   {
     name: "sessions_get",
     title: "Get Session",
-    description: "Return one local CloudEval CLI session by thread id.",
+    description: "Return one local Cloudeval CLI session by thread id.",
     inputSchema: makeInputSchema(
       {
         threadId: { type: "string", description: "Local session thread id." },
@@ -771,7 +771,7 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
   {
     name: "sessions_search",
     title: "Search Sessions",
-    description: "Search local CloudEval CLI session titles and messages.",
+    description: "Search local Cloudeval CLI session titles and messages.",
     inputSchema: makeInputSchema(
       {
         query: { type: "string", description: "Search query." },
@@ -792,7 +792,7 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
     name: "sessions_export",
     title: "Export Sessions",
     description:
-      "Return local CloudEval CLI session history for the selected profile.",
+      "Return local Cloudeval CLI session history for the selected profile.",
     inputSchema: makeInputSchema({}),
     outputSchema: envelopeSchema,
     annotations: {
@@ -807,7 +807,7 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
     name: "identity_get",
     title: "Get Identity",
     description:
-      "Return CloudEval identity and capability metadata for the active credential.",
+      "Return Cloudeval identity and capability metadata for the active credential.",
     inputSchema: makeInputSchema({}),
     outputSchema: envelopeSchema,
     annotations: {
@@ -821,7 +821,7 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
   {
     name: "auth_status",
     title: "Auth Status",
-    description: "Return local CloudEval authentication status.",
+    description: "Return local Cloudeval authentication status.",
     inputSchema: makeInputSchema({}),
     outputSchema: envelopeSchema,
     annotations: {
@@ -835,7 +835,7 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
     name: "status",
     title: "CLI Status",
     description:
-      "Return local CloudEval CLI status and active configuration metadata.",
+      "Return local Cloudeval CLI status and active configuration metadata.",
     inputSchema: makeInputSchema({}),
     outputSchema: envelopeSchema,
     annotations: {
@@ -848,7 +848,7 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
   {
     name: "doctor",
     title: "CLI Doctor",
-    description: "Return local CloudEval CLI diagnostic checks.",
+    description: "Return local Cloudeval CLI diagnostic checks.",
     inputSchema: makeInputSchema({
       deep: {
         type: "boolean",
@@ -872,7 +872,7 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
   {
     name: "config_show",
     title: "Show Config",
-    description: "Return the selected CloudEval CLI profile configuration.",
+    description: "Return the selected Cloudeval CLI profile configuration.",
     inputSchema: makeInputSchema({}),
     outputSchema: envelopeSchema,
     annotations: {
@@ -886,7 +886,7 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
   {
     name: "config_get",
     title: "Get Config Value",
-    description: "Return one setting from the selected CloudEval CLI profile.",
+    description: "Return one setting from the selected Cloudeval CLI profile.",
     inputSchema: makeInputSchema(
       {
         key: { type: "string", description: "Config key." },
@@ -905,7 +905,7 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
   {
     name: "config_profiles",
     title: "List Config Profiles",
-    description: "Return CloudEval CLI config profile names.",
+    description: "Return Cloudeval CLI config profile names.",
     inputSchema: makeInputSchema({}),
     outputSchema: envelopeSchema,
     annotations: {
@@ -918,7 +918,7 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
   {
     name: "credentials_templates",
     title: "Credential Templates",
-    description: "List CloudEval access-key credential templates.",
+    description: "List Cloudeval access-key credential templates.",
     inputSchema: makeInputSchema({}),
     outputSchema: envelopeSchema,
     annotations: {
@@ -932,7 +932,7 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
     name: "credentials_list",
     title: "List Credentials",
     description:
-      "List CloudEval access-key credentials, optionally scoped by project.",
+      "List Cloudeval access-key credentials, optionally scoped by project.",
     inputSchema: makeInputSchema({
       projectId: projectIdProperty,
     }),
@@ -948,7 +948,7 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
   {
     name: "credentials_inspect",
     title: "Inspect Credential",
-    description: "Inspect a CloudEval access-key credential by id.",
+    description: "Inspect a Cloudeval access-key credential by id.",
     inputSchema: makeInputSchema(
       {
         credentialId: { type: "string", description: "Credential id." },
@@ -968,7 +968,7 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
     name: "credentials_create",
     title: "Create Credential",
     description:
-      "Create a scoped CloudEval access-key credential. Secret values are redacted unless showSecret is true.",
+      "Create a scoped Cloudeval access-key credential. Secret values are redacted unless showSecret is true.",
     inputSchema: makeInputSchema(
       {
         template: { type: "string", description: "Credential template id." },
@@ -1006,7 +1006,7 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
   {
     name: "credentials_revoke",
     title: "Revoke Credential",
-    description: "Revoke a CloudEval access-key credential.",
+    description: "Revoke a Cloudeval access-key credential.",
     inputSchema: makeInputSchema(
       {
         credentialId: { type: "string", description: "Credential id." },
@@ -1027,7 +1027,7 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
   {
     name: "recipes_list",
     title: "List Recipes",
-    description: "List CloudEval reusable recipes and their safety metadata.",
+    description: "List Cloudeval reusable recipes and their safety metadata.",
     inputSchema: makeInputSchema({}),
     outputSchema: envelopeSchema,
     annotations: {
@@ -1040,12 +1040,12 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
   {
     name: "recipes_get",
     title: "Get Recipe",
-    description: "Fetch one CloudEval recipe by id.",
+    description: "Fetch one Cloudeval recipe by id.",
     inputSchema: makeInputSchema(
       {
         recipeId: {
           type: "string",
-          description: "CloudEval recipe id.",
+          description: "Cloudeval recipe id.",
         },
       },
       ["recipeId"],
@@ -1062,12 +1062,12 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
     name: "recipes_run",
     title: "Run Recipe",
     description:
-      "Run a CloudEval recipe. Ask/agent recipes consume model credits; explicit side-effect recipes return commands instead of mutating automatically.",
+      "Run a Cloudeval recipe. Ask/agent recipes consume model credits; explicit side-effect recipes return commands instead of mutating automatically.",
     inputSchema: makeInputSchema(
       {
         recipeId: {
           type: "string",
-          description: "CloudEval recipe id.",
+          description: "Cloudeval recipe id.",
         },
         projectId: projectIdProperty,
         connectionId: { type: "string" },
@@ -1128,10 +1128,10 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
   {
     name: "reports_show",
     title: "Show Report",
-    description: "Fetch one CloudEval report by id for a project.",
+    description: "Fetch one Cloudeval report by id for a project.",
     inputSchema: makeInputSchema(
       {
-        reportId: { type: "string", description: "CloudEval report id." },
+        reportId: { type: "string", description: "Cloudeval report id." },
         projectId: projectIdProperty,
         view: {
           type: "string",
@@ -1154,7 +1154,7 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
     name: "reports_cost",
     title: "Latest Cost Report",
     description:
-      "Fetch the latest normalized CloudEval cost report for a project.",
+      "Fetch the latest normalized Cloudeval cost report for a project.",
     inputSchema: makeInputSchema({
       projectId: projectIdProperty,
       period: { type: "string", default: "30d" },
@@ -1199,7 +1199,7 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
     name: "reports_rules",
     title: "WAF Rules",
     description:
-      "Return WAF rule findings from the latest CloudEval WAF report.",
+      "Return WAF rule findings from the latest Cloudeval WAF report.",
     inputSchema: makeInputSchema({
       projectId: projectIdProperty,
       severity: { type: "string", description: "Optional severity filter." },
@@ -1503,7 +1503,7 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
     name: "billing_summary",
     title: "Billing Summary",
     description:
-      "Return CloudEval billing entitlement, credit status, and subscription status.",
+      "Return Cloudeval billing entitlement, credit status, and subscription status.",
     inputSchema: makeInputSchema({}),
     outputSchema: envelopeSchema,
     annotations: {
@@ -1518,7 +1518,7 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
     name: "billing_usage",
     title: "Billing Usage",
     description:
-      "Return CloudEval billing usage summary with date, granularity, and model filters.",
+      "Return Cloudeval billing usage summary with date, granularity, and model filters.",
     inputSchema: makeInputSchema({
       range: {
         type: "string",
@@ -1549,7 +1549,7 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
   {
     name: "billing_ledger",
     title: "Billing Ledger",
-    description: "Return paginated CloudEval billing ledger entries.",
+    description: "Return paginated Cloudeval billing ledger entries.",
     inputSchema: makeInputSchema({
       range: {
         type: "string",
@@ -1577,7 +1577,7 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
   {
     name: "billing_plans",
     title: "Billing Plans",
-    description: "Return CloudEval billing plan configuration.",
+    description: "Return Cloudeval billing plan configuration.",
     inputSchema: makeInputSchema({}),
     outputSchema: envelopeSchema,
     annotations: {
@@ -1590,7 +1590,7 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
   {
     name: "billing_topups",
     title: "Billing Top-ups",
-    description: "Return available CloudEval credit top-up packs.",
+    description: "Return available Cloudeval credit top-up packs.",
     inputSchema: makeInputSchema({}),
     outputSchema: envelopeSchema,
     annotations: {
@@ -1605,7 +1605,7 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
     name: "billing_invoices",
     title: "Billing Invoices",
     description:
-      "Return CloudEval subscription invoice or billing-info records.",
+      "Return Cloudeval subscription invoice or billing-info records.",
     inputSchema: makeInputSchema({
       limit: { type: "number", default: 25 },
     }),
@@ -1622,7 +1622,7 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
     name: "billing_notifications",
     title: "Billing Notifications",
     description:
-      "Return CloudEval billing notifications for the authenticated account.",
+      "Return Cloudeval billing notifications for the authenticated account.",
     inputSchema: makeInputSchema({
       limit: { type: "number", default: 25 },
     }),
@@ -1665,7 +1665,7 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
     name: "open_url",
     title: "Build Frontend URL",
     description:
-      "Build a CloudEval frontend deep link. Optionally open it in the system browser.",
+      "Build a Cloudeval frontend deep link. Optionally open it in the system browser.",
     inputSchema: makeInputSchema(
       {
         target: {
@@ -1782,7 +1782,7 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
   {
     name: "cloudeval_get_finding_evidence",
     title: "Get Finding Evidence",
-    description: "Read evidence for a finding from a CloudEval IDE run cache.",
+    description: "Read evidence for a finding from a Cloudeval IDE run cache.",
     inputSchema: makeInputSchema({
       workspace: { type: "string", description: "Workspace directory.", default: "." },
       runId: { type: "string", description: "IDE run id." },
@@ -1805,10 +1805,10 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
   {
     name: "cloudeval_explain_blast_radius",
     title: "Explain Blast Radius",
-    description: "Fetch CloudEval graph-neighborhood evidence for a project resource.",
+    description: "Fetch Cloudeval graph-neighborhood evidence for a project resource.",
     inputSchema: makeInputSchema({
       projectId: projectIdProperty,
-      resourceId: { type: "string", description: "CloudEval resource id or IaC address." },
+      resourceId: { type: "string", description: "Cloudeval resource id or IaC address." },
       limit: { type: "number", description: "Maximum graph insight items." },
     }, ["resourceId"]),
     outputSchema: envelopeSchema,
@@ -1829,7 +1829,7 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
   {
     name: "cloudeval_generate_ci_gate",
     title: "Generate CI Gate",
-    description: "Generate CloudEval CI gate files. This MCP tool returns file contents and does not write files.",
+    description: "Generate Cloudeval CI gate files. This MCP tool returns file contents and does not write files.",
     inputSchema: makeInputSchema({
       projectId: projectIdProperty,
       provider: { type: "string", enum: ["github-actions", "azure-pipelines"] },
@@ -2080,28 +2080,28 @@ const mcpResourceDefinitions: McpResourceDefinition[] = [
   {
     uri: "cloudeval://capabilities",
     name: "capabilities",
-    title: "CloudEval Capabilities",
-    description: "CloudEval CLI and MCP capability metadata.",
+    title: "Cloudeval Capabilities",
+    description: "Cloudeval CLI and MCP capability metadata.",
     mimeType: "application/json",
   },
   {
     uri: "cloudeval://projects",
     name: "projects",
-    title: "CloudEval Projects",
-    description: "Projects visible to the authenticated CloudEval account.",
+    title: "Cloudeval Projects",
+    description: "Projects visible to the authenticated Cloudeval account.",
     mimeType: "application/json",
   },
   {
     uri: "cloudeval://billing/summary",
     name: "billing-summary",
-    title: "CloudEval Billing Summary",
+    title: "Cloudeval Billing Summary",
     description: "Billing entitlement, credits, and subscription status.",
     mimeType: "application/json",
   },
   {
     uri: "cloudeval://reports/latest",
     name: "latest-reports",
-    title: "Latest CloudEval Reports",
+    title: "Latest Cloudeval Reports",
     description:
       "Latest cost and Well-Architected report list for the default project.",
     mimeType: "application/json",
@@ -2109,15 +2109,15 @@ const mcpResourceDefinitions: McpResourceDefinition[] = [
   {
     uri: "cloudeval://recipes",
     name: "recipes",
-    title: "CloudEval Recipes",
-    description: "CloudEval reusable recipes and agent skill metadata.",
+    title: "Cloudeval Recipes",
+    description: "Cloudeval reusable recipes and agent skill metadata.",
     mimeType: "application/json",
   },
   {
     uri: "cloudeval://skills",
     name: "skills",
-    title: "CloudEval Skills",
-    description: "Public CloudEval SKILL.md catalog for agent reasoning.",
+    title: "Cloudeval Skills",
+    description: "Public Cloudeval SKILL.md catalog for agent reasoning.",
     mimeType: "application/json",
   },
   {
@@ -2131,7 +2131,7 @@ const mcpResourceDefinitions: McpResourceDefinition[] = [
     uri: "cloudeval://runs/latest",
     name: "latest-ide-run",
     title: "Latest IDE Review Run",
-    description: "Latest CloudEval IDE review run when available from local cache.",
+    description: "Latest Cloudeval IDE review run when available from local cache.",
     mimeType: "application/json",
   },
   {
@@ -2147,13 +2147,13 @@ const idePromptDefinitions: McpPromptDefinition[] = [
   {
     name: "review_current_iac_file",
     title: "Review Current IaC File",
-    description: "Index and review the current IaC file using CloudEval evidence where available.",
+    description: "Index and review the current IaC file using Cloudeval evidence where available.",
     arguments: [{ name: "file", description: "IaC file path.", required: true }],
   },
   {
     name: "explain_finding_with_evidence",
     title: "Explain Finding With Evidence",
-    description: "Explain a CloudEval finding using evidence, freshness, confidence, and resource mapping.",
+    description: "Explain a Cloudeval finding using evidence, freshness, confidence, and resource mapping.",
     arguments: [
       { name: "runId", description: "IDE run id.", required: true },
       { name: "findingId", description: "Finding id.", required: true },
@@ -2162,7 +2162,7 @@ const idePromptDefinitions: McpPromptDefinition[] = [
   {
     name: "draft_safe_fix",
     title: "Draft Safe Fix",
-    description: "Draft a non-mutating fix proposal for a CloudEval finding.",
+    description: "Draft a non-mutating fix proposal for a Cloudeval finding.",
     arguments: [
       { name: "runId", description: "IDE run id.", required: true },
       { name: "findingId", description: "Finding id.", required: true },
@@ -2171,15 +2171,15 @@ const idePromptDefinitions: McpPromptDefinition[] = [
   {
     name: "generate_ci_gate",
     title: "Generate CI Gate",
-    description: "Generate a CloudEval CI gate using the existing cloudeval review command.",
-    arguments: [{ name: "projectId", description: "CloudEval project id.", required: true }],
+    description: "Generate a Cloudeval CI gate using the existing cloudeval review command.",
+    arguments: [{ name: "projectId", description: "Cloudeval project id.", required: true }],
   },
   {
     name: "explain_blast_radius",
     title: "Explain Blast Radius",
-    description: "Explain blast radius using CloudEval graph-neighborhood evidence.",
+    description: "Explain blast radius using Cloudeval graph-neighborhood evidence.",
     arguments: [
-      { name: "projectId", description: "CloudEval project id.", required: true },
+      { name: "projectId", description: "Cloudeval project id.", required: true },
       { name: "resourceId", description: "Resource id or IaC address.", required: true },
     ],
   },
@@ -2262,7 +2262,7 @@ export const getMcpStatusData = () => ({
   protocolVersions: SUPPORTED_PROTOCOL_VERSIONS,
   serverInfo: {
     name: "cloudeval",
-    title: "CloudEval CLI MCP Server",
+    title: "Cloudeval CLI MCP Server",
     version: CLI_VERSION,
   },
   command: "cloudeval mcp serve",
@@ -3053,7 +3053,7 @@ const buildToolHandlers = (
         throw new Error(
           chunk.message ||
             chunk.description ||
-            "CloudEval Agent Profile run failed.",
+            "Cloudeval Agent Profile run failed.",
         );
       }
     }
@@ -3566,7 +3566,7 @@ const buildToolHandlers = (
       }
       if (chunk.type === "error") {
         throw new Error(
-          chunk.message || chunk.description || "CloudEval ask failed.",
+          chunk.message || chunk.description || "Cloudeval ask failed.",
         );
       }
     }
@@ -4758,7 +4758,7 @@ const renderPromptText = (name: string, args: JsonRecord): string => {
       projectId: promptArgument(
         args,
         "projectId",
-        "the default CloudEval project",
+        "the default Cloudeval project",
       ),
       range: promptArgument(args, "range", "30d"),
       templateFile: stringValue(args.templateFile),
@@ -4971,7 +4971,7 @@ export const serveMcpServer = async (
       log(message, data);
     }
   };
-  log("CloudEval MCP server started", {
+  log("Cloudeval MCP server started", {
     version: CLI_VERSION,
     protocolVersion: MCP_PROTOCOL_VERSION,
     transport: "stdio",
@@ -5076,11 +5076,11 @@ export const serveMcpServer = async (
           },
           serverInfo: {
             name: "cloudeval",
-            title: "CloudEval CLI MCP Server",
+            title: "Cloudeval CLI MCP Server",
             version: CLI_VERSION,
           },
           instructions:
-            "Use CloudEval tools for project-aware cloud evaluation, reports, billing usage, one-shot asks, and frontend deep links. Authentication comes from stored `cloudeval login` credentials or a scoped `CLOUDEVAL_ACCESS_KEY` / --access-key.",
+            "Use Cloudeval tools for project-aware cloud evaluation, reports, billing usage, one-shot asks, and frontend deep links. Authentication comes from stored `cloudeval login` credentials or a scoped `CLOUDEVAL_ACCESS_KEY` / --access-key.",
         });
       }
       if (request.method === "ping") {
@@ -5378,7 +5378,7 @@ export const serveMcpServer = async (
       );
     }
   }
-  log("CloudEval MCP server stopped");
+  log("Cloudeval MCP server stopped");
 };
 
 export const registerMcpCommand = (
@@ -5391,7 +5391,7 @@ export const registerMcpCommand = (
 
   mcp
     .command("status")
-    .description("Show CloudEval MCP server capabilities")
+    .description("Show Cloudeval MCP server capabilities")
     .option(
       "--format <format>",
       "Output format: text, json, ndjson, markdown",
@@ -5411,12 +5411,12 @@ export const registerMcpCommand = (
 
   mcp
     .command("setup")
-    .description("Generate or install CloudEval MCP client configuration")
+    .description("Generate or install Cloudeval MCP client configuration")
     .argument("<client>", `MCP client: ${MCP_SETUP_CLIENTS.join(", ")}`)
     .option("--dry-run", "Print config without writing client files", false)
     .option(
       "--command <path>",
-      "CloudEval command path for the MCP client",
+      "Cloudeval command path for the MCP client",
       "cloudeval",
     )
     .option(
@@ -5488,7 +5488,7 @@ export const registerMcpCommand = (
 
   mcp
     .command("serve")
-    .description("Run CloudEval as a stdio MCP server")
+    .description("Run Cloudeval as a stdio MCP server")
     .option("--base-url <url>", "Backend base URL", deps.defaultBaseUrl)
     .option("--frontend-url <url>", "Frontend base URL")
     .option(

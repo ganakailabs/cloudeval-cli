@@ -56,7 +56,7 @@ test("buildChatTranscriptMarkdown exports user and assistant turns", () => {
     exportedAt: new Date("2026-05-22T00:00:00.000Z"),
   });
 
-  assert.match(markdown, /^# CloudEval chat transcript/);
+  assert.match(markdown, /^# Cloudeval chat transcript/);
   assert.match(markdown, /Thread: thread-test/);
   assert.match(markdown, /## Manu\n\nWhat projects are available\?/);
   assert.match(markdown, /## Cloudeval AI\n\nOnly one project is available\.\[1\]/);

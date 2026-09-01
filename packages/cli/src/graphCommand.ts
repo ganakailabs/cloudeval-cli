@@ -39,16 +39,16 @@ export const registerGraphCommand = (
   program: Command,
   deps: RegisterGraphCommandOptions,
 ) => {
-  const graph = program.command("graph").description("CloudEval graph utilities");
+  const graph = program.command("graph").description("Cloudeval graph utilities");
 
   addAuthOptions(
     graph.command("neighborhood").description("Fetch a scoped graph neighborhood for an IDE resource"),
     deps.defaultBaseUrl,
   )
-    .requiredOption("--project <id>", "CloudEval project id")
-    .requiredOption("--resource <id>", "CloudEval resource id or IaC resource address")
+    .requiredOption("--project <id>", "Cloudeval project id")
+    .requiredOption("--resource <id>", "Cloudeval resource id or IaC resource address")
     .option("--limit <count>", "Maximum graph insight items", "20")
-    .option("--sync-version <version>", "CloudEval sync version")
+    .option("--sync-version <version>", "Cloudeval sync version")
     .option("--format <format>", "Output format: text, json, ndjson, markdown", "text")
     .option("--output <file>", "Output file")
     .action(async (options: GraphNeighborhoodOptions, command) => {

@@ -36,12 +36,12 @@ const renderSkillsTable = (skills: SkillSummary[]): string =>
       { key: "tools", header: "MCP Tools", align: "right" },
       { key: "source", header: "Source", maxWidth: 12 },
     ],
-    { emptyMessage: "No CloudEval skills found." },
+    { emptyMessage: "No Cloudeval skills found." },
   );
 
 const renderSkillsMarkdown = (skills: SkillSummary[]): string =>
   [
-    "# CloudEval Skills",
+    "# Cloudeval Skills",
     "",
     ...skills.map((skill) => [
       `## ${skill.title}`,
@@ -175,18 +175,18 @@ const writeSkillDoctor = async (options: CommonSkillOptions) => {
 export const registerSkillsCommand = (program: Command) => {
   const command = program
     .command("skills")
-    .description("List, inspect, and validate CloudEval agent skills");
+    .description("List, inspect, and validate Cloudeval agent skills");
 
   command
     .command("list")
-    .description("List CloudEval skills")
+    .description("List Cloudeval skills")
     .option("--format <format>", "Output format: table, text, json, ndjson, markdown", "table")
     .option("--output <file>", "Output file")
     .action((options: CommonSkillOptions) => writeSkillList(options));
 
   command
     .command("show")
-    .description("Show a CloudEval skill")
+    .description("Show a Cloudeval skill")
     .argument("<id>", "Skill id")
     .option("--format <format>", "Output format: text, json, ndjson, markdown", "markdown")
     .option("--output <file>", "Output file")
@@ -194,14 +194,14 @@ export const registerSkillsCommand = (program: Command) => {
 
   command
     .command("doctor")
-    .description("Validate CloudEval skill files and recipe references")
+    .description("Validate Cloudeval skill files and recipe references")
     .option("--format <format>", "Output format: table, text, json, ndjson, markdown", "table")
     .option("--output <file>", "Output file")
     .action((options: CommonSkillOptions) => writeSkillDoctor(options));
 
   command
     .command("path")
-    .description("Print the CloudEval skills directory")
+    .description("Print the Cloudeval skills directory")
     .option("--format <format>", "Output format: text, json, ndjson, markdown", "text")
     .option("--output <file>", "Output file")
     .action(async (options: CommonSkillOptions) => {

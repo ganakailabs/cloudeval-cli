@@ -48,7 +48,7 @@ export const buildReviewSarifLog = ({
       {
         tool: {
           driver: {
-            name: "CloudEval",
+            name: "Cloudeval",
             informationUri: "https://cloudeval.ai",
             rules: uniqueRules(locatedFindings),
           },

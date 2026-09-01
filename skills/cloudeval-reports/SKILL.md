@@ -1,19 +1,19 @@
 ---
 name: cloudeval-reports
-description: Use when listing, showing, generating, downloading, or summarizing CloudEval cost and Well-Architected reports.
+description: Use when listing, showing, generating, downloading, or summarizing Cloudeval cost and Well-Architected reports.
 ---
 
-# CloudEval Reports
+# Cloudeval Reports
 
 ## WHEN
 - Use for `reports list/show/cost/waf/rules/run/download`, report summaries, architecture reviews, and report export packs.
-- Use when a user asks what CloudEval found for a project.
+- Use when a user asks what Cloudeval found for a project.
 
 ## DO NOT USE FOR
 - Running report jobs without explicit user approval.
 - Publishing raw report JSON, customer topology, or billing evidence into public artifacts.
 
-## Required CloudEval Context
+## Required Cloudeval Context
 - Auth and a project id.
 - Existing reports for read-only analysis; report generation only when requested.
 - Optional output path for downloads.

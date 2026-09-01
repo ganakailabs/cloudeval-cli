@@ -591,7 +591,7 @@ require_auth_preflight() {
       login_command="pnpm -C packages/cli exec tsx src/cli.tsx login --base-url $BASE_URL"
     fi
     fail_check "auth preflight" \
-      "CLOUDEVAL_SMOKE_REQUIRE_AUTH=1 was set, but the selected CLI has no usable CloudEval session."$'\n'"binary: $CLI"$'\n'"cli_source: $CLI_SOURCE"$'\n'"next: run $login_command, then rerun the smoke test. To run only public read-only checks, unset CLOUDEVAL_SMOKE_REQUIRE_AUTH." \
+      "CLOUDEVAL_SMOKE_REQUIRE_AUTH=1 was set, but the selected CLI has no usable Cloudeval session."$'\n'"binary: $CLI"$'\n'"cli_source: $CLI_SOURCE"$'\n'"next: run $login_command, then rerun the smoke test. To run only public read-only checks, unset CLOUDEVAL_SMOKE_REQUIRE_AUTH." \
       auth status --base-url "$BASE_URL" --format json
   fi
 }
@@ -697,14 +697,14 @@ need python3
 
 CLI="$(resolve_cli_bin)"
 
-log "CloudEval read-only CLI smoke"
+log "Cloudeval read-only CLI smoke"
 printf 'binary=%s\ncli_source=%s\nbase_url=%s\nfrontend_url=%s\nartifacts=%s\nrun_ask=%s\nrun_agent=%s\nrequire_auth=%s\n' \
   "$CLI" "$CLI_SOURCE" "$BASE_URL" "$FRONTEND_URL" "$TMP_DIR" "$RUN_ASK" "$RUN_AGENT" "$REQUIRE_AUTH"
 
 log "Public and local read-only commands"
 run_text_contains "version" "." --version
 run_text_contains "root-help" "Commands:" --help
-run_text_contains "help-agents" "CloudEval CLI agent contract" help agents
+run_text_contains "help-agents" "Cloudeval CLI agent contract" help agents
 run_json_envelope "capabilities-json" capabilities --format json
 run_recipes_list
 run_json_envelope "recipes-show-cloudeval-cloud-cost-review" recipes show cloudeval-cloud-cost-review --format json

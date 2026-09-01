@@ -61,7 +61,7 @@ export const registerOpenCommand = (
 ) => {
   const open = program
     .command("open")
-    .description("Open CloudEval frontend deeplinks");
+    .description("Open Cloudeval frontend deeplinks");
 
   addOpenOptions(
     open.command("overview").description("Open overview"),

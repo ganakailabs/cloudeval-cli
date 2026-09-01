@@ -1762,7 +1762,7 @@ export const WorkspaceTabBar: React.FC<{
         >
           <Box flexDirection="row" gap={1}>
             <Text bold color={terminalTheme.brand}>
-              CloudEval
+              Cloudeval
             </Text>
             <Text dimColor>agent console</Text>
           </Box>

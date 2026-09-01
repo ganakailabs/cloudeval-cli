@@ -278,7 +278,7 @@ export const buildThreadSelectItems = (
   {
     label: "New thread",
     value: { kind: "new" },
-    description: activeThreadId ? "Start a fresh CloudEval chat thread." : "Current selection.",
+    description: activeThreadId ? "Start a fresh Cloudeval chat thread." : "Current selection.",
   },
   ...(options.drafts ?? []).map((draft) => {
     const age = draft.updatedAt ? relativeThreadAge(new Date(draft.updatedAt).toISOString(), options.now) : undefined;

@@ -104,7 +104,7 @@ export const buildChatTranscriptMarkdown = ({
     });
 
   return [
-    "# CloudEval chat transcript",
+    "# Cloudeval chat transcript",
     "",
     `Exported: ${exportedAt.toISOString()}`,
     threadId ? `Thread: ${threadId}` : undefined,

@@ -32,7 +32,7 @@ const resolveProfile = (options: ConfigCommandOptions, command?: Command): strin
 export const registerConfigCommand = (program: Command) => {
   const config = program
     .command("config")
-    .description("View and edit local CloudEval CLI settings");
+    .description("View and edit local Cloudeval CLI settings");
 
   addConfigOutputOptions(config.command("show").description("Show current profile settings"))
     .action(async (options: ConfigCommandOptions, command) => {

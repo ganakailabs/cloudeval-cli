@@ -44,7 +44,7 @@ const outputOptions = [
 export const cliCommands: CliCommandMetadata[] = [
   {
     name: "tui",
-    description: "Open the CloudEval Terminal UI",
+    description: "Open the Cloudeval Terminal UI",
     domain: "chat",
     options: [
       "--base-url",
@@ -146,7 +146,7 @@ export const cliCommands: CliCommandMetadata[] = [
   },
   {
     name: "agents",
-    description: "List, inspect, and run CloudEval Agent Profiles",
+    description: "List, inspect, and run Cloudeval Agent Profiles",
     domain: "agents",
     options: [
       "list",
@@ -220,7 +220,7 @@ export const cliCommands: CliCommandMetadata[] = [
   {
     name: "review",
     description:
-      "Sync a GitHub-backed CloudEval project from the pushed commit and evaluate report gates",
+      "Sync a GitHub-backed Cloudeval project from the pushed commit and evaluate report gates",
     domain: "reports",
     options: [
       ...authOptions,
@@ -249,7 +249,7 @@ export const cliCommands: CliCommandMetadata[] = [
   },
   {
     name: "recipes",
-    description: "CloudEval reusable recipes and agent skills",
+    description: "Cloudeval reusable recipes and agent skills",
     domain: "recipes",
     options: [
       "list",
@@ -284,7 +284,7 @@ export const cliCommands: CliCommandMetadata[] = [
   },
   {
     name: "skills",
-    description: "List, inspect, and validate CloudEval agent skills",
+    description: "List, inspect, and validate Cloudeval agent skills",
     domain: "skills",
     options: [
       "list",
@@ -428,7 +428,7 @@ export const cliCommands: CliCommandMetadata[] = [
   },
   {
     name: "ci",
-    description: "Generate CloudEval CI gate configuration",
+    description: "Generate Cloudeval CI gate configuration",
     domain: "setup",
     options: [
       "init",
@@ -477,7 +477,7 @@ export const cliCommands: CliCommandMetadata[] = [
   },
   {
     name: "credentials",
-    description: "Manage CloudEval access-key credentials",
+    description: "Manage Cloudeval access-key credentials",
     domain: "credentials",
     options: [
       "templates",
@@ -604,7 +604,7 @@ export const cliCommands: CliCommandMetadata[] = [
   },
   {
     name: "open",
-    description: "Open CloudEval frontend deeplinks",
+    description: "Open Cloudeval frontend deeplinks",
     domain: "frontend",
     options: [
       "overview",
@@ -652,14 +652,14 @@ export const cliCommands: CliCommandMetadata[] = [
   },
   {
     name: "capabilities",
-    description: "Show machine-readable CloudEval CLI capabilities",
+    description: "Show machine-readable Cloudeval CLI capabilities",
     domain: "diagnostics",
     options: ["--format", "--live", ...authOptions, "--profile", "--help"],
     workflows: ["capabilities"],
   },
   {
     name: "identity",
-    description: "Show the current CloudEval identity",
+    description: "Show the current Cloudeval identity",
     domain: "config",
     options: ["--format", "--output", ...authOptions, "--profile", "--help"],
     workflows: ["identity"],
@@ -689,7 +689,7 @@ export const cliCommands: CliCommandMetadata[] = [
   },
   {
     name: "login",
-    description: "Authenticate with CloudEval",
+    description: "Authenticate with Cloudeval",
     domain: "config",
     options: [
       "--base-url",
@@ -725,7 +725,7 @@ export const cliCommands: CliCommandMetadata[] = [
   },
   {
     name: "update",
-    description: "Update CloudEval CLI to the latest published version",
+    description: "Update Cloudeval CLI to the latest published version",
     domain: "setup",
     options: [
       "--check",
@@ -743,7 +743,7 @@ export const cliCommands: CliCommandMetadata[] = [
   },
   {
     name: "uninstall",
-    description: "Remove local CloudEval CLI installation artifacts",
+    description: "Remove local Cloudeval CLI installation artifacts",
     domain: "setup",
     options: [
       "--yes",
@@ -794,7 +794,7 @@ export const cliCommands: CliCommandMetadata[] = [
   },
   {
     name: "config",
-    description: "View and edit local CloudEval CLI settings",
+    description: "View and edit local Cloudeval CLI settings",
     domain: "config",
     options: [
       "show",
@@ -819,7 +819,7 @@ export const cliCommands: CliCommandMetadata[] = [
   },
   {
     name: "setup",
-    description: "Configure CloudEval CLI defaults",
+    description: "Configure Cloudeval CLI defaults",
     domain: "setup",
     options: [
       "--non-interactive",
@@ -852,7 +852,7 @@ export const cliCommands: CliCommandMetadata[] = [
   },
   {
     name: "status",
-    description: "Show CloudEval CLI status",
+    description: "Show Cloudeval CLI status",
     domain: "diagnostics",
     options: [
       "--base-url",

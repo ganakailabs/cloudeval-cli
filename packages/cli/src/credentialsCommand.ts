@@ -162,7 +162,7 @@ export const registerCredentialsCommand = (
 ) => {
   const credentials = program
     .command("credentials")
-    .description("Manage CloudEval access-key credentials");
+    .description("Manage Cloudeval access-key credentials");
 
   addCommon(credentials.command("templates").description("List credential templates"), deps)
     .action(async (options: CredentialOptions, command) => {
@@ -273,7 +273,7 @@ export const registerIdentityCommand = (
   program: Command,
   deps: CredentialsDeps
 ) => {
-  addCommon(program.command("identity").description("Show the current CloudEval identity"), deps)
+  addCommon(program.command("identity").description("Show the current Cloudeval identity"), deps)
     .action(async (options: CredentialOptions, command) => {
       const auth = await resolveCoreAuth(options, command, deps);
       const data = await auth.core.getIdentity({

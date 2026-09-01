@@ -48,7 +48,7 @@ function Test-TelemetryEnvDisables {
 
 function Write-TelemetryNotice {
   Write-Info "Telemetry"
-  Write-Host "  CloudEval sends limited CLI usage events to Azure Application Insights to improve reliability."
+  Write-Host "  Cloudeval sends limited CLI usage events to Azure Application Insights to improve reliability."
   Write-Host "  It does not send prompts, command output, tokens, local paths, project/resource/account/session/tenant IDs, stack traces, or cloud resource names."
   Write-Host "  It may include CLI/runtime versions and signed-in email/name after login."
 }
@@ -57,7 +57,7 @@ function Set-TelemetryOptOut {
   param([string] $Dest)
   try {
     & $Dest config set telemetry.enabled false --format json | Out-Null
-    Write-Ok "Telemetry disabled in CloudEval CLI config."
+    Write-Ok "Telemetry disabled in Cloudeval CLI config."
   } catch {
     Write-Warn "Could not write telemetry preference automatically. Run:"
     Write-Host "  $BinName config set telemetry.enabled false"

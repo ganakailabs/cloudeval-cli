@@ -1236,9 +1236,9 @@ export const loginWithDeviceCode = async (
     const detail = await readResponseDetail(deviceCodeResponse);
     if (deviceCodeResponse.status === 401 || deviceCodeResponse.status === 403) {
       throw new Error(
-        `CloudEval backend device-code login is blocked by an authentication layer (${statusInfo}${
+        `Cloudeval backend device-code login is blocked by an authentication layer (${statusInfo}${
           detail ? ` - ${detail}` : ""
-        }). The CLI needs /api/v1/auth/device/code to stay public so it can show the CloudEval approval URL.`
+        }). The CLI needs /api/v1/auth/device/code to stay public so it can show the Cloudeval approval URL.`
       );
     }
     let errorMessage = `Failed to initiate login: ${statusInfo}`;
@@ -1414,7 +1414,7 @@ const refreshAuthToken = async (
     return backendResponse;
   }
   throw new Error(
-    "Token refresh unavailable from CloudEval backend. Run 'cloudeval login' and retry."
+    "Token refresh unavailable from Cloudeval backend. Run 'cloudeval login' and retry."
   );
 };
 
@@ -1628,7 +1628,7 @@ export const extractEmailFromToken = (token: string): string | null => {
 
 const AUTH_LOOKUP_ERROR = "CloudEvalAuthLookupError";
 const USER_PROFILE_MISSING_PATTERN =
-  /USER_NOT_FOUND|CloudEval user profile not found|onboarding required/i;
+  /USER_NOT_FOUND|Cloudeval user profile not found|onboarding required/i;
 
 const isMissingUserProfileDetail = (detail: string | undefined): boolean =>
   USER_PROFILE_MISSING_PATTERN.test(detail ?? "");

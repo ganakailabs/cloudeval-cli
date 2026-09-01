@@ -197,7 +197,7 @@ fi
 mcp_summary="$(
   bash "$ROOT_DIR/scripts/install.sh" --self-test-mcp-summary "codex claude" "vscode" "cursor" "codex claude vscode cursor"
 )"
-for expected in "MCP setup summary" "Configured:" "codex, claude" "Manual:" "vscode" "Failed:" "cursor" "Retry:" "Restart or reload configured MCP clients when you are ready" "CloudEval does not restart those apps for you"; do
+for expected in "MCP setup summary" "Configured:" "codex, claude" "Manual:" "vscode" "Failed:" "cursor" "Retry:" "Restart or reload configured MCP clients when you are ready" "Cloudeval does not restart those apps for you"; do
   case "$mcp_summary" in
     *"$expected"*) ;;
     *)

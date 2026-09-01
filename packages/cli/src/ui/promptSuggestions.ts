@@ -55,7 +55,7 @@ const promptGroups: Record<StarterVariant, PromptGroup> = {
     ],
     modes: {
       ask: [
-        "Explain what CloudEval can analyze",
+        "Explain what Cloudeval can analyze",
         "Summarize available infrastructure insights",
         "Show example cloud review questions",
         "Explain project setup requirements",

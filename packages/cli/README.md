@@ -1,24 +1,24 @@
-# CloudEval CLI
+# Cloudeval CLI
 
 Review Azure infrastructure before merge - from CLI, CI, and AI agents.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/ganakailabs/cloudeval-cli/main/docs/assets/images/cli/tui-chat.png" alt="CloudEval CLI terminal UI" width="100%">
+  <img src="https://raw.githubusercontent.com/ganakailabs/cloudeval-cli/main/docs/assets/images/cli/tui-chat.png" alt="Cloudeval CLI terminal UI" width="100%">
 </p>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@ganakailabs/cloudeval-cli"><img alt="npm version" src="https://img.shields.io/npm/v/@ganakailabs/cloudeval-cli?style=flat-square&logo=npm"></a>
   <a href="https://github.com/ganakailabs/cloudeval-cli/actions/workflows/semantic-release.yml"><img alt="release health" src="https://img.shields.io/github/actions/workflow/status/ganakailabs/cloudeval-cli/semantic-release.yml?branch=main&style=flat-square&label=release%20health"></a>
-  <a href="https://cloudeval.ai"><img alt="CloudEval app" src="https://img.shields.io/badge/app-cloudeval.ai-b6f23c?style=flat-square&labelColor=0b0f0a"></a>
+  <a href="https://cloudeval.ai"><img alt="Cloudeval app" src="https://img.shields.io/badge/app-cloudeval.ai-b6f23c?style=flat-square&labelColor=0b0f0a"></a>
   <a href="https://docs.cloudeval.ai/cli/get-started"><img alt="docs" src="https://img.shields.io/badge/docs-docs.cloudeval.ai-2d6cdf?style=flat-square"></a>
-  <a href="https://github.com/ganakailabs/cloudeval-cli/blob/main/LICENSE"><img alt="license" src="https://img.shields.io/badge/license-CloudEval%20CLI%20License-blue?style=flat-square"></a>
+  <a href="https://github.com/ganakailabs/cloudeval-cli/blob/main/LICENSE"><img alt="license" src="https://img.shields.io/badge/license-Cloudeval%20CLI%20License-blue?style=flat-square"></a>
 </p>
 
-CloudEval CLI brings **CloudEval** into terminals, CI pipelines, and MCP-capable coding agents. Use it to review Azure ARM templates, Bicep-generated ARM JSON, and live Azure context with cost, architecture, and Well-Architected signals.
+Cloudeval CLI brings **Cloudeval** into terminals, CI pipelines, and MCP-capable coding agents. Use it to review Azure ARM templates, Bicep-generated ARM JSON, and live Azure context with cost, architecture, and Well-Architected signals.
 
 ## What It Does
 
-CloudEval helps teams catch infrastructure risk before merge:
+Cloudeval helps teams catch infrastructure risk before merge:
 
 - reviews **ARM JSON** and **Bicep-generated ARM JSON** templates;
 - validates templates from local files or CI workspaces;
@@ -73,7 +73,7 @@ cloudeval validate template \
 ### IDE IaC Detection And Indexing
 
 Use `iac detect` and `iac index` when an editor, agent, or script needs a stable
-resource map without requiring CloudEval auth:
+resource map without requiring Cloudeval auth:
 
 ```bash
 cloudeval iac detect --workspace . --format json
@@ -83,7 +83,7 @@ cloudeval iac index --workspace . --format json
 
 These commands emit the IDE schema envelope with resource ranges, adapters, and
 support levels. ARM JSON and Bicep are marked `full`; Terraform and OpenTofu are
-marked `indexed_only` until scanner-backed CloudEval findings are available.
+marked `indexed_only` until scanner-backed Cloudeval findings are available.
 
 For VS Code and MCP workflows, use the IDE review/evidence commands:
 
@@ -100,7 +100,7 @@ cloudeval ci init --provider github-actions --project <project-id> --format json
 
 ### Live Azure Sync
 
-Use CloudEval projects and reports after connecting Azure in the app or CLI:
+Use Cloudeval projects and reports after connecting Azure in the app or CLI:
 
 ```bash
 cloudeval projects list
@@ -116,14 +116,14 @@ when `--graph-diagram auto` detects a roomy TTY. Use `unicode` or `ascii` to
 force a terminal renderer, or `off` to keep Mermaid source blocks. Unsupported
 Mermaid syntax falls back to source instead of breaking the transcript.
 
-`projects overview` aggregates project metadata, matching connections, latest report status, graph availability, graph deep links, and credit state for IDEs such as the CloudEval VS Code extension. Optional layers that are unavailable are returned as warnings or graph gaps instead of inventing project data.
+`projects overview` aggregates project metadata, matching connections, latest report status, graph availability, graph deep links, and credit state for IDEs such as the Cloudeval VS Code extension. Optional layers that are unavailable are returned as warnings or graph gaps instead of inventing project data.
 
 ### GitHub Actions / CI
 
 Use a scoped `CLOUDEVAL_ACCESS_KEY` secret and keep generated JSON on stdout:
 
 ```yaml
-name: CloudEval review
+name: Cloudeval review
 
 on:
   pull_request:
@@ -155,9 +155,9 @@ jobs:
             --non-interactive
 ```
 
-Public example: [passing baseline PR #6](https://github.com/ganakailabs/cloudeval-azure-arm-review-example/pull/6) in [`ganakailabs/cloudeval-azure-arm-review-example`](https://github.com/ganakailabs/cloudeval-azure-arm-review-example). Review comments show a merge-gate table, CloudEval report badges, a visible AI summary, a folded detailed AI reviewer note, a compact Well-Architected radar/table drilldown, and cost Mermaid charts grouped for quick scanning.
+Public example: [passing baseline PR #6](https://github.com/ganakailabs/cloudeval-azure-arm-review-example/pull/6) in [`ganakailabs/cloudeval-azure-arm-review-example`](https://github.com/ganakailabs/cloudeval-azure-arm-review-example). Review comments show a merge-gate table, Cloudeval report badges, a visible AI summary, a folded detailed AI reviewer note, a compact Well-Architected radar/table drilldown, and cost Mermaid charts grouped for quick scanning.
 
-For GitHub-backed CloudEval projects, use the high-level review command from a clean pushed commit:
+For GitHub-backed Cloudeval projects, use the high-level review command from a clean pushed commit:
 
 ```bash
 cloudeval review \
@@ -172,7 +172,7 @@ cloudeval review \
   --non-interactive
 ```
 
-`--github-checks` records source-mapped annotations in `review.json` for the GitHub Action to post through the CloudEval GitHub App. `--sarif` writes `review.sarif.json` for GitHub code scanning upload.
+`--github-checks` records source-mapped annotations in `review.json` for the GitHub Action to post through the Cloudeval GitHub App. `--sarif` writes `review.sarif.json` for GitHub code scanning upload.
 
 To include a PDF in each review artifact bundle, opt in from `.cloudeval/config.yaml`:
 
@@ -187,7 +187,7 @@ ci:
         fail_on_error: false
 ```
 
-When `cloudeval review --output <dir>` runs, the CLI writes `<dir>/review.pdf` alongside `review.json` and `review.md`. In GitHub Actions, `ganakailabs/cloudeval-action` uploads that file when `upload_artifacts: true`; PR comments keep both the CloudEval-hosted `PDF` badge and the GitHub `Artifacts` badge.
+When `cloudeval review --output <dir>` runs, the CLI writes `<dir>/review.pdf` alongside `review.json` and `review.md`. In GitHub Actions, `ganakailabs/cloudeval-action` uploads that file when `upload_artifacts: true`; PR comments keep both the Cloudeval-hosted `PDF` badge and the GitHub `Artifacts` badge.
 
 Supported PDF output keys:
 
@@ -248,7 +248,7 @@ cloudeval ask "Summarize top risks" --format ndjson --progress ndjson --non-inte
 
 ## Trust, Privacy, And Limits
 
-CloudEval is designed for review workflows, not silent cloud mutation.
+Cloudeval is designed for review workflows, not silent cloud mutation.
 
 - Azure is the primary supported live-cloud provider today.
 - ARM JSON and Bicep-generated ARM JSON are the strongest current IaC paths.
@@ -263,7 +263,7 @@ Privacy and automation details: [agent behavior and automation safety](https://d
 
 ## Automation Contract
 
-CloudEval separates machine output from human/operator messages:
+Cloudeval separates machine output from human/operator messages:
 
 - **stdout**: JSON, NDJSON, Markdown, or text payload requested by `--format`;
 - **stderr**: prompts, warnings, progress, browser-open messages, and MCP diagnostics;
@@ -285,7 +285,7 @@ cloudeval validate template \
 
 ## MCP For Coding Agents
 
-Use MCP when an AI coding agent should inspect CloudEval projects, reports, rules, recipes, or validation capabilities.
+Use MCP when an AI coding agent should inspect Cloudeval projects, reports, rules, recipes, or validation capabilities.
 
 ```bash
 cloudeval mcp serve --toolset readonly
@@ -329,7 +329,7 @@ The installer can offer optional MCP setup for detected clients. It does not cre
 
 ## Full Docs
 
-- [CloudEval app](https://cloudeval.ai)
+- [Cloudeval app](https://cloudeval.ai)
 - [CLI workflows](https://docs.cloudeval.ai/cli/workflows)
 - [Get started with the CLI](https://docs.cloudeval.ai/cli/get-started)
 - [CLI command reference](https://docs.cloudeval.ai/cli/commands)
@@ -361,6 +361,6 @@ pnpm -C packages/cli test:cli:noninteractive
 
 ## License
 
-CloudEval CLI first-party code is provided under the [CloudEval CLI License](https://github.com/ganakailabs/cloudeval-cli/blob/main/LICENSE).
+Cloudeval CLI first-party code is provided under the [Cloudeval CLI License](https://github.com/ganakailabs/cloudeval-cli/blob/main/LICENSE).
 
 Production third-party attribution is published in [THIRD_PARTY_NOTICES.md](https://github.com/ganakailabs/cloudeval-cli/blob/main/THIRD_PARTY_NOTICES.md), and the release SBOM is published as [sbom.spdx.json](https://github.com/ganakailabs/cloudeval-cli/blob/main/sbom.spdx.json).

@@ -1,10 +1,10 @@
 # License Compliance
 
-CloudEval CLI is a distributed client for a commercial SaaS product. The
+Cloudeval CLI is a distributed client for a commercial SaaS product. The
 recommended posture is:
 
-- keep CloudEval-authored CLI code proprietary under `LICENSE`;
-- allow customers to install and run official releases for CloudEval use;
+- keep Cloudeval-authored CLI code proprietary under `LICENSE`;
+- allow customers to install and run official releases for Cloudeval use;
 - publish third-party notices and an SBOM with every binary release;
 - allow permissive production dependencies by default; and
 - block copyleft, source-available, unknown, or unlicensed production
@@ -15,7 +15,7 @@ first-party license before public or enterprise redistribution.
 
 ## Current First-Party License Choice
 
-Use a proprietary CloudEval CLI license instead of MIT or Apache-2.0 for the
+Use a proprietary Cloudeval CLI license instead of MIT or Apache-2.0 for the
 CLI itself.
 
 Rationale:
@@ -27,7 +27,7 @@ Rationale:
 - Ganak AI Labs should retain control over redistribution, managed-service
   wrappers, trademarks, and competing commercial use; and
 - third-party open-source packages can remain under their own permissive terms
-  without making CloudEval-authored code open source.
+  without making Cloudeval-authored code open source.
 
 If the business later wants a fully open-source CLI, Apache-2.0 is the stronger
 default than MIT because it includes an express patent license and keeps NOTICE
@@ -96,6 +96,6 @@ pnpm licenses list --prod
 ## Historical Risk Removed
 
 `ink-big-text` pulled in `cfonts@3.3.1`, which is `GPL-3.0-or-later`. The CLI
-already uses static CloudEval-authored banner art, so `ink-big-text` was not
+already uses static Cloudeval-authored banner art, so `ink-big-text` was not
 needed at runtime and should stay removed unless legal explicitly approves a
 GPL-compatible distribution model.

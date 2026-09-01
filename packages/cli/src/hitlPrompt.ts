@@ -128,7 +128,7 @@ export const promptForHitlResponses = async (
 export const summarizeHitlRequest = (options: HitlSummaryOptions): string => {
   const firstQuestion = options.questions[0];
   const lines = [
-    "Human input required by CloudEval.",
+    "Human input required by Cloudeval.",
     firstQuestion?.text ? `Action: ${firstQuestion.text}` : undefined,
     firstQuestion?.options?.length
       ? `Options: ${firstQuestion.options.map((option) => option.label).join(", ")}`

@@ -300,7 +300,7 @@ export const BUNDLED_AGENT_PROFILES: AgentProfile[] = [
     id: "change-reviewer",
     display_name: "Change Reviewer",
     description:
-      "Reviews PRs, diffs, GitHub Actions failures, and release readiness against CloudEval evidence and live Azure sync when available.",
+      "Reviews PRs, diffs, GitHub Actions failures, and release readiness against Cloudeval evidence and live Azure sync when available.",
     personality: "Delta-first, release-aware, evidence-strict, and decisive.",
     accent_key: "violet",
     icon_key: "git-pull-request",

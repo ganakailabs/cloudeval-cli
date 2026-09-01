@@ -103,12 +103,12 @@ test("formatMcpClientSetupText renders a concise human summary for written confi
     writtenPath: "/tmp/claude_desktop_config.json",
   });
 
-  assert.match(text, /^CloudEval MCP setup\n/);
+  assert.match(text, /^Cloudeval MCP setup\n/);
   assert.match(text, /Client: Claude/);
   assert.match(text, /Status: wrote config/);
   assert.match(text, /Config: \/tmp\/claude_desktop_config\.json/);
   assert.match(text, /Command: \/usr\/local\/bin\/cloudeval mcp serve --toolset readonly/);
-  assert.match(text, /Restart Claude Desktop to load the CloudEval MCP server/);
+  assert.match(text, /Restart Claude Desktop to load the Cloudeval MCP server/);
   assert.doesNotMatch(text, /Merge the shown/);
   assert.doesNotMatch(text, /^Field\s+Value/m);
 });

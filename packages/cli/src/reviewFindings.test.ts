@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  buildLocatedReviewFindings,
   buildReviewAnnotations,
   extractReviewFindings,
   parseReviewGithubConfig,
@@ -120,6 +121,117 @@ test("buildReviewAnnotations can restrict annotations to changed files", () => {
       },
     ],
   );
+});
+
+test("buildReviewAnnotations falls back to changed IaC files when reports lack source-mapped findings", () => {
+  const annotations = buildReviewAnnotations(
+    {
+      changedFiles: [
+        {
+          path: "README.md",
+          status: "modified",
+          patch: "@@ -1 +1 @@\n-old\n+new",
+        },
+        {
+          path: "azuredeploy.json",
+          status: "modified",
+          patch: "@@ -29,0 +30,4 @@\n+    \"sqlAdministratorPassword\": {\n+      \"type\": \"secureString\"\n+    },",
+        },
+        {
+          path: "nested/database.json",
+          status: "added",
+          patch: "@@ -0,0 +1,3 @@\n+{\n+  \"resources\": []\n+}",
+        },
+      ],
+      gate: {
+        status: "fail",
+        failures: [
+          "overall score 48 is below 60",
+          "validation has 0 failed policy checks and 2 failed unit tests",
+        ],
+        validation: {
+          unitTests: {
+            failed: 2,
+            failures: [],
+          },
+          policyChecks: {
+            failed: 0,
+            failures: [],
+          },
+        },
+        wellArchitected: {
+          topFindings: [],
+        },
+      },
+    },
+    {
+      changedFilesOnly: true,
+      includeNotices: false,
+      annotationLimit: 10,
+    },
+  );
+
+  assert.deepEqual(
+    annotations.map((annotation) => ({
+      path: annotation.path,
+      start_line: annotation.start_line,
+      annotation_level: annotation.annotation_level,
+      title: annotation.title,
+    })),
+    [
+      {
+        path: "azuredeploy.json",
+        start_line: 30,
+        annotation_level: "failure",
+        title: "Cloudeval gate failed",
+      },
+      {
+        path: "nested/database.json",
+        start_line: 1,
+        annotation_level: "failure",
+        title: "Cloudeval review context",
+      },
+    ],
+  );
+  assert.match(annotations[0].message, /overall score 48 is below 60/);
+});
+
+test("buildLocatedReviewFindings leaves passing reviews without fallback findings", () => {
+  assert.deepEqual(
+    buildLocatedReviewFindings({
+      changedFiles: [{ path: "azuredeploy.json", status: "modified" }],
+      gate: { status: "pass", failures: [] },
+    }),
+    [],
+  );
+});
+
+test("fallback annotations honor source_root when changed paths are root-relative", () => {
+  const annotations = buildReviewAnnotations(
+    {
+      sourceRoot: "infra",
+      changedFiles: [
+        {
+          path: "nested/database.json",
+          status: "modified",
+          patch: "@@ -3,0 +4,2 @@\n+  \"publicNetworkAccess\": \"Enabled\",",
+        },
+      ],
+      gate: {
+        status: "fail",
+        failures: ["Cost Optimization score 0 is below 50"],
+      },
+    },
+    {
+      changedFilesOnly: true,
+      includeNotices: false,
+      annotationLimit: 10,
+    },
+  );
+
+  assert.equal(annotations.length, 1);
+  assert.equal(annotations[0].path, "infra/nested/database.json");
+  assert.equal(annotations[0].start_line, 4);
 });
 
 test("parseReviewGithubConfig reads Checks and SARIF settings", () => {

@@ -18,8 +18,8 @@ import { buildSignalStoryReviewFallback } from "./signalstoryReviewAdapter.js";
 import { registerReviewLocalCommand } from "./reviewLocalCommand.js";
 import { collectReviewDiff, parseReviewDiffConfig } from "./reviewDiff.js";
 import {
+  buildLocatedReviewFindings,
   buildReviewAnnotations,
-  extractReviewFindings,
   parseReviewGithubConfig,
 } from "./reviewFindings.js";
 import { buildReviewSarifLog } from "./reviewSarif.js";
@@ -1907,7 +1907,7 @@ const writeReviewSarifOutput = async ({
       reason: "SARIF output requires --output or --sarif-output.",
     };
   }
-  const findings = extractReviewFindings(data).filter((finding) => finding.path);
+  const findings = buildLocatedReviewFindings(data).filter((finding) => finding.path);
   const sarif = buildReviewSarifLog({ findings, category });
   await fs.mkdir(path.dirname(outputFile), { recursive: true });
   await fs.writeFile(outputFile, JSON.stringify(sarif, null, 2), "utf8");

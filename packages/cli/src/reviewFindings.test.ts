@@ -184,6 +184,59 @@ test("buildLocatedReviewFindings leaves passing reviews without fallback finding
   );
 });
 
+test("buildReviewAnnotations adds deterministic IaC findings from changed ARM lines", () => {
+  const annotations = buildReviewAnnotations(
+    {
+      changedFiles: [
+        {
+          path: "nested/database.json",
+          status: "modified",
+          patch: [
+            "@@ -20,6 +20,8 @@",
+            '         "administratorLogin": "sqladmin",',
+            '+        "minimalTlsVersion": "1.0",',
+            '+        "publicNetworkAccess": "Enabled",',
+            '         "version": "12.0"',
+          ].join("\n"),
+        },
+      ],
+      gate: { validation: {}, wellArchitected: {} },
+    },
+    {
+      changedFilesOnly: true,
+      includeNotices: false,
+      annotationLimit: 10,
+    },
+  );
+
+  assert.deepEqual(
+    annotations.map((annotation) => ({
+      path: annotation.path,
+      start_line: annotation.start_line,
+      level: annotation.annotation_level,
+      title: annotation.title,
+      raw_details: annotation.raw_details,
+    })),
+    [
+      {
+        path: "nested/database.json",
+        start_line: 21,
+        level: "failure",
+        title: "TLS version is below 1.2",
+        raw_details: "local_iac_check · high",
+      },
+      {
+        path: "nested/database.json",
+        start_line: 22,
+        level: "warning",
+        title: "Public network access is enabled",
+        raw_details: "local_iac_check · medium",
+      },
+    ],
+  );
+  assert.match(annotations[0].message, /minimalTlsVersion/);
+});
+
 test("buildLocatedReviewFindings does not fabricate source locations from source_root", () => {
   const annotations = buildReviewAnnotations(
     {

@@ -2,7 +2,7 @@ export type ReviewFindingLevel = "failure" | "warning" | "notice";
 
 export type ReviewFinding = {
   id: string;
-  kind: "unit_test" | "policy_check" | "well_architected";
+  kind: "unit_test" | "policy_check" | "well_architected" | "local_iac_check";
   title: string;
   message: string;
   path?: string;
@@ -184,6 +184,123 @@ const fromFailures = ({
     };
   });
 
+const isSourceIacPath = (path: string): boolean =>
+  /\.(json|jsonc|bicep|bicepparam|tf)$/i.test(path) &&
+  !path.startsWith(".cloudeval/") &&
+  !path.startsWith(".github/");
+
+type PatchLine = {
+  line: number;
+  text: string;
+};
+
+const addedPatchLines = (patch: unknown): PatchLine[] => {
+  if (typeof patch !== "string" || !patch.trim()) return [];
+  const added: PatchLine[] = [];
+  let newLine = 0;
+  for (const rawLine of patch.split(/\r?\n/)) {
+    const hunk = rawLine.match(/^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
+    if (hunk) {
+      newLine = Number(hunk[1]);
+      continue;
+    }
+    if (rawLine.startsWith("+++") || rawLine.startsWith("---")) {
+      continue;
+    }
+    if (rawLine.startsWith("+")) {
+      added.push({ line: newLine, text: rawLine.slice(1) });
+      newLine += 1;
+      continue;
+    }
+    if (rawLine.startsWith("-")) {
+      continue;
+    }
+    if (newLine > 0) {
+      newLine += 1;
+    }
+  }
+  return added.filter((line) => line.line > 0);
+};
+
+const localIacRules: Array<{
+  id: string;
+  title: string;
+  level: ReviewFindingLevel;
+  severity: string;
+  pattern: RegExp;
+  message: () => string;
+}> = [
+  {
+    id: "tls-version-below-12",
+    title: "TLS version is below 1.2",
+    level: "failure",
+    severity: "high",
+    pattern:
+      /["']?minimalTlsVersion["']?\s*[:=]\s*["']?(?:1\.0|1\.1|TLS1_0|TLS1_1)["']?/i,
+    message: () =>
+      "This changed line sets minimalTlsVersion below TLS 1.2. Use TLS 1.2 or higher before merging.",
+  },
+  {
+    id: "public-network-access-enabled",
+    title: "Public network access is enabled",
+    level: "warning",
+    severity: "medium",
+    pattern: /["']?publicNetworkAccess["']?\s*[:=]\s*["']?Enabled["']?/i,
+    message: () =>
+      "This changed line enables public network access. Prefer private endpoints or explicit network rules for production-facing resources.",
+  },
+  {
+    id: "blob-public-access-enabled",
+    title: "Blob public access is enabled",
+    level: "failure",
+    severity: "high",
+    pattern: /["']?allowBlobPublicAccess["']?\s*[:=]\s*true\b/i,
+    message: () =>
+      "This changed line allows anonymous blob access. Set allowBlobPublicAccess to false unless this storage account is intentionally public.",
+  },
+  {
+    id: "https-only-traffic-disabled",
+    title: "HTTPS-only traffic is disabled",
+    level: "failure",
+    severity: "high",
+    pattern: /["']?(?:supportsHttpsTrafficOnly|enableHttpsTrafficOnly)["']?\s*[:=]\s*false\b/i,
+    message: () =>
+      "This changed line allows non-HTTPS traffic. Require HTTPS-only traffic for storage and application endpoints.",
+  },
+];
+
+const extractLocalIacPatchFindings = (data: Record<string, any>): ReviewFinding[] => {
+  const changedFiles = Array.isArray(data.changedFiles) ? data.changedFiles : [];
+  const findings: ReviewFinding[] = [];
+  for (const file of changedFiles) {
+    const record = asRecord(file);
+    const path = normalizePath(record.path);
+    if (!path || !isSourceIacPath(path) || record.status === "deleted") {
+      continue;
+    }
+    for (const patchLine of addedPatchLines(record.patch)) {
+      const lineText = patchLine.text.trim();
+      for (const rule of localIacRules) {
+        if (!rule.pattern.test(lineText)) {
+          continue;
+        }
+        findings.push({
+          id: `local_iac_check:${rule.id}:${slug(path)}:${patchLine.line}`,
+          kind: "local_iac_check",
+          title: rule.title,
+          message: rule.message(),
+          path,
+          startLine: patchLine.line,
+          endLine: patchLine.line,
+          level: rule.level,
+          severity: rule.severity,
+        });
+      }
+    }
+  }
+  return findings;
+};
+
 export const extractReviewFindings = (data: Record<string, any>): ReviewFinding[] => {
   const sourceRoot = compactText(data.sourceRoot ?? data.source_root, "");
   const changedPaths = new Set(
@@ -229,7 +346,19 @@ export const extractReviewFindings = (data: Record<string, any>): ReviewFinding[
 };
 
 export const buildLocatedReviewFindings = (data: Record<string, any>): ReviewFinding[] => {
-  return extractReviewFindings(data);
+  const findings = [...extractReviewFindings(data), ...extractLocalIacPatchFindings(data)];
+  const seen = new Set<string>();
+  return findings.filter((finding) => {
+    const key = [
+      finding.kind,
+      finding.path || "",
+      finding.startLine || "",
+      finding.title,
+    ].join(":");
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 };
 
 const yamlBlock = (configText: string | undefined, pathKeys: string[]): string | undefined => {

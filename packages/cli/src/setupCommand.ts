@@ -47,7 +47,7 @@ const buildConfig = (current: CliConfig, options: SetupOptions): CliConfig => ({
 export const registerSetupCommand = (program: Command, defaultBaseUrl = CLOUD_BASE_URL) => {
   program
     .command("setup")
-    .description("Configure CloudEval CLI defaults")
+    .description("Configure Cloudeval CLI defaults")
     .option("--non-interactive", "Write provided settings without prompting", false)
     .option("--base-url <url>", "Default backend API URL")
     .option("--frontend-url <url>", "Default frontend URL")

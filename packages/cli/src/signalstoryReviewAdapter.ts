@@ -48,7 +48,7 @@ export const buildSignalStoryReviewFallback = (
     shortSummary,
     detailsMarkdown,
     markdown: renderGithubSummary(stories as SignalStoryStory[], {
-      title: "CloudEval review summary",
+      title: "Cloudeval review summary",
     }),
   };
 };

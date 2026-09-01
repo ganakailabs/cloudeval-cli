@@ -263,7 +263,7 @@ const agentProfileItems: Array<SelectPanelItem<string>> = [
   {
     label: "General",
     value: "",
-    description: "Built-in CloudEval chat flow without a named Agent Profile.",
+    description: "Built-in Cloudeval chat flow without a named Agent Profile.",
   },
   ...bundledAgentProfiles.map((profile) => ({
     label: profile.display_name,
@@ -4590,7 +4590,7 @@ export const App: React.FC<AppProps> = ({
                   {
                     label: "Loading threads...",
                     value: { kind: "new" } satisfies ThreadSelectValue,
-                    description: "Reading CloudEval threads and local CLI history.",
+                    description: "Reading Cloudeval threads and local CLI history.",
                   },
                 ]
               : threadSelectItems

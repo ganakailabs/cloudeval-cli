@@ -151,7 +151,7 @@ const failureMessage = (record: Record<string, any>): string => {
   if (message && recommendation && message !== recommendation) {
     return `${message} ${recommendation}`;
   }
-  return message || recommendation || "CloudEval reported this finding without a detailed message.";
+  return message || recommendation || "Cloudeval reported this finding without a detailed message.";
 };
 
 const fromFailures = ({
@@ -298,7 +298,7 @@ export const parseReviewGithubConfig = (configText?: string): ReviewGithubConfig
       annotationLimit: numberValue(checks, "annotation_limit", "annotationLimit") ?? 50,
       changedFilesOnly: boolValue(checks, "changed_files_only", "changedFilesOnly") ?? true,
       includeNotices: boolValue(checks, "include_notices", "includeNotices") ?? false,
-      name: scalar(checks, "name") ?? "CloudEval",
+      name: scalar(checks, "name") ?? "Cloudeval",
     },
     sarif: {
       enabled: boolValue(sarif, "enabled") ?? false,

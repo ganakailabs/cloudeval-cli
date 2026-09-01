@@ -1,11 +1,11 @@
 # Third Party Notices
 
-This file lists production third-party packages included in CloudEval CLI release artifacts.
+This file lists production third-party packages included in Cloudeval CLI release artifacts.
 It is generated from the pnpm production dependency graph.
 
 Generated: 2026-05-17T00:00:00.000Z
 
-CloudEval-authored code is licensed under LICENSE. Third-party packages remain governed by their own licenses.
+Cloudeval-authored code is licensed under LICENSE. Third-party packages remain governed by their own licenses.
 This notice is not a substitute for legal review before public or enterprise distribution.
 
 ## License Summary

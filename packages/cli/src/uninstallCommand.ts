@@ -224,7 +224,7 @@ const confirmUninstall = async ({
   const rl = createInterface({ input, output });
   try {
     const answer = await rl.question(
-      "Remove CloudEval CLI local installation artifacts? Config is kept unless --remove-config is set. [y/N] ",
+      "Remove Cloudeval CLI local installation artifacts? Config is kept unless --remove-config is set. [y/N] ",
     );
     return /^(y|yes)$/i.test(answer.trim());
   } finally {
@@ -248,12 +248,12 @@ export const handleUninstallCommand = async (
   if (!dryRun && !options.yes) {
     if (!inputIsTTY) {
       throw new Error(
-        "CloudEval uninstall requires confirmation. Re-run with --yes for non-interactive removal.",
+        "Cloudeval uninstall requires confirmation. Re-run with --yes for non-interactive removal.",
       );
     }
     const confirmed = await confirmUninstall({ input, output });
     if (!confirmed) {
-      throw new Error("CloudEval uninstall cancelled.");
+      throw new Error("Cloudeval uninstall cancelled.");
     }
   }
 
@@ -294,7 +294,7 @@ export const handleUninstallCommand = async (
 
 export const formatUninstallResultText = (result: UninstallResult): string => {
   const lines = [
-    "CloudEval CLI Uninstall",
+    "Cloudeval CLI Uninstall",
     `Mode: ${result.dryRun ? "dry run" : "applied"}`,
     `Config: ${result.removeConfig ? "removed when present" : "kept"}`,
   ];
@@ -333,7 +333,7 @@ export const formatUninstallResultText = (result: UninstallResult): string => {
 export const registerUninstallCommand = (program: Command) => {
   program
     .command("uninstall")
-    .description("Remove local CloudEval CLI installation artifacts")
+    .description("Remove local Cloudeval CLI installation artifacts")
     .option("-y, --yes", "Remove without prompting for confirmation", false)
     .option("--dry-run", "Show what would be removed without deleting files", false)
     .option("--keep-config", "Keep ~/.config/cloudeval settings, sessions, and auth (default)", true)

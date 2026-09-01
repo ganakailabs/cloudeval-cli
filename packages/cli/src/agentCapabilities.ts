@@ -92,7 +92,7 @@ export const registerCapabilitiesCommand = (
   addAuthOptions(
     program
       .command("capabilities")
-      .description("Show machine-readable CloudEval CLI capabilities"),
+      .description("Show machine-readable Cloudeval CLI capabilities"),
     deps.defaultBaseUrl
   )
     .option("--format <format>", "Output format: text, json, markdown", "json")
@@ -132,7 +132,7 @@ export const registerCapabilitiesCommand = (
     .description("Display help for humans or agents")
     .action((topic?: string) => {
       if (topic === "agents") {
-        process.stdout.write(`CloudEval CLI agent contract
+        process.stdout.write(`Cloudeval CLI agent contract
 
 Use explicit subcommands for pipeable work. Machine-readable commands write data to stdout; prompts, warnings, auth flow text, and browser-open messages go to stderr.
 
@@ -146,23 +146,23 @@ Preferred agent flags:
 Mode-specific commands:
   cloudeval ask <question...>     Direct one-shot answer mode
   cloudeval agent <task...>       Agent/planner mode for deeper execution
-  cloudeval recipes list          Discover reusable CloudEval workflows
+  cloudeval recipes list          Discover reusable Cloudeval workflows
   cloudeval recipes show <id>     Show skill-style commands, safety, and outputs
   cloudeval recipes run <id>      Run ask/agent recipes or print explicit commands for side-effecting recipes
-  cloudeval skills list           Discover portable CloudEval SKILL.md instructions
+  cloudeval skills list           Discover portable Cloudeval SKILL.md instructions
   cloudeval skills doctor         Validate skill files and recipe references
 
 Progress:
   ask/agent show a live stderr loader and reasoning progress bar in interactive terminals, then write the final answer to stdout. In non-TTY logs this falls back to append-only stderr events. Use --progress none or --quiet to suppress progress, or --format ndjson --progress ndjson to stream progress on stdout.
 
 Human input:
-  Interactive terminals prompt on stderr for CloudEval approval requests and then resume the same thread. With --non-interactive, the command exits 6 and returns HITL_REQUIRED in JSON/NDJSON output.
+  Interactive terminals prompt on stderr for Cloudeval approval requests and then resume the same thread. With --non-interactive, the command exits 6 and returns HITL_REQUIRED in JSON/NDJSON output.
 
 Sensitive identifiers:
   Account, session, and tenant identifiers are redacted by default. Use --show-sensitive-ids only in trusted local workflows.
 
 Recipes and skills:
-  Recipes only cover implemented CloudEval capabilities: projects, reports, billing, credentials, connections, architecture/dependency diagrams, models, sessions, ask/agent, diagnostics, frontend links, and MCP.
+  Recipes only cover implemented Cloudeval capabilities: projects, reports, billing, credentials, connections, architecture/dependency diagrams, models, sessions, ask/agent, diagnostics, frontend links, and MCP.
   Visualization recipes include cloudeval-architecture-diagram-export and cloudeval-dependency-diagram-export; both require an explicit output path before writing files.
   Public SKILL.md files live under skills/ for agent hosts that support portable skill instructions. MCP remains the preferred execution path.
 

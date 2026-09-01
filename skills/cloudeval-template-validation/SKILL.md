@@ -1,22 +1,22 @@
 ---
 name: cloudeval-template-validation
-description: Use when validating, parsing, testing, or release-gating CloudEval-supported cloud template files with existing validation and rule commands.
+description: Use when validating, parsing, testing, or release-gating Cloudeval-supported cloud template files with existing validation and rule commands.
 ---
 
-# CloudEval Template Validation
+# Cloudeval Template Validation
 
 ## WHEN
 - Use for local template parse, validation, test-suite, rule lookup, and release-gate workflows.
-- Use before creating a CloudEval template project from local template files.
+- Use before creating a Cloudeval template project from local template files.
 - Use for `cloudeval-template-preflight` and `cloudeval-template-release-gate` recipes.
 
 ## DO NOT USE FOR
-- Unsupported IaC formats or cloud scanners that CloudEval does not currently expose.
+- Unsupported IaC formats or cloud scanners that Cloudeval does not currently expose.
 - Creating projects, running cost or WAF reports, or modifying cloud accounts.
 - Pasting full private templates, parameters, secrets, or generated report payloads into public artifacts.
 
-## Required CloudEval Context
-- Authenticated CloudEval session or scoped access key.
+## Required Cloudeval Context
+- Authenticated Cloudeval session or scoped access key.
 - Local template JSON file path.
 - Optional local parameters JSON file path.
 - Validation policy choices such as severity threshold or failed-only output.

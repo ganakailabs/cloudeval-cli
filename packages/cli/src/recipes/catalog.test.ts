@@ -12,7 +12,7 @@ import {
 
 const repoRoot = path.resolve(fileURLToPath(new URL("../../../../", import.meta.url)));
 
-test("recipe catalog only exposes implemented CloudEval workflows", () => {
+test("recipe catalog only exposes implemented Cloudeval workflows", () => {
   assert.deepEqual(recipeIds, [
     "cloudeval-cloud-cost-review",
     "cloudeval-well-architected-framework-review",
@@ -62,7 +62,7 @@ test("recipe catalog only exposes implemented CloudEval workflows", () => {
   }
 });
 
-test("recipe prompt rendering uses existing CloudEval command context", () => {
+test("recipe prompt rendering uses existing Cloudeval command context", () => {
   const recipe = getRecipe("cloudeval-cloud-cost-review");
   assert(recipe);
 
@@ -74,7 +74,7 @@ test("recipe prompt rendering uses existing CloudEval command context", () => {
   assert.match(prompt, /cost review/i);
   assert.match(prompt, /project-main/);
   assert.match(prompt, /30d/);
-  assert.match(prompt, /CloudEval reports/i);
+  assert.match(prompt, /Cloudeval reports/i);
   assert.doesNotMatch(prompt.toLowerCase(), /terraform/);
 });
 
@@ -139,7 +139,7 @@ test("public skill files include Azure-style operational sections", async () => 
     for (const section of [
       "## WHEN",
       "## DO NOT USE FOR",
-      "## Required CloudEval Context",
+      "## Required Cloudeval Context",
       "## CLI Commands",
       "## MCP Tools",
       "## Safety Requirements",

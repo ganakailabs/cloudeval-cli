@@ -175,7 +175,7 @@ need awk
 
 RESOLVED_VERSION="$(resolve_release_version)"
 
-log "Installing CloudEval CLI through the public installer"
+log "Installing Cloudeval CLI through the public installer"
 printf 'repo=%s\nrequested_version=%s\nresolved_version=%s\ninstaller_url=%s\ninstall_home=%s\nbase_url=%s\n' \
   "$REPO" "$VERSION" "$RESOLVED_VERSION" "$INSTALLER_URL" "$INSTALL_HOME" "$BASE_URL"
 

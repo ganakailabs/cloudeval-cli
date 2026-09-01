@@ -19,9 +19,9 @@ test("builds deterministic review fallback from installed SignalStory runtime", 
 
   assert.match(
     String(fallback?.shortSummary),
-    /CloudEval review completed with FAIL/
+    /Cloudeval review completed with FAIL/
   );
-  assert.match(String(fallback?.markdown), /### CloudEval review summary/);
+  assert.match(String(fallback?.markdown), /### Cloudeval review summary/);
   assert.match(String(fallback?.markdown), /\*\*FAIL\*\*/);
   assert.ok(String(fallback?.markdown).includes("**64/100 \\(FAIR\\)**"));
 });

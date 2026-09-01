@@ -39,7 +39,7 @@ test("skill lookup supports bare and fully qualified ids", async () => {
 
   assert.equal(cost?.id, "cloudeval-cost");
   assert.equal(qualified?.id, "cloudeval-cost");
-  assert.match(cost?.content ?? "", /# CloudEval Cost/);
+  assert.match(cost?.content ?? "", /# Cloudeval Cost/);
   assert.match(cost?.content ?? "", /## MCP Tools/);
 });
 

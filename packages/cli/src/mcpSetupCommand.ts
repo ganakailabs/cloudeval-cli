@@ -109,12 +109,12 @@ const commandLine = (server: McpServerConfig): string =>
 
 const writtenSetupNextStep = (client: McpSetupClient): string =>
   client === "claude"
-    ? "Restart Claude Desktop to load the CloudEval MCP server."
+    ? "Restart Claude Desktop to load the Cloudeval MCP server."
     : client === "cursor"
-      ? "Restart Cursor to load the CloudEval MCP server."
+      ? "Restart Cursor to load the Cloudeval MCP server."
       : client === "vscode"
-        ? "Reload VS Code or run MCP: List Servers to load the CloudEval MCP server."
-        : "Restart or reload your MCP client to load the CloudEval MCP server.";
+        ? "Reload VS Code or run MCP: List Servers to load the Cloudeval MCP server."
+        : "Restart or reload your MCP client to load the Cloudeval MCP server.";
 
 export const buildMcpClientSetup = ({
   client,
@@ -181,7 +181,7 @@ export const formatMcpClientSetupText = (
   options: FormatMcpClientSetupTextOptions = {}
 ): string => {
   const lines = [
-    "CloudEval MCP setup",
+    "Cloudeval MCP setup",
     `Client: ${titleizeClient(setup.client)}`,
     `Transport: ${setup.transport}`,
     `Command: ${commandLine(setup.server)}`,

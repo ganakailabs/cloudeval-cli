@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { buildReviewSarifLog } from "./reviewSarif.js";
 
-test("buildReviewSarifLog renders CloudEval findings as SARIF 2.1.0", () => {
+test("buildReviewSarifLog renders Cloudeval findings as SARIF 2.1.0", () => {
   const sarif = buildReviewSarifLog({
     category: "cloudeval-iac",
     findings: [
@@ -30,7 +30,7 @@ test("buildReviewSarifLog renders CloudEval findings as SARIF 2.1.0", () => {
   });
 
   assert.equal(sarif.version, "2.1.0");
-  assert.equal(sarif.runs[0].tool.driver.name, "CloudEval");
+  assert.equal(sarif.runs[0].tool.driver.name, "Cloudeval");
   assert.equal(sarif.runs[0].automationDetails.id, "cloudeval-iac");
   assert.deepEqual(
     sarif.runs[0].tool.driver.rules.map((rule) => rule.id),

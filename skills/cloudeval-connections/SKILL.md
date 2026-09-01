@@ -1,9 +1,9 @@
 ---
 name: cloudeval-connections
-description: Use when inspecting CloudEval cloud/template connections, connection health, or connection frontend links.
+description: Use when inspecting Cloudeval cloud/template connections, connection health, or connection frontend links.
 ---
 
-# CloudEval Connections
+# Cloudeval Connections
 
 ## WHEN
 - Use for `connections list|get|open`, connection audits, and project-to-connection context.
@@ -13,7 +13,7 @@ description: Use when inspecting CloudEval cloud/template connections, connectio
 - Creating provider credentials or modifying cloud accounts.
 - Showing embedded secrets or raw provider payloads.
 
-## Required CloudEval Context
+## Required Cloudeval Context
 - Auth and optional connection id.
 - Project id if the connection is being checked as part of a project healthcheck.
 

@@ -1,9 +1,9 @@
 ---
 name: cloudeval-billing
-description: Use when inspecting CloudEval credits, plans, usage, ledger, invoices, notifications, top-ups, or checkout links.
+description: Use when inspecting Cloudeval credits, plans, usage, ledger, invoices, notifications, top-ups, or checkout links.
 ---
 
-# CloudEval Billing
+# Cloudeval Billing
 
 ## WHEN
 - Use for credit status, usage trends, ledger summaries, invoices, notifications, top-up readiness, and plan visibility.
@@ -13,7 +13,7 @@ description: Use when inspecting CloudEval credits, plans, usage, ledger, invoic
 - Sharing full ledger data, customer billing identifiers, or payment details.
 - Creating checkout sessions unless the user explicitly chooses a top-up pack.
 
-## Required CloudEval Context
+## Required Cloudeval Context
 - Auth for account-specific billing, credits, ledger, invoices, notifications, and top-ups.
 - Range for usage review: `7d`, `30d`, `90d`, or `all`.
 

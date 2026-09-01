@@ -2,7 +2,7 @@
   "spdxVersion": "SPDX-2.3",
   "dataLicense": "CC0-1.0",
   "SPDXID": "SPDXRef-DOCUMENT",
-  "name": "CloudEval CLI production dependency SBOM",
+  "name": "Cloudeval CLI production dependency SBOM",
   "documentNamespace": "https://github.com/ganakailabs/cloudeval-cli/sbom/2026-05-17T00:00:00.000Z",
   "creationInfo": {
     "created": "2026-05-17T00:00:00.000Z",
@@ -13,7 +13,7 @@
   "packages": [
     {
       "SPDXID": "SPDXRef-Package-CloudEval-CLI",
-      "name": "CloudEval CLI",
+      "name": "Cloudeval CLI",
       "versionInfo": "0.35.2",
       "downloadLocation": "https://github.com/ganakailabs/cloudeval-cli",
       "filesAnalyzed": false,
@@ -261,7 +261,7 @@
       "licenseConcluded": "UNLICENSED",
       "licenseDeclared": "UNLICENSED",
       "copyrightText": "NOASSERTION",
-      "summary": "Private CloudEval SignalStory rule packs and deterministic insight logic."
+      "summary": "Private Cloudeval SignalStory rule packs and deterministic insight logic."
     },
     {
       "SPDXID": "SPDXRef-Package--grpc-grpc-js-1.14.4",

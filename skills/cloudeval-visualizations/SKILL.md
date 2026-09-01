@@ -1,19 +1,19 @@
 ---
 name: cloudeval-visualizations
-description: Use when exporting CloudEval architecture or dependency diagrams and preparing visual evidence for reviews.
+description: Use when exporting Cloudeval architecture or dependency diagrams and preparing visual evidence for reviews.
 ---
 
-# CloudEval Visualizations
+# Cloudeval Visualizations
 
 ## WHEN
 - Use for architecture diagram export, dependency diagram export, graph image downloads, and frontend visualization links.
-- Use when the user needs visual proof of architecture or relationship state from an existing CloudEval project.
+- Use when the user needs visual proof of architecture or relationship state from an existing Cloudeval project.
 
 ## DO NOT USE FOR
-- Generating synthetic diagrams unrelated to CloudEval project graph data.
+- Generating synthetic diagrams unrelated to Cloudeval project graph data.
 - Publishing diagrams externally before labels, resources, and topology have been reviewed.
 
-## Required CloudEval Context
+## Required Cloudeval Context
 - Project id.
 - Explicit output path for local image export.
 - Layout choice: `architecture` for architecture view, `dependency` for relationship view.

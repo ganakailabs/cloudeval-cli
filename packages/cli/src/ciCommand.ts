@@ -17,12 +17,12 @@ type CiInitOptions = {
 };
 
 export const registerCiCommand = (program: Command) => {
-  const ci = program.command("ci").description("CloudEval CI gate utilities");
+  const ci = program.command("ci").description("Cloudeval CI gate utilities");
 
   ci
     .command("init")
-    .description("Generate a CloudEval CI gate using the existing cloudeval review command")
-    .requiredOption("--project <id>", "CloudEval project id")
+    .description("Generate a Cloudeval CI gate using the existing cloudeval review command")
+    .requiredOption("--project <id>", "Cloudeval project id")
     .option("--provider <provider>", "github-actions or azure-pipelines", "github-actions")
     .option("--workspace <path>", "Workspace directory", ".")
     .option("--write", "Write generated files to the workspace", false)
@@ -46,7 +46,7 @@ export const registerCiCommand = (program: Command) => {
             workspace,
             filesWritten,
             note: options.write
-              ? "Generated CloudEval CI gate files."
+              ? "Generated Cloudeval CI gate files."
               : "Preview only. Re-run with --write to create files.",
           },
           filesWritten,

@@ -1,19 +1,19 @@
 ---
 name: cloudeval-waf
-description: Use when triaging CloudEval Well-Architected findings, failed rules, pillar risk, or remediation plans.
+description: Use when triaging Cloudeval Well-Architected findings, failed rules, pillar risk, or remediation plans.
 ---
 
-# CloudEval WAF
+# Cloudeval WAF
 
 ## WHEN
 - Use for `cloudeval-well-architected-framework-review`, Well-Architected reports, rule failures, pillar summaries, and remediation planning.
-- Use when the user asks what is risky about a CloudEval project.
+- Use when the user asks what is risky about a Cloudeval project.
 
 ## DO NOT USE FOR
 - Creating new assessment frameworks or unsupported rule engines.
 - Regenerating WAF reports unless the user explicitly asks.
 
-## Required CloudEval Context
+## Required Cloudeval Context
 - Project id.
 - Latest WAF report and rules if available.
 - Optional severity filter.

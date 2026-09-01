@@ -188,7 +188,7 @@ const resolveProject = async (
   }
   const first = projects[0];
   if (!first) {
-    throw new Error("No CloudEval project is available. Pass --project or create a project first.");
+    throw new Error("No Cloudeval project is available. Pass --project or create a project first.");
   }
   return first;
 };
@@ -196,7 +196,7 @@ const resolveProject = async (
 export const registerAgentsCommand = (program: Command, deps: AgentsDeps) => {
   const agents = program
     .command("agents")
-    .description("CloudEval Agent Profile utilities");
+    .description("Cloudeval Agent Profile utilities");
 
   addAgentOutputOptions(agents.command("list").description("List Agent Profiles"), deps)
     .action(async (options: AgentsOptions, command) => {

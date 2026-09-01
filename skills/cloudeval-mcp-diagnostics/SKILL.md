@@ -1,9 +1,9 @@
 ---
 name: cloudeval-mcp-diagnostics
-description: Use when setting up or diagnosing CloudEval MCP, config, auth, doctor, status, update, completion, banner, and deeplinks.
+description: Use when setting up or diagnosing Cloudeval MCP, config, auth, doctor, status, update, completion, banner, and deeplinks.
 ---
 
-# CloudEval MCP Diagnostics
+# Cloudeval MCP Diagnostics
 
 ## WHEN
 - Use for MCP setup in Codex, Cursor, Claude, VS Code, or generic clients.
@@ -13,7 +13,7 @@ description: Use when setting up or diagnosing CloudEval MCP, config, auth, doct
 - Running project reports, creating credentials, or checkout sessions unless explicitly routed to another skill.
 - Editing client config files without showing a dry run first.
 
-## Required CloudEval Context
+## Required Cloudeval Context
 - No auth required for local diagnostics.
 - Auth required for private MCP tools after setup.
 - Client name and desired toolset for MCP setup.

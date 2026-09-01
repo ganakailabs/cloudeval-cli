@@ -1,19 +1,19 @@
 ---
 name: cloudeval-credentials
-description: Use when managing CloudEval scoped access-key templates, creation, inspection, rotation, or revocation.
+description: Use when managing Cloudeval scoped access-key templates, creation, inspection, rotation, or revocation.
 ---
 
-# CloudEval Credentials
+# Cloudeval Credentials
 
 ## WHEN
 - Use for access-key templates, automation key setup, credential inventory, inspection, rotation, and revocation.
-- Use when configuring agents or CI with scoped CloudEval access.
+- Use when configuring agents or CI with scoped Cloudeval access.
 
 ## DO NOT USE FOR
 - User browser login, session tokens, or storing secrets in repository files.
 - Printing one-time secrets unless the user explicitly requests them in the current secure context.
 
-## Required CloudEval Context
+## Required Cloudeval Context
 - Auth as a user with credential permissions.
 - Project id for scoped key creation.
 - Template id from `cloudeval credentials templates`.

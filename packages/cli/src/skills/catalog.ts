@@ -41,7 +41,7 @@ const defaultSkillsPath = path.join(repoRoot, "skills");
 export const requiredSkillSections = [
   "## WHEN",
   "## DO NOT USE FOR",
-  "## Required CloudEval Context",
+  "## Required Cloudeval Context",
   "## CLI Commands",
   "## MCP Tools",
   "## Safety Requirements",
@@ -52,81 +52,81 @@ export const requiredSkillSections = [
 export const bundledSkillMetadata: SkillMetadata[] = [
   {
     id: "cloudeval",
-    title: "CloudEval Skill Router",
+    title: "Cloudeval Skill Router",
     description:
-      "Routes CloudEval CLI and MCP work across projects, reports, billing, credentials, connections, diagnostics, recipes, and agent workflows.",
+      "Routes Cloudeval CLI and MCP work across projects, reports, billing, credentials, connections, diagnostics, recipes, and agent workflows.",
   },
   {
     id: "cloudeval-agent-ops",
-    title: "CloudEval Agent Ops",
+    title: "Cloudeval Agent Ops",
     description:
-      "Runs CloudEval ask, agent, chat/TUI, model selection, recipes, and local session recovery.",
+      "Runs Cloudeval ask, agent, chat/TUI, model selection, recipes, and local session recovery.",
   },
   {
     id: "cloudeval-billing",
-    title: "CloudEval Billing",
+    title: "Cloudeval Billing",
     description:
-      "Inspects CloudEval credits, plans, usage, ledger, invoices, notifications, top-ups, and checkout links.",
+      "Inspects Cloudeval credits, plans, usage, ledger, invoices, notifications, top-ups, and checkout links.",
   },
   {
     id: "cloudeval-connections",
-    title: "CloudEval Connections",
+    title: "Cloudeval Connections",
     description:
-      "Inspects CloudEval cloud/template connections, connection health, and connection frontend links.",
+      "Inspects Cloudeval cloud/template connections, connection health, and connection frontend links.",
   },
   {
     id: "cloudeval-cost",
-    title: "CloudEval Cost",
+    title: "Cloudeval Cost",
     description:
-      "Triages CloudEval cost reports, billing usage, savings opportunities, anomalies, and credit impact.",
+      "Triages Cloudeval cost reports, billing usage, savings opportunities, anomalies, and credit impact.",
   },
   {
     id: "cloudeval-credentials",
-    title: "CloudEval Credentials",
+    title: "Cloudeval Credentials",
     description:
-      "Manages CloudEval scoped access-key templates, creation, inspection, rotation, and revocation.",
+      "Manages Cloudeval scoped access-key templates, creation, inspection, rotation, and revocation.",
   },
   {
     id: "cloudeval-graph-intelligence",
-    title: "CloudEval Graph Intelligence",
+    title: "Cloudeval Graph Intelligence",
     description:
       "Inspects project graphs, graph drift, sync history, dependency impact, critical paths, and graph-derived risk signals.",
   },
   {
     id: "cloudeval-mcp-diagnostics",
-    title: "CloudEval MCP Diagnostics",
+    title: "Cloudeval MCP Diagnostics",
     description:
-      "Sets up and diagnoses CloudEval MCP, config, auth, doctor, status, update, completion, banner, and deeplinks.",
+      "Sets up and diagnoses Cloudeval MCP, config, auth, doctor, status, update, completion, banner, and deeplinks.",
   },
   {
     id: "cloudeval-projects",
-    title: "CloudEval Projects",
+    title: "Cloudeval Projects",
     description:
-      "Lists, inspects, creates, opens, and health-checks CloudEval projects and template project workflows.",
+      "Lists, inspects, creates, opens, and health-checks Cloudeval projects and template project workflows.",
   },
   {
     id: "cloudeval-reports",
-    title: "CloudEval Reports",
+    title: "Cloudeval Reports",
     description:
-      "Lists, shows, generates, downloads, and summarizes CloudEval cost and Well-Architected reports.",
+      "Lists, shows, generates, downloads, and summarizes Cloudeval cost and Well-Architected reports.",
   },
   {
     id: "cloudeval-template-validation",
-    title: "CloudEval Template Validation",
+    title: "Cloudeval Template Validation",
     description:
-      "Validates, parses, tests, and release-gates CloudEval-supported cloud template files.",
+      "Validates, parses, tests, and release-gates Cloudeval-supported cloud template files.",
   },
   {
     id: "cloudeval-visualizations",
-    title: "CloudEval Visualizations",
+    title: "Cloudeval Visualizations",
     description:
-      "Exports CloudEval architecture or dependency diagrams and prepares visual evidence for reviews.",
+      "Exports Cloudeval architecture or dependency diagrams and prepares visual evidence for reviews.",
   },
   {
     id: "cloudeval-waf",
-    title: "CloudEval WAF",
+    title: "Cloudeval WAF",
     description:
-      "Triages CloudEval Well-Architected findings, failed rules, pillar risk, and remediation plans.",
+      "Triages Cloudeval Well-Architected findings, failed rules, pillar risk, and remediation plans.",
   },
 ];
 
@@ -166,7 +166,7 @@ const readSkillFile = async (id: string): Promise<{ content: string; path?: stri
     content: synthesizeSkillContent(metadataById.get(id) ?? {
       id,
       title: id,
-      description: "CloudEval skill metadata.",
+      description: "Cloudeval skill metadata.",
     }),
     source: "embedded",
   };
@@ -217,12 +217,12 @@ description: ${metadata.description}
 # ${metadata.title}
 
 ## WHEN
-- Use this bundled CloudEval skill when source SKILL.md files are unavailable at runtime.
+- Use this bundled Cloudeval skill when source SKILL.md files are unavailable at runtime.
 
 ## DO NOT USE FOR
-- Unsupported CloudEval capabilities or private backend internals.
+- Unsupported Cloudeval capabilities or private backend internals.
 
-## Required CloudEval Context
+## Required Cloudeval Context
 - Run \`cloudeval capabilities --format json\` and \`cloudeval recipes list\` to discover available commands.
 
 ## CLI Commands
@@ -240,7 +240,7 @@ description: ${metadata.description}
 - State the command or MCP tool used and separate confirmed evidence from missing data.
 
 ## Failure Handling
-- If the source skill file is needed, run from a CloudEval CLI checkout or inspect the public repository.
+- If the source skill file is needed, run from a Cloudeval CLI checkout or inspect the public repository.
 `;
 
 const frontMatterNamePattern = (id: string): RegExp =>

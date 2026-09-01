@@ -210,13 +210,13 @@ export const getUpdateStatus = async ({
   });
   if (!response.ok) {
     throw new Error(
-      `Failed to check latest CloudEval CLI release (${response.status} ${response.statusText}).`
+      `Failed to check latest Cloudeval CLI release (${response.status} ${response.statusText}).`
     );
   }
   const payload = (await response.json()) as Record<string, unknown>;
   const tagName = typeof payload.tag_name === "string" ? payload.tag_name : "";
   if (!tagName) {
-    throw new Error("Latest CloudEval CLI release response did not include tag_name.");
+    throw new Error("Latest Cloudeval CLI release response did not include tag_name.");
   }
   return statusFromLatest(
     currentVersion,
@@ -258,7 +258,7 @@ export const runInstaller = async ({
   });
   if (!response.ok) {
     throw new Error(
-      `Failed to download CloudEval CLI installer (${response.status} ${response.statusText}).`
+      `Failed to download Cloudeval CLI installer (${response.status} ${response.statusText}).`
     );
   }
   const installerScript = await response.text();
@@ -307,7 +307,7 @@ export const runInstaller = async ({
           return;
         }
         reject(
-          new Error(`CloudEval CLI installer exited with code ${code ?? "unknown"}.`)
+          new Error(`Cloudeval CLI installer exited with code ${code ?? "unknown"}.`)
         );
       });
       child.stdout?.on("data", (chunk) => output.write(chunk));
@@ -332,7 +332,7 @@ export const runInstaller = async ({
         resolve();
         return;
       }
-      reject(new Error(`CloudEval CLI installer exited with code ${code ?? "unknown"}.`));
+      reject(new Error(`Cloudeval CLI installer exited with code ${code ?? "unknown"}.`));
     });
     child.stdout?.on("data", (chunk) => output.write(chunk));
     child.stderr?.on("data", (chunk) => output.write(chunk));
@@ -421,7 +421,7 @@ const promptForUpdate = async ({
   const rl = createInterface({ input, output });
   try {
     const answer = await rl.question(
-      `CloudEval CLI ${status.latestVersion} is available (current ${status.currentVersion}). Install now? [y/N] `
+      `Cloudeval CLI ${status.latestVersion} is available (current ${status.currentVersion}). Install now? [y/N] `
     );
     return /^(y|yes)$/i.test(answer.trim());
   } finally {
@@ -444,7 +444,7 @@ export const formatUpdateStatusText = (result: UpdateCommandResult): string => {
   })();
 
   const lines = [
-    "CloudEval CLI Update",
+    "Cloudeval CLI Update",
     `Status: ${statusText}`,
     `Current version: ${result.currentVersion}`,
     `Latest version: ${result.latestVersion}`,
@@ -468,7 +468,7 @@ export const formatUpdateStatusText = (result: UpdateCommandResult): string => {
       "MCP onboarding: interactive updates can ask to configure Codex, Claude, Cursor, or VS Code after installation."
     );
     lines.push(
-      "MCP refresh: Restart or reload configured MCP clients when you are ready to load new CloudEval tools. CloudEval does not restart those apps for you."
+      "MCP refresh: Restart or reload configured MCP clients when you are ready to load new Cloudeval tools. Cloudeval does not restart those apps for you."
     );
   }
 
@@ -505,7 +505,7 @@ export const handleUpdateCommand = async (
   if (!confirmed) {
     if (!canPromptForUpdate) {
       throw new Error(
-        `CloudEval CLI ${status.latestVersion} is available. Re-run with --yes to update non-interactively.`
+        `Cloudeval CLI ${status.latestVersion} is available. Re-run with --yes to update non-interactively.`
       );
     }
     return { ...status, action: "skipped" as const };
@@ -612,7 +612,7 @@ export const registerUpdateCommand = (
 ) => {
   program
     .command("update")
-    .description("Update CloudEval CLI to the latest published version")
+    .description("Update Cloudeval CLI to the latest published version")
     .option("-c, --check", "Check for the latest version without installing", false)
     .option("-y, --yes", "Install without prompting for confirmation", false)
     .option(

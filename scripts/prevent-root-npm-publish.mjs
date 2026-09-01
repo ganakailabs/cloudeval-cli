@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-console.error(`CloudEval CLI is published as @ganakailabs/cloudeval-cli from packages/cli, not the monorepo root.
+console.error(`Cloudeval CLI is published as @ganakailabs/cloudeval-cli from packages/cli, not the monorepo root.
 
 Run:
   cd packages/cli

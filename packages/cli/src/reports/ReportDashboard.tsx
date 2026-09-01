@@ -239,7 +239,7 @@ export const ReportDashboard: React.FC<ReportDashboardProps> = ({
   return (
     <Box flexDirection="column" paddingX={1} gap={1}>
       <Box justifyContent="space-between">
-        <Text color={terminalTheme.success}>CloudEval {report.kind.toUpperCase()} report</Text>
+        <Text color={terminalTheme.success}>Cloudeval {report.kind.toUpperCase()} report</Text>
         <Text dimColor>{report.id}</Text>
       </Box>
       <Box justifyContent="space-between">

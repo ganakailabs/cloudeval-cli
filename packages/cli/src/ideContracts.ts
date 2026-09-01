@@ -303,12 +303,12 @@ export const buildDraftFix = async (input: {
     patch: undefined as string | undefined,
     explanation:
       evidence.finding.recommendation ??
-      "CloudEval has evidence for this finding, but no safe deterministic patch is available yet.",
+      "Cloudeval has evidence for this finding, but no safe deterministic patch is available yet.",
     evidenceRefs: evidence.evidenceRefs,
   };
 };
 
-const githubActionsWorkflow = (projectId: string): string => `name: CloudEval review
+const githubActionsWorkflow = (projectId: string): string => `name: Cloudeval review
 
 on:
   pull_request:
@@ -328,7 +328,7 @@ jobs:
         with:
           node-version: "20"
       - run: npm install -g @ganakailabs/cloudeval-cli
-      - name: CloudEval review
+      - name: Cloudeval review
         env:
           CLOUDEVAL_ACCESS_KEY: \${{ secrets.CLOUDEVAL_ACCESS_KEY }}
         run: |
@@ -350,9 +350,9 @@ steps:
     inputs:
       versionSpec: "20.x"
   - script: npm install -g @ganakailabs/cloudeval-cli
-    displayName: Install CloudEval CLI
+    displayName: Install Cloudeval CLI
   - script: cloudeval review --project ${projectId} --ignore-dirty --format json --non-interactive
-    displayName: CloudEval review
+    displayName: Cloudeval review
     env:
       CLOUDEVAL_ACCESS_KEY: $(CLOUDEVAL_ACCESS_KEY)
 `;

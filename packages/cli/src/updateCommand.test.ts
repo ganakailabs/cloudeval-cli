@@ -61,7 +61,7 @@ test("formatUpdateStatusText renders human output without a field/value table", 
     action: "current",
   });
 
-  assert.match(text, /^CloudEval CLI Update\n/);
+  assert.match(text, /^Cloudeval CLI Update\n/);
   assert.match(text, /Status: up to date/);
   assert.match(text, /Current version: 0.11.7/);
   assert.doesNotMatch(text, /^Field\s+Value/m);
@@ -84,7 +84,7 @@ test("formatUpdateStatusText mentions agent onboarding after updates", () => {
   assert.match(text, /MCP onboarding/);
   assert.match(text, /Codex, Claude, Cursor, or VS Code/);
   assert.match(text, /Restart or reload configured MCP clients when you are ready/);
-  assert.match(text, /CloudEval does not restart those apps for you/);
+  assert.match(text, /Cloudeval does not restart those apps for you/);
 });
 
 test("runInstaller pipes installer script to bash with the resolved release tag", async () => {

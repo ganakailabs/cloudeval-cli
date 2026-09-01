@@ -35,4 +35,4 @@ for (const file of ["LICENSE", "NOTICE", "THIRD_PARTY_NOTICES.md", "sbom.spdx.js
   copyFileSync(source, path.join(cliRoot, file));
 }
 
-console.log("ok - prepared CloudEval CLI npm package artifacts");
+console.log("ok - prepared Cloudeval CLI npm package artifacts");

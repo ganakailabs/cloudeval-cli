@@ -615,7 +615,7 @@ test("mcp serve initializes, lists tools, and returns strict JSON-RPC stdout", a
   } finally {
     const closed = await mcp.close();
     assert.equal(closed.exitCode, 0, closed.stderr);
-    assert.match(closed.stderr, /CloudEval MCP server started/);
+    assert.match(closed.stderr, /Cloudeval MCP server started/);
   }
 });
 
@@ -971,7 +971,7 @@ test("mcp serve filters resources and prompts by focused toolset", async () => {
   }
 });
 
-test("mcp serve exposes CloudEval resources and prompts", async () => {
+test("mcp serve exposes Cloudeval resources and prompts", async () => {
   const mcp = await startMcp([
     "--toolset",
     "all",
@@ -1146,7 +1146,7 @@ test("mcp recipe tools expose catalog and keep recipe runs out of readonly tools
   }
 });
 
-test("mcp tools can call authenticated CloudEval APIs without stdin credentials", async () => {
+test("mcp tools can call authenticated Cloudeval APIs without stdin credentials", async () => {
   const backend = await startBackend();
   const outputDir = await fs.mkdtemp(path.join(os.tmpdir(), "cloudeval-mcp-image-"));
   const mcp = await startMcp([

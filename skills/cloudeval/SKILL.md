@@ -1,20 +1,20 @@
 ---
 name: cloudeval
-description: Use when routing CloudEval CLI or MCP work across projects, reports, billing, credentials, connections, diagnostics, recipes, and agent workflows.
+description: Use when routing Cloudeval CLI or MCP work across projects, reports, billing, credentials, connections, diagnostics, recipes, and agent workflows.
 ---
 
-# CloudEval Skill Router
+# Cloudeval Skill Router
 
 ## WHEN
-- Use when a user asks to inspect, operate, troubleshoot, or automate CloudEval from a terminal, Codex, Cursor, Claude, VS Code, or another MCP client.
-- Start here when intent spans multiple CloudEval domains or when the correct command is unclear.
+- Use when a user asks to inspect, operate, troubleshoot, or automate Cloudeval from a terminal, Codex, Cursor, Claude, VS Code, or another MCP client.
+- Start here when intent spans multiple Cloudeval domains or when the correct command is unclear.
 - Prefer MCP tools when available; use CLI commands when the user needs exact terminal steps or install-time behavior.
 
 ## DO NOT USE FOR
 - Unsupported cloud scanners, unsupported repository integrations, generic infrastructure review, or private backend internals.
 - Reading local secrets, session databases, `.env*`, `.cloudeval-downloads/`, smoke artifacts, or raw report JSON unless explicitly requested.
 
-## Required CloudEval Context
+## Required Cloudeval Context
 - Discovery: `cloudeval capabilities --format json`, `cloudeval recipes list`, `cloudeval help agents`.
 - Auth: `cloudeval login` for user workflows or a scoped `CLOUDEVAL_ACCESS_KEY` for automation.
 - Project scope: run `cloudeval projects list` when no project id is provided for project/report work.

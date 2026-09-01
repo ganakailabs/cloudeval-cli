@@ -203,7 +203,7 @@ test("device code login fails instead of falling back when backend bootstrap is 
   try {
     await assert.rejects(
       () => loginWithDeviceCode("https://cloudeval.ai"),
-      /CloudEval backend device-code login is blocked by an authentication layer/
+      /Cloudeval backend device-code login is blocked by an authentication layer/
     );
     assert.deepEqual(requests, [
       "https://cloudeval.ai/api/v1/auth/device/code",
@@ -650,7 +650,7 @@ test("validated auth status clears stored auth when current user profile is miss
       assert.match(url, /\/auth\/me$/);
       return jsonResponse(
         {
-          detail: "USER_NOT_FOUND: CloudEval user profile not found; onboarding required.",
+          detail: "USER_NOT_FOUND: Cloudeval user profile not found; onboarding required.",
         },
         404
       );
@@ -1304,7 +1304,7 @@ test("login fails instead of falling back when browser-assisted device flow is u
           login("https://cloudeval.ai", {
             browserOpener: () => true,
           }),
-        /CloudEval backend device-code login is blocked by an authentication layer/
+        /Cloudeval backend device-code login is blocked by an authentication layer/
       );
       assert.deepEqual(requests, ["https://cloudeval.ai/api/v1/auth/device/code"]);
     } finally {
@@ -1399,7 +1399,7 @@ test("browser-assisted device flow honors frontend URL override", async () => {
   }
 });
 
-test("browser-assisted device flow rewrites backend localhost verification URLs to CloudEval", async () => {
+test("browser-assisted device flow rewrites backend localhost verification URLs to Cloudeval", async () => {
   const tempHome = await mkdtemp(path.join(os.tmpdir(), "cloudeval-auth-"));
   const previousStorageOverride = process.env.CLOUDEVAL_ALLOW_INSECURE_FILE_STORAGE;
   const previousFrontendUrl = process.env.CLOUDEVAL_FRONTEND_URL;

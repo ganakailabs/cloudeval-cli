@@ -1,19 +1,19 @@
 ---
 name: cloudeval-agent-ops
-description: Use when running CloudEval ask, agent, chat/TUI, model selection, recipes, or local session recovery from CLI or MCP.
+description: Use when running Cloudeval ask, agent, chat/TUI, model selection, recipes, or local session recovery from CLI or MCP.
 ---
 
-# CloudEval Agent Ops
+# Cloudeval Agent Ops
 
 ## WHEN
 - Use for one-shot `ask`, non-interactive `agent`, interactive `chat`/TUI, model defaults, recipe execution, and session recovery.
-- Use when another coding agent needs a pipeable CloudEval command with predictable stdout/stderr behavior.
+- Use when another coding agent needs a pipeable Cloudeval command with predictable stdout/stderr behavior.
 
 ## DO NOT USE FOR
 - Project creation, report generation, credential lifecycle, billing checkout, or diagram exports unless a recipe explicitly routes there.
 - Quoting full local transcripts unless the user explicitly asks for that exact session.
 
-## Required CloudEval Context
+## Required Cloudeval Context
 - Auth for `ask`, `agent`, model-backed recipes, and project-aware responses.
 - Project id for project-scoped questions.
 - Model from `cloudeval models list` or configured default from `cloudeval models default get`.
@@ -35,7 +35,7 @@ description: Use when running CloudEval ask, agent, chat/TUI, model selection, r
 ## Operating Pattern
 1. For agent integrations, prefer `--format json` or `--format ndjson`; for humans, default text is fine.
 2. Use `ask` for bounded questions and `agent` only when tool use, planning, or HITL may be needed.
-3. If a request might mutate CloudEval state, switch to the relevant domain skill before running it.
+3. If a request might mutate Cloudeval state, switch to the relevant domain skill before running it.
 4. Store or resume useful threads with `sessions`; summarize rather than dumping transcripts.
 
 ## Safety Requirements

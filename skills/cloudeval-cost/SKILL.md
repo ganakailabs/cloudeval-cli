@@ -1,9 +1,9 @@
 ---
 name: cloudeval-cost
-description: Use when triaging CloudEval cost reports, billing usage, savings opportunities, anomalies, or credit impact.
+description: Use when triaging Cloudeval cost reports, billing usage, savings opportunities, anomalies, or credit impact.
 ---
 
-# CloudEval Cost
+# Cloudeval Cost
 
 ## WHEN
 - Use for `cloudeval-cloud-cost-review`, cost report triage, savings summaries, anomaly review, and billing usage context.
@@ -13,7 +13,7 @@ description: Use when triaging CloudEval cost reports, billing usage, savings op
 - Billing checkout or plan changes without the billing skill.
 - Claims that are not backed by a cost report, billing usage, or explicit missing-evidence note.
 
-## Required CloudEval Context
+## Required Cloudeval Context
 - Project id for cost reports.
 - Optional billing range: `7d`, `30d`, `90d`, or `all`.
 - Auth for reports and billing usage.
@@ -32,7 +32,7 @@ description: Use when triaging CloudEval cost reports, billing usage, savings op
 
 ## Operating Pattern
 1. Confirm report freshness with `reports list`.
-2. Use cost report details for cloud cost drivers and billing usage for CloudEval credit consumption.
+2. Use cost report details for cloud cost drivers and billing usage for Cloudeval credit consumption.
 3. Rank findings by impact, confidence, and actionability.
 4. Separate confirmed evidence, inferred risk, and missing data.
 

@@ -349,7 +349,7 @@ const generateWorkspaceConfig = (
   const parameterLine = parameters ? `    parameters: ${parameters}` : "";
   const sourceEntryLine = sourceEntry ? `    source_entry: ${sourceEntry}` : "";
   return [
-    "# CloudEval config v1. Paths are relative to this workspace root.",
+    "# Cloudeval config v1. Paths are relative to this workspace root.",
     "# Visualization source for diagrams and reports.",
     "version: 1",
     "stacks:",
@@ -367,7 +367,7 @@ const generateWorkspaceConfig = (
     "  auto_refresh_on_resolve: true",
     "",
     "# Optional CI gates for `cloudeval review` and GitHub Actions.",
-    "# Uncomment and tune these when pull requests should be blocked by CloudEval.",
+    "# Uncomment and tune these when pull requests should be blocked by Cloudeval.",
     "# ci:",
     "#   gates:",
     "#     enforcement: block_pull_request",
@@ -1114,7 +1114,7 @@ const renderProjectOverviewText = (overview: ProjectOverview, warnings: string[]
   ];
   const width = Math.max(...rows.map(([key]) => key.length));
   const lines = [
-    "CloudEval Project Overview",
+    "Cloudeval Project Overview",
     "",
     ...rows.map(([key, value]) => `${key.padEnd(width)}  ${value}`),
   ];
@@ -1501,7 +1501,7 @@ export const registerProjectsCommand = (
 
   configureGraphCommands(projects, deps);
 
-  addCommon(addAuthOptions(projects.command("create").description("Create a CloudEval project"), deps.defaultBaseUrl))
+  addCommon(addAuthOptions(projects.command("create").description("Create a Cloudeval project"), deps.defaultBaseUrl))
     .option("--template-url <url>", "Template URL")
     .option("--template-file <path>", "Local JSON template file")
     .option("--parameters-file <path>", "Local JSON parameters file")

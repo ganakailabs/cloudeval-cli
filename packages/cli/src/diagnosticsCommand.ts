@@ -86,7 +86,7 @@ const formatDiagnosticStatusText = ({
     ? new Date(auth.accessTokenExpiresAt).toISOString()
     : undefined;
   const lines = [
-    "CloudEval CLI Status",
+    "Cloudeval CLI Status",
     `Profile: ${profile}`,
     `Base URL: ${baseUrl}`,
     `Config path: ${configPath}`,
@@ -121,7 +121,7 @@ export const registerDiagnosticsCommands = (
   deps: DiagnosticsDeps
 ) => {
   addDiagnosticsOptions(
-    program.command("status").description("Show CloudEval CLI status"),
+    program.command("status").description("Show Cloudeval CLI status"),
     deps.defaultBaseUrl
   ).action(async (options: DiagnosticsOptions, command) => {
     const baseUrl = await deps.resolveBaseUrl(options, command);

@@ -182,11 +182,11 @@ const resolveProjectId = async ({
   }
   if (matches.length > 1) {
     throw new Error(
-      `Multiple CloudEval projects match ${repo}. Pass --project to choose one.`,
+      `Multiple Cloudeval projects match ${repo}. Pass --project to choose one.`,
     );
   }
   throw new Error(
-    `No CloudEval GitHub project matched ${repo}. Create one in CloudEval or pass --project.`,
+    `No Cloudeval GitHub project matched ${repo}. Create one in Cloudeval or pass --project.`,
   );
 };
 
@@ -1144,7 +1144,7 @@ const reviewDecisionLine = ({
   rating?: ScoreRating;
 }): string => {
   if (gateStatus === "FAIL") {
-    return `${statusIcon(gateStatus)} **FAIL** - configured gates failed. Do not merge until the action queue is resolved and CloudEval is rerun.`;
+    return `${statusIcon(gateStatus)} **FAIL** - configured gates failed. Do not merge until the action queue is resolved and Cloudeval is rerun.`;
   }
   if (gateStatus === "WARN") {
     return `${statusIcon(gateStatus)} **WARN** - configured gates are warning-only or non-blocking for this run. Review the action queue before merge.`;
@@ -1202,7 +1202,7 @@ const reviewActionItems = ({
       parts.push(`${displayNumber(failedPolicyChecks)} failed policy checks`);
     }
     actions.push(
-      `**Fix validation failures** - resolve ${joinReadableList(parts)} and rerun CloudEval review.`,
+      `**Fix validation failures** - resolve ${joinReadableList(parts)} and rerun Cloudeval review.`,
     );
   }
   if (weakest) {
@@ -1224,7 +1224,7 @@ const reviewActionItems = ({
       actions.push(`**Address gate failure** - ${compactMarkdownCell(failure)}.`);
     }
   }
-  actions.push("**Rerun CloudEval** - confirm the updated gate, reports, and PR comment after remediation.");
+  actions.push("**Rerun Cloudeval** - confirm the updated gate, reports, and PR comment after remediation.");
   const unique: string[] = [];
   const seenKeys = new Set<string>();
   for (const action of actions) {
@@ -2469,7 +2469,7 @@ const deterministicAiSummary = (
       ),
     };
   }
-  throw new Error("CloudEval SignalStory review rules did not produce a deterministic fallback summary.");
+  throw new Error("Cloudeval SignalStory review rules did not produce a deterministic fallback summary.");
 };
 
 const generateAiSummary = async (input: GenerateAiSummaryInput): Promise<Record<string, any>> => {
@@ -2591,7 +2591,7 @@ const buildMarkdownSummary = (data: Record<string, any>): string => {
   });
   const radarLines = wellArchitectedRadarLines(pillars);
   const lines = [
-    "## CloudEval infrastructure review",
+    "## Cloudeval infrastructure review",
     "",
     "| Signal | Result |",
     "| --- | --- |",
@@ -2613,7 +2613,7 @@ const buildMarkdownSummary = (data: Record<string, any>): string => {
     "<details>",
     "<summary><strong>Source</strong></summary>",
     "",
-    `- **CloudEval project**: ${projectDisplay}`,
+    `- **Cloudeval project**: ${projectDisplay}`,
     `- **Repository**: \`${repository}\``,
     `- **Ref**: \`${ref}\``,
     `- **Commit**: \`${commit}\``,
@@ -2769,11 +2769,11 @@ export const registerReviewCommand = (
     program.command("review").description("Review the current GitHub-backed project from a pushed commit"),
     deps.defaultBaseUrl,
   )
-    .option("--project <id>", "CloudEval project id. If omitted, resolve by GitHub repo metadata.")
+    .option("--project <id>", "Cloudeval project id. If omitted, resolve by GitHub repo metadata.")
     .option("--repo <owner/repo>", "GitHub repository. Defaults to git origin.")
     .option("--ref <name>", "Git branch/ref. Defaults to current branch.")
     .option("--commit-sha <sha>", "Commit SHA to sync/review. Defaults to local HEAD.")
-    .option("--source-root <path>", "GitHub source root used by the CloudEval project.")
+    .option("--source-root <path>", "GitHub source root used by the Cloudeval project.")
     .option("--config <path>", "Path to .cloudeval/config.yaml for gate thresholds.")
     .option("--no-wait", "Submit GitHub sync and return without waiting for analysis.")
     .option("--wait-timeout <ms>", "Maximum time to wait for GitHub sync.", "900000")

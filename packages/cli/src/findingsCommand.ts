@@ -19,7 +19,7 @@ const resolveWorkspace = (value?: string): string => path.resolve(value ?? proce
 export const registerFindingsCommand = (program: Command) => {
   const findings = program
     .command("findings")
-    .description("Inspect CloudEval IDE findings and evidence");
+    .description("Inspect Cloudeval IDE findings and evidence");
 
   findings
     .command("evidence")

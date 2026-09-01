@@ -1,4 +1,4 @@
-# CloudEval Credentials API Contract
+# Cloudeval Credentials API Contract
 
 This contract backs the CLI `credentials` commands and the frontend
 **Settings -> Developer -> Auth Keys** page. The public product label is
@@ -289,7 +289,7 @@ Returns live effective capabilities for the current identity:
 
 ```json
 {
-  "product": "CloudEval",
+  "product": "Cloudeval",
   "auth": {
     "supports": ["browser_pkce", "device_flow", "access_key", "mcp_oauth"]
   },

@@ -792,8 +792,8 @@ setup_mcp_client() {
 }
 
 print_mcp_restart_notice() {
-  echo -e "  ${YELLOW}Restart or reload configured MCP clients when you are ready to load new CloudEval tools.${NC}"
-  echo -e "  ${MUTED}CloudEval does not restart those apps for you.${NC}"
+  echo -e "  ${YELLOW}Restart or reload configured MCP clients when you are ready to load new Cloudeval tools.${NC}"
+  echo -e "  ${MUTED}Cloudeval does not restart those apps for you.${NC}"
 }
 
 print_mcp_setup_summary() {
@@ -843,7 +843,7 @@ telemetry_env_disables() {
 
 write_telemetry_opt_out() {
   if "$DEST" config set telemetry.enabled false --format json >/dev/null 2>&1; then
-    echo -e "${GREEN}✓ Telemetry disabled in CloudEval CLI config.${NC}"
+    echo -e "${GREEN}✓ Telemetry disabled in Cloudeval CLI config.${NC}"
     return 0
   fi
 
@@ -854,7 +854,7 @@ write_telemetry_opt_out() {
 
 print_telemetry_notice() {
   echo -e "${BLUE}Telemetry${NC}"
-  echo -e "  CloudEval sends limited CLI usage events to Azure Application Insights to improve reliability."
+  echo -e "  Cloudeval sends limited CLI usage events to Azure Application Insights to improve reliability."
   echo -e "  It does not send prompts, command output, tokens, local paths, project/resource/account/session/tenant IDs, stack traces, or cloud resource names."
   echo -e "  It may include CLI/runtime versions and signed-in email/name after login."
 }
@@ -913,8 +913,8 @@ run_optional_agent_setup() {
   fi
 
   echo ""
-  echo -e "${BLUE}CloudEval for agents${NC}"
-  echo -e "  MCP adds CloudEval tools, recipes, and prompts to Codex, Claude, Cursor, and VS Code."
+  echo -e "${BLUE}Cloudeval for agents${NC}"
+  echo -e "  MCP adds Cloudeval tools, recipes, and prompts to Codex, Claude, Cursor, and VS Code."
 
   local detected
   local configured_existing
@@ -964,7 +964,7 @@ run_optional_agent_setup() {
     return 0
   fi
 
-  if [ -z "${CLOUDEVAL_INSTALL_MCP_CLIENTS:-}" ] && ! ask_agent_setup_yes_no "Set up CloudEval MCP for missing agents and IDEs now?" "n"; then
+  if [ -z "${CLOUDEVAL_INSTALL_MCP_CLIENTS:-}" ] && ! ask_agent_setup_yes_no "Set up Cloudeval MCP for missing agents and IDEs now?" "n"; then
     print_agent_setup_next_steps
     INSTALL_MCP_SETUP="declined"
     return 0

@@ -97,7 +97,7 @@ const titleFromQuestion = (question: string): string => {
     .replace(/^(can you|could you|please|help me|show me|tell me|what is|what are|how do i)\s+/i, "")
     .replace(/^(review|investigate|triage|summarize|explain|analyze)\s+the\s+/i, "$1 ");
   if (!singleLine) {
-    return "Untitled CloudEval session";
+    return "Untitled Cloudeval session";
   }
   const words = singleLine.split(/\s+/).slice(0, 7);
   const joined = words.join(" ");
@@ -573,7 +573,7 @@ const normalizeLegacySession = (value: any): LocalSession | null => {
     threadId: value.threadId,
     title: typeof value.title === "string" && value.title.trim()
       ? sanitizeTitle(value.title)
-      : "Untitled CloudEval session",
+      : "Untitled Cloudeval session",
     projectId: optionalString(value.projectId),
     projectName: optionalString(value.projectName),
     model: optionalString(value.model),

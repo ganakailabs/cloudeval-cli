@@ -10,4 +10,4 @@ for (const file of ["LICENSE", "NOTICE", "THIRD_PARTY_NOTICES.md", "sbom.spdx.js
   rmSync(path.join(cliRoot, file), { force: true });
 }
 
-console.log("ok - cleaned temporary CloudEval CLI npm package artifacts");
+console.log("ok - cleaned temporary Cloudeval CLI npm package artifacts");

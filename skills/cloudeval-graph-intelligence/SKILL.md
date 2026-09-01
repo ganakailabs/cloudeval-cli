@@ -1,9 +1,9 @@
 ---
 name: cloudeval-graph-intelligence
-description: Use when inspecting CloudEval project graphs, graph drift, sync history, dependency impact, critical paths, and graph-derived risk signals.
+description: Use when inspecting Cloudeval project graphs, graph drift, sync history, dependency impact, critical paths, and graph-derived risk signals.
 ---
 
-# CloudEval Graph Intelligence
+# Cloudeval Graph Intelligence
 
 ## WHEN
 - Use for graph drift, dependency impact, critical path, sync-run, and graph snapshot reviews.
@@ -11,13 +11,13 @@ description: Use when inspecting CloudEval project graphs, graph drift, sync his
 - Use for `cloudeval-graph-drift-watch` and `cloudeval-impact-analysis` recipes.
 
 ## DO NOT USE FOR
-- Generic graph analysis outside CloudEval project graph APIs.
+- Generic graph analysis outside Cloudeval project graph APIs.
 - Creating synthetic topology, changing infrastructure, or claiming drift without graph evidence.
 - Publishing raw topology, resource identifiers, or customer graph data into public artifacts.
 
-## Required CloudEval Context
-- Authenticated CloudEval session or scoped access key.
-- CloudEval project id.
+## Required Cloudeval Context
+- Authenticated Cloudeval session or scoped access key.
+- Cloudeval project id.
 - Optional resource id for impact-focused analysis.
 - Optional sync version range for graph diff work.
 

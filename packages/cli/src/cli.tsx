@@ -178,7 +178,7 @@ const completionScriptPath = (
   }
 };
 
-const ZSH_FPATH_MARKER = "CloudEval CLI completions";
+const ZSH_FPATH_MARKER = "Cloudeval CLI completions";
 
 const ensureZshCompletionFpath = async (): Promise<void> => {
   const zshrc = path.join(os.homedir(), ".zshrc");
@@ -742,7 +742,7 @@ const resolveCliConfig = async (command?: Command) => {
 program
   .name("cloudeval")
   .description(
-    "CloudEval CLI. Run without arguments to open the Terminal UI; use subcommands for pipeable CLI workflows.",
+    "Cloudeval CLI. Run without arguments to open the Terminal UI; use subcommands for pipeable CLI workflows.",
   )
   .version(CLI_VERSION)
   .addHelpText(
@@ -1273,7 +1273,7 @@ completionCommand
 
 program
   .command("tui")
-  .description("Open the CloudEval Terminal UI")
+  .description("Open the Cloudeval Terminal UI")
   .option("--base-url <url>", "Backend base URL", DEFAULT_BASE_URL)
   .option(
     "--tab <tab>",
@@ -2038,7 +2038,7 @@ program
               langsmithTraceId: pendingHitlRequest.langsmith_trace_id,
               questions,
             };
-            const message = "Human input required by CloudEval.";
+            const message = "Human input required by Cloudeval.";
             const summary = summarizeHitlRequest({
               questions,
               checkpointId,
@@ -2148,7 +2148,7 @@ program
       }
 
       if (!finalResponse.trim()) {
-        const noResponseMessage = `No final response returned by CloudEval (last stream status: ${chatState.status ?? "unknown"}). Retry with --verbose or --format ndjson to inspect stream progress.`;
+        const noResponseMessage = `No final response returned by Cloudeval (last stream status: ${chatState.status ?? "unknown"}). Retry with --verbose or --format ndjson to inspect stream progress.`;
         progressWriter.clear();
         if (jsonOutput) {
           const output = {

@@ -10,7 +10,8 @@
   "scripts": {
     "build": "pnpm -r build",
     "lint": "pnpm -r --workspace-concurrency=1 --if-present lint",
-    "test": "node --test scripts/npm-package-metadata.test.mjs && bash scripts/install-onboarding.test.sh && pnpm -r --workspace-concurrency=1 --if-present test",
+    "test": "node --test scripts/brand-consistency.test.mjs scripts/npm-package-metadata.test.mjs && bash scripts/install-onboarding.test.sh && pnpm -r --workspace-concurrency=1 --if-present test",
+    "test:brand": "node --test scripts/brand-consistency.test.mjs",
     "test:npm-package": "node --test scripts/npm-package-metadata.test.mjs",
     "release:verify-sync": "node scripts/verify-release-channel-sync.mjs",
     "test:installer": "bash scripts/install-onboarding.test.sh",

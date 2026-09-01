@@ -5633,6 +5633,68 @@ test("review command renders structured AI details from summary endpoint", async
   }
 });
 
+test("review command deduplicates repeated AI detail recommendations", async () => {
+  const backend = await startBackend({
+    projects: [githubProject],
+    reviewSummaryResponse: {
+      summary:
+        "The review failed because validation and cost optimization need remediation.",
+      details:
+        "**Main risk**\nThe gate is failing.\n\n**Recommended actions**\n- Fix **2 failed unit tests** and rerun CloudEval review.\n- Fix the two failing unit tests and re-run the validation suite.\n- Increase cost optimization to meet the minimum threshold.\n\n**Evidence used**\nValidation totals and Well-Architected scores.",
+      recommended_actions: [
+        "Fix 2 failed unit tests and rerun CloudEval review.",
+        "Fix the two failing unit tests and re-run the validation suite.",
+        "Increase cost optimization to meet the minimum threshold.",
+      ],
+      fallback_used: false,
+      warnings: [],
+    },
+  });
+  const outputDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "cloudeval-review-ai-summary-dedupe-"),
+  );
+  try {
+    await runCli([
+      "review",
+      "--base-url",
+      backend.baseUrl,
+      "--access-key",
+      "test-token",
+      "--project",
+      "project-github",
+      "--repo",
+      "ganakailabs/cloudeval-github-sync-e2e",
+      "--ref",
+      "main",
+      "--commit-sha",
+      "sha-review-ai-dedupe",
+      "--ignore-dirty",
+      "--poll-interval",
+      "10",
+      "--format",
+      "json",
+      "--output",
+      outputDir,
+      "--non-interactive",
+    ]);
+
+    const markdownArtifact = await fs.readFile(
+      path.join(outputDir, "review.md"),
+      "utf8",
+    );
+    const recommendedActionsSection =
+      markdownArtifact.match(/\*\*Recommended actions\*\*([\s\S]*?)\*\*Evidence used\*\*/)?.[1] ?? "";
+    assert.equal(
+      (recommendedActionsSection.match(/failed unit tests/gi) ?? []).length,
+      1,
+    );
+    assert.match(recommendedActionsSection, /Increase cost optimization/);
+  } finally {
+    await fs.rm(outputDir, { recursive: true, force: true });
+    await backend.close();
+  }
+});
+
 test("review command replaces instruction-like AI details with deterministic evidence", async () => {
   const backend = await startBackend({
     projects: [githubProject],

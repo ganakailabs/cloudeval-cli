@@ -1226,8 +1226,11 @@ const reviewActionItems = ({
   }
   actions.push("**Rerun CloudEval** - confirm the updated gate, reports, and PR comment after remediation.");
   const unique: string[] = [];
+  const seenKeys = new Set<string>();
   for (const action of actions) {
-    if (!unique.includes(action)) {
+    const key = normalizeActionDedupeKey(action);
+    if (!seenKeys.has(key)) {
+      seenKeys.add(key);
       unique.push(action);
     }
     if (unique.length >= 3) {
@@ -2250,15 +2253,87 @@ const waitForReviewReports = async ({
   return latest;
 };
 
+const normalizeActionDedupeKey = (value: string): string => {
+  const normalized = value
+    .replace(/\*\*/g, "")
+    .replace(/\bone\b/gi, "1")
+    .replace(/\btwo\b/gi, "2")
+    .replace(/\bthree\b/gi, "3")
+    .replace(/\bfour\b/gi, "4")
+    .replace(/\bfive\b/gi, "5")
+    .replace(/\bsix\b/gi, "6")
+    .replace(/\bseven\b/gi, "7")
+    .replace(/\beight\b/gi, "8")
+    .replace(/\bnine\b/gi, "9")
+    .replace(/\bten\b/gi, "10")
+    .replace(/\bfailing\b/gi, "failed")
+    .replace(/\bre-run\b/gi, "rerun")
+    .toLowerCase();
+
+  if (/\b(unit|validation)\s+tests?\b/.test(normalized) && /\b(fix|resolve|triage|address|rerun)\b/.test(normalized)) {
+    return "validation-unit-tests";
+  }
+  if (/\bpolicy\b/.test(normalized) && /\b(fix|resolve|triage|address|rerun)\b/.test(normalized)) {
+    return "validation-policy-checks";
+  }
+  if (/\bcost optimization\b/.test(normalized) && /\b(prioritize|increase|improve|fix|raise|address)\b/.test(normalized)) {
+    return "pillar-cost-optimization";
+  }
+  if (/\breliability\b/.test(normalized) && /\b(prioritize|increase|improve|fix|raise|address)\b/.test(normalized)) {
+    return "pillar-reliability";
+  }
+  if (/\bsecurity\b/.test(normalized) && /\b(prioritize|increase|improve|fix|raise|address)\b/.test(normalized)) {
+    return "pillar-security";
+  }
+
+  return normalized.replace(/[^a-z0-9]+/g, " ").trim();
+};
+
+const dedupeRecommendedActionsInMarkdown = (detailsMarkdown: string): string => {
+  const lines = detailsMarkdown.split(/\r?\n/);
+  const seen = new Set<string>();
+  let inRecommendedActions = false;
+  const output: string[] = [];
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    const isBoldHeading = /^\*\*[^*]+\*\*$/.test(trimmed);
+    const isMarkdownHeading = /^#{1,6}\s+/.test(trimmed);
+    if (
+      inRecommendedActions &&
+      (isMarkdownHeading || (isBoldHeading && !/^\*\*Recommended actions\*\*$/i.test(trimmed)))
+    ) {
+      inRecommendedActions = false;
+    }
+    if (/^\*\*Recommended actions\*\*$/i.test(trimmed) || /^#{1,6}\s+Recommended actions\s*$/i.test(trimmed)) {
+      inRecommendedActions = true;
+      seen.clear();
+      output.push(line);
+      continue;
+    }
+    if (inRecommendedActions && /^\s*[-*]\s+/.test(line)) {
+      const key = normalizeActionDedupeKey(line.replace(/^\s*[-*]\s+/, ""));
+      if (key && seen.has(key)) {
+        continue;
+      }
+      seen.add(key);
+    }
+    output.push(line);
+  }
+
+  return output.join("\n").trim();
+};
+
 const renderAiSummarySections = (shortSummary: string, detailsMarkdown: string): string => {
   const lines = [shortSummary.trim()];
-  if (detailsMarkdown.trim()) {
+  const sanitizedDetailsMarkdown = dedupeRecommendedActionsInMarkdown(detailsMarkdown);
+  if (sanitizedDetailsMarkdown.trim()) {
     lines.push(
       "",
       "<details>",
       "<summary><strong>Detailed AI reviewer note - evidence, reasoning, and next actions</strong></summary>",
       "",
-      detailsMarkdown.trim(),
+      sanitizedDetailsMarkdown.trim(),
       "",
       "</details>",
     );

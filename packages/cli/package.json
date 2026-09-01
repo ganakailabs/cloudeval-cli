@@ -23,7 +23,7 @@
     "mcp",
     "agents"
   ],
-  "homepage": "https://docs.cloudeval.ai/reference/cli-overview",
+  "homepage": "https://docs.cloudeval.ai/cli/get-started",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/ganakailabs/cloudeval-cli.git",

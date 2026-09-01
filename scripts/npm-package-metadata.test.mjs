@@ -24,7 +24,7 @@ test("CLI package is publishable to npm with required public artifacts", () => {
   assert.deepEqual(pkg.engines, { node: ">=20" });
   assert.deepEqual(pkg.publishConfig, { access: "public" });
   assert.equal(pkg.scripts.prepack, "node ../../scripts/prepare-npm-package.mjs");
-  assert.equal(pkg.homepage, "https://docs.cloudeval.ai/reference/cli-overview");
+  assert.equal(pkg.homepage, "https://docs.cloudeval.ai/cli/get-started");
   assert.equal(pkg.repository.url, "git+https://github.com/ganakailabs/cloudeval-cli.git");
   assert.equal(pkg.repository.directory, "packages/cli");
   assert.equal(pkg.bugs.url, "https://github.com/ganakailabs/cloudeval-cli/issues");
@@ -92,7 +92,7 @@ test("public install docs use the scoped npm package name", () => {
   assert.doesNotMatch(rootReadme, /npm install -g cloudeval-cli\b/);
   assert.doesNotMatch(cliReadme, /npm install -g cloudeval-cli\b/);
   assert.match(cliReadme, /https:\/\/cloudeval\.ai/);
-  assert.match(cliReadme, /https:\/\/docs\.cloudeval\.ai\/reference\/cli-overview/);
+  assert.match(cliReadme, /https:\/\/docs\.cloudeval\.ai\/cli\/get-started/);
   assert.match(cliReadme, /https:\/\/github\.com\/ganakailabs\/cloudeval-cli\/issues/);
   assert.match(cliReadme, /https:\/\/discord\.gg\/tk5dcU2a7T/);
   assert.doesNotMatch(cliReadme, /\[S_tool_/);

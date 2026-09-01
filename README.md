@@ -12,7 +12,7 @@
 [![GitHub downloads](https://img.shields.io/github/downloads/ganakailabs/cloudeval-cli/total?style=flat-square&logo=github&label=release%20downloads)](https://github.com/ganakailabs/cloudeval-cli/releases)
 [![Release health](https://img.shields.io/github/actions/workflow/status/ganakailabs/cloudeval-cli/semantic-release.yml?branch=main&style=flat-square&label=release%20health)](https://github.com/ganakailabs/cloudeval-cli/actions/workflows/semantic-release.yml)
 [![CloudEval](https://img.shields.io/badge/product-CloudEval-b6f23c?style=flat-square&labelColor=0b0f0a)](https://cloudeval.ai)
-[![Docs](https://img.shields.io/badge/docs-docs.cloudeval.ai-2d6cdf?style=flat-square&logo=readthedocs&logoColor=white)](https://docs.cloudeval.ai/quickstart/use-the-cli.md)
+[![Docs](https://img.shields.io/badge/docs-docs.cloudeval.ai-2d6cdf?style=flat-square&logo=readthedocs&logoColor=white)](https://docs.cloudeval.ai/cli/get-started)
 [![Discord](https://img.shields.io/badge/Discord-community-5865F2?style=flat-square&logo=discord&logoColor=white)](https://discord.gg/tk5dcU2a7T)
 [![Issues](https://img.shields.io/github/issues/ganakailabs/cloudeval-cli?style=flat-square&logo=github&label=issues)](https://github.com/ganakailabs/cloudeval-cli/issues)
 [![AGENTS.md](https://img.shields.io/badge/contributors-AGENTS.md-555?style=flat-square)](https://github.com/ganakailabs/cloudeval-cli/blob/main/AGENTS.md)
@@ -166,7 +166,7 @@ cloudeval capabilities --format json
 cloudeval doctor --deep
 ```
 
-Full docs: [Use the CLI](https://docs.cloudeval.ai/quickstart/use-the-cli.md) and [CLI command reference](https://docs.cloudeval.ai/reference/cli-command-reference.md).
+Full docs: [Get started with the CLI](https://docs.cloudeval.ai/cli/get-started) and [CLI command reference](https://docs.cloudeval.ai/cli/commands).
 
 Inside the Terminal UI, use the Thread control or `/thread` to switch open chat
 sessions, recent CloudEval chat threads, and local CLI sessions. `/thread new`
@@ -373,12 +373,12 @@ Output contract:
 
 | Link                                                                                            | Purpose                                                       |
 | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
-| [Use the CLI](https://docs.cloudeval.ai/quickstart/use-the-cli.md)                              | Install, login, create a project, and ask a grounded question |
-| [CLI command reference](https://docs.cloudeval.ai/reference/cli-command-reference.md)           | Full command and flag list                                    |
-| [Terminal UI](https://docs.cloudeval.ai/reference/terminal-ui.md)                               | TUI navigation and keyboard model                             |
-| [MCP client setup](https://docs.cloudeval.ai/reference/mcp-client-setup.md)                     | Codex, Cursor, Claude, VS Code, and generic MCP hosts         |
-| [Agent and automation rules](https://docs.cloudeval.ai/reference/agent-and-automation-rules.md) | Safe automation conventions                                   |
-| [Troubleshooting](https://docs.cloudeval.ai/troubleshooting/sign-in-and-onboarding.md)          | Sign-in, onboarding, reports, and billing                     |
+| [Get started with the CLI](https://docs.cloudeval.ai/cli/get-started)                            | Install, login, create a project, and ask a grounded question |
+| [CLI command reference](https://docs.cloudeval.ai/cli/commands)                                  | Full command and flag list                                    |
+| [Terminal UI](https://docs.cloudeval.ai/cli/terminal)                                           | TUI navigation and keyboard model                             |
+| [MCP client setup](https://docs.cloudeval.ai/agents/mcp-client-setup)                             | Codex, Cursor, Claude, VS Code, and generic MCP hosts         |
+| [Agent behavior and automation safety](https://docs.cloudeval.ai/agents/automation-rules)        | Safe automation conventions                                   |
+| [Troubleshooting](https://docs.cloudeval.ai/help/sign-in-and-onboarding)                         | Sign-in, onboarding, reports, and billing                     |
 
 ## Build From Source
 

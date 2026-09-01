@@ -10,7 +10,7 @@ Review Azure infrastructure before merge - from CLI, CI, and AI agents.
   <a href="https://www.npmjs.com/package/@ganakailabs/cloudeval-cli"><img alt="npm version" src="https://img.shields.io/npm/v/@ganakailabs/cloudeval-cli?style=flat-square&logo=npm"></a>
   <a href="https://github.com/ganakailabs/cloudeval-cli/actions/workflows/semantic-release.yml"><img alt="release health" src="https://img.shields.io/github/actions/workflow/status/ganakailabs/cloudeval-cli/semantic-release.yml?branch=main&style=flat-square&label=release%20health"></a>
   <a href="https://cloudeval.ai"><img alt="CloudEval app" src="https://img.shields.io/badge/app-cloudeval.ai-b6f23c?style=flat-square&labelColor=0b0f0a"></a>
-  <a href="https://docs.cloudeval.ai/reference/cli-overview"><img alt="docs" src="https://img.shields.io/badge/docs-docs.cloudeval.ai-2d6cdf?style=flat-square"></a>
+  <a href="https://docs.cloudeval.ai/cli/get-started"><img alt="docs" src="https://img.shields.io/badge/docs-docs.cloudeval.ai-2d6cdf?style=flat-square"></a>
   <a href="https://github.com/ganakailabs/cloudeval-cli/blob/main/LICENSE"><img alt="license" src="https://img.shields.io/badge/license-CloudEval%20CLI%20License-blue?style=flat-square"></a>
 </p>
 
@@ -53,7 +53,7 @@ cloudeval validate template \
   --non-interactive
 ```
 
-Full setup docs: [Use the CLI](https://docs.cloudeval.ai/quickstart/use-the-cli.md) and [CLI command reference](https://docs.cloudeval.ai/reference/cli-command-reference.md).
+Full setup docs: [Get started with the CLI](https://docs.cloudeval.ai/cli/get-started) and [CLI command reference](https://docs.cloudeval.ai/cli/commands).
 
 ## Choose Your Workflow
 
@@ -225,7 +225,7 @@ cloudeval mcp serve --toolset ide
 cloudeval mcp setup vscode --toolset ide
 ```
 
-Setup docs: [MCP client setup](https://docs.cloudeval.ai/reference/mcp-client-setup.md) and [agent automation rules](https://docs.cloudeval.ai/reference/agent-and-automation-rules.md).
+Setup docs: [MCP client setup](https://docs.cloudeval.ai/agents/mcp-client-setup) and [agent behavior and automation safety](https://docs.cloudeval.ai/agents/automation-rules).
 
 ## Example Outputs
 
@@ -259,7 +259,7 @@ CloudEval is designed for review workflows, not silent cloud mutation.
 - Use `--format json --non-interactive` for scripts and CI.
 - Use `cloudeval mcp serve --toolset readonly` as the default agent integration mode.
 
-Privacy and automation details: [agent and automation rules](https://docs.cloudeval.ai/reference/agent-and-automation-rules.md).
+Privacy and automation details: [agent behavior and automation safety](https://docs.cloudeval.ai/agents/automation-rules).
 
 ## Automation Contract
 
@@ -330,12 +330,12 @@ The installer can offer optional MCP setup for detected clients. It does not cre
 ## Full Docs
 
 - [CloudEval app](https://cloudeval.ai)
-- [CLI overview](https://docs.cloudeval.ai/reference/cli-overview)
-- [Use the CLI](https://docs.cloudeval.ai/quickstart/use-the-cli.md)
-- [CLI command reference](https://docs.cloudeval.ai/reference/cli-command-reference.md)
-- [MCP client setup](https://docs.cloudeval.ai/reference/mcp-client-setup.md)
-- [Agent and automation rules](https://docs.cloudeval.ai/reference/agent-and-automation-rules.md)
-- [Sign-in and onboarding troubleshooting](https://docs.cloudeval.ai/troubleshooting/sign-in-and-onboarding.md)
+- [CLI workflows](https://docs.cloudeval.ai/cli/workflows)
+- [Get started with the CLI](https://docs.cloudeval.ai/cli/get-started)
+- [CLI command reference](https://docs.cloudeval.ai/cli/commands)
+- [MCP client setup](https://docs.cloudeval.ai/agents/mcp-client-setup)
+- [Agent behavior and automation safety](https://docs.cloudeval.ai/agents/automation-rules)
+- [Sign-in and onboarding troubleshooting](https://docs.cloudeval.ai/help/sign-in-and-onboarding)
 - [GitHub issues](https://github.com/ganakailabs/cloudeval-cli/issues)
 - [Releases](https://github.com/ganakailabs/cloudeval-cli/releases)
 - [Discord](https://discord.gg/tk5dcU2a7T)

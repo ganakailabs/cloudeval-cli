@@ -7,12 +7,39 @@ import fs from "node:fs/promises";
 import test from "node:test";
 import { CLI_VERSION } from "./version.js";
 
+const EXPECTED_AGENT_PROFILE_IDS = [
+  "architecture",
+  "cost",
+  "triage",
+  "remediation",
+  "visual-explainer",
+  "scripter",
+  "change-reviewer",
+  "evidence-auditor",
+  "security-reviewer",
+];
+
 type RecordedRequest = {
   method: string;
   path: string;
   query: URLSearchParams;
   body: string;
   authorization?: string;
+};
+
+const runGit = async (cwd: string, args: string[]): Promise<string> => {
+  const child = spawn("git", args, { cwd, stdio: ["ignore", "pipe", "pipe"] });
+  const stdout: Buffer[] = [];
+  const stderr: Buffer[] = [];
+  child.stdout.on("data", (chunk) => stdout.push(Buffer.from(chunk)));
+  child.stderr.on("data", (chunk) => stderr.push(Buffer.from(chunk)));
+  const exitCode = await new Promise<number | null>((resolve) =>
+    child.on("exit", resolve),
+  );
+  if (exitCode !== 0) {
+    throw new Error(Buffer.concat(stderr).toString("utf8"));
+  }
+  return Buffer.concat(stdout).toString("utf8").trim();
 };
 
 const user = {
@@ -4699,6 +4726,150 @@ test("review command renders service cost pie when resource costs are unavailabl
   }
 });
 
+test("review command records diff evidence, GitHub annotations, and SARIF output", async () => {
+  const backend = await startBackend({
+    projects: [githubProject],
+    fullReportShape: true,
+    reviewGraph: true,
+    unitTestMetrics: {
+      success: false,
+      total_tests: 2,
+      passed_tests: 1,
+      failed_tests: 1,
+      skipped_tests: 0,
+    },
+    unitTestResults: [
+      {
+        test_name: "Secure admin credentials",
+        passed: false,
+        severity: "error",
+        message: "adminPassword is defined as a plain string.",
+        recommendation: "Use a secure parameter or secret reference.",
+        file_path: "nested/compute.json",
+        line_number: 8,
+      },
+    ],
+  });
+  const cwd = await fs.mkdtemp(
+    path.join(os.tmpdir(), "cloudeval-review-native-github-"),
+  );
+  try {
+    await runGit(cwd, ["init", "-b", "main"]);
+    await runGit(cwd, ["config", "user.email", "review@example.test"]);
+    await runGit(cwd, ["config", "user.name", "Review Test"]);
+    await fs.mkdir(path.join(cwd, ".cloudeval"), { recursive: true });
+    await fs.mkdir(path.join(cwd, "infra", "nested"), { recursive: true });
+    await fs.writeFile(
+      path.join(cwd, ".cloudeval", "config.yaml"),
+      [
+        "ci:",
+        "  gates:",
+        "    enforcement: warn",
+        "    overall_score_min: 90",
+        "    pillar_score_min: 85",
+        "    fail_on_validation_errors: true",
+        "  review:",
+        "    diff:",
+        "      enabled: true",
+        "      base_ref: HEAD~1",
+        "      max_files: 50",
+        "      max_patch_bytes: 20000",
+        "    github:",
+        "      checks:",
+        "        enabled: true",
+        "        annotation_limit: 10",
+        "        changed_files_only: true",
+        "      sarif:",
+        "        enabled: true",
+        "        category: cloudeval-iac",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+    await fs.writeFile(path.join(cwd, "infra", "nested", "compute.json"), "{}\n", "utf8");
+    await runGit(cwd, ["add", "."]);
+    await runGit(cwd, ["commit", "-m", "base"]);
+    await fs.writeFile(
+      path.join(cwd, "infra", "nested", "compute.json"),
+      '{ "parameters": { "adminPassword": { "type": "string" } } }\n',
+      "utf8",
+    );
+    await runGit(cwd, ["add", "."]);
+    await runGit(cwd, ["commit", "-m", "introduce compute parameter"]);
+    const headSha = await runGit(cwd, ["rev-parse", "HEAD"]);
+
+    const outputDir = path.join(cwd, "review-output");
+    const result = parseJson(
+      await runCli(
+        [
+          "review",
+          "--base-url",
+          backend.baseUrl,
+          "--access-key",
+          "test-token",
+          "--project",
+          "project-github",
+          "--repo",
+          "ganakailabs/cloudeval-github-sync-e2e",
+          "--ref",
+          "main",
+          "--commit-sha",
+          headSha,
+          "--source-root",
+          "infra",
+          "--no-ai-summary",
+          "--poll-interval",
+          "10",
+          "--format",
+          "json",
+          "--output",
+          outputDir,
+          "--non-interactive",
+        ],
+        { cwd },
+      ),
+    );
+
+    assert.equal(result.data.diffSummary.files_changed, 1);
+    assert.equal(result.data.diffSummary.additions, 1);
+    assert.equal(result.data.changedFiles[0].path, "infra/nested/compute.json");
+    assert.match(result.data.changedFiles[0].patch, /adminPassword/);
+    assert.equal(result.data.github.checks.enabled, true);
+    assert.equal(result.data.github.checks.annotations.length, 1);
+    assert.deepEqual(result.data.github.checks.annotations[0], {
+      path: "infra/nested/compute.json",
+      start_line: 8,
+      end_line: 8,
+      annotation_level: "failure",
+      message:
+        "adminPassword is defined as a plain string. Use a secure parameter or secret reference.",
+      title: "Secure admin credentials",
+      raw_details: "unit_test · error",
+    });
+    assert.equal(result.data.outputs.sarif.status, "written");
+    assert.equal(result.data.outputs.sarif.resultCount, 1);
+
+    const sarif = JSON.parse(
+      await fs.readFile(path.join(outputDir, "review.sarif.json"), "utf8"),
+    );
+    assert.equal(sarif.version, "2.1.0");
+    assert.equal(
+      sarif.runs[0].results[0].locations[0].physicalLocation.artifactLocation.uri,
+      "infra/nested/compute.json",
+    );
+
+    const markdownArtifact = await fs.readFile(
+      path.join(outputDir, "review.md"),
+      "utf8",
+    );
+    assert.match(markdownArtifact, /Changed files/);
+    assert.match(markdownArtifact, /infra\/nested\/compute\.json/);
+  } finally {
+    await fs.rm(cwd, { recursive: true, force: true });
+    await backend.close();
+  }
+});
+
 test("review command uses public labels and falls back to preload cost metrics", async () => {
   const backend = await startBackend({
     projects: [githubProject],
@@ -5935,7 +6106,7 @@ test("agents list and show fall back to bundled profiles when backend requires a
     );
     assert.deepEqual(
       list.data.profiles.map((profile: any) => profile.id),
-      ["architecture", "cost", "triage", "remediation"],
+      EXPECTED_AGENT_PROFILE_IDS,
     );
     assert.equal(list.data.profiles[0].display_name, "Architecture");
 
@@ -5983,7 +6154,7 @@ test("agents list falls back to bundled profiles when backend catalog route is m
     );
     assert.deepEqual(
       list.data.profiles.map((profile: any) => profile.id),
-      ["architecture", "cost", "triage", "remediation"],
+      EXPECTED_AGENT_PROFILE_IDS,
     );
   } finally {
     await backend.close();

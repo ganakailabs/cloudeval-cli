@@ -70,6 +70,34 @@ type GraphCommandOptions = CommonOptions & {
   limit?: string;
 };
 
+export type ProjectOverview = {
+  project: unknown;
+  connections: unknown[];
+  credits?: unknown;
+  reports: {
+    latestReportAt?: string;
+    architectureStatus?: string;
+    costStatus?: string;
+    issuesStatus?: string;
+    wellArchitectedStatus?: string;
+    reportUrl?: string;
+  };
+  graph: {
+    available: boolean;
+    nodeCount?: number;
+    edgeCount?: number;
+    latestSyncVersion?: string;
+    lastUpdatedAt?: string;
+    gaps: string[];
+  };
+  deepLinks: {
+    projectUrl: string;
+    reportUrl?: string;
+    architectureUrl?: string;
+    dependencyUrl?: string;
+  };
+};
+
 type WorkspaceFile = {
   path: string;
   blob: Blob;
@@ -713,6 +741,333 @@ const parseLimit = (value: string | undefined): number | undefined => {
   return parsed;
 };
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === "object" && !Array.isArray(value);
+
+const firstString = (...values: unknown[]): string | undefined => {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
+  }
+  return undefined;
+};
+
+const firstNumber = (...values: unknown[]): number | undefined => {
+  for (const value of values) {
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return value;
+    }
+  }
+  return undefined;
+};
+
+const projectConnectionIds = (project: unknown): string[] => {
+  if (!isRecord(project)) {
+    return [];
+  }
+  const values = [project.connection_ids, project.connectionIds, project.connections];
+  const ids = values.flatMap((value) => {
+    if (!Array.isArray(value)) {
+      return typeof value === "string" && value.trim() ? [value.trim()] : [];
+    }
+    return value.flatMap((item) => {
+      if (typeof item === "string" && item.trim()) {
+        return [item.trim()];
+      }
+      if (isRecord(item)) {
+        return firstString(item.id, item.connection_id, item.connectionId) ?? [];
+      }
+      return [];
+    });
+  });
+  return Array.from(new Set(ids));
+};
+
+const connectionMatchesProject = (
+  connection: unknown,
+  projectId: string,
+  connectionIds: Set<string>
+): boolean => {
+  if (!isRecord(connection)) {
+    return false;
+  }
+  const id = firstString(connection.id, connection.connection_id, connection.connectionId);
+  const connectionProjectId = firstString(connection.project_id, connection.projectId);
+  return connectionProjectId === projectId || Boolean(id && connectionIds.has(id));
+};
+
+const graphArray = (data: unknown, key: string): unknown[] => {
+  if (!isRecord(data)) {
+    return [];
+  }
+  const graph = isRecord(data.graph) ? data.graph : data;
+  const direct = graph[key];
+  return Array.isArray(direct) ? direct : [];
+};
+
+const graphCount = (data: unknown, key: "nodes" | "edges"): number | undefined => {
+  const explicit = graphArray(data, key);
+  if (explicit.length) {
+    return explicit.length;
+  }
+  if (key === "nodes") {
+    const rows = graphArray(data, "result");
+    const ids = new Set<string>();
+    for (const row of rows) {
+      if (!isRecord(row)) {
+        continue;
+      }
+      for (const candidate of [row.n, row.m]) {
+        const id = nodeId(candidate);
+        if (id) {
+          ids.add(id);
+        }
+      }
+    }
+    return ids.size || undefined;
+  }
+  if (key === "edges") {
+    const rows = graphArray(data, "result");
+    const count = rows.filter((row) => isRecord(row) && (row.r || row.source || row.from_id)).length;
+    return count || undefined;
+  }
+  return undefined;
+};
+
+const nodeId = (value: unknown): string | undefined => {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+  const props = isRecord(value.properties) ? value.properties : {};
+  return firstString(value.id, value.resource_id, value.entity_uid, props.id, props.resource_id, props.entity_uid);
+};
+
+const graphGaps = (data: unknown): string[] => {
+  if (!isRecord(data)) {
+    return ["Project graph unavailable"];
+  }
+  const graph = isRecord(data.graph) ? data.graph : data;
+  const gaps = Array.isArray(graph.gaps)
+    ? graph.gaps.filter((item): item is string => typeof item === "string")
+    : [];
+  return Array.from(new Set(gaps));
+};
+
+const reportGeneratedAt = (report: unknown): string | undefined => {
+  if (!isRecord(report)) {
+    return undefined;
+  }
+  return firstString(
+    report.generatedAt,
+    report.generated_at,
+    report.createdAt,
+    report.created_at,
+    report.updatedAt,
+    report.updated_at
+  );
+};
+
+const reportKind = (report: unknown): string | undefined => {
+  if (!isRecord(report)) {
+    return undefined;
+  }
+  return firstString(report.kind, report.type, report.report_type, report.reportType);
+};
+
+const newestReport = (reports: unknown[]): unknown | undefined =>
+  [...reports].sort((left, right) =>
+    String(reportGeneratedAt(right) ?? "").localeCompare(String(reportGeneratedAt(left) ?? ""))
+  )[0];
+
+const statusFromReports = (reports: unknown[], kind: string): string | undefined => {
+  const report = reports.find((item) => reportKind(item)?.toLowerCase() === kind);
+  if (!isRecord(report)) {
+    return undefined;
+  }
+  return firstString(report.status, report.state, report.outcome) ?? "available";
+};
+
+const normalizeCreditOverview = (
+  core: any,
+  entitlement: unknown,
+  usageSummary: unknown
+): unknown => {
+  const usageCreditsUsed = core.getBillingUsageCreditsUsed?.(usageSummary);
+  const status = core.getCreditStatus?.(entitlement, {
+    reportedUsedCredits: usageCreditsUsed,
+  });
+  return { status, entitlement, usageCreditsUsed };
+};
+
+const addWarning = (warnings: string[], label: string, error: unknown) => {
+  const message = error instanceof Error ? error.message : String(error || "Unknown error");
+  warnings.push(`${label}: ${message}`);
+};
+
+export const buildProjectOverview = async ({
+  context,
+  core,
+  projectId,
+  options,
+}: {
+  context: Awaited<ReturnType<typeof resolveGraphAuth>>;
+  core: any;
+  projectId: string;
+  options: CommonOptions;
+}): Promise<{ overview: ProjectOverview; warnings: string[]; frontendUrl: string }> => {
+  const warnings: string[] = [];
+  const projects = await listProjectsForContext(core, context);
+  const project = projects.find((candidate: any) => candidate?.id === projectId);
+  if (!project) {
+    throw new Error(`Project ${projectId} was not found.`);
+  }
+
+  const frontend = frontendBase(context, options);
+  const projectUrl = buildFrontendUrl({ baseUrl: frontend, target: "project", projectId });
+  const reportUrl = buildFrontendUrl({ baseUrl: frontend, target: "reports", projectId });
+  const architectureUrl = buildFrontendUrl({
+    baseUrl: frontend,
+    target: "project",
+    projectId,
+    view: "preview",
+    layout: "architecture",
+  });
+  const dependencyUrl = buildFrontendUrl({
+    baseUrl: frontend,
+    target: "project",
+    projectId,
+    view: "preview",
+    layout: "dependency",
+  });
+
+  const projectConnections = new Set(projectConnectionIds(project));
+  const [connections, reports, graph, graphInsights, graphTimeline, credits] = await Promise.all([
+    core.listConnections({
+      baseUrl: context.baseUrl,
+      authToken: context.token,
+      userId: context.user.id,
+    })
+      .then((items: unknown[]) => items.filter((item) => connectionMatchesProject(item, projectId, projectConnections)))
+      .catch((error: unknown) => {
+        addWarning(warnings, "connections unavailable", error);
+        return [] as unknown[];
+      }),
+    core.listReports({
+      baseUrl: context.baseUrl,
+      authToken: context.token,
+      projectId,
+      userId: context.user.id,
+      kind: "all",
+    }).catch((error: unknown) => {
+      addWarning(warnings, "reports unavailable", error);
+      return [] as unknown[];
+    }),
+    getProjectGraph({
+      baseUrl: context.baseUrl,
+      authToken: context.token,
+      userId: context.user.id,
+      projectId,
+    }).catch((error: unknown) => {
+      addWarning(warnings, "graph unavailable", error);
+      return undefined;
+    }),
+    getProjectGraphInsights({
+      baseUrl: context.baseUrl,
+      authToken: context.token,
+      userId: context.user.id,
+      projectId,
+      focus: "overview",
+    }).catch((error: unknown) => {
+      addWarning(warnings, "graph insights unavailable", error);
+      return undefined;
+    }),
+    getProjectGraphTimeline({
+      baseUrl: context.baseUrl,
+      authToken: context.token,
+      userId: context.user.id,
+      projectId,
+      limit: 1,
+    }).catch((error: unknown) => {
+      addWarning(warnings, "graph timeline unavailable", error);
+      return undefined;
+    }),
+    Promise.all([
+      core.getBillingEntitlement({
+        baseUrl: context.baseUrl,
+        authToken: context.token,
+      }),
+      core.getBillingUsageSummary({
+        baseUrl: context.baseUrl,
+        authToken: context.token,
+        granularity: "day",
+      }).catch(() => null),
+    ])
+      .then(([entitlement, usageSummary]) => normalizeCreditOverview(core, entitlement, usageSummary))
+      .catch((error: unknown) => {
+        addWarning(warnings, "credits unavailable", error);
+        return undefined;
+      }),
+  ]);
+
+  const latestReport = newestReport(reports);
+  const nodeCount = graphCount(graph, "nodes");
+  const edgeCount = graphCount(graph, "edges");
+  const timelineRows = Array.isArray(graphTimeline)
+    ? graphTimeline
+    : isRecord(graphTimeline) && Array.isArray(graphTimeline.items)
+      ? graphTimeline.items
+      : isRecord(graphTimeline) && Array.isArray(graphTimeline.runs)
+        ? graphTimeline.runs
+        : [];
+  const latestTimeline = isRecord(timelineRows[0]) ? timelineRows[0] : undefined;
+  const overview: ProjectOverview = {
+    project,
+    connections,
+    credits,
+    reports: {
+      latestReportAt: reportGeneratedAt(latestReport),
+      architectureStatus: statusFromReports(reports, "architecture") ?? statusFromReports(reports, "waf"),
+      costStatus: statusFromReports(reports, "cost"),
+      issuesStatus: isRecord(graphInsights) ? firstString(graphInsights.status, graphInsights.issuesStatus, graphInsights.issues_status) : undefined,
+      wellArchitectedStatus: statusFromReports(reports, "waf") ?? statusFromReports(reports, "architecture"),
+      reportUrl,
+    },
+    graph: {
+      available: Boolean(nodeCount),
+      nodeCount,
+      edgeCount,
+      latestSyncVersion: firstString(
+        isRecord(graph) ? graph.latestSyncVersion : undefined,
+        isRecord(graph) ? graph.latest_sync_version : undefined,
+        latestTimeline?.sync_version,
+        latestTimeline?.syncVersion
+      ),
+      lastUpdatedAt: firstString(
+        isRecord(graph) ? graph.lastUpdatedAt : undefined,
+        isRecord(graph) ? graph.last_updated_at : undefined,
+        latestTimeline?.created_at,
+        latestTimeline?.createdAt,
+        latestTimeline?.completed_at,
+        latestTimeline?.completedAt
+      ),
+      gaps: graphGaps(graph),
+    },
+    deepLinks: {
+      projectUrl,
+      reportUrl,
+      architectureUrl,
+      dependencyUrl,
+    },
+  };
+
+  if (!overview.graph.available && !overview.graph.gaps.length) {
+    overview.graph.gaps.push("No project graph nodes returned");
+  }
+
+  return { overview, warnings, frontendUrl: projectUrl };
+};
+
 const resolveGraphAuth = async (
   options: AuthGuardOptions,
   command: Command,
@@ -740,6 +1095,73 @@ const writeProjectGraphOutput = async (
     format: options.format,
     output: options.output,
   });
+
+const renderProjectOverviewText = (overview: ProjectOverview, warnings: string[]): string => {
+  const project = isRecord(overview.project) ? overview.project : {};
+  const rows = [
+    ["Project", firstString(project.name) ?? firstString(project.id) ?? "-"],
+    ["Provider", firstString(project.cloud_provider, project.provider) ?? "-"],
+    ["Source", firstString(project.project_data_source, project.source, project.type) ?? "-"],
+    ["Resources", String(firstNumber(project.resource_count, project.resourceCount, overview.graph.nodeCount) ?? "-")],
+    ["Connections", String(overview.connections.length)],
+    ["Latest report", overview.reports.latestReportAt ?? "-"],
+    ["Architecture", overview.reports.architectureStatus ?? "-"],
+    ["Cost", overview.reports.costStatus ?? "-"],
+    ["Well-Architected", overview.reports.wellArchitectedStatus ?? "-"],
+    ["Graph", overview.graph.available ? `${overview.graph.nodeCount ?? 0} nodes / ${overview.graph.edgeCount ?? 0} edges` : "unavailable"],
+    ["Graph sync", overview.graph.latestSyncVersion ?? overview.graph.lastUpdatedAt ?? "-"],
+    ["Project URL", overview.deepLinks.projectUrl],
+  ];
+  const width = Math.max(...rows.map(([key]) => key.length));
+  const lines = [
+    "CloudEval Project Overview",
+    "",
+    ...rows.map(([key, value]) => `${key.padEnd(width)}  ${value}`),
+  ];
+  if (overview.graph.gaps.length) {
+    lines.push("", "Graph gaps", ...overview.graph.gaps.map((gap) => `- ${gap}`));
+  }
+  if (warnings.length) {
+    lines.push("", "Warnings", ...warnings.map((warning) => `- ${warning}`));
+  }
+  return `${lines.join("\n")}\n`;
+};
+
+const writeProjectOverviewOutput = async ({
+  overview,
+  warnings,
+  options,
+  frontendUrl,
+}: {
+  overview: ProjectOverview;
+  warnings: string[];
+  options: CommonOptions;
+  frontendUrl: string;
+}) => {
+  if ((options.format ?? "text") === "text") {
+    const text = renderProjectOverviewText(overview, warnings);
+    if (options.output) {
+      await fs.writeFile(options.output, text, "utf8");
+      return;
+    }
+    process.stdout.write(text);
+    return;
+  }
+  await writeFormattedOutput({
+    command: "projects overview",
+    data: overview,
+    format: options.format,
+    output: options.output,
+    frontendUrl,
+    warnings,
+    schemaVersion: "2026-07-ide-v1",
+    freshness: {
+      source: "project",
+      observedAt: new Date().toISOString(),
+      stale: false,
+    },
+  });
+};
 
 const configureGraphCommands = (
   projects: Command,
@@ -1002,6 +1424,29 @@ export const registerProjectsCommand = (
       await maybeOpen(url, options);
     } catch (error: any) {
       console.error(`Failed to show project: ${error?.message ?? "Unknown error"}`);
+      process.exit(1);
+    }
+  });
+
+  addCommon(
+    addAuthOptions(
+      projects.command("overview").description("Show a VS Code friendly project overview").argument("<id>", "Project id"),
+      deps.defaultBaseUrl
+    )
+  ).action(async (id: string, options: CommonOptions, command) => {
+    try {
+      const context = requireAuthUser(await resolveAuthContext(options, command, deps));
+      const core = await import("@cloudeval/core");
+      const { overview, warnings, frontendUrl } = await buildProjectOverview({
+        context,
+        core,
+        projectId: id,
+        options,
+      });
+      await writeProjectOverviewOutput({ overview, warnings, options, frontendUrl });
+      await maybeOpen(frontendUrl, options);
+    } catch (error: any) {
+      console.error(`Failed to show project overview: ${error?.message ?? "Unknown error"}`);
       process.exit(1);
     }
   });

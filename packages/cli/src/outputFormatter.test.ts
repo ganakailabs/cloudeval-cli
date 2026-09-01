@@ -17,6 +17,9 @@ test("formatSuccessEnvelope creates stable machine envelope", () => {
       warnings: ["low credits"],
       filesWritten: ["credits.json"],
       traceId: "trace-1",
+      schemaVersion: "2026-07-ide-v1",
+      freshness: { source: "report", observedAt: "2026-07-07T00:00:00.000Z", stale: false },
+      evidence: [{ id: "ev-1", source: "report" }],
     }),
     {
       ok: true,
@@ -26,6 +29,9 @@ test("formatSuccessEnvelope creates stable machine envelope", () => {
       frontendUrl: "https://www.cloudeval.ai/app/subscription?tab=usage",
       filesWritten: ["credits.json"],
       traceId: "trace-1",
+      schemaVersion: "2026-07-ide-v1",
+      freshness: { source: "report", observedAt: "2026-07-07T00:00:00.000Z", stale: false },
+      evidence: [{ id: "ev-1", source: "report" }],
     }
   );
 });

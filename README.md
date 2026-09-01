@@ -161,7 +161,7 @@ cloudeval rules search "public network" --format json
 cloudeval reports list
 cloudeval actions list --type architecture,cost,unit-tests --format json
 cloudeval actions open --print-url --no-open
-cloudeval review --repo owner/repo --ref feature/infra-change --commit-sha <sha> --output cloudeval-review --format json --non-interactive
+cloudeval review --repo owner/repo --ref feature/infra-change --commit-sha <sha> --github-checks --sarif --output cloudeval-review --format json --non-interactive
 cloudeval capabilities --format json
 cloudeval doctor --deep
 ```
@@ -220,10 +220,11 @@ button interior.
 | Billing              | billing panel and links             | `billing`, `credits`                  | `billing_*` toolset       |
 | Automation discovery | n/a                                 | `capabilities --format json`          | `capabilities_get`        |
 
-Agent Profile ids and display names are single-word labels: `architecture`,
-`cost`, `triage`, and `remediation`. The Architecture profile includes the
-Well-Architected review lens, so there is no separate Well-Architected Agent
-Profile. When `agents run` omits a prompt, the CLI uses a starter prompt for
+Agent Profile ids include `architecture`, `cost`, `triage`, `remediation`,
+`visual-explainer`, `scripter`, `change-reviewer`, `evidence-auditor`, and
+`security-reviewer`. Display names may contain spaces. The Architecture profile
+includes the Well-Architected review lens, so there is no separate Well-Architected
+Agent Profile. When `agents run` omits a prompt, the CLI uses a starter prompt for
 the selected project source and profile mode: template or live sync, ask or
 agent. The choice is deterministic for automation. Profile runs send only
 `agent_profile_id`; CloudEval applies profile instructions, planning lens, and

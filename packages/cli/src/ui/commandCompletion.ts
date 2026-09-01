@@ -69,7 +69,7 @@ export const slashCommands: SlashCommand[] = [
   {
     name: "/profile",
     aliases: ["/profiles"],
-    description: "Open Agent Profile selector or use /profile architecture|cost|triage|remediation.",
+    description: "Open Agent Profile selector or use /profile <profile-id>.",
   },
   {
     name: "/starter",

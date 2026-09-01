@@ -71,6 +71,25 @@ test("buildMcpClientSetup creates generic mcpServers config for other MCP client
   assert.match(setup.instructions[0], /Copy the shown mcpServers\.cloudeval entry/);
 });
 
+test("buildMcpClientSetup supports the IDE toolset", () => {
+  const setup = buildMcpClientSetup({
+    client: "vscode",
+    command: "cloudeval",
+    toolset: "ide",
+  });
+
+  assert.deepEqual(setup.server.args, ["mcp", "serve", "--toolset", "ide"]);
+  assert.deepEqual(setup.config, {
+    servers: {
+      cloudeval: {
+        type: "stdio",
+        command: "cloudeval",
+        args: ["mcp", "serve", "--toolset", "ide"],
+      },
+    },
+  });
+});
+
 test("formatMcpClientSetupText renders a concise human summary for written config", () => {
   const setup = buildMcpClientSetup({
     client: "claude",

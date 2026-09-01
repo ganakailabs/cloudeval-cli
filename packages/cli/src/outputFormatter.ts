@@ -131,7 +131,7 @@ export const formatSuccessEnvelope = <T>(input: {
   if (input.schemaVersion) {
     envelope.schemaVersion = input.schemaVersion;
   }
-  if (input.freshness) {
+  if (input.freshness !== undefined) {
     envelope.freshness = input.freshness;
   }
   if (input.evidence?.length) {

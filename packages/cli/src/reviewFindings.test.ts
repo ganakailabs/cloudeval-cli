@@ -123,7 +123,7 @@ test("buildReviewAnnotations can restrict annotations to changed files", () => {
   );
 });
 
-test("buildReviewAnnotations falls back to changed IaC files when reports lack source-mapped findings", () => {
+test("buildReviewAnnotations skips generic gate fallback when reports lack source-mapped findings", () => {
   const annotations = buildReviewAnnotations(
     {
       changedFiles: [
@@ -171,29 +171,7 @@ test("buildReviewAnnotations falls back to changed IaC files when reports lack s
     },
   );
 
-  assert.deepEqual(
-    annotations.map((annotation) => ({
-      path: annotation.path,
-      start_line: annotation.start_line,
-      annotation_level: annotation.annotation_level,
-      title: annotation.title,
-    })),
-    [
-      {
-        path: "azuredeploy.json",
-        start_line: 30,
-        annotation_level: "failure",
-        title: "Cloudeval gate failed",
-      },
-      {
-        path: "nested/database.json",
-        start_line: 1,
-        annotation_level: "failure",
-        title: "Cloudeval review context",
-      },
-    ],
-  );
-  assert.match(annotations[0].message, /overall score 48 is below 60/);
+  assert.deepEqual(annotations, []);
 });
 
 test("buildLocatedReviewFindings leaves passing reviews without fallback findings", () => {
@@ -206,7 +184,7 @@ test("buildLocatedReviewFindings leaves passing reviews without fallback finding
   );
 });
 
-test("fallback annotations honor source_root when changed paths are root-relative", () => {
+test("buildLocatedReviewFindings does not fabricate source locations from source_root", () => {
   const annotations = buildReviewAnnotations(
     {
       sourceRoot: "infra",
@@ -229,9 +207,7 @@ test("fallback annotations honor source_root when changed paths are root-relativ
     },
   );
 
-  assert.equal(annotations.length, 1);
-  assert.equal(annotations[0].path, "infra/nested/database.json");
-  assert.equal(annotations[0].start_line, 4);
+  assert.deepEqual(annotations, []);
 });
 
 test("parseReviewGithubConfig reads Checks and SARIF settings", () => {

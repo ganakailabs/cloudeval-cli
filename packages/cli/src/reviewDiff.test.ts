@@ -12,9 +12,10 @@ const git = async (cwd: string, args: string[]): Promise<string> => {
   const stderr: Buffer[] = [];
   child.stdout.on("data", (chunk) => stdout.push(Buffer.from(chunk)));
   child.stderr.on("data", (chunk) => stderr.push(Buffer.from(chunk)));
-  const exitCode = await new Promise<number | null>((resolve) =>
-    child.on("exit", resolve),
-  );
+  const exitCode = await new Promise<number | null>((resolve, reject) => {
+    child.once("error", reject);
+    child.once("close", resolve);
+  });
   if (exitCode !== 0) {
     throw new Error(Buffer.concat(stderr).toString("utf8"));
   }

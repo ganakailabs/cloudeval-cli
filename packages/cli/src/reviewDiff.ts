@@ -49,9 +49,10 @@ const runGit = async (cwd: string, args: string[]): Promise<GitResult> => {
   const stderr: Buffer[] = [];
   child.stdout.on("data", (chunk) => stdout.push(Buffer.from(chunk)));
   child.stderr.on("data", (chunk) => stderr.push(Buffer.from(chunk)));
-  const exitCode = await new Promise<number | null>((resolve) =>
-    child.on("exit", resolve),
-  );
+  const exitCode = await new Promise<number | null>((resolve, reject) => {
+    child.once("error", reject);
+    child.once("close", resolve);
+  });
   return {
     ok: exitCode === 0,
     stdout: Buffer.concat(stdout).toString("utf8").trim(),

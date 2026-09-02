@@ -1,6 +1,6 @@
 # Chat Visualization Artifact Contract
 
-CloudEval chat uses one semantic visualization contract across the web app and
+Cloudeval chat uses one semantic visualization contract across the web app and
 CLI. The backend chooses what to emit from explicit client capabilities; each
 client chooses how to render it.
 

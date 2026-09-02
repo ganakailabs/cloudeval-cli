@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Let CloudEval negotiate presentation capabilities, generate one canonical chart or diagram artifact, render it in the existing web chat, and render deterministic Unicode visualizations in the CLI without persisting terminal escape sequences.
+**Goal:** Let Cloudeval negotiate presentation capabilities, generate one canonical chart or diagram artifact, render it in the existing web chat, and render deterministic Unicode visualizations in the CLI without persisting terminal escape sequences.
 
 **Architecture:** The client sends an additive `presentation` capability object with its normal chat request. The backend resolves those capabilities against `X-Client-Type`, generates compact semantic chart intent, compiles charts with `flint-chart@0.3.0`, persists canonical Markdown, and optionally emits a versioned `visualization` SSE artifact. The frontend renders `flint` artifacts through existing Chart.js/ECharts components; the CLI validates the same artifact schema and converts charts or Mermaid source into width-aware Unicode with table, edge-list, and source fallbacks.
 

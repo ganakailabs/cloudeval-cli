@@ -156,7 +156,7 @@ const failureMessage = (record: Record<string, any>): string => {
     record.message ?? record.reason ?? record.description ?? record.details,
     "",
   );
-  return message || "CloudEval reported this finding without a detailed message.";
+  return message || "Cloudeval reported this finding without a detailed message.";
 };
 
 const failureRecommendation = (record: Record<string, any>): string | undefined => {
@@ -538,13 +538,13 @@ export const buildReviewAnnotations = (
 const userFacingFindingKind = (kind: ReviewFinding["kind"]): string => {
   switch (kind) {
     case "unit_test":
-      return "CloudEval unit test";
+      return "Cloudeval unit test";
     case "policy_check":
-      return "CloudEval policy check";
+      return "Cloudeval policy check";
     case "well_architected":
     case "local_iac_check":
-      return "CloudEval IaC review";
+      return "Cloudeval IaC review";
     default:
-      return "CloudEval review";
+      return "Cloudeval review";
   }
 };

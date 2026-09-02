@@ -2,7 +2,7 @@
 
 ## Goal
 
-Make CloudEval chat visualizations portable across the web frontend and CLI. The
+Make Cloudeval chat visualizations portable across the web frontend and CLI. The
 backend will identify the requesting client, negotiate explicit rendering
 capabilities, generate one grounded and versioned visualization artifact, and
 stream a representation that each client can render without changing the
@@ -19,7 +19,7 @@ terminal chart and diagram output with deterministic text fallbacks.
    which artifact formats may be returned.
 2. The backend owns data grounding, chart selection, Flint compilation,
    artifact validation, and fallbacks. Clients own final presentation.
-3. CloudEval persists canonical Markdown plus semantic artifact data. It never
+3. Cloudeval persists canonical Markdown plus semantic artifact data. It never
    persists terminal escape sequences, terminal-width-specific ASCII, or a
    browser-only canvas as the source of truth.
 4. Existing `chart` and `mermaid` fences remain readable. New Flint chart
@@ -37,8 +37,8 @@ terminal chart and diagram output with deterministic text fallbacks.
 
 ```mermaid
 flowchart LR
-    CLI["CloudEval CLI<br/>client type plus capabilities"] --> API["Chat API"]
-    WEB["CloudEval web<br/>client type plus capabilities"] --> API
+    CLI["Cloudeval CLI<br/>client type plus capabilities"] --> API["Chat API"]
+    WEB["Cloudeval web<br/>client type plus capabilities"] --> API
     API --> GEN["Grounded visualization generation"]
     GEN --> FLINT["Microsoft Flint compiler"]
     GEN --> MERMAID["Mermaid source builder"]
@@ -245,7 +245,7 @@ Unicode node/edge view sized to the current transcript width. Other diagram
 types use the backend edge-list fallback when present and otherwise show a
 compact source card.
 
-All renderers obey terminal width, `NO_COLOR`, and existing CloudEval theme
+All renderers obey terminal width, `NO_COLOR`, and existing Cloudeval theme
 tokens. They never emit raw control characters from artifact labels. Invalid
 artifacts show `Visualization unavailable` and their safe fallback instead of
 throwing from Ink.

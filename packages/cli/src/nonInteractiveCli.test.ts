@@ -4873,10 +4873,14 @@ test("review command records diff evidence, GitHub annotations, and SARIF output
       start_line: 8,
       end_line: 8,
       annotation_level: "failure",
-      message:
-        "adminPassword is defined as a plain string. Use a secure parameter or secret reference.",
+      message: "adminPassword is defined as a plain string.",
       title: "Secure admin credentials",
-      raw_details: "unit_test · error",
+      raw_details:
+        "Cloudeval unit test · error · secure-admin-credentials",
+      finding_kind: "unit_test",
+      severity: "error",
+      rule_id: "secure-admin-credentials",
+      recommendation: "Use a secure parameter or secret reference.",
     });
     assert.equal(result.data.outputs.sarif.status, "written");
     assert.equal(result.data.outputs.sarif.resultCount, 1);

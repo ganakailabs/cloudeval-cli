@@ -17,10 +17,16 @@ const formatFindingFocus = (input: SignalStoryReviewInput): string => {
   const testFocus =
     failedTests > 0
       ? `${failedTests} failed unit test${failedTests === 1 ? "" : "s"}`
-      : "no failing unit tests";
+      : "validation clean";
   const weakestPillar = input.weakestPillar || "the weakest Well-Architected pillar";
   return `${testFocus}, ${input.policyStatus || "policy status unknown"}, and ${weakestPillar}`;
 };
+
+const hasPolicyFailures = (policyStatus: string): boolean =>
+  Boolean(policyStatus && !/^good$/i.test(policyStatus.trim()));
+
+const isWeakPosture = (rating: string): boolean =>
+  /^(critical|poor|fair)$/i.test(String(rating || "").trim());
 
 export const buildSignalStoryReviewFallback = (
   input: SignalStoryReviewInput
@@ -29,13 +35,28 @@ export const buildSignalStoryReviewFallback = (
   const scoreRating = input.scoreRating || `${input.score || "unknown score"} (${input.rating || "unrated"})`;
   const monthlyCost = input.monthlyCost || "cost unavailable";
   const findingFocus = formatFindingFocus(input);
+  const failedTests = Number(input.failedTests || 0);
+  const policyFailed = hasPolicyFailures(input.policyStatus || "");
+  const policyText = policyFailed
+    ? `policy checks **${input.policyStatus}**`
+    : "policy checks are **GOOD**";
+  const validationText = failedTests > 0
+    ? `validation has **${failedTests} failed unit test${failedTests === 1 ? "" : "s"}**`
+    : "validation is **clean**";
+  const recommendedAction = failedTests > 0
+    ? "Fix the named validation failures, rerun the review, and confirm the gate clears."
+    : policyFailed
+      ? "Fix failed policy checks, rerun the review, and confirm the gate clears."
+      : isWeakPosture(input.rating)
+        ? "Remediate the lowest-scoring Well-Architected pillar, then rerun the review."
+        : "Review the linked reports and merge according to your configured policy.";
   const shortSummary = normalizePublicBrand(
-    `Cloudeval review completed with **${gateStatus}**. Well-Architected posture is **${scoreRating}**, monthly cost is **${monthlyCost}**, and the review focus is **${findingFocus}**. Prioritize failed validation checks and the weakest Well-Architected pillar before merging.`,
+    `Cloudeval review completed with **${gateStatus}**. Well-Architected posture is **${scoreRating}**, ${validationText}, ${policyText}, and monthly cost is **${monthlyCost}**. ${recommendedAction}`,
   );
   const detailsMarkdown = [
     `**Main risk**\n${shortSummary}`,
-    `**Why it matters**\nA weak **${input.weakestPillar || "Well-Architected"}** posture, failing validation, or unmanaged cost movement can turn an IaC change into production risk even when deployment syntax is valid.`,
-    `**Recommended actions**\nFix the named validation failures first, remediate the lowest-scoring Well-Architected pillar, rerun the review, and use the linked Cloudeval reports for evidence.`,
+    `**Why it matters**\nThe review focus is **${findingFocus}**. Architecture posture, validation health, and cost movement are the evidence signals most likely to affect merge risk.`,
+    `**Recommended actions**\n${recommendedAction}`,
     "**Evidence used**\n**Gate status**, **Well-Architected score**, **validation totals**, **policy totals**, and **monthly cost**.",
   ].join("\n\n");
 

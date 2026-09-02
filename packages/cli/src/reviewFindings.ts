@@ -263,11 +263,11 @@ const localIacRules: Array<{
     level: "failure",
     severity: "high",
     pillar: "Security",
-    changedSetting: "minimalTlsVersion",
+    changedSetting: "minimumTlsVersion",
     pattern:
-      /["']?minimalTlsVersion["']?\s*[:=]\s*["']?(?:1\.0|1\.1|TLS1_0|TLS1_1)["']?/i,
+      /["']?(?:minimumTlsVersion|minimalTlsVersion)["']?\s*[:=]\s*["']?(?:1\.0|1\.1|TLS1_0|TLS1_1)["']?/i,
     message: () =>
-      "This changed line sets minimalTlsVersion below TLS 1.2.",
+      "This changed line sets minimumTlsVersion below TLS 1.2.",
     recommendation: () => "Use TLS 1.2 or higher before merging.",
   },
   {

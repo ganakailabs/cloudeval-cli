@@ -2352,6 +2352,22 @@ const isInstructionLikeAiDetails = (detailsMarkdown: string): boolean => {
   ].some((marker) => normalized.includes(marker));
 };
 
+const isStructuredAiSummaryText = (value: string): boolean => {
+  const trimmed = value.trim();
+  if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) {
+    return false;
+  }
+  return [
+    "architecture_signals",
+    "changed_files",
+    "cost_and_savings",
+    "documented_changes",
+    "evidence_used",
+    "gate_result",
+    "well_architected",
+  ].some((marker) => trimmed.includes(marker));
+};
+
 type GenerateAiSummaryInput = {
   baseUrl: string;
   token?: string;
@@ -2487,12 +2503,34 @@ const generateAiSummary = async (input: GenerateAiSummaryInput): Promise<Record<
       body: payload,
       idempotencyKey: `cloudeval-review-summary-${input.data.projectId}-${input.data.commitSha ?? "head"}`,
     });
-    const shortSummary = String(response.summary ?? "").trim();
-    let detailsMarkdown = String(response.details ?? "").trim();
+    if (typeof response.summary !== "string") {
+      return deterministicAiSummary(
+        input.data,
+        "Review summary endpoint returned non-string summary.",
+      );
+    }
+    const shortSummary = response.summary.trim();
+    let detailsMarkdown = typeof response.details === "string"
+      ? response.details.trim()
+      : "";
     if (!shortSummary) {
       return deterministicAiSummary(input.data, "Review summary endpoint returned no summary.");
     }
+    if (isStructuredAiSummaryText(shortSummary)) {
+      return deterministicAiSummary(
+        input.data,
+        "Review summary endpoint returned structured payload text.",
+      );
+    }
     const warnings = Array.isArray(response.warnings) ? response.warnings : [];
+    if (response.details !== undefined && typeof response.details !== "string") {
+      warnings.push("Review summary endpoint returned non-string details; using deterministic details.");
+      const fallback = deterministicAiSummary(
+        input.data,
+        "Review summary endpoint returned non-string details.",
+      );
+      detailsMarkdown = String(fallback.detailsMarkdown ?? "").trim();
+    }
     if (isInstructionLikeAiDetails(detailsMarkdown)) {
       const fallback = deterministicAiSummary(
         input.data,

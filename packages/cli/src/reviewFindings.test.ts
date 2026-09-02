@@ -236,7 +236,7 @@ test("buildReviewAnnotations adds deterministic IaC findings from changed ARM li
         pillar: "Security",
         rule_id: "tls-version-below-12",
         recommendation: "Use TLS 1.2 or higher before merging.",
-        changed_setting: "minimalTlsVersion",
+        changed_setting: "minimumTlsVersion",
       },
       {
         path: "nested/database.json",
@@ -254,7 +254,7 @@ test("buildReviewAnnotations adds deterministic IaC findings from changed ARM li
       },
     ],
   );
-  assert.match(annotations[0].message, /minimalTlsVersion/);
+  assert.match(annotations[0].message, /minimumTlsVersion/);
   assert.doesNotMatch(String(annotations[0].raw_details), /local_iac_check/);
 });
 

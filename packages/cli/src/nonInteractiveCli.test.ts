@@ -5757,12 +5757,76 @@ test("review command replaces instruction-like AI details with deterministic evi
       markdownArtifact,
       /<summary><strong>Detailed AI reviewer note - evidence, reasoning, and next actions<\/strong><\/summary>/,
     );
-    assert.match(markdownArtifact, /Cloudeval review completed with WARN/);
+    assert.match(markdownArtifact, /Cloudeval review completed with \*\*WARN\*\*/);
     assert.doesNotMatch(
       markdownArtifact,
       /Markdown for a collapsible AI details section/i,
     );
     assert.doesNotMatch(markdownArtifact, /Use short paragraphs or bullets/i);
+  } finally {
+    await fs.rm(outputDir, { recursive: true, force: true });
+    await backend.close();
+  }
+});
+
+test("review command rejects structured AI summary payloads", async () => {
+  const backend = await startBackend({
+    projects: [githubProject],
+    reviewSummaryResponse: {
+      summary: {
+        documented_changes: ["Storage TLS was weakened."],
+        architecture_signals: { resources: 32 },
+      },
+      details: "**Main risk**\nStorage settings changed.",
+      fallback_used: false,
+      warnings: [],
+    },
+  });
+  const outputDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "cloudeval-review-ai-summary-structured-"),
+  );
+  try {
+    const result = parseJson(
+      await runCli([
+        "review",
+        "--base-url",
+        backend.baseUrl,
+        "--access-key",
+        "test-token",
+        "--project",
+        "project-github",
+        "--repo",
+        "ganakailabs/cloudeval-github-sync-e2e",
+        "--ref",
+        "main",
+        "--commit-sha",
+        "sha-review-ai-structured",
+        "--ignore-dirty",
+        "--poll-interval",
+        "10",
+        "--format",
+        "json",
+        "--output",
+        outputDir,
+        "--non-interactive",
+      ]),
+    );
+
+    assert.equal(result.data.aiSummary.status, "fallback");
+    assert.equal(result.data.aiSummary.fallbackUsed, true);
+    assert.doesNotMatch(result.data.aiSummary.markdown, /documented_changes/);
+    assert.doesNotMatch(result.data.aiSummary.markdown, /architecture_signals/);
+    assert.match(
+      result.data.aiSummary.markdown,
+      /Cloudeval review completed with/,
+    );
+
+    const markdownArtifact = await fs.readFile(
+      path.join(outputDir, "review.md"),
+      "utf8",
+    );
+    assert.doesNotMatch(markdownArtifact, /documented_changes/);
+    assert.match(markdownArtifact, /Cloudeval review completed with/);
   } finally {
     await fs.rm(outputDir, { recursive: true, force: true });
     await backend.close();
@@ -5831,9 +5895,9 @@ test("review command uses deterministic fallback when summary endpoint fails", a
     assert.match(markdownArtifact, /Cloudeval review completed with/);
     assert.match(markdownArtifact, /\*\*WARN\*\*/);
     assert.match(markdownArtifact, /91\/100 \(EXCELLENT\)/);
-    assert.match(markdownArtifact, /0 failed unit tests/);
+    assert.match(markdownArtifact, /validation is \*\*clean\*\*/);
     assert.match(markdownArtifact, /\*\*Main risk\*\*/);
-    assert.match(markdownArtifact, /Cloudeval review completed with WARN/);
+    assert.match(markdownArtifact, /Cloudeval review completed with \*\*WARN\*\*/);
     assert.match(markdownArtifact, /\*\*Evidence used\*\*/);
     assert.match(markdownArtifact, /Architecture signals/);
     assert.doesNotMatch(markdownArtifact, /AI summary unavailable/i);

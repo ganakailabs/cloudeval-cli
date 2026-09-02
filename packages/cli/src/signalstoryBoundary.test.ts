@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 
-test("CLI review fallback delegates deterministic wording to the Cloudeval SignalStory rule package", () => {
+test("CLI review fallback has no private package dependency", () => {
   const adapter = fs.readFileSync(
     path.join(currentDir, "signalstoryReviewAdapter.ts"),
     "utf8"
@@ -16,10 +16,7 @@ test("CLI review fallback delegates deterministic wording to the Cloudeval Signa
     "utf8"
   );
 
-  assert.match(
-    adapter,
-    /@ganakailabs\/cloudeval-signalstory-rules\/review/
-  );
-  assert.doesNotMatch(adapter, /REVIEW_FALLBACK_RULE_PACK\s*=/);
+  assert.doesNotMatch(adapter, /@ganakailabs\/cloudeval-signalstory-rules/);
+  assert.doesNotMatch(adapter, /from "signalstory\//);
   assert.doesNotMatch(reviewCommand, /Cloudeval review completed with/);
 });

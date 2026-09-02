@@ -1,12 +1,3 @@
-import { cloudevalReviewRulePack } from "@ganakailabs/cloudeval-signalstory-rules/review";
-import {
-  createSignalStoryEngine,
-  renderPlainText,
-  type SignalStoryPart,
-  type SignalStoryStory,
-} from "signalstory/core";
-import { renderGithubSummary } from "signalstory/markdown";
-
 export type SignalStoryReviewInput = {
   gateStatus: string;
   score: string;
@@ -18,28 +9,33 @@ export type SignalStoryReviewInput = {
   weakestPillar: string;
 };
 
-export const renderSignalStoryPlainText = (parts: SignalStoryPart[] = []): string =>
-  renderPlainText(parts);
-
 const normalizePublicBrand = (text: string): string =>
   text.replace(/\bCloudEval\b/g, "Cloudeval");
+
+const formatFindingFocus = (input: SignalStoryReviewInput): string => {
+  const failedTests = Number(input.failedTests || 0);
+  const testFocus =
+    failedTests > 0
+      ? `${failedTests} failed unit test${failedTests === 1 ? "" : "s"}`
+      : "no failing unit tests";
+  const weakestPillar = input.weakestPillar || "the weakest Well-Architected pillar";
+  return `${testFocus}, ${input.policyStatus || "policy status unknown"}, and ${weakestPillar}`;
+};
 
 export const buildSignalStoryReviewFallback = (
   input: SignalStoryReviewInput
 ): Record<string, unknown> | null => {
-  const engine = createSignalStoryEngine({
-    rulePacks: [cloudevalReviewRulePack],
-  });
-  const stories = engine.generate({ signals: input });
-  const primary = stories[0];
-  if (!primary) {
-    return null;
-  }
-  const shortSummary = normalizePublicBrand(renderSignalStoryPlainText(primary.sentence));
+  const gateStatus = input.gateStatus || "UNKNOWN";
+  const scoreRating = input.scoreRating || `${input.score || "unknown score"} (${input.rating || "unrated"})`;
+  const monthlyCost = input.monthlyCost || "cost unavailable";
+  const findingFocus = formatFindingFocus(input);
+  const shortSummary = normalizePublicBrand(
+    `Cloudeval review completed with **${gateStatus}**. Well-Architected posture is **${scoreRating}**, monthly cost is **${monthlyCost}**, and the review focus is **${findingFocus}**. Prioritize failed validation checks and the weakest Well-Architected pillar before merging.`,
+  );
   const detailsMarkdown = [
     `**Main risk**\n${shortSummary}`,
-    `**Why it matters**\n${normalizePublicBrand(renderSignalStoryPlainText(primary.rationale ?? []))}`,
-    `**Recommended actions**\n${normalizePublicBrand(primary.action?.label ?? "Rerun the review after remediation.")}`,
+    `**Why it matters**\nA weak **${input.weakestPillar || "Well-Architected"}** posture, failing validation, or unmanaged cost movement can turn an IaC change into production risk even when deployment syntax is valid.`,
+    `**Recommended actions**\nFix the named validation failures first, remediate the lowest-scoring Well-Architected pillar, rerun the review, and use the linked Cloudeval reports for evidence.`,
     "**Evidence used**\n**Gate status**, **Well-Architected score**, **validation totals**, **policy totals**, and **monthly cost**.",
   ].join("\n\n");
 
@@ -50,8 +46,6 @@ export const buildSignalStoryReviewFallback = (
     warnings: [],
     shortSummary,
     detailsMarkdown,
-    markdown: normalizePublicBrand(renderGithubSummary(stories as SignalStoryStory[], {
-      title: "Cloudeval review summary",
-    })),
+    markdown: `### Cloudeval review summary\n\n${shortSummary}\n\n${detailsMarkdown}`,
   };
 };

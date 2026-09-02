@@ -10,6 +10,11 @@ export type ReviewFinding = {
   endLine?: number;
   level: ReviewFindingLevel;
   severity?: string;
+  recommendation?: string;
+  pillar?: string;
+  resource?: string;
+  ruleId?: string;
+  changedSetting?: string;
 };
 
 export type GitHubCheckAnnotation = {
@@ -20,6 +25,13 @@ export type GitHubCheckAnnotation = {
   message: string;
   title?: string;
   raw_details?: string;
+  finding_kind?: ReviewFinding["kind"];
+  severity?: string;
+  pillar?: string;
+  resource?: string;
+  rule_id?: string;
+  recommendation?: string;
+  changed_setting?: string;
 };
 
 export type ReviewGithubConfig = {
@@ -144,14 +156,15 @@ const failureMessage = (record: Record<string, any>): string => {
     record.message ?? record.reason ?? record.description ?? record.details,
     "",
   );
+  return message || "CloudEval reported this finding without a detailed message.";
+};
+
+const failureRecommendation = (record: Record<string, any>): string | undefined => {
   const recommendation = compactText(
     record.recommendation ?? record.remediation ?? record.fix ?? record.next_step,
     "",
   );
-  if (message && recommendation && message !== recommendation) {
-    return `${message} ${recommendation}`;
-  }
-  return message || recommendation || "Cloudeval reported this finding without a detailed message.";
+  return recommendation || undefined;
 };
 
 const fromFailures = ({
@@ -181,6 +194,17 @@ const fromFailures = ({
       endLine: numberFrom(record.end_line, record.endLine) ?? line,
       level: severityLevel(record),
       severity: compactText(record.severity ?? record.status ?? record.outcome, "failed"),
+      recommendation: failureRecommendation(record),
+      pillar: compactText(record.pillar ?? record.category ?? record.framework_pillar, ""),
+      resource: compactText(
+        record.resource ??
+          record.resource_name ??
+          record.resourceName ??
+          record.target_resource ??
+          record.targetResource,
+        "",
+      ),
+      ruleId: compactText(record.rule_id ?? record.ruleId ?? record.check_id ?? record.checkId, ""),
     };
   });
 
@@ -227,45 +251,63 @@ const localIacRules: Array<{
   title: string;
   level: ReviewFindingLevel;
   severity: string;
+  pillar?: string;
+  changedSetting?: string;
   pattern: RegExp;
   message: () => string;
+  recommendation: () => string;
 }> = [
   {
     id: "tls-version-below-12",
     title: "TLS version is below 1.2",
     level: "failure",
     severity: "high",
+    pillar: "Security",
+    changedSetting: "minimalTlsVersion",
     pattern:
       /["']?minimalTlsVersion["']?\s*[:=]\s*["']?(?:1\.0|1\.1|TLS1_0|TLS1_1)["']?/i,
     message: () =>
-      "This changed line sets minimalTlsVersion below TLS 1.2. Use TLS 1.2 or higher before merging.",
+      "This changed line sets minimalTlsVersion below TLS 1.2.",
+    recommendation: () => "Use TLS 1.2 or higher before merging.",
   },
   {
     id: "public-network-access-enabled",
     title: "Public network access is enabled",
     level: "warning",
     severity: "medium",
+    pillar: "Security",
+    changedSetting: "publicNetworkAccess",
     pattern: /["']?publicNetworkAccess["']?\s*[:=]\s*["']?Enabled["']?/i,
     message: () =>
-      "This changed line enables public network access. Prefer private endpoints or explicit network rules for production-facing resources.",
+      "This changed line enables public network access.",
+    recommendation: () =>
+      "Prefer private endpoints or explicit network rules for production-facing resources.",
   },
   {
     id: "blob-public-access-enabled",
     title: "Blob public access is enabled",
     level: "failure",
     severity: "high",
+    pillar: "Security",
+    changedSetting: "allowBlobPublicAccess",
     pattern: /["']?allowBlobPublicAccess["']?\s*[:=]\s*true\b/i,
     message: () =>
-      "This changed line allows anonymous blob access. Set allowBlobPublicAccess to false unless this storage account is intentionally public.",
+      "This changed line allows anonymous blob access.",
+    recommendation: () =>
+      "Set allowBlobPublicAccess to false unless this storage account is intentionally public.",
   },
   {
     id: "https-only-traffic-disabled",
     title: "HTTPS-only traffic is disabled",
     level: "failure",
     severity: "high",
+    pillar: "Security",
+    changedSetting: "supportsHttpsTrafficOnly",
     pattern: /["']?(?:supportsHttpsTrafficOnly|enableHttpsTrafficOnly)["']?\s*[:=]\s*false\b/i,
     message: () =>
-      "This changed line allows non-HTTPS traffic. Require HTTPS-only traffic for storage and application endpoints.",
+      "This changed line allows non-HTTPS traffic.",
+    recommendation: () =>
+      "Require HTTPS-only traffic for storage and application endpoints.",
   },
 ];
 
@@ -294,6 +336,10 @@ const extractLocalIacPatchFindings = (data: Record<string, any>): ReviewFinding[
           endLine: patchLine.line,
           level: rule.level,
           severity: rule.severity,
+          recommendation: rule.recommendation(),
+          pillar: rule.pillar,
+          ruleId: rule.id,
+          changedSetting: rule.changedSetting,
         });
       }
     }
@@ -466,13 +512,39 @@ export const buildReviewAnnotations = (
         changedPaths.has(String(finding.path)),
     )
     .slice(0, Math.max(0, options.annotationLimit))
-    .map((finding) => ({
-      path: String(finding.path),
-      start_line: Math.max(1, Math.floor(finding.startLine ?? 1)),
-      end_line: Math.max(1, Math.floor(finding.endLine ?? finding.startLine ?? 1)),
-      annotation_level: finding.level,
-      message: finding.message.slice(0, 60_000),
-      title: finding.title.slice(0, 250),
-      raw_details: `${finding.kind}${finding.severity ? ` · ${finding.severity}` : ""}`,
-    }));
+    .map((finding) => {
+      const ruleId = finding.ruleId || finding.id.split(":")[1] || finding.id;
+      return {
+        path: String(finding.path),
+        start_line: Math.max(1, Math.floor(finding.startLine ?? 1)),
+        end_line: Math.max(1, Math.floor(finding.endLine ?? finding.startLine ?? 1)),
+        annotation_level: finding.level,
+        message: finding.message.slice(0, 60_000),
+        title: finding.title.slice(0, 250),
+        raw_details: `${userFacingFindingKind(finding.kind)}${
+          finding.severity ? ` · ${finding.severity}` : ""
+        }${ruleId ? ` · ${ruleId}` : ""}`,
+        finding_kind: finding.kind,
+        severity: finding.severity,
+        pillar: finding.pillar || undefined,
+        resource: finding.resource || undefined,
+        rule_id: ruleId,
+        recommendation: finding.recommendation,
+        changed_setting: finding.changedSetting,
+      };
+    });
+};
+
+const userFacingFindingKind = (kind: ReviewFinding["kind"]): string => {
+  switch (kind) {
+    case "unit_test":
+      return "CloudEval unit test";
+    case "policy_check":
+      return "CloudEval policy check";
+    case "well_architected":
+    case "local_iac_check":
+      return "CloudEval IaC review";
+    default:
+      return "CloudEval review";
+  }
 };

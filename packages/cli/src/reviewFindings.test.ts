@@ -89,7 +89,8 @@ test("extractReviewFindings normalizes source-root paths and public failure meta
       },
     ],
   );
-  assert.match(findings[0].message, /Use a secure parameter/);
+  assert.match(findings[0].message, /plain string/);
+  assert.equal(findings[0].recommendation, "Use a secure parameter.");
 });
 
 test("buildReviewAnnotations can restrict annotations to changed files", () => {
@@ -216,6 +217,12 @@ test("buildReviewAnnotations adds deterministic IaC findings from changed ARM li
       level: annotation.annotation_level,
       title: annotation.title,
       raw_details: annotation.raw_details,
+      finding_kind: annotation.finding_kind,
+      severity: annotation.severity,
+      pillar: annotation.pillar,
+      rule_id: annotation.rule_id,
+      recommendation: annotation.recommendation,
+      changed_setting: annotation.changed_setting,
     })),
     [
       {
@@ -223,18 +230,32 @@ test("buildReviewAnnotations adds deterministic IaC findings from changed ARM li
         start_line: 21,
         level: "failure",
         title: "TLS version is below 1.2",
-        raw_details: "local_iac_check · high",
+        raw_details: "CloudEval IaC review · high · tls-version-below-12",
+        finding_kind: "local_iac_check",
+        severity: "high",
+        pillar: "Security",
+        rule_id: "tls-version-below-12",
+        recommendation: "Use TLS 1.2 or higher before merging.",
+        changed_setting: "minimalTlsVersion",
       },
       {
         path: "nested/database.json",
         start_line: 22,
         level: "warning",
         title: "Public network access is enabled",
-        raw_details: "local_iac_check · medium",
+        raw_details: "CloudEval IaC review · medium · public-network-access-enabled",
+        finding_kind: "local_iac_check",
+        severity: "medium",
+        pillar: "Security",
+        rule_id: "public-network-access-enabled",
+        recommendation:
+          "Prefer private endpoints or explicit network rules for production-facing resources.",
+        changed_setting: "publicNetworkAccess",
       },
     ],
   );
   assert.match(annotations[0].message, /minimalTlsVersion/);
+  assert.doesNotMatch(String(annotations[0].raw_details), /local_iac_check/);
 });
 
 test("buildLocatedReviewFindings does not fabricate source locations from source_root", () => {

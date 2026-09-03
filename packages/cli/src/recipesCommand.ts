@@ -303,6 +303,7 @@ const runChatRecipe = async (
     .reverse()
     .find((message: any) => message.role === "assistant");
   const finalResponse = collapseRepeatedAssistantText(finalMessage?.content || responseText || "");
+  const finalVisualizations = finalMessage?.visualizations ?? [];
   if (!finalResponse.trim()) {
     throw new Error("No final response returned by Cloudeval for this recipe.");
   }
@@ -332,6 +333,9 @@ const runChatRecipe = async (
     mode: recipe.mode,
     prompt,
     response: finalResponse,
+    ...(finalVisualizations.length > 0
+      ? { visualizations: finalVisualizations }
+      : {}),
     threadId: chatState.threadId,
     project: { id: project.id, name: project.name },
     commands: renderRecipeCommands(recipe, recipeContext(options)),

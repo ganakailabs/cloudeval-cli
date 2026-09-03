@@ -98,6 +98,8 @@ import {
   type CliTelemetry,
 } from "./telemetry.js";
 
+process.env.CLOUDEVAL_CLI_VERSION ||= CLI_VERSION;
+
 const DEFAULT_BASE_URL = getDefaultBaseUrl();
 const ASK_STREAM_IDLE_TIMEOUT_MS = 90_000;
 const AGENT_STREAM_IDLE_TIMEOUT_MS = 180_000;
@@ -1903,6 +1905,14 @@ program
                   progressEventFromChunk(chunk, { verbose: options.verbose }),
                 );
 
+                if (ndjsonOutput && chunk.type === "visualization") {
+                  writeAskDataEvent({
+                    type: "visualization",
+                    artifact: chunk.artifact,
+                    threadId: chatState.threadId,
+                  });
+                }
+
                 if (chunk.type === "hitl_request") {
                   pendingHitlRequest = chunk;
                   if (ndjsonOutput) {
@@ -2126,6 +2136,7 @@ program
       const finalMessage = [...chatState.messages]
         .reverse()
         .find((m) => m.role === "assistant");
+      const finalVisualizations = finalMessage?.visualizations ?? [];
       let finalResponse = collapseRepeatedAssistantText(
         finalMessage?.content || responseText || "",
       );
@@ -2218,6 +2229,9 @@ program
           question,
           data: {
             response: finalResponse,
+            ...(finalVisualizations.length > 0
+              ? { visualizations: finalVisualizations }
+              : {}),
             threadId: chatState.threadId,
             project: {
               id: project.id,
@@ -2248,6 +2262,9 @@ program
           command: commandName,
           data: {
             response: finalResponse,
+            ...(finalVisualizations.length > 0
+              ? { visualizations: finalVisualizations }
+              : {}),
             threadId: chatState.threadId,
             project: {
               id: project.id,

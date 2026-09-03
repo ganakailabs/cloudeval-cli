@@ -15,6 +15,8 @@ import {
   StreamRequestPayload,
   StreamSettings,
   ThinkingChunk,
+  VisualizationChunk,
+  parseVisualizationArtifact,
   redactSensitiveText,
 } from "@cloudeval/shared";
 import { normalizeApiBase } from "./auth";
@@ -302,6 +304,18 @@ const normalizeChunk = (raw: unknown, receivedAt: number): Chunk | null => {
       };
       return chunk;
     }
+    case "visualization": {
+      const parsed = parseVisualizationArtifact(raw.artifact ?? data?.artifact);
+      if (!parsed.ok) {
+        return null;
+      }
+      const chunk: VisualizationChunk = {
+        type: "visualization",
+        artifact: parsed.artifact,
+        ...base,
+      };
+      return chunk;
+    }
     case "hitl":
     case "hitl_request": {
       const rawQuestions = Array.isArray(raw.questions)
@@ -380,6 +394,18 @@ const buildPayload = (options: StreamChatOptions): StreamRequestPayload => {
     context,
     group_size: 1,
     streaming_mode: options.streamingMode ?? "USER",
+    presentation: {
+      profile: "terminal",
+      artifact_schema: "cloudeval.visualization/v1",
+      accepts: ["flint-v1", "mermaid-v11"],
+      fallbacks: [
+        "unicode",
+        "table",
+        "edge-list",
+        "source",
+        "plain-markdown",
+      ],
+    },
   };
 
   if (
@@ -437,7 +463,9 @@ export async function* streamChat(
     "Content-Type": "application/json",
     Accept: "text/event-stream",
     "X-Client-Type": "cloudeval-cli",
-    "X-Client-Version": "0.1.0",
+    "X-Client-Version":
+      process.env.CLOUDEVAL_CLI_VERSION?.trim() ||
+      "development",
     ...getActiveCLITraceHeaders(),
   });
 

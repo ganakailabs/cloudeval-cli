@@ -4298,6 +4298,7 @@ export const App: React.FC<AppProps> = ({
               emptyLabel={isSearching ? "No matching messages." : "Thread is empty."}
               animate={animationsEnabled}
               graphDiagramMode={graphDiagramMode}
+              terminalWidth={threadContentWidth}
             />
             <CitationSourceInspector
               reference={citationInspectorRef}

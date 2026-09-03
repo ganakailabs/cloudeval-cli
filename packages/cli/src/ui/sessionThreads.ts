@@ -1,5 +1,9 @@
 import { randomUUID } from "node:crypto";
-import type { ChatMessage, ChatState } from "@cloudeval/shared";
+import {
+  extractVisualizationArtifactsFromMarkdown,
+  type ChatMessage,
+  type ChatState,
+} from "@cloudeval/shared";
 import type { LocalSession } from "../sessionsStore.js";
 import type { SelectPanelItem } from "./components/SelectPanel.js";
 import { truncateForTerminal } from "./layout.js";
@@ -198,6 +202,7 @@ export const remoteThreadMessagesToChatMessages = (
         Date.now() + index
       );
       const followUps = message.followUpQuestions ?? message.follow_up_questions;
+      const content = extractMessageText(message.content);
       return {
         id: String(
           message.id ??
@@ -206,7 +211,11 @@ export const remoteThreadMessagesToChatMessages = (
             `${history.thread_id}-${index}-${randomUUID()}`
         ),
         role,
-        content: extractMessageText(message.content),
+        content,
+        visualizations:
+          role === "assistant"
+            ? extractVisualizationArtifactsFromMarkdown(content)
+            : undefined,
         thinkingSteps: Array.isArray(message.thinkingSteps)
           ? (message.thinkingSteps as ChatMessage["thinkingSteps"])
           : Array.isArray(message.thinking_steps)
@@ -229,6 +238,10 @@ export const localSessionMessagesToChatMessages = (
     id: `${session.threadId}-${index}-${randomUUID()}`,
     role: message.role,
     content: message.content,
+    visualizations:
+      message.role === "assistant"
+        ? extractVisualizationArtifactsFromMarkdown(message.content)
+        : undefined,
     createdAt: timestampFromIso(message.createdAt, index),
   }));
 

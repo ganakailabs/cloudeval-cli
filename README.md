@@ -187,9 +187,15 @@ instead of exposing raw `graph-insight` markers; when a card contains a
 conservative Mermaid flowchart, `--graph-diagram auto` renders a terminal
 diagram in roomy TTYs, `unicode` or `ascii` force a mode, and `off` keeps the
 Mermaid source fallback. Unsupported Mermaid syntax stays visible as source
-instead of breaking the transcript. HITL approval prompts require an explicit
-option selection or typed answer; pressing Enter on a blank approval prompt does
-not choose the recommended option. Project and Connection tabs show
+instead of breaking the transcript. Negotiated chat visualizations render
+directly in the TUI:
+line/area trends use Unicode plots; bar, column, histogram, pie, doughnut,
+radar, and polar data use width-aware bars; scatter and heatmap data use compact
+terminal grids; unsupported chart families use the artifact's table fallback.
+Mermaid flow edges render as an edge list, with bounded Mermaid source as the
+fallback when no edges can be extracted. HITL approval prompts require an
+explicit option selection or typed answer; pressing Enter on a blank approval
+prompt does not choose the recommended option. Project and Connection tabs show
 a selected-item detail pane for backend fields, report coverage, sync state, and
 linked records; use `J`/`K` or Up/Down on Projects and Connections to move the
 selected row, then Enter to confirm it. The billing header separates credits left from observed
@@ -204,6 +210,15 @@ resume editing. Busy loaders and the input cursor can be disabled with
 include the logged-in user. Focused controls and the active top tab use the
 shared warm banner-yellow accent, with the active tab filled across its full
 button interior.
+
+The CLI advertises `cloudeval.visualization/v1`, `flint-v1`, and
+`mermaid-v11` capabilities on chat requests. The backend compiles chart intent;
+the CLI validates the bounded artifact and renders terminal-safe output without
+a browser or native SVG helper. `ask` and `agent` JSON results include
+`data.visualizations` when present, and NDJSON emits a `visualization` event as
+well as including the artifacts in the final `result`. Text and Markdown output
+retain the canonical fenced response. See the
+[visualization artifact contract](docs/visualization-artifact-contract.md).
 
 ## Core Workflows
 

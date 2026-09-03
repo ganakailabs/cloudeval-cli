@@ -164,6 +164,22 @@ test("remoteThreadMessagesToChatMessages restores backend thread history", () =>
   assert.deepEqual(messages[1].followUpQuestions, ["Show dependencies"]);
 });
 
+test("remoteThreadMessagesToChatMessages restores visualization artifacts from Markdown", () => {
+  const messages = remoteThreadMessagesToChatMessages({
+    thread_id: "thread-chart",
+    messages_page: [
+      {
+        message_id: "a1",
+        role: "assistant",
+        content:
+          "```mermaid\nflowchart LR\n  API[API] --> DB[(Database)]\n```",
+      },
+    ],
+  });
+  assert.equal(messages[0]?.visualizations?.length, 1);
+  assert.equal(messages[0]?.visualizations?.[0]?.kind, "diagram");
+});
+
 test("threadPanelTitle prefers the session title and falls back to readable state", () => {
   assert.equal(threadPanelTitle({ session, threadId: "thread-cost", hasMessages: true }), "Cost risk review");
   assert.equal(

@@ -129,6 +129,43 @@ test("rendered graph insight diagrams do not use prose wrapping", () => {
   assert.equal(getGraphInsightDiagramWrapMode("disabled"), "wrap");
 });
 
+test("parseAssistantMarkdownBlocks promotes closed visualization fences", () => {
+  const flint = {
+    schema: "cloudeval.visualization/v1",
+    id: "cost-chart",
+    kind: "chart",
+    format: "flint",
+    title: "Cost",
+    renderer: "chartjs",
+    data: { values: [{ service: "Compute", cost: 120 }] },
+    spec: { type: "bar", x: { field: "service" }, y: { field: "cost" } },
+    config: {},
+    fallback: {
+      type: "table",
+      columns: ["service", "cost"],
+      rows: [["Compute", 120]],
+    },
+  };
+  const blocks = parseAssistantMarkdownBlocks(
+    `Summary.\n\n\`\`\`flint\n${JSON.stringify(flint)}\n\`\`\`\n\n\`\`\`mermaid\nflowchart LR\n API --> DB\n\`\`\``,
+  );
+  assert.deepEqual(blocks.map((block) => block.type), [
+    "text",
+    "visualization",
+    "visualization",
+  ]);
+  assert.equal(blocks[1]?.artifact?.id, "cost-chart");
+  assert.equal(blocks[2]?.artifact?.kind, "diagram");
+});
+
+test("parseAssistantMarkdownBlocks does not render an incomplete Flint fence", () => {
+  const blocks = parseAssistantMarkdownBlocks(
+    'Summary.\n```flint\n{"schema":"cloudeval.visualization/v1"',
+  );
+  assert.deepEqual(blocks.map((block) => block.type), ["text"]);
+  assert.doesNotMatch(blocks[0]?.content ?? "", /schema/);
+});
+
 test("transcript role labels use distinct bright persona colors", () => {
   assert.deepEqual(terminalPalette.userName, {
     dark: "cyanBright",

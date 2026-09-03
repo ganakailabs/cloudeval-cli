@@ -1,8 +1,14 @@
+import type {
+  PresentationCapabilities,
+  VisualizationArtifact,
+} from "./visualizationArtifacts";
+
 export type ChunkType =
   | "metadata"
   | "thinking"
   | "responding"
   | "error"
+  | "visualization"
   | "hitl_request"
   | "hitl_resume";
 
@@ -49,6 +55,11 @@ export interface ErrorChunk extends BaseChunk {
   message?: string;
   content?: string;
   stacktrace?: string;
+}
+
+export interface VisualizationChunk extends BaseChunk {
+  type: "visualization";
+  artifact: VisualizationArtifact;
 }
 
 export interface HitlOption {
@@ -101,6 +112,7 @@ export type Chunk =
   | MetadataChunk
   | ThinkingChunk
   | RespondingChunk
+  | VisualizationChunk
   | ErrorChunk
   | HitlRequestChunk
   | HitlResumeChunk;
@@ -130,6 +142,7 @@ export interface ChatMessage {
   toolsUsed?: ChatToolSourceEntry[];
   citationMarkers?: ChatCitationMarker[];
   citations?: ChatCitationEntry[];
+  visualizations?: VisualizationArtifact[];
   error?: string;
   followUpQuestions?: string[];
   hitlQuestionsAnswered?: {
@@ -310,6 +323,7 @@ export interface StreamRequestPayload {
   context?: Array<Record<string, unknown>>;
   group_size?: number;
   streaming_mode?: "USER" | "DEBUG";
+  presentation?: PresentationCapabilities;
   hitl_resume?: boolean;
   hitl_checkpoint_id?: string;
   hitl_responses?: HitlResponse[];

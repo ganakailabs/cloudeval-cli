@@ -77,6 +77,8 @@ test("final markdown retains caveats after indented fences and is stable with mu
   const events = [validChart, { ...validChart, id: "second-chart" }];
   const result = mergeVisualizationArtifactsIntoMarkdown("Summary.", events);
   assert.equal(mergeVisualizationArtifactsIntoMarkdown(result, events), result);
+  const withProse = `${result}\n\nImportant sources and caveats.`;
+  assert.equal(mergeVisualizationArtifactsIntoMarkdown(withProse, events), withProse);
 });
 
 test("final markdown preserves Mermaid and legacy chart events without duplicate fences", () => {

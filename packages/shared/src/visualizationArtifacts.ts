@@ -451,21 +451,27 @@ export const mergeVisualizationArtifactsIntoMarkdown = (
   if (fences.length === 0) return markdown;
   const canonical = fences.join("\n\n");
   let replaced = false;
-  const result = markdown.replace(
+  let result = "";
+  let cursor = 0;
+  for (const match of markdown.matchAll(
     /^ {0,3}```(flint|chart|mermaid)[^\S\n]*(?:\n([\s\S]*?)(?:^ {0,3}```[^\S\n]*(?=\n|$)|$(?![\s\S]))|$(?![\s\S]))/gim,
-    (match, language: string, source: string | undefined) => {
-      let format = language.toLowerCase() === "chart" ? "chartjs" : language.toLowerCase();
-      if (format === "flint" && source) {
-        try {
-          const parsed = parseVisualizationArtifact(JSON.parse(source));
-          if (parsed.ok) format = parsed.artifact.format;
-        } catch { /* Incomplete model echoes are replaced by the valid event. */ }
-      }
-      if (!formats.has(format)) return match;
-      if (replaced) return "";
-      replaced = true;
-      return canonical;
-    },
-  );
+  )) {
+    const [, language, source] = match;
+    let format = language.toLowerCase() === "chart" ? "chartjs" : language.toLowerCase();
+    if (format === "flint" && source) {
+      try {
+        const parsed = parseVisualizationArtifact(JSON.parse(source));
+        if (parsed.ok) format = parsed.artifact.format;
+      } catch { /* Incomplete model echoes are replaced by the valid event. */ }
+    }
+    if (!formats.has(format)) continue;
+    const between = markdown.slice(cursor, match.index);
+    // Drop only empty inter-fence gaps to keep replay idempotent with prose.
+    if (!replaced || between.trim()) result += between;
+    if (!replaced) result += canonical;
+    replaced = true;
+    cursor = match.index! + match[0].length;
+  }
+  result += markdown.slice(cursor);
   return replaced ? result.trimEnd() : `${result.trimEnd()}${result.trim() ? "\n\n" : ""}${canonical}`;
 };

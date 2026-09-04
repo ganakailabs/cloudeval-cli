@@ -70,6 +70,11 @@ Also open `cloudeval chat --no-banner --no-anim` in a real terminal after login.
 Verify project selection, a live chart, and a live Mermaid response. A successful
 `--version` or `--help` check alone does not prove the interactive renderer works.
 
+Resume a live chart/diagram thread with `cloudeval chat --conversation <thread-id>`
+and verify its history loads and renders. Same-process session operations are
+serialized per profile/database so simultaneous TUI history loads and saves do
+not collide on the temporary SQLite export or overwrite each other.
+
 After installing a package or release in an isolated home, verify the cleanup
 surface without deleting files:
 

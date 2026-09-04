@@ -6,6 +6,7 @@ import {
   HitlRequestChunk,
   RespondingChunk,
   ThinkingChunk,
+  mergeVisualizationArtifactsIntoMarkdown,
 } from "@cloudeval/shared";
 
 const STREAMING_NODES = new Set([
@@ -278,6 +279,10 @@ export const completeActiveAssistantMessage = (
       message.id === activeMessage.id
         ? {
             ...message,
+            content: mergeVisualizationArtifactsIntoMarkdown(
+              message.content,
+              message.visualizations ?? [],
+            ),
             pending: false,
             updatedAt: timestamp,
             thinkingSteps: finalizeOpenSteps(

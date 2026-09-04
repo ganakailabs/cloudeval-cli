@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import "../../runtime/prepareInk";
 import type { ChatMessage } from "@cloudeval/shared";
+import { mergeVisualizationArtifactsIntoMarkdown } from "@cloudeval/shared";
 import { hasRenderableTranscriptMessages } from "../transcriptModel";
 import {
   getTranscriptRoleColor,
@@ -164,6 +165,21 @@ test("parseAssistantMarkdownBlocks does not render an incomplete Flint fence", (
   );
   assert.deepEqual(blocks.map((block) => block.type), ["text"]);
   assert.doesNotMatch(blocks[0]?.content ?? "", /schema/);
+});
+
+test("finalized Mermaid envelopes retain event identity for transcript deduplication", () => {
+  const artifact = {
+    schema: "cloudeval.visualization/v1", id: "architecture-event", kind: "diagram",
+    format: "mermaid", title: "Architecture", renderer: "mermaid",
+    source: "flowchart LR\nAPI --> DB",
+    warnings: ["Observed relationships only"],
+    fallback: { type: "edge-list", edges: [["API", "DB"]] },
+  };
+  const content = mergeVisualizationArtifactsIntoMarkdown("Summary.\n```mermaid\nflowchart LR\nAPI --> DB\n```", [artifact]);
+  const visuals = parseAssistantMarkdownBlocks(content).filter((block) => block.type === "visualization");
+  assert.equal(visuals.length, 1);
+  assert.equal(visuals[0].artifact?.id, artifact.id);
+  assert.deepEqual(visuals[0].artifact?.warnings, artifact.warnings);
 });
 
 test("transcript role labels use distinct bright persona colors", () => {

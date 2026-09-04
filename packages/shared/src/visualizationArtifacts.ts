@@ -428,3 +428,44 @@ export const extractVisualizationArtifactsFromMarkdown = (
   }
   return artifacts;
 };
+
+/** Persist validated side-channel events in the same Markdown history readers consume. */
+export const mergeVisualizationArtifactsIntoMarkdown = (
+  markdown: string,
+  artifacts: readonly unknown[],
+): string => {
+  const formats = new Set<string>();
+  const fences: string[] = [];
+  const seen = new Set<string>();
+  for (const candidate of artifacts) {
+    const parsed = parseVisualizationArtifact(candidate);
+    if (!parsed.ok || seen.has(parsed.artifact.id)) continue;
+    const artifact = parsed.artifact;
+    seen.add(artifact.id);
+    formats.add(artifact.format);
+    // The Flint envelope reader accepts every v1 artifact kind. Keep metadata
+    // and stable IDs; escaping backticks prevents JSON strings closing the fence.
+    const source = JSON.stringify(artifact).replace(/`/g, "\\u0060");
+    fences.push(`\`\`\`flint\n${source}\n\`\`\``);
+  }
+  if (fences.length === 0) return markdown;
+  const canonical = fences.join("\n\n");
+  let replaced = false;
+  const result = markdown.replace(
+    /^ {0,3}```(flint|chart|mermaid)[^\S\n]*(?:\n([\s\S]*?)(?:^ {0,3}```[^\S\n]*(?=\n|$)|$(?![\s\S]))|$(?![\s\S]))/gim,
+    (match, language: string, source: string | undefined) => {
+      let format = language.toLowerCase() === "chart" ? "chartjs" : language.toLowerCase();
+      if (format === "flint" && source) {
+        try {
+          const parsed = parseVisualizationArtifact(JSON.parse(source));
+          if (parsed.ok) format = parsed.artifact.format;
+        } catch { /* Incomplete model echoes are replaced by the valid event. */ }
+      }
+      if (!formats.has(format)) return match;
+      if (replaced) return "";
+      replaced = true;
+      return canonical;
+    },
+  );
+  return replaced ? result.trimEnd() : `${result.trimEnd()}${result.trim() ? "\n\n" : ""}${canonical}`;
+};

@@ -13,6 +13,7 @@
     "test": "node --test scripts/brand-consistency.test.mjs scripts/npm-package-metadata.test.mjs && bash scripts/install-onboarding.test.sh && pnpm -r --workspace-concurrency=1 --if-present test",
     "test:brand": "node --test scripts/brand-consistency.test.mjs",
     "test:npm-package": "node --test scripts/npm-package-metadata.test.mjs",
+    "test:tui-runtime": "node --test scripts/tui-runtime.test.mjs",
     "release:verify-sync": "node scripts/verify-release-channel-sync.mjs",
     "test:installer": "bash scripts/install-onboarding.test.sh",
     "license:artifacts": "node scripts/generate-license-artifacts.mjs",

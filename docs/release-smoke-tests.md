@@ -44,12 +44,31 @@ tarball:
 
 ```bash
 pnpm test:npm-package
+pnpm test:tui-runtime
 (cd packages/cli && npm pack --dry-run)
 ```
 
 The dry-run must include `dist`, `README.md`, `LICENSE`, `NOTICE`,
 `THIRD_PARTY_NOTICES.md`, and `sbom.spdx.json`. The package should expose the
 `cloudeval`, `eva`, and `cloud` binaries from `dist/cli.js`.
+
+The TUI runtime check verifies that the CLI and its scroll, syntax-highlight,
+and text-input components resolve the same React and Ink instances. It also
+renders the real scroll and syntax components to catch invalid-hook crashes.
+Ink is kept on the tested 5.1 line to satisfy plugin peers while retaining the
+Yoga/WASM path used by standalone binaries.
+
+The publishing workflow installs the packed tarball into a fresh temporary
+directory and repeats this check before publishing. To check an existing clean
+install without reading its auth or session files, run:
+
+```bash
+CLOUDEVAL_TUI_PACKAGE_ROOT=/absolute/install/node_modules/@ganakailabs/cloudeval-cli pnpm test:tui-runtime
+```
+
+Also open `cloudeval chat --no-banner --no-anim` in a real terminal after login.
+Verify project selection, a live chart, and a live Mermaid response. A successful
+`--version` or `--help` check alone does not prove the interactive renderer works.
 
 After installing a package or release in an isolated home, verify the cleanup
 surface without deleting files:

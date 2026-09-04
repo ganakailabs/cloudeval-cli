@@ -33,6 +33,8 @@ jobs:
         run: pnpm install
       - name: Test npm package metadata
         run: pnpm test:npm-package
+      - name: Test TUI runtime
+        run: pnpm test:tui-runtime
       - name: Release
         id: semantic
         run: node scripts/run-semantic-release.mjs

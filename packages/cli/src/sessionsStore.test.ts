@@ -60,6 +60,23 @@ test("recordSessionTurn creates deterministic concise titles", async () => {
   });
 });
 
+test("concurrent session operations preserve all turns without temporary-file races", async () => {
+  await withTempHome(async () => {
+    const results = await Promise.allSettled(
+      Array.from({ length: 12 }, (_, index) => recordSessionTurn({
+        threadId: `concurrent-thread-${index}`,
+        question: `Show chart ${index}`,
+        response: `Chart response ${index}`,
+        profile: "agent",
+      })),
+    );
+    assert.deepEqual(results.filter((result) => result.status === "rejected"), []);
+    const sessions = await listSessions(20, "agent");
+    assert.equal(sessions.length, 12);
+    assert.equal(new Set(sessions.map((session) => session.threadId)).size, 12);
+  });
+});
+
 test("listSessions migrates legacy JSON sessions into SQLite", async () => {
   await withTempHome(async () => {
     const legacyDir = path.join(

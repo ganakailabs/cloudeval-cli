@@ -621,20 +621,37 @@ const migrateLegacyJsonSessions = async (
   }
 };
 
+const sessionDatabaseQueues = new Map<string, Promise<void>>();
+
 const withSessionDatabase = async <T>(
   profile: string | undefined,
   fn: (db: SessionDatabase, normalizedProfile: string) => T | Promise<T>
 ): Promise<T> => {
   const normalizedProfile = normalizeConfigProfile(profile);
-  const db = await openSessionDatabase(normalizedProfile);
+  // sql.js rewrites the database file. Serialize the entire read/modify/write
+  // cycle so concurrent TUI loads and saves cannot collide or lose updates.
+  const queueKey = sessionsDatabasePath(normalizedProfile);
+  const previous = sessionDatabaseQueues.get(queueKey) ?? Promise.resolve();
+  let release!: () => void;
+  const current = new Promise<void>((resolve) => { release = resolve; });
+  sessionDatabaseQueues.set(queueKey, current);
+  await previous;
   try {
-    ensureSchema(db);
-    await migrateLegacyJsonSessions(db, normalizedProfile);
-    const result = await fn(db, normalizedProfile);
-    await db.persist();
-    return result;
+    const db = await openSessionDatabase(normalizedProfile);
+    try {
+      ensureSchema(db);
+      await migrateLegacyJsonSessions(db, normalizedProfile);
+      const result = await fn(db, normalizedProfile);
+      await db.persist();
+      return result;
+    } finally {
+      db.close();
+    }
   } finally {
-    db.close();
+    release();
+    if (sessionDatabaseQueues.get(queueKey) === current) {
+      sessionDatabaseQueues.delete(queueKey);
+    }
   }
 };
 

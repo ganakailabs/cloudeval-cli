@@ -216,8 +216,10 @@ The CLI advertises `cloudeval.visualization/v1`, `flint-v1`, and
 the CLI validates the bounded artifact and renders terminal-safe output without
 a browser or native SVG helper. `ask` and `agent` JSON results include
 `data.visualizations` when present, and NDJSON emits a `visualization` event as
-well as including the artifacts in the final `result`. Text and Markdown output
-retain the canonical fenced response. See the
+well as including the artifacts in the final `result`. Final JSON/NDJSON responses,
+Markdown output, and local conversation history retain validated artifact fences
+even when streamed prose omits or corrupts the chart payload. Text output remains
+the live prose stream. See the
 [visualization artifact contract](docs/visualization-artifact-contract.md).
 
 ## Core Workflows

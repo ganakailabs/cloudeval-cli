@@ -179,7 +179,12 @@ The smoke script verifies:
   `cloudeval.visualization/v1` profile; malformed or oversized artifacts must be
   rejected; JSON/NDJSON must retain validated artifacts without polluting
   stdout with progress; live and Markdown copies must deduplicate by artifact
-  id.
+  id. Final assistant Markdown must also contain the validated event payload,
+  replacing incomplete model-written chart fences. Ask for a chart with
+  `--format json`, confirm `data.response` contains the same Flint payload as
+  `data.visualizations`, then reopen that conversation with `chat --conversation`
+  and verify chart bars/table rows appear instead of a raw Flint code block.
+  Repeat with Mermaid to verify diagram history survives reopening.
 - Terminal UI Agent Profile coverage is handled by the CLI unit suite and a
   manual TUI smoke: the chat context rail or docked composer controls must show
   `Profile [Profile]`, `/profile` must open the Agent Profile selector,

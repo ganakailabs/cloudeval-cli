@@ -6538,6 +6538,9 @@ test("ask negotiates terminal visualizations and preserves them in JSON and NDJS
       ]),
     );
     assert.deepEqual(jsonResult.data.visualizations, [visualizationArtifact]);
+    const persistedFence = /```flint\n([\s\S]*?)```/.exec(jsonResult.data.response);
+    assert(persistedFence, "final response must preserve the artifact for history replay");
+    assert.deepEqual(JSON.parse(persistedFence[1]), visualizationArtifact);
 
     const request = backend.requests.find(
       (entry) => entry.path === "/api/v1/chat/stream",

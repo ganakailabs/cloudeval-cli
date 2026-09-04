@@ -99,7 +99,15 @@ native binaries.
   `visualization` event and include the list again in the final `result` event.
 - Agent Profile, recipe, and MCP chat results include a `visualizations` field
   when the backend emitted artifacts.
-- Text and Markdown retain the canonical fenced response.
+- Final JSON/NDJSON `data.response`, Markdown output, and local conversation
+  history embed validated side-channel artifacts as complete fences. For each
+  emitted format, these replace incomplete or altered model-written fences.
+  Reopening the conversation therefore uses the validated chart data.
+  Final history uses full v1 JSON envelopes in `flint` fences for charts and
+  diagrams alike, preserving IDs, warnings, evidence, and fallback data. Native
+  `mermaid` and legacy `chart` source fences remain accepted on input.
+- Text output remains the live prose stream; use Markdown or JSON for the
+  finalized, replayable response.
 
 These additions are optional: consumers that do not understand visualizations
 can ignore them without changing existing response handling.

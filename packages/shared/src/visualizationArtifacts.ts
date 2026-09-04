@@ -428,3 +428,50 @@ export const extractVisualizationArtifactsFromMarkdown = (
   }
   return artifacts;
 };
+
+/** Persist validated side-channel events in the same Markdown history readers consume. */
+export const mergeVisualizationArtifactsIntoMarkdown = (
+  markdown: string,
+  artifacts: readonly unknown[],
+): string => {
+  const formats = new Set<string>();
+  const fences: string[] = [];
+  const seen = new Set<string>();
+  for (const candidate of artifacts) {
+    const parsed = parseVisualizationArtifact(candidate);
+    if (!parsed.ok || seen.has(parsed.artifact.id)) continue;
+    const artifact = parsed.artifact;
+    seen.add(artifact.id);
+    formats.add(artifact.format);
+    // The Flint envelope reader accepts every v1 artifact kind. Keep metadata
+    // and stable IDs; escaping backticks prevents JSON strings closing the fence.
+    const source = JSON.stringify(artifact).replace(/`/g, "\\u0060");
+    fences.push(`\`\`\`flint\n${source}\n\`\`\``);
+  }
+  if (fences.length === 0) return markdown;
+  const canonical = fences.join("\n\n");
+  let replaced = false;
+  let result = "";
+  let cursor = 0;
+  for (const match of markdown.matchAll(
+    /^ {0,3}```(flint|chart|mermaid)[^\S\n]*(?:\n([\s\S]*?)(?:^ {0,3}```[^\S\n]*(?=\n|$)|$(?![\s\S]))|$(?![\s\S]))/gim,
+  )) {
+    const [, language, source] = match;
+    let format = language.toLowerCase() === "chart" ? "chartjs" : language.toLowerCase();
+    if (format === "flint" && source) {
+      try {
+        const parsed = parseVisualizationArtifact(JSON.parse(source));
+        if (parsed.ok) format = parsed.artifact.format;
+      } catch { /* Incomplete model echoes are replaced by the valid event. */ }
+    }
+    if (!formats.has(format)) continue;
+    const between = markdown.slice(cursor, match.index);
+    // Drop only empty inter-fence gaps to keep replay idempotent with prose.
+    if (!replaced || between.trim()) result += between;
+    if (!replaced) result += canonical;
+    replaced = true;
+    cursor = match.index! + match[0].length;
+  }
+  result += markdown.slice(cursor);
+  return replaced ? result.trimEnd() : `${result.trimEnd()}${result.trim() ? "\n\n" : ""}${canonical}`;
+};

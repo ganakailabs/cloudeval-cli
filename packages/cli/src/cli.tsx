@@ -5,6 +5,7 @@ import { Command } from "commander";
 import {
   isSensitiveSecretKey,
   redactSensitiveSecrets,
+  mergeVisualizationArtifactsIntoMarkdown,
 } from "@cloudeval/shared";
 import {
   clearActiveCLITraceContext,
@@ -2157,6 +2158,8 @@ program
           });
         }
       }
+
+      finalResponse = mergeVisualizationArtifactsIntoMarkdown(finalResponse, finalVisualizations);
 
       if (!finalResponse.trim()) {
         const noResponseMessage = `No final response returned by Cloudeval (last stream status: ${chatState.status ?? "unknown"}). Retry with --verbose or --format ndjson to inspect stream progress.`;

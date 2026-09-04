@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   extractVisualizationArtifactsFromMarkdown,
   parseVisualizationArtifact,
+  mergeVisualizationArtifactsIntoMarkdown,
 } from "./visualizationArtifacts";
 
 const validChart = {
@@ -30,6 +31,69 @@ const validChart = {
     rows: [["Compute", 120], ["Storage", 40]],
   },
 };
+
+test("final markdown preserves authoritative artifacts omitted from streamed prose", () => {
+  const result = mergeVisualizationArtifactsIntoMarkdown("Cost summary.", [validChart]);
+  assert.match(result, /^Cost summary\./);
+  assert.deepEqual(JSON.parse(JSON.stringify(extractVisualizationArtifactsFromMarkdown(result))), [validChart]);
+  assert.equal(mergeVisualizationArtifactsIntoMarkdown(result, [validChart]), result);
+});
+
+test("final markdown replaces malformed, altered, and duplicate Flint echoes", () => {
+  for (const echo of ["{broken", JSON.stringify({ ...validChart, title: "Invented title" })]) {
+    const input = `Summary.\n\n\`\`\`flint\n${echo}\n\`\`\`\n\nSources.\n\n\`\`\`flint\n${echo}\n\`\`\``;
+    const result = mergeVisualizationArtifactsIntoMarkdown(input, [validChart, validChart]);
+    assert.deepEqual(JSON.parse(JSON.stringify(extractVisualizationArtifactsFromMarkdown(result))), [validChart]);
+    assert.equal((result.match(/```flint/g) ?? []).length, 1);
+    assert.match(result, /Sources\./);
+  }
+  const truncated = mergeVisualizationArtifactsIntoMarkdown("Summary.\n```flint\n{broken", [validChart]);
+  assert.deepEqual(JSON.parse(JSON.stringify(extractVisualizationArtifactsFromMarkdown(truncated))), [validChart]);
+});
+
+test("final markdown leaves ordinary responses and invalid side events unchanged", () => {
+  const content = "Summary.\n```json\n{}\n```";
+  assert.equal(mergeVisualizationArtifactsIntoMarkdown(content, []), content);
+  assert.equal(mergeVisualizationArtifactsIntoMarkdown(content, [{ ...validChart, schema: "bad" }]), content);
+});
+
+test("final markdown repairs bare opening fences and escapes delimiter text losslessly", () => {
+  const artifact = { ...validChart, title: "Use ``` code" };
+  for (const input of ["Summary.", "Summary.\n```flint", "Summary.\n```flint\n{bad"]) {
+    const result = mergeVisualizationArtifactsIntoMarkdown(input, [artifact]);
+    assert.deepEqual(JSON.parse(JSON.stringify(extractVisualizationArtifactsFromMarkdown(result))), [artifact]);
+    assert.equal(mergeVisualizationArtifactsIntoMarkdown(result, [artifact]), result);
+  }
+});
+
+test("final markdown retains caveats after indented fences and is stable with multiple events", () => {
+  for (let indent = 0; indent <= 3; indent += 1) {
+    const spaces = " ".repeat(indent);
+    const input = `Summary.\n${spaces}\`\`\`flint\n${JSON.stringify(validChart)}\n${spaces}\`\`\`\n\nImportant sources and caveats.`;
+    const result = mergeVisualizationArtifactsIntoMarkdown(input, [validChart]);
+    assert.match(result, /Important sources and caveats\.$/);
+    assert.equal(extractVisualizationArtifactsFromMarkdown(result).length, 1);
+  }
+  const events = [validChart, { ...validChart, id: "second-chart" }];
+  const result = mergeVisualizationArtifactsIntoMarkdown("Summary.", events);
+  assert.equal(mergeVisualizationArtifactsIntoMarkdown(result, events), result);
+  const withProse = `${result}\n\nImportant sources and caveats.`;
+  assert.equal(mergeVisualizationArtifactsIntoMarkdown(withProse, events), withProse);
+});
+
+test("final markdown preserves Mermaid and legacy chart events without duplicate fences", () => {
+  for (const source of [
+    "```mermaid\nflowchart LR\n  api[API] --> db[(Database)]\n```",
+    '```chart\n{"type":"bar","data":{"labels":["Compute"],"datasets":[{"label":"Cost","data":[120]}]}}\n```',
+  ]) {
+    const artifacts = extractVisualizationArtifactsFromMarkdown(source).map((artifact) => ({
+      ...artifact, id: "authoritative-event", title: "Exact title", warnings: ["Estimate"], evidence_refs: ["source-1"],
+    }));
+    const result = mergeVisualizationArtifactsIntoMarkdown("Summary.", artifacts);
+    assert.deepEqual(JSON.parse(JSON.stringify(extractVisualizationArtifactsFromMarkdown(result))), JSON.parse(JSON.stringify(artifacts)));
+    assert.equal(mergeVisualizationArtifactsIntoMarkdown(result, artifacts), result);
+  }
+});
 
 test("parseVisualizationArtifact accepts the v1 chart contract", () => {
   const parsed = parseVisualizationArtifact(validChart);

@@ -12,12 +12,12 @@ This notice is not a substitute for legal review before public or enterprise dis
 
 | License | Package count |
 | --- | ---: |
-| (MIT OR CC0-1.0) | 2 |
+| (MIT OR CC0-1.0) | 1 |
 | 0BSD | 1 |
 | Apache-2.0 | 52 |
 | BSD-3-Clause | 3 |
 | ISC | 12 |
-| MIT | 172 |
+| MIT | 169 |
 
 ## Production Packages
 
@@ -103,7 +103,6 @@ This notice is not a substitute for legal review before public or enterprise dis
 | acorn-import-attributes | 1.9.5 | MIT | Sven Sauleau | https://github.com/xtuc/acorn-import-attributes#readme |
 | acorn | 8.15.0 | MIT | NOASSERTION | https://github.com/acornjs/acorn |
 | agent-base | 7.1.4 | MIT | Nathan Rajlich | https://github.com/TooTallNate/proxy-agents#readme |
-| ansi-escapes | 6.2.1 | MIT | Sindre Sorhus | https://github.com/sindresorhus/ansi-escapes#readme |
 | ansi-escapes | 7.2.0 | MIT | Sindre Sorhus | https://github.com/sindresorhus/ansi-escapes#readme |
 | ansi-regex | 5.0.1 | MIT | Sindre Sorhus | https://github.com/chalk/ansi-regex#readme |
 | ansi-regex | 6.2.2 | MIT | Sindre Sorhus | https://github.com/chalk/ansi-regex#readme |
@@ -118,14 +117,13 @@ This notice is not a substitute for legal review before public or enterprise dis
 | chalk | 4.1.2 | MIT | NOASSERTION | https://github.com/chalk/chalk#readme |
 | chalk | 5.6.2 | MIT | NOASSERTION | https://github.com/chalk/chalk#readme |
 | char-regex | 1.0.2 | MIT | Richie Bendall | https://github.com/Richienb/char-regex#readme |
-| ci-info | 3.9.0 | MIT | Thomas Watson Steen | https://github.com/watson/ci-info |
 | cjs-module-lexer | 2.2.0 | MIT | Guy Bedford | https://github.com/nodejs/cjs-module-lexer#readme |
 | cli-boxes | 3.0.0 | MIT | Sindre Sorhus | https://github.com/sindresorhus/cli-boxes#readme |
 | cli-cursor | 4.0.0 | MIT | Sindre Sorhus | https://github.com/sindresorhus/cli-cursor#readme |
 | cli-highlight | 2.1.11 | ISC | Felix Becker | https://github.com/felixfbecker/cli-highlight#readme |
 | cli-spinners | 2.9.2 | MIT | Sindre Sorhus | https://github.com/sindresorhus/cli-spinners#readme |
 | cli-table3 | 0.6.5 | MIT | James Talmage | https://github.com/cli-table/cli-table3 |
-| cli-truncate | 3.1.0 | MIT | Sindre Sorhus | https://github.com/sindresorhus/cli-truncate#readme |
+| cli-truncate | 4.0.0 | MIT | Sindre Sorhus | https://github.com/sindresorhus/cli-truncate#readme |
 | cliui | 7.0.4 | ISC | Ben Coe | https://github.com/yargs/cliui#readme |
 | cliui | 8.0.1 | ISC | Ben Coe | https://github.com/yargs/cliui#readme |
 | code-excerpt | 4.0.0 | MIT | vdemedes | https://github.com/vadimdemedes/code-excerpt#readme |
@@ -140,17 +138,18 @@ This notice is not a substitute for legal review before public or enterprise dis
 | define-lazy-prop | 3.0.0 | MIT | Sindre Sorhus | https://github.com/sindresorhus/define-lazy-prop#readme |
 | diagnostic-channel-publishers | 1.0.8 | MIT | NOASSERTION | https://github.com/Microsoft/node-diagnostic-channel |
 | diagnostic-channel | 1.1.1 | MIT | NOASSERTION | https://github.com/Microsoft/node-diagnostic-channel |
-| eastasianwidth | 0.2.0 | MIT | Masaki Komagata | https://github.com/komagata/eastasianwidth#readme |
 | ecdsa-sig-formatter | 1.0.11 | Apache-2.0 | D2L Corporation | https://github.com/Brightspace/node-ecdsa-sig-formatter#readme |
+| emoji-regex | 10.6.0 | MIT | Mathias Bynens | https://mths.be/emoji-regex |
 | emoji-regex | 8.0.0 | MIT | Mathias Bynens | https://mths.be/emoji-regex |
-| emoji-regex | 9.2.2 | MIT | Mathias Bynens | https://mths.be/emoji-regex |
 | emojilib | 2.4.0 | MIT | Mu-An Chiou | https://github.com/muan/emojilib#readme |
 | environment | 1.1.0 | MIT | Sindre Sorhus | https://github.com/sindresorhus/environment#readme |
+| es-toolkit | 1.52.0 | MIT | NOASSERTION | https://es-toolkit.dev |
 | escalade | 3.2.0 | MIT | Luke Edwards | https://github.com/lukeed/escalade#readme |
 | escape-string-regexp | 2.0.0 | MIT | Sindre Sorhus | https://github.com/sindresorhus/escape-string-regexp#readme |
 | fecha | 4.2.3 | MIT | Taylor Hakes | https://github.com/taylorhakes/fecha |
 | forwarded-parse | 2.1.2 | MIT | Luigi Pinca | https://github.com/lpinca/forwarded-parse |
 | get-caller-file | 2.0.5 | ISC | Stefan Penner | https://github.com/stefanpenner/get-caller-file#readme |
+| get-east-asian-width | 1.6.0 | MIT | Sindre Sorhus | https://github.com/sindresorhus/get-east-asian-width#readme |
 | grok-mermaid | 0.2.3 | Apache-2.0 | Alexey Zaytsev | https://github.com/xl0/grok-mermaid#readme |
 | has-flag | 4.0.0 | MIT | Sindre Sorhus | https://github.com/sindresorhus/has-flag#readme |
 | highlight.js | 10.7.3 | BSD-3-Clause | Ivan Sagalaev | https://highlightjs.org/ |
@@ -164,15 +163,14 @@ This notice is not a substitute for legal review before public or enterprise dis
 | ink-scroll-view | 0.3.6 | MIT | ByteLand Technology | https://www.byteland.app/opensource/ink-scroll-view |
 | ink-spinner | 4.0.3 | MIT | Vadim Demedes | https://github.com/vadimdemedes/ink-spinner#readme |
 | ink-syntax-highlight | 2.0.2 | MIT | Vitalii Sashyn | https://github.com/vsashyn/ink-syntax-highlight#readme |
-| ink-text-input | 5.0.1 | MIT | Vadim Demedes | https://github.com/vadimdemedes/ink-text-input#readme |
-| ink | 4.4.1 | MIT | Vadim Demedes | https://github.com/vadimdemedes/ink#readme |
-| is-ci | 3.0.1 | MIT | Thomas Watson Steen | https://github.com/watson/is-ci |
+| ink-text-input | 6.0.0 | MIT | Vadim Demedes | https://github.com/vadimdemedes/ink-text-input#readme |
+| ink | 5.1.1 | MIT | Vadim Demedes | https://github.com/vadimdemedes/ink#readme |
 | is-docker | 3.0.0 | MIT | Sindre Sorhus | https://github.com/sindresorhus/is-docker#readme |
 | is-fullwidth-code-point | 3.0.0 | MIT | Sindre Sorhus | https://github.com/sindresorhus/is-fullwidth-code-point#readme |
 | is-fullwidth-code-point | 4.0.0 | MIT | Sindre Sorhus | https://github.com/sindresorhus/is-fullwidth-code-point#readme |
+| is-fullwidth-code-point | 5.1.0 | MIT | Sindre Sorhus | https://github.com/sindresorhus/is-fullwidth-code-point#readme |
+| is-in-ci | 1.0.0 | MIT | Sindre Sorhus | https://github.com/sindresorhus/is-in-ci#readme |
 | is-inside-container | 1.0.0 | MIT | Sindre Sorhus | https://github.com/sindresorhus/is-inside-container#readme |
-| is-lower-case | 2.0.2 | MIT | Blake Embrey | https://github.com/blakeembrey/change-case/tree/master/packages/is-lower-case#readme |
-| is-upper-case | 2.0.2 | MIT | Blake Embrey | https://github.com/blakeembrey/change-case/tree/master/packages/is-upper-case#readme |
 | is-wsl | 3.1.1 | MIT | Sindre Sorhus | https://github.com/sindresorhus/is-wsl#readme |
 | js-tokens | 4.0.0 | MIT | Simon Lydell | https://github.com/lydell/js-tokens#readme |
 | jsonwebtoken | 9.0.3 | MIT | auth0 | https://github.com/auth0/node-jsonwebtoken#readme |
@@ -186,7 +184,6 @@ This notice is not a substitute for legal review before public or enterprise dis
 | lodash.isplainobject | 4.0.6 | MIT | John-David Dalton | https://lodash.com/ |
 | lodash.isstring | 4.0.1 | MIT | John-David Dalton | https://lodash.com/ |
 | lodash.once | 4.1.1 | MIT | John-David Dalton | https://lodash.com/ |
-| lodash | 4.18.1 | MIT | John-David Dalton | https://lodash.com/ |
 | logform | 2.7.0 | MIT | Charlie Robbins | https://github.com/winstonjs/logform#readme |
 | long | 4.0.0 | Apache-2.0 | Daniel Wirtz | https://github.com/dcodeIO/long.js#readme |
 | long | 5.3.2 | Apache-2.0 | Daniel Wirtz | https://github.com/dcodeIO/long.js#readme |
@@ -230,12 +227,12 @@ This notice is not a substitute for legal review before public or enterprise dis
 | signal-exit | 3.0.7 | ISC | Ben Coe | https://github.com/tapjs/signal-exit |
 | skin-tone | 2.0.0 | MIT | Sindre Sorhus | https://github.com/sindresorhus/skin-tone#readme |
 | slice-ansi | 5.0.0 | MIT | NOASSERTION | https://github.com/chalk/slice-ansi#readme |
-| slice-ansi | 6.0.0 | MIT | NOASSERTION | https://github.com/chalk/slice-ansi#readme |
+| slice-ansi | 7.1.2 | MIT | NOASSERTION | https://github.com/chalk/slice-ansi#readme |
 | sql.js | 1.14.1 | MIT | NOASSERTION | http://github.com/sql-js/sql.js |
 | stack-utils | 2.0.6 | MIT | James Talmage | https://github.com/tapjs/stack-utils#readme |
 | string_decoder | 1.3.0 | MIT | NOASSERTION | https://github.com/nodejs/string_decoder |
 | string-width | 4.2.3 | MIT | Sindre Sorhus | https://github.com/sindresorhus/string-width#readme |
-| string-width | 5.1.2 | MIT | Sindre Sorhus | https://github.com/sindresorhus/string-width#readme |
+| string-width | 7.2.0 | MIT | Sindre Sorhus | https://github.com/sindresorhus/string-width#readme |
 | strip-ansi | 6.0.1 | MIT | Sindre Sorhus | https://github.com/chalk/strip-ansi#readme |
 | strip-ansi | 7.1.2 | MIT | Sindre Sorhus | https://github.com/chalk/strip-ansi#readme |
 | supports-color | 7.2.0 | MIT | Sindre Sorhus | https://github.com/chalk/supports-color#readme |
@@ -244,16 +241,15 @@ This notice is not a substitute for legal review before public or enterprise dis
 | thenify | 3.3.1 | MIT | Jonathan Ong | https://github.com/thenables/thenify#readme |
 | triple-beam | 1.4.1 | MIT | Charlie Robbins | https://github.com/winstonjs/triple-beam#readme |
 | tslib | 2.8.1 | 0BSD | Microsoft Corp. | https://www.typescriptlang.org/ |
-| type-fest | 0.12.0 | (MIT OR CC0-1.0) | Sindre Sorhus | https://github.com/sindresorhus/type-fest#readme |
-| type-fest | 3.13.1 | (MIT OR CC0-1.0) | Sindre Sorhus | https://github.com/sindresorhus/type-fest#readme |
+| type-fest | 4.41.0 | (MIT OR CC0-1.0) | Sindre Sorhus | https://github.com/sindresorhus/type-fest#readme |
 | undici-types | 6.21.0 | MIT | NOASSERTION | https://undici.nodejs.org |
 | unicode-emoji-modifier-base | 1.0.0 | MIT | Mathias Bynens | https://github.com/mathiasbynens/unicode-emoji-modifier-base |
 | util-deprecate | 1.0.2 | MIT | Nathan Rajlich | https://github.com/TooTallNate/util-deprecate |
 | uuid | 8.3.2 | MIT | NOASSERTION | https://github.com/uuidjs/uuid#readme |
-| widest-line | 4.0.1 | MIT | Sindre Sorhus | https://github.com/sindresorhus/widest-line#readme |
+| widest-line | 5.0.0 | MIT | Sindre Sorhus | https://github.com/sindresorhus/widest-line#readme |
 | winston-transport | 4.9.0 | MIT | Charlie Robbins | https://github.com/winstonjs/winston-transport#readme |
 | wrap-ansi | 7.0.0 | MIT | Sindre Sorhus | https://github.com/chalk/wrap-ansi#readme |
-| wrap-ansi | 8.1.0 | MIT | Sindre Sorhus | https://github.com/chalk/wrap-ansi#readme |
+| wrap-ansi | 9.0.2 | MIT | Sindre Sorhus | https://github.com/chalk/wrap-ansi#readme |
 | ws | 7.5.11 | MIT | Einar Otto Stangvik | https://github.com/websockets/ws |
 | ws | 8.21.0 | MIT | Einar Otto Stangvik | https://github.com/websockets/ws |
 | wsl-utils | 0.1.0 | MIT | Sindre Sorhus | https://github.com/sindresorhus/wsl-utils#readme |

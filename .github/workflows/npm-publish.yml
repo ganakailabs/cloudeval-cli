@@ -97,6 +97,16 @@ jobs:
           else
             echo "should_publish=false" >> "$GITHUB_OUTPUT"
           fi
+      - name: Test clean npm install TUI runtime
+        if: steps.publish-needed.outputs.should_publish == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          tui_smoke_dir=$(mktemp -d)
+          package_version=$(node -p "require('./packages/cli/package.json').version")
+          (cd packages/cli && npm pack --pack-destination "$tui_smoke_dir")
+          npm install --prefix "$tui_smoke_dir" --no-audit --no-fund "$tui_smoke_dir/ganakailabs-cloudeval-cli-${package_version}.tgz"
+          CLOUDEVAL_TUI_PACKAGE_ROOT="$tui_smoke_dir/node_modules/@ganakailabs/cloudeval-cli" pnpm test:tui-runtime
       - name: Publish package
         if: steps.publish-needed.outputs.should_publish == 'true'
         working-directory: packages/cli

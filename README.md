@@ -1,4 +1,8 @@
 <p align="center">
+  <a href="https://cloudeval.ai"><img src="https://cloudeval.ai/common/logo-abstract-cloud-dark-v3-ui.png" alt="Cloudeval AI" width="96" height="96"></a>
+</p>
+
+<p align="center">
   <img src="docs/assets/images/cli/tui-chat.png" alt="Cloudeval CLI terminal UI" width="100%">
 </p>
 

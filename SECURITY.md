@@ -56,6 +56,15 @@ Never commit smoke outputs from authenticated runs.
 
 ## Security Scan
 
+Dependency changes must pass `pnpm audit --audit-level high`. The workspace
+pins `js-yaml` to 4.3.2 to address
+[GHSA-2883-xcg3-v3hh](https://github.com/advisories/GHSA-2883-xcg3-v3hh), which
+allows empty merge sources to bypass the YAML merge-work limit. Keep the
+override and lockfile aligned, and regenerate `THIRD_PARTY_NOTICES.md` and
+`sbom.spdx.json` with `pnpm license:artifacts` when production dependencies
+change. A repository fix does not update already published npm packages or
+standalone binaries; those require a new release.
+
 Run:
 
 ```bash

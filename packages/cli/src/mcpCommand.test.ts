@@ -846,7 +846,6 @@ test("mcp serve filters tools by safety toolset", async () => {
       "billing_ledger",
       "billing_plans",
       "billing_topups",
-      "billing_invoices",
       "billing_notifications",
       "models_list",
       "models_default_get",
@@ -880,6 +879,7 @@ test("mcp serve filters tools by safety toolset", async () => {
       "credentials_create",
       "credentials_revoke",
       "billing_topup_checkout",
+      "billing_invoices",
       "models_default_set",
     ]) {
       assert.equal(names.includes(forbidden), false, `${forbidden} must not be available in readonly`);
@@ -895,6 +895,16 @@ test("mcp serve filters tools by safety toolset", async () => {
     assert.equal(blocked.id, 3);
     assert.equal(blocked.error.code, -32602);
     assert.match(blocked.error.message, /not available in toolset readonly/);
+    mcp.send({
+      jsonrpc: "2.0",
+      id: 4,
+      method: "tools/call",
+      params: { name: "billing_invoices", arguments: {} },
+    });
+    const invoiceBlocked = await mcp.read();
+    assert.equal(invoiceBlocked.id, 4);
+    assert.equal(invoiceBlocked.error.code, -32602);
+    assert.match(invoiceBlocked.error.message, /not available in toolset readonly/);
   } finally {
     const closed = await mcp.close();
     assert.equal(closed.exitCode, 0, closed.stderr);
@@ -965,6 +975,12 @@ test("mcp serve filters resources and prompts by focused toolset", async () => {
     const blockedPrompt = await mcp.read();
     assert.equal(blockedPrompt.error.code, -32602);
     assert.match(blockedPrompt.error.message, /not available in toolset billing/);
+
+    mcp.send({ jsonrpc: "2.0", id: 6, method: "tools/list" });
+    const tools = await mcp.read();
+    const invoices = tools.result.tools.find((tool: any) => tool.name === "billing_invoices");
+    assert(invoices, "invoice inspection remains available in the explicit billing toolset");
+    assert.equal(invoices.annotations.readOnlyHint, false);
   } finally {
     const closed = await mcp.close();
     assert.equal(closed.exitCode, 0, closed.stderr);

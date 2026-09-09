@@ -1549,21 +1549,23 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
   {
     name: "billing_ledger",
     title: "Billing Ledger",
-    description: "Return paginated Cloudeval billing ledger entries.",
+    description:
+      "Inspect individual Cloudeval usage attempts and credit charges for the authenticated account. Use billing_usage for aggregates or billing_invoices for payment receipts. Defaults to the last 30 calendar days; explicit timestamps override the corresponding range bounds. Returns data.items, data.has_more and data.next_cursor; reuse the cursor with the same filters to read the next page. Requires billing read access; does not initiate purchases or evaluations.",
     inputSchema: makeInputSchema({
       range: {
         type: "string",
         enum: ["7d", "30d", "90d", "all"],
         default: "30d",
+        description: "Calendar-day window ending now. Use all for no implicit date bounds.",
       },
-      startAt: { type: "string", description: "Start timestamp." },
-      endAt: { type: "string", description: "End timestamp." },
-      actionType: { type: "string" },
-      model: { type: "string" },
-      outcome: { type: "string" },
-      chargeStatus: { type: "string" },
-      limit: { type: "number", default: 25 },
-      cursor: { type: "string" },
+      startAt: { type: "string", description: "Inclusive ISO 8601 lower bound, for example 2026-09-01T00:00:00Z; overrides the range start." },
+      endAt: { type: "string", description: "Exclusive ISO 8601 upper bound; overrides the range end." },
+      actionType: { type: "string", description: "Exact action_type value from a ledger row. Omit to include all action types." },
+      model: { type: "string", description: "Exact model_name or operation value from a ledger row. Omit to include all models." },
+      outcome: { type: "string", description: "Usage outcome filter, such as success, failure, blocked or skipped." },
+      chargeStatus: { type: "string", description: "Charge disposition filter: charged, not_charged or bypassed." },
+      limit: { type: "number", default: 25, description: "Page size; the MCP handler floors and clamps it to 1–100." },
+      cursor: { type: "string", description: "Opaque data.next_cursor from the previous response. Omit for the first page; retain the same filters while paging." },
     }),
     outputSchema: envelopeSchema,
     annotations: {
@@ -1605,13 +1607,13 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
     name: "billing_invoices",
     title: "Billing Invoices",
     description:
-      "Return Cloudeval subscription invoice or billing-info records.",
+      "Fetch subscription invoices, paid top-up history and billing-cycle status for the authenticated account. Use this for payment receipts; use billing_ledger for individual usage charges or billing_usage for aggregates. The service may create missing provider invoice records for already-paid top-ups and persist receipt links. Requires billing read access and explicit billing or all toolset selection. It does not start a checkout or change the subscription. Returns invoices and top_up_payments under data; there is no pagination cursor.",
     inputSchema: makeInputSchema({
-      limit: { type: "number", default: 25 },
+      limit: { type: "number", default: 25, description: "Maximum records requested for each of the invoice and paid top-up collections; the MCP handler floors and clamps it to 1–50." },
     }),
     outputSchema: envelopeSchema,
     annotations: {
-      readOnlyHint: true,
+      readOnlyHint: false,
       destructiveHint: false,
       openWorldHint: true,
       requiresAuth: true,
@@ -1933,7 +1935,6 @@ const MCP_TOOLSETS: Record<McpToolsetName, readonly string[]> = {
     "billing_ledger",
     "billing_plans",
     "billing_topups",
-    "billing_invoices",
     "billing_notifications",
     "models_list",
     "models_default_get",

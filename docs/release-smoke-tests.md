@@ -433,7 +433,10 @@ The read-only script covers:
   `status`, `doctor`, `auth status`, `banner`, shell completions, config
   commands, expanded recipe commands, model commands, sessions commands, and
   MCP initialize/list paths. MCP tool schemas must not expose `accessKey` as a
-  per-call argument.
+  per-call argument. The readonly MCP toolset must also exclude and reject
+  `billing_invoices`: its backend may create missing provider receipt records
+  for already-paid top-ups. Invoice inspection remains explicit in the
+  `billing` and `all` toolsets.
 - Frontend deeplinks: overview, chat, projects, project details, connections,
   reports, and billing with `--print-url --no-open`.
 - Authenticated read-only commands when usable auth exists: projects,

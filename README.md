@@ -327,6 +327,22 @@ MCP rules:
 - `mcp serve` does not support `--access-key-stdin` because stdin is the protocol stream.
 - `readonly` includes safe inspection tools for projects, reports, billing, connections, credentials, config, models, sessions, auth, status, doctor, and recipes; generation, downloads, checkouts, credential mutation, browser opens, and diagram file writes stay explicit.
 
+For billing inspection, use `billing_ledger` for individual usage attempts and
+credit charges, `billing_usage` for aggregates, and `billing_summary` for current
+entitlement. Ledger filters default to 30 calendar days; `startAt` and `endAt`
+override their corresponding range bounds. Pass `data.next_cursor` back as
+`cursor` with the same filters while `data.has_more` is true. Ledger page size
+defaults to 25 and is clamped to 1–100.
+
+`billing_invoices` returns subscription invoices, paid top-up history and
+billing-cycle status. Fetching this data can create missing provider invoice
+records for already-paid top-ups and persist receipt links. It therefore
+requires explicit `--toolset billing` or `--toolset all` selection and is
+excluded from `readonly`. Its result limit defaults to 25, is clamped to 1–50
+per collection, and has no pagination cursor. These tools require billing read
+access through the server's configured credential; they do not initiate a
+purchase or change the subscription.
+
 Developer setup details: [cli.cloudeval.ai/developer/](https://cli.cloudeval.ai/developer/).
 
 ## Recipes And Skills

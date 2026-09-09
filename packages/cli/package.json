@@ -1,5 +1,6 @@
 {
   "name": "@ganakailabs/cloudeval-cli",
+  "mcpName": "io.github.ganakailabs/cloudeval",
   "version": "0.38.4",
   "license": "LicenseRef-CloudEval-CLI",
   "type": "module",
